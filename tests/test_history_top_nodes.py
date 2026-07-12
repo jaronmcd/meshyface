@@ -244,7 +244,7 @@ def test_dashboard_js_wires_network_top_nodes_fetch_and_render() -> None:
     assert 'function networkTopNodesPayloadHasItems(payload) {' in js
     assert 'function networkTopNodesVisualEmoji(nodeId, state = latestState) {' in js
     assert 'function networkTopNodesRowsHtml(items, payload, state = latestState) {' in js
-    assert 'class="network-top-node-city"' in js
+    assert 'class="network-top-node-city${citySource === "estimated" ? " is-estimated" : ""}"' in js
     assert 'const nodeEmojiClass = nodeEmoji ? ` has-node-emoji${nodeWatermarkTextClass}` : "";' in js
     assert 'class="network-top-node-row${nodeEmojiClass}"' in js
     assert 'data-node-emoji="${escAttr(nodeEmoji)}"' in js

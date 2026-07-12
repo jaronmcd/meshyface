@@ -1,633 +1,6 @@
-    function renderChatLabsView(state = latestState) {{
-      const terminal = document.getElementById("chat-labs-terminal");
-      const feed = document.getElementById("chat-labs-feed");
-      const countEl = document.getElementById("chat-labs-count");
-      if (!(terminal instanceof HTMLElement) || !(feed instanceof HTMLElement)) return;
-      if (typeof renderMeshChannelPills === "function") {{
-        renderMeshChannelPills(meshChannelOptions);
-      }}
-
-      const safeState = (state && typeof state === "object") ? state : null;
-      const traffic = (safeState && safeState.traffic && typeof safeState.traffic === "object")
-        ? safeState.traffic
-        : {{}};
-      const liveRows = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
-      const nodes = Array.isArray(safeState && safeState.nodes) ? safeState.nodes : [];
-      const nowUnix = Math.floor(Date.now() / 1000);
-      const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState || latestState || {{}}));
-      const nodesById = new Map();
-      const nodeIdByNum = new Map();
-      for (const node of nodes) {{
-        const nodeId = normalizeNodeId(node && node.id);
-        if (isCanonicalNodeId(nodeId) && !nodesById.has(nodeId)) {{
-          nodesById.set(nodeId, node);
-        }}
-        const nodeNum = parseNodeNum(node && node.num);
-        if (Number.isInteger(nodeNum) && nodeNum >= 0 && isCanonicalNodeId(nodeId) && !nodeIdByNum.has(nodeNum)) {{
-          nodeIdByNum.set(nodeNum, nodeId);
-        }}
-      }}
-
-      const wasNearBottom = (terminal.scrollHeight - terminal.scrollTop - terminal.clientHeight) <= 28;
-      const setElementHtmlIfChanged = (element, markup, cacheKey = "default") => {{
-        if (!(element instanceof HTMLElement)) return false;
-        const nextMarkup = String(markup == null ? "" : markup);
-        const propName = `__meshLastInnerHtml_${{cacheKey}}`;
-        const previousMarkup = (typeof element[propName] === "string") ? element[propName] : null;
-        if (previousMarkup === nextMarkup) return false;
-        element.innerHTML = nextMarkup;
-        element[propName] = nextMarkup;
-        return true;
-      }};
-      const maxLines = 260;
-      const historyBackfillLimit = Math.max(320, maxLines * 2);
-      const fromIdKeys = ["from_id", "fromId", "from", "source_id", "sourceId", "source", "from_num", "fromNum"];
-      const toIdKeys = ["to_id", "toId", "to", "dest_id", "destId", "destination", "dest", "to_num", "toNum"];
-      const resolveNodeIdFromMessage = (msg, keys) => {{
-        for (const key of keys) {{
-          const rawValue = msg && msg[key];
-          const clean = normalizeNodeId(rawValue);
-          if (isCanonicalNodeId(clean) || clean === "^all" || clean === "local") {{
-            return clean;
-          }}
-          const nodeNum = parseNodeNum(rawValue);
-          if (Number.isInteger(nodeNum) && nodeIdByNum.has(nodeNum)) {{
-            return nodeIdByNum.get(nodeNum) || clean;
-          }}
-        }}
-        return "";
-      }};
-      const nodeLabel = (nodeId, fallbackText = "unknown") => {{
-        const clean = normalizeNodeId(nodeId);
-        if (!clean || clean === "^all") return "all";
-        if (clean === "local") return "local";
-        if (!isCanonicalNodeId(clean)) return String(fallbackText || "unknown");
-        const node = nodesById.get(clean) || null;
-        const preferred = preferredNodeName(node) || nodeNameCache.get(clean) || clean;
-        return String(preferred || clean);
-      }};
-      const emojiFromCodepoint = (rawValue) => {{
-        const codepoint = Number(rawValue);
-        if (!Number.isInteger(codepoint) || codepoint <= 0) return "";
-        try {{
-          return String.fromCodePoint(codepoint);
-        }} catch (_err) {{
-          return "";
-        }}
-      }};
-      const squeezeChatLabsWhitespace = (rawValue) => {{
-        const raw = String(rawValue == null ? "" : rawValue).replace(/\r\n?/g, "\n");
-        let normalized = raw;
-        try {{
-          normalized = normalized.replace(/\p{{Z}}+/gu, " ");
-        }} catch (_err) {{
-          normalized = normalized.replace(/[\u00A0\u1680\u180E\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+/g, " ");
-        }}
-        normalized = normalized
-          .replace(/[\u2800\u3164\u115F\u1160]+/g, " ")
-          .replace(/[\u200B-\u200D\u2060\uFEFF]+/g, " ")
-          .replace(/[\u0000-\u001F\u007F-\u009F]+/g, " ");
-        normalized = normalized
-          .replace(/[\t\f\v]+/g, " ")
-          .split("\n")
-          .map((line) => line.replace(/ +/g, " ").trim())
-          .join("\n")
-          .trim();
-        return normalized;
-      }};
-      const normalizeChatLabsText = (rawValue) => squeezeChatLabsWhitespace(rawValue).replace(/\s+/g, " ").trim();
-      const normalizeChatLabsLabel = (rawValue) => squeezeChatLabsWhitespace(rawValue).replace(/\n+/g, " ");
-      const historyBridge = (() => {{
-        if (typeof window === "undefined") return {{ loaded: false, loading: false, rows: [] }};
-        const existing = window.__meshChatLabsHistoryBridge;
-        if (existing && typeof existing === "object") return existing;
-        const created = {{
-          loaded: false,
-          loading: false,
-          rows: [],
-          loadedAtMs: 0,
-        }};
-        window.__meshChatLabsHistoryBridge = created;
-        return created;
-      }})();
-      const historyRows = Array.isArray(historyBridge.rows) ? historyBridge.rows : [];
-      const activeMeshFilterIndex = (typeof activeMeshChannelFilterIndex === "function")
-        ? activeMeshChannelFilterIndex()
-        : meshChannelAllIndex;
-      const renderMinuteBucket = Math.floor(nowUnix / 60);
-      const cachedRender = (chatLabsRenderCache && typeof chatLabsRenderCache === "object")
-        ? chatLabsRenderCache
-        : null;
-      if (
-        cachedRender
-        && cachedRender.liveRowsRef === liveRows
-        && cachedRender.nodesRef === nodes
-        && cachedRender.historyRowsRef === historyRows
-        && cachedRender.meshFilterIndex === activeMeshFilterIndex
-        && cachedRender.minuteBucket === renderMinuteBucket
-        && cachedRender.historyLoaded === !!historyBridge.loaded
-        && cachedRender.historyLoading === !!historyBridge.loading
-      ) {{
-        if (typeof cachedRender.feedHtml === "string") {{
-          setElementHtmlIfChanged(feed, cachedRender.feedHtml, "chat-labs-feed");
-        }}
-        if (countEl instanceof HTMLElement) {{
-          const countText = String(cachedRender.countText || "");
-          if (countEl.textContent !== countText) {{
-            countEl.textContent = countText;
-          }}
-        }}
-        if (typeof bindChatReactionControls === "function") {{
-          bindChatReactionControls();
-        }}
-        if (wasNearBottom) {{
-          window.requestAnimationFrame(() => {{
-            terminal.scrollTop = terminal.scrollHeight;
-          }});
-        }}
-        return;
-      }}
-      const mergedRows = [];
-      const seenMergedKeys = new Set();
-      const mergedCandidates = liveRows.concat(historyRows);
-      const dedupeChatLabsRowKey = (msg) => {{
-        const packetId = messageIdOfChatPacket(msg);
-        if (Number.isInteger(packetId) && packetId > 0) {{
-          return `id:${{packetId}}`;
-        }}
-        const fromNode = normalizeNodeId(
-          (msg && (msg.from_id ?? msg.fromId ?? msg.from ?? msg.source_id ?? msg.sourceId ?? msg.source)) || ""
-        );
-        const toNode = normalizeNodeId(
-          (msg && (msg.to_id ?? msg.toId ?? msg.to ?? msg.dest_id ?? msg.destId ?? msg.destination ?? msg.dest)) || ""
-        );
-        const whenLabel = String(
-          (msg && (msg.rx_time || msg.captured_at || msg.time || msg.rxTime || msg.timestamp || "")) || ""
-        ).trim();
-        const textLabel = normalizeChatLabsText(
-          msg && (msg.decoded_text ?? msg.payload_text ?? msg.text ?? msg.message ?? msg.body ?? "")
-        );
-        return `row:${{fromNode}}|${{toNode}}|${{whenLabel}}|${{textLabel}}`;
-      }};
-      for (const msg of mergedCandidates) {{
-        if (!(msg && typeof msg === "object")) continue;
-        const dedupeKey = dedupeChatLabsRowKey(msg);
-        if (seenMergedKeys.has(dedupeKey)) continue;
-        seenMergedKeys.add(dedupeKey);
-        mergedRows.push(msg);
-      }}
-      const filteredRows = (typeof messageMatchesActiveMeshChannel === "function")
-        ? mergedRows.filter((msg) => messageMatchesActiveMeshChannel(msg))
-        : mergedRows;
-      if (
-        typeof fetchConsoleHistorySearch === "function"
-        && !historyBridge.loaded
-        && !historyBridge.loading
-      ) {{
-        historyBridge.loading = true;
-        void fetchConsoleHistorySearch({{
-          queryText: "from",
-          limit: historyBackfillLimit,
-          source: "chat",
-          scope: "summary",
-          scanLimit: Math.max(3000, historyBackfillLimit * 6),
-        }})
-          .then((payload) => {{
-            const entries = Array.isArray(payload && payload.entries) ? payload.entries : [];
-            const historyMessages = [];
-            for (const entry of entries) {{
-              if (!(entry && typeof entry === "object")) continue;
-              if (entry.separator === true) continue;
-              if (String(entry.source || "").trim().toLowerCase() !== "chat") continue;
-              const chat = (entry.chat && typeof entry.chat === "object") ? entry.chat : null;
-              if (!chat) continue;
-              historyMessages.push({{
-                from_id: chat.from,
-                from: chat.from,
-                to_id: chat.to,
-                to: chat.to,
-                channel: chat.channel,
-                channel_index: chat.channel,
-                decoded_text: chat.text,
-                text: chat.text,
-                message: chat.text,
-                body: chat.text,
-                rx_time: chat.rx_time || chat.captured_at || "",
-                captured_at: chat.captured_at || chat.rx_time || "",
-                time: chat.captured_at || chat.rx_time || "",
-                timestamp: chat.captured_at || chat.rx_time || "",
-                message_id: chat.message_id,
-                packet_id: chat.message_id,
-                reply_id: chat.reply_id ?? chat.replyId,
-                replyId: chat.reply_id ?? chat.replyId,
-                emoji: chat.emoji,
-                emoji_codepoint: chat.emoji_codepoint ?? chat.emojiCodepoint,
-                emojiCodepoint: chat.emoji_codepoint ?? chat.emojiCodepoint,
-                is_reaction: chat.is_reaction === true || chat.isReaction === true,
-                portnum: chat.portnum,
-                rx_snr: chat.rx_snr,
-                rx_rssi: chat.rx_rssi,
-                hop_start: chat.hop_start,
-                hop_limit: chat.hop_limit,
-                hops: chat.hops,
-              }});
-            }}
-            historyBridge.rows = historyMessages.slice(-historyBackfillLimit);
-            historyBridge.loaded = true;
-            historyBridge.loadedAtMs = Date.now();
-          }})
-          .catch(() => {{
-            historyBridge.rows = [];
-            historyBridge.loaded = true;
-            historyBridge.loadedAtMs = Date.now();
-          }})
-          .finally(() => {{
-            historyBridge.loading = false;
-            if (activeLayoutView === "chatlabs") {{
-              renderChatLabsView(latestState);
-            }}
-          }});
-      }}
-      const messageText = (msg) => {{
-        const candidates = [
-          msg && msg.decoded_text,
-          msg && msg.payload_text,
-          msg && msg.text,
-          msg && msg.message,
-          msg && msg.body,
-        ];
-        for (const candidate of candidates) {{
-          const text = normalizeChatLabsText(candidate);
-          if (text) return text;
-        }}
-        const emoji = String(msg && msg.emoji ? msg.emoji : "").trim() || emojiFromCodepoint(msg && (msg.emoji_codepoint ?? msg.emojiCodepoint));
-        if (emoji) {{
-          return emoji;
-        }}
-        if (msg && msg.is_reaction === true) {{
-          return "Reaction";
-        }}
-        return "";
-      }};
-      const reactionEmojiForMessage = (msg) => {{
-        const isEmojiCodePointLocal = (cp) => {{
-          if (!Number.isInteger(cp)) return false;
-          return (
-            (cp >= 0x1F000 && cp <= 0x1FAFF)
-            || (cp >= 0x2600 && cp <= 0x27BF)
-            || (cp >= 0x1F1E6 && cp <= 0x1F1FF)
-          );
-        }};
-        const emojiFromTextPayloadLocal = (rawValue) => {{
-          const text = String(rawValue == null ? "" : rawValue).trim();
-          if (!text) return "";
-          const keycapMatch = text.match(/^([0-9#*])(?:\uFE0F)?\u20E3$/u);
-          if (keycapMatch) {{
-            return `${{keycapMatch[1]}}\uFE0F\u20E3`;
-          }}
-          if (text.length > 8 || /\\s/.test(text)) return "";
-          if (/^[0-9A-Za-z.,;:!?'"`~_\\-]+$/.test(text)) return "";
-          let sawEmoji = false;
-          for (const ch of text) {{
-            const cp = ch.codePointAt(0);
-            if (!Number.isInteger(cp)) return "";
-            if (cp === 0x200D || cp === 0xFE0F || cp === 0x20E3) continue;
-            if (isEmojiCodePointLocal(cp)) {{
-              sawEmoji = true;
-              continue;
-            }}
-            return "";
-          }}
-          if (!sawEmoji) return "";
-          const clusters = Array.from(text);
-          if (clusters.length > 4) return "";
-          return text;
-        }};
-        if (typeof emojiOf === "function") {{
-          const parsed = String(emojiOf(msg) || "").trim();
-          if (parsed) return parsed;
-        }}
-        const inline = String(msg && msg.emoji ? msg.emoji : "").trim();
-        if (inline) return inline;
-        const fromCodepoint = emojiFromCodepoint(msg && (msg.emoji_codepoint ?? msg.emojiCodepoint));
-        if (fromCodepoint) return fromCodepoint;
-        const fromText = emojiFromTextPayloadLocal(msg && (msg.text ?? msg.decoded_text ?? msg.payload_text));
-        if (fromText) return fromText;
-        return "";
-      }};
-      const avatarTokenFromLabel = (label) => {{
-        const raw = String(label == null ? "" : label).trim();
-        if (!raw) return "?";
-        const cleaned = raw.replace(/[^A-Za-z0-9 ]+/g, " ").trim();
-        if (cleaned) {{
-          const words = cleaned.split(/\s+/).filter(Boolean);
-          if (words.length >= 2) {{
-            return `${{words[0][0] || ""}}${{words[1][0] || ""}}`.toUpperCase();
-          }}
-          return words[0].slice(0, 2).toUpperCase();
-        }}
-        const first = Array.from(raw).slice(0, 1).join("");
-        return first ? first.toUpperCase() : "?";
-      }};
-      const isEmojiCodePoint = (cp) => {{
-        if (!Number.isInteger(cp)) return false;
-        return (
-          (cp >= 0x1F000 && cp <= 0x1FAFF)
-          || (cp >= 0x2600 && cp <= 0x27BF)
-          || (cp >= 0x1F1E6 && cp <= 0x1F1FF)
-        );
-      }};
-      const isEmojiOnlyText = (rawText) => {{
-        const text = String(rawText == null ? "" : rawText).trim();
-        if (!text) return false;
-        const compact = text.replace(/\s+/g, "");
-        if (!compact) return false;
-        let sawEmoji = false;
-        for (const ch of compact) {{
-          const cp = ch.codePointAt(0);
-          if (!Number.isInteger(cp)) return false;
-          if (cp === 0x200D || cp === 0xFE0F || cp === 0x20E3) continue;
-          if (isEmojiCodePoint(cp)) {{
-            sawEmoji = true;
-            continue;
-          }}
-          return false;
-        }}
-        return sawEmoji;
-      }};
-      const reactionBucketsByMessage = new Map();
-      const baseRows = [];
-      for (const msg of filteredRows) {{
-        if (!(msg && typeof msg === "object")) continue;
-        const replyId = replyIdOfChatPacket(msg);
-        const reactionEmoji = reactionEmojiForMessage(msg);
-        const isReactionPacket = !!(
-          msg.is_reaction === true
-          || (Number.isInteger(replyId) && replyId > 0 && !!reactionEmoji)
-        );
-        if (isReactionPacket) {{
-          if (!Number.isInteger(replyId) || replyId <= 0 || !reactionEmoji) {{
-            continue;
-          }}
-          const messageKey = String(replyId);
-          let perMessage = reactionBucketsByMessage.get(messageKey);
-          if (!(perMessage instanceof Map)) {{
-            perMessage = new Map();
-            reactionBucketsByMessage.set(messageKey, perMessage);
-          }}
-          let bucket = perMessage.get(reactionEmoji);
-          if (!bucket) {{
-            bucket = {{
-              emoji: reactionEmoji,
-              count: 0,
-              reactors: new Set(),
-              names: [],
-            }};
-            perMessage.set(reactionEmoji, bucket);
-          }}
-          const reactorId = resolveNodeIdFromMessage(msg, fromIdKeys);
-          const reactorName = nodeLabel(reactorId, "Unknown node");
-          const dedupeKey = reactorId || `${{reactorName}}:${{msg.rx_time || msg.captured_at || bucket.count}}`;
-          if (!bucket.reactors.has(dedupeKey)) {{
-            bucket.reactors.add(dedupeKey);
-            bucket.count += 1;
-            bucket.names.push(reactorName);
-          }}
-          continue;
-        }}
-        baseRows.push(msg);
-      }}
-
-      const timeline = baseRows
-        .map((msg, index) => {{
-          const unix = latestUnixTimestamp(
-            msg && msg.rx_time,
-            msg && msg.captured_at,
-            msg && msg.time,
-            msg && msg.rxTime,
-            msg && msg.timestamp,
-          );
-          return {{
-            msg,
-            index,
-            unix: Number.isFinite(unix) ? Math.floor(unix) : null,
-          }};
-        }})
-        .filter((row) => row && row.msg && typeof row.msg === "object")
-        .sort((a, b) => {{
-          const aUnix = Number.isFinite(a.unix) ? a.unix : null;
-          const bUnix = Number.isFinite(b.unix) ? b.unix : null;
-          if (aUnix == null && bUnix != null) return -1;
-          if (aUnix != null && bUnix == null) return 1;
-          if (aUnix != null && bUnix != null && aUnix !== bUnix) {{
-            return aUnix - bUnix;
-          }}
-          return a.index - b.index;
-        }})
-        .slice(-maxLines);
-
-      if (!timeline.length) {{
-        const loadingHistory = !!(historyBridge && historyBridge.loading);
-        const nextFeedHtml = loadingHistory
-          ? '<div class="chatlabs-empty">Loading saved chat history...</div>'
-          : '<div class="chatlabs-empty">No chat traffic yet. Incoming messages will appear here.</div>';
-        setElementHtmlIfChanged(feed, nextFeedHtml, "chat-labs-feed");
-        const countText = loadingHistory ? "loading..." : "0 msgs";
-        if (countEl instanceof HTMLElement) {{
-          if (countEl.textContent !== countText) {{
-            countEl.textContent = countText;
-          }}
-        }}
-        chatLabsRenderCache = {{
-          liveRowsRef: liveRows,
-          nodesRef: nodes,
-          historyRowsRef: historyRows,
-          meshFilterIndex: activeMeshFilterIndex,
-          minuteBucket: renderMinuteBucket,
-          historyLoaded: !!historyBridge.loaded,
-          historyLoading: !!historyBridge.loading,
-          feedHtml: nextFeedHtml,
-          countText,
-        }};
-        if (typeof bindChatReactionControls === "function") {{
-          bindChatReactionControls();
-        }}
-        return;
-      }}
-
-      const lineHtml = [];
-      for (let rowIndex = 0; rowIndex < timeline.length; rowIndex += 1) {{
-        const row = timeline[rowIndex];
-        const msg = row.msg;
-        const fromId = resolveNodeIdFromMessage(msg, fromIdKeys);
-        const toId = resolveNodeIdFromMessage(msg, toIdKeys);
-        const messageId = messageIdOfChatPacket(msg);
-        const fromLabel = normalizeChatLabsLabel(nodeLabel(fromId, "unknown")) || "unknown";
-        const toLabel = normalizeChatLabsLabel(nodeLabel(toId || "^all", "all")) || "all";
-        const isDirect = !!(toId && toId !== "^all" && toId !== "all" && toId !== "local");
-        const text = messageText(msg);
-        const isReaction = !!(
-          msg && (
-            msg.is_reaction === true
-            || msg.emoji != null
-            || msg.emoji_codepoint != null
-            || msg.emojiCodepoint != null
-          )
-        );
-        const rawTime = msg && (msg.rx_time || msg.captured_at || msg.time || msg.rxTime || msg.timestamp || "");
-        const timeLabel = Number.isFinite(row.unix) && row.unix > 0
-          ? formatLocalChatTime(row.unix, rawTime || "n/a", nowUnix)
-          : String(rawTime || "n/a");
-        const isSelf = isCanonicalNodeId(fromId) && isCanonicalNodeId(localNodeId) && fromId === localNodeId;
-        let continuation = false;
-        if (rowIndex > 0) {{
-          const previous = timeline[rowIndex - 1];
-          const previousMsg = previous && previous.msg && typeof previous.msg === "object"
-            ? previous.msg
-            : null;
-          if (previousMsg) {{
-            const previousFromId = resolveNodeIdFromMessage(previousMsg, fromIdKeys);
-            const previousIsSelf = isCanonicalNodeId(previousFromId) && isCanonicalNodeId(localNodeId) && previousFromId === localNodeId;
-            const previousUnix = Number.isFinite(previous.unix) ? Math.floor(previous.unix) : null;
-            const maxGapSec = 5 * 60;
-            const withinWindow = (
-              Number.isFinite(row.unix)
-              && Number.isFinite(previousUnix)
-              && (Math.floor(row.unix) - previousUnix) >= 0
-              && (Math.floor(row.unix) - previousUnix) <= maxGapSec
-            );
-            continuation = previousFromId === fromId && previousIsSelf === isSelf && withinWindow;
-          }}
-        }}
-        const isEmojiOnly = isEmojiOnlyText(text);
-        const rowClasses = ["chatlabs-message-row"];
-        if (isSelf) {{
-          rowClasses.push("is-self");
-        }}
-        if (continuation) {{
-          rowClasses.push("is-continuation");
-        }}
-        if (isReaction) {{
-          rowClasses.push("is-reaction");
-        }}
-        const bubbleClasses = ["chatlabs-bubble"];
-        if (isSelf) {{
-          bubbleClasses.push("is-self");
-        }}
-        if (isReaction) {{
-          bubbleClasses.push("is-reaction");
-        }}
-        if (isEmojiOnly) {{
-          bubbleClasses.push("is-emoji-only");
-        }}
-        const directionLabel = isDirect ? `to ${{toLabel}}` : "to all";
-        const bodyHtml = chatPlainTextToHtml(text || "(no text)", true);
-        const fromMeta = (typeof chatEndpointParts === "function")
-          ? chatEndpointParts(fromId, row.unix)
-          : null;
-        const senderBaseLabel = fromMeta && fromMeta.label
-          ? String(fromMeta.label || "")
-          : fromLabel;
-        const senderLabel = isSelf ? "You" : (normalizeChatLabsLabel(senderBaseLabel) || "unknown");
-        const rawSenderStatusKey = String((fromMeta && fromMeta.status) || "").trim().toLowerCase();
-        const senderStatusKey = (
-          rawSenderStatusKey === "online"
-          || rawSenderStatusKey === "warn"
-          || rawSenderStatusKey === "stale"
-        ) ? rawSenderStatusKey : "unknown";
-        const senderStatusLabel = senderStatusKey === "online"
-          ? "Online"
-          : (senderStatusKey === "warn" ? "Aging" : (senderStatusKey === "stale" ? "Stale" : "Unknown"));
-        const messageReactions = messageId ? reactionBucketsByMessage.get(String(messageId)) : null;
-        const reactionGroups = messageReactions
-          ? Array.from(messageReactions.values())
-              .map((bucket) => ({{
-                emoji: String(bucket.emoji || "").trim(),
-                count: Math.max(0, Number(bucket.count || 0)),
-                names: Array.isArray(bucket.names)
-                  ? Array.from(new Set(bucket.names.map((name) => String(name || "").trim()).filter(Boolean))).slice(0, 40)
-                  : [],
-              }}))
-              .filter((bucket) => !!bucket.emoji && Number.isFinite(bucket.count) && bucket.count > 0)
-              .sort((a, b) => (b.count - a.count) || String(a.emoji).localeCompare(String(b.emoji)))
-          : [];
-        const reactionTotal = reactionGroups.reduce((sum, bucket) => sum + Math.max(0, Number(bucket.count || 0)), 0);
-        const reactionSummaryTitle = reactionGroups.map((bucket) => `${{bucket.emoji}} ${{bucket.count}}`).join(" • ");
-        const reactionSummaryIcons = reactionGroups
-          .slice(0, 4)
-          .map((bucket) => `<span class="chat-reaction-summary-emoji">${{escAttr(bucket.emoji)}}</span>`)
-          .join("");
-        const reactionSummary = reactionGroups.length > 0
-          ? `<button type="button" class="chat-reaction-summary" data-reaction-summary="${{escAttr(JSON.stringify(reactionGroups))}}" data-reply-id="${{escAttr(messageId)}}" aria-label="${{escAttr(`Reactions: ${{reactionSummaryTitle}}`)}}">
-              <span class="chat-reaction-summary-icons">${{reactionSummaryIcons}}</span>
-              <span class="chat-reaction-summary-total">${{reactionTotal}}</span>
-            </button>`
-          : "";
-        const reactButton = messageId
-          ? `<button type="button" class="chat-react-btn chatlabs-react-meta${{reactionGroups.length > 0 ? " has-reactions" : ""}}" data-reply-id="${{escAttr(messageId)}}" aria-label="Add reaction">+</button>`
-          : "";
-        const tools = (reactionSummary || reactButton)
-          ? `<div class="chatlabs-message-tools">${{reactionSummary}}${{reactButton}}</div>`
-          : "";
-        const statusChip = `<span class="chatlabs-meta-status status-${{escAttr(senderStatusKey)}}" title="Sender status: ${{escAttr(senderStatusLabel)}}">${{escAttr(senderStatusLabel)}}</span>`;
-        const routeChip = isDirect
-          ? `<span class="chatlabs-meta-route" title="${{escAttr(directionLabel)}}">Direct</span>`
-          : "";
-        const inlinePrefix = `<span class="chatlabs-inline-header">
-              <span class="chatlabs-inline-name">${{escAttr(senderLabel)}}</span>
-              ${{statusChip}}
-              ${{routeChip}}
-              <span class="chatlabs-inline-time">${{escAttr(timeLabel)}}</span>
-            </span>`;
-        const bubbleBodyHtml = `${{inlinePrefix}}<span class="chatlabs-inline-sep">:</span> <span class="chatlabs-inline-body">${{bodyHtml || "&nbsp;"}}</span>`;
-        lineHtml.push(
-          `<article class="${{escAttr(rowClasses.join(" "))}}">
-            <div class="chatlabs-message-main">
-              <div class="${{escAttr(bubbleClasses.join(" "))}}"><span class="chatlabs-bubble-text">${{bubbleBodyHtml}}</span></div>
-              ${{tools}}
-            </div>
-          </article>`
-        );
-      }}
-
-      const nextFeedHtml = lineHtml.join("");
-      setElementHtmlIfChanged(feed, nextFeedHtml, "chat-labs-feed");
-      if (typeof bindChatReactionControls === "function") {{
-        bindChatReactionControls();
-      }}
-      const countText = `${{timeline.length}} msgs`;
-      if (countEl instanceof HTMLElement) {{
-        if (countEl.textContent !== countText) {{
-          countEl.textContent = countText;
-        }}
-      }}
-      chatLabsRenderCache = {{
-        liveRowsRef: liveRows,
-        nodesRef: nodes,
-        historyRowsRef: historyRows,
-        meshFilterIndex: activeMeshFilterIndex,
-        minuteBucket: renderMinuteBucket,
-        historyLoaded: !!historyBridge.loaded,
-        historyLoading: !!historyBridge.loading,
-        feedHtml: nextFeedHtml,
-        countText,
-      }};
-      if (wasNearBottom) {{
-        window.requestAnimationFrame(() => {{
-          terminal.scrollTop = terminal.scrollHeight;
-        }});
-      }}
-    }}
-
-    function normalizeAppsLayoutView(raw) {{
+   function normalizeAppsLayoutView(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
       if (clean === "games") {{
-        return clean;
-      }}
-      if (clean === "bots" && gamesFeatureEnabled) {{
-        return clean;
-      }}
-      if (clean === "bbs" && bbsFeatureEnabled) {{
         return clean;
       }}
       if (clean === "files" && fileTransferFeatureEnabled) {{
@@ -638,7 +11,7 @@
 
     function isAppsLayoutView(viewName) {{
       const clean = String(viewName || "").trim().toLowerCase();
-      return clean === "games" || (clean === "bots" && gamesFeatureEnabled) || (clean === "bbs" && bbsFeatureEnabled) || (clean === "files" && fileTransferFeatureEnabled);
+      return clean === "games" || (clean === "files" && fileTransferFeatureEnabled);
     }}
 
     function loadPreferredAppsLayoutView() {{
@@ -661,11 +34,7 @@
     function normalizeLayoutView(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
       let resolved = clean;
-      if (clean === "data" || clean === "packets" || clean === "channels") {{
-        resolved = "settings";
-      }} else if (clean === "encription" || clean === "saved") {{
-        resolved = "network";
-      }} else if (clean === "apps") {{
+      if (clean === "apps") {{
         resolved = loadPreferredAppsLayoutView();
       }} else if (isAppsLayoutView(clean)) {{
         resolved = clean;
@@ -675,18 +44,12 @@
       if (resolved === "files" && !fileTransferFeatureEnabled) {{
         resolved = "games";
       }}
-      if (resolved === "bots" && !gamesFeatureEnabled) {{
-        resolved = "games";
-      }}
-
-      // Public v0 rail: expose only Chat/Network/Console/Games/BBS/Files/Settings.
+      // Public v0 rail: expose only Chat/Network/Console/Games/Files/Settings.
       return (
         resolved === "chat"
         || resolved === "network"
         || resolved === "console"
         || resolved === "games"
-        || (resolved === "bots" && gamesFeatureEnabled)
-        || (resolved === "bbs" && bbsFeatureEnabled)
         || (resolved === "files" && fileTransferFeatureEnabled)
         || resolved === "settings"
       )
@@ -696,7 +59,7 @@
 
     function isMapVisibleLayoutView(viewName) {{
       const view = normalizeLayoutView(viewName);
-      return view === "saved" || (view === "network" && networkSubviewUsesMap(activeNetworkSubview));
+      return view === "network" && networkSubviewUsesMap(activeNetworkSubview);
     }}
 
     const networkDiagnosticsEnabled = !!Number({debug_mode_enabled});
@@ -1256,39 +619,15 @@
       controlsHost.setAttribute("aria-hidden", dockInNetworkTopNodes ? "false" : "true");
     }}
 
-    function syncEnvironmentMetricsDock(viewName = activeLayoutView, subviewName = activeNetworkSubview) {{
-      const explorer = document.querySelector(".env-metrics-explorer");
-      const controls = document.querySelector(".env-metrics-controls");
-      const homeHost = document.getElementById("environment-metrics-home");
-      const networkHost = document.getElementById("network-sensors-host");
+    function syncNetworkSensorsPrimaryControls(viewName = activeLayoutView, subviewName = activeNetworkSubview) {{
       const networkControlsHost = document.getElementById("network-sensors-primary-controls");
-      const envWindowWrap = document.getElementById("env-window-wrap");
-      if (!(explorer instanceof HTMLElement)) return;
-      if (!(controls instanceof HTMLElement)) return;
-      if (!(homeHost instanceof HTMLElement)) return;
-      if (!(networkHost instanceof HTMLElement)) return;
       if (!(networkControlsHost instanceof HTMLElement)) return;
 
       const normalizedView = normalizeLayoutView(viewName);
       const normalizedSubview = normalizeNetworkSubview(subviewName);
-      const dockInNetworkSensors = normalizedView === "network" && normalizedSubview === "sensors";
-      const targetHost = dockInNetworkSensors ? networkHost : homeHost;
-      const controlsTarget = dockInNetworkSensors ? networkControlsHost : explorer;
-      if (envWindowWrap instanceof HTMLElement) {{
-        envWindowWrap.hidden = false;
-      }}
-      if (explorer.parentElement !== targetHost) {{
-        targetHost.appendChild(explorer);
-      }}
-      if (controls.parentElement !== controlsTarget) {{
-        if (controlsTarget === explorer) {{
-          explorer.insertBefore(controls, explorer.firstChild || null);
-        }} else {{
-          controlsTarget.appendChild(controls);
-        }}
-      }}
-      networkControlsHost.hidden = !dockInNetworkSensors;
-      networkControlsHost.setAttribute("aria-hidden", dockInNetworkSensors ? "false" : "true");
+      const sensorsActive = normalizedView === "network" && normalizedSubview === "sensors";
+      networkControlsHost.hidden = !sensorsActive;
+      networkControlsHost.setAttribute("aria-hidden", sensorsActive ? "false" : "true");
     }}
 
     const networkTopNodesCategoryDefs = Object.freeze([
@@ -1916,7 +1255,6 @@
         const cityText = cityTextRaw && citySource === "estimated"
           ? `~ ${{cityTextRaw}}`
           : cityTextRaw;
-        // Legacy guard for compatibility tests: class="network-top-node-city"
         const cityHtml = cityKey
           ? `<span class="network-top-node-city${{citySource === "estimated" ? " is-estimated" : ""}}" data-top-node-city-key="${{escAttr(cityKey)}}" data-top-node-city-lat="${{escAttr(location.lat.toFixed(6))}}" data-top-node-city-lon="${{escAttr(location.lon.toFixed(6))}}" data-top-node-city-source="${{escAttr(citySource)}}"${{cityText ? "" : " hidden"}}>${{escAttr(cityText)}}</span>`
           : "";
@@ -3298,12 +2636,8 @@
       const scopedPathNodeIds = new Set(path.concat(returnPath));
       const routeEdgeKeys = new Set();
       const routeEdges = [];
-      // Legacy baseline retained for compatibility checks:
-      // const maxSideLinks = Math.max(10, Math.min(22, path.length * 4));
       const maxSideLinks = Math.max(6, Math.min(14, path.length * 2));
       const maxSideLinksPerRouteNode = 2;
-      // Legacy baseline retained for compatibility checks:
-      // const maxClusterLinks = 14;
       const maxClusterLinks = 8;
       const maxClusterNewNodes = 5;
       const appendPathEdges = (pathNodes, rawEdges, kind = "route") => {{
@@ -4104,8 +3438,6 @@
       const routeLocationEstimates = opts.routeLocationEstimates instanceof Map
         ? opts.routeLocationEstimates
         : new Map();
-      // Legacy guard string for compatibility tests:
-      // ${{isRoute && !nodeEmoji ? `<text class="network-route-scope-node-index"`
       const scoped = buildNetworkRoutesScopedLinks(route, data);
       if (!scoped.path.length) return "";
       const nodeMap = data && data.nodeMap instanceof Map ? data.nodeMap : new Map();
@@ -4278,13 +3610,9 @@
         const cityKey = networkTopNodesCityCacheKey(location);
         const cityTextRaw = String(networkTopNodesCityText(location) || "").trim();
         const cityMaxChars = Math.max(0, Math.trunc(Number(labelPlan && labelPlan.cityMaxChars) || 0));
-        // Legacy token retained for compatibility checks:
-        // const cityText = truncateNetworkGraphLabel(networkTopNodesCityText(location), 20);
         const cityText = cityMaxChars > 0
           ? truncateNetworkGraphLabel(cityTextRaw, Math.max(6, cityMaxChars))
           : cityTextRaw;
-        // Legacy token retained for compatibility checks:
-        // const cityLabel = cityText && citySource === "estimated" ? `~ ${cityText}` : cityText;
         const cityLabel = (labelPlan && showCity && labelPlan.cityLabel)
           ? String(labelPlan.cityLabel || "")
           : (cityText && citySource === "estimated" ? `~ ${{cityText}}` : cityText);
@@ -4292,7 +3620,6 @@
         const classes = [
           "network-route-scope-node",
           isRoute ? "is-route" : "is-context",
-          // Legacy token retained for compatibility checks: nodeEmoji ? "has-emoji-glyph" : ""
           resolvedNodeEmoji ? "has-emoji-glyph" : "",
           isFrom ? "is-from" : "",
           isTo ? "is-to" : "",
@@ -4302,7 +3629,6 @@
         const title = `${{name}} (${{clean}})`;
         const emojiBoxSize = Math.max(22, Math.round(radius * 2.15));
         const emojiBoxOffset = -(emojiBoxSize / 2);
-        // Legacy token retained for compatibility checks: class="network-route-scope-node-id"
         return `<g class="${{escAttr(classes)}}"
           data-route-node-id="${{escAttr(clean)}}"
           tabindex="0"
@@ -4348,8 +3674,6 @@
       if (!(el instanceof Element)) return;
       const raw = String(text || "").trim();
       const maxChars = Math.max(0, Math.trunc(Number(el.getAttribute("data-route-node-city-max-chars")) || 0));
-      // Legacy token retained for compatibility checks:
-      // const clean = truncateNetworkGraphLabel(String(text || "").trim(), 20);
       const clean = maxChars > 0
         ? truncateNetworkGraphLabel(raw, Math.max(6, maxChars))
         : raw;
@@ -4660,7 +3984,6 @@
 
       const toName = networkGraphNodeDisplayName(networkRoutesToNodeId, data.nodeMap);
       if (mode === "live") {{
-        // Legacy copy retained for compatibility checks: "Live trace is not wired yet."
         if (!endpointsReady) {{
           summary.innerHTML = `<span><strong>Live trace</strong> - choose a destination</span><span>source: self</span>`;
           result.innerHTML = `<div class="network-routes-empty">Choose a destination node, then run a live traceroute.</div>`;
@@ -5088,7 +4411,7 @@
       syncNetworkOverviewPrimaryControls(activeLayoutView, next);
       syncNetworkRoutesPrimaryControls(activeLayoutView, next);
       syncNetworkTopNodesPrimaryControls(activeLayoutView, next);
-      syncEnvironmentMetricsDock(activeLayoutView, next);
+      syncNetworkSensorsPrimaryControls(activeLayoutView, next);
 
       try {{
         if (typeof setMapWheelZoomActive === "function") {{
@@ -5169,7 +4492,7 @@
         }}
       }}
 
-      if (showMapPanel && (normalizedView === "network" || normalizedView === "saved")) {{
+      if (showMapPanel && normalizedView === "network") {{
         if (typeof requestMapResizeNow === "function") {{
           requestMapResizeNow();
         }}
@@ -6214,7 +5537,7 @@
           const title = selfPathInfo.available
             ? "Toggle self to selected node path"
             : "No current path from self to selected node";
-          return `<label class="network-graph-tag-filter network-graph-self-path-filter${{selfPathInfo.visible ? "" : " is-muted"}}${{selfPathInfo.available ? "" : " is-empty"}}" style="--network-graph-tag-route-color:var(--network-graph-self-path-color, var(--theme-base-color, var(--accent, #2f855a)));" title="${{escAttr(title)}}">
+          return `<label class="network-graph-tag-filter network-graph-self-path-filter${{selfPathInfo.visible ? "" : " is-muted"}}${{selfPathInfo.available ? "" : " is-empty"}}" style="--network-graph-tag-route-color:var(--network-graph-self-path-color, var(--theme-base-color, var(--ui-accent, #2f855a)));" title="${{escAttr(title)}}">
             <input
               class="network-graph-tag-filter-input"
               type="checkbox"
@@ -10811,7 +10134,6 @@
       const nodeHistoryPanel = document.getElementById("map-data-node");
       const mapDataBody = document.getElementById("map-data-body");
       const networkHost = document.getElementById("network-node-history-host");
-      const savedHost = document.getElementById("saved-node-history-host");
       const drawerHistoryHost = document.getElementById("chat-node-details-history-host");
       const nodesTitle = document.getElementById("nodes-card-title");
       if (!(nodeHistoryPanel instanceof HTMLElement)) return;
@@ -10823,10 +10145,7 @@
         && isChatNodeDetailsHistoryActive()
         && (drawerHistoryHost instanceof HTMLElement)
       );
-      const dockInSaved = !dockInDrawer && activeLayoutView === "saved" && (savedHost instanceof HTMLElement);
-      const target = dockInDrawer
-        ? drawerHistoryHost
-        : (dockInSaved ? savedHost : mapDataBody);
+      const target = dockInDrawer ? drawerHistoryHost : mapDataBody;
       if (nodeHistoryPanel.parentElement !== target) {{
         target.appendChild(nodeHistoryPanel);
       }}
@@ -10841,8 +10160,6 @@
     function appsLayoutViewLabel(viewName = "") {{
       const normalized = normalizeAppsLayoutView(viewName);
       if (normalized === "files") return "Files";
-      if (normalized === "bots") return "Bots";
-      if (normalized === "bbs") return "BBS";
       return "Games";
     }}
 
@@ -10858,28 +10175,10 @@
     }}
 
     function appsLauncherMenuMetaText() {{
-      if (!gamesFeatureEnabled && !bbsFeatureEnabled && !fileTransferFeatureEnabled) {{
-        return "Games";
-      }}
-      if (!gamesFeatureEnabled && bbsFeatureEnabled && fileTransferFeatureEnabled) {{
-        return "Boards and files";
-      }}
-      if (!gamesFeatureEnabled && bbsFeatureEnabled) {{
-        return "Boards";
-      }}
-      if (!gamesFeatureEnabled && fileTransferFeatureEnabled) {{
-        return "Files";
-      }}
-      if (bbsFeatureEnabled && fileTransferFeatureEnabled) {{
-        return "Bots, boards, and files";
-      }}
-      if (bbsFeatureEnabled) {{
-        return "Bots and boards";
-      }}
       if (fileTransferFeatureEnabled) {{
-        return "Bots and files";
+        return "Games and files";
       }}
-      return "Bots and games";
+      return "Games";
     }}
 
     function closeLayoutViewSubmenus() {{
@@ -11064,21 +10363,6 @@
       if (filesCard instanceof HTMLElement) {{
         filesCard.hidden = !enabled;
         filesCard.setAttribute("aria-hidden", enabled ? "false" : "true");
-      }}
-    }}
-
-    function syncBbsFeatureVisibility() {{
-      const enabled = !!bbsFeatureEnabled;
-      const bbsTabBtn = document.querySelector('#layout-view-menu .topbar-view-submenu-item[data-app-view="bbs"]');
-      if (bbsTabBtn instanceof HTMLButtonElement) {{
-        bbsTabBtn.hidden = !enabled;
-        bbsTabBtn.disabled = !enabled;
-        bbsTabBtn.setAttribute("aria-hidden", enabled ? "false" : "true");
-      }}
-      const bbsCard = document.querySelector("#dashboard-layout .card.bbs");
-      if (bbsCard instanceof HTMLElement) {{
-        bbsCard.hidden = !enabled;
-        bbsCard.setAttribute("aria-hidden", enabled ? "false" : "true");
       }}
     }}
 
@@ -11453,8 +10737,6 @@
       if (!(layout instanceof HTMLElement)) return;
       const shell = document.querySelector(".workspace-shell");
       const chatLeftPanel = document.getElementById("chat-left-panel");
-      const requested = String(viewName || "").trim().toLowerCase();
-      const requestedSavedAlias = requested === "saved";
       const next = normalizeLayoutView(viewName);
       const previous = normalizeLayoutView(activeLayoutView);
       const leavingNetworkGraphLayout = !!(
@@ -11476,13 +10758,6 @@
       if (resolveTopbarLauncherLayoutView(next) === "apps") {{
         acknowledgeAppsLauncherNotifications(latestState, {{ sync: false }});
       }}
-      if (next === "settings") {{
-        if (requested === "data" || requested === "packets") {{
-          setActiveSettingsTab("data", true);
-        }} else if (requested === "channels") {{
-          setActiveSettingsTab("channels", true);
-        }}
-      }}
       persistPreferredAppsLayoutView(next);
       for (const name of knownLayoutViews) {{
         layout.classList.remove(`view-${{name}}`);
@@ -11491,7 +10766,6 @@
 
       syncLayoutViewMenu(next);
       closeLayoutViewMenu();
-      syncBbsFeatureVisibility();
       syncFileTransferFeatureVisibility();
       syncAppsTabBarVisibility(next);
       syncAppsTabBar(next);
@@ -11521,17 +10795,13 @@
       refreshMapCardTitle();
       const mapResetBtn = document.getElementById("map-reset-view-btn");
       if (mapResetBtn instanceof HTMLButtonElement) {{
-        mapResetBtn.hidden = next === "saved" || next === "history";
+        mapResetBtn.hidden = false;
       }}
       updateMapPacketLinesControl();
       updateMapLinkLayerControl();
-      if (typeof updateNetworkLegacyExplorerControl === "function") {{
-        updateNetworkLegacyExplorerControl();
-      }}
-
       const mapNodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
       try {{
-        syncSignalHeatmapLayer(mapNodes, next === "saved");
+        syncSignalHeatmapLayer(mapNodes, false);
       }} catch (_err) {{
       }}
       try {{
@@ -11570,10 +10840,7 @@
         }} catch (_err) {{
         }}
       }}
-      applyChatViewMode(next === "macros" ? "monitor" : "default", false);
-      if (next === "macros" && typeof applyMacrosPanelSplitState === "function") {{
-        applyMacrosPanelSplitState();
-      }}
+      applyChatViewMode("default", false);
       if (next === "games" && typeof applyGamesSplitState === "function") {{
         applyGamesSplitState();
       }}
@@ -11581,12 +10848,6 @@
         applyFilesTransferListSplitState();
       }}
 
-      if (next === "history") {{
-        mapDataFocus = "activity";
-      }}
-      if (next === "network" && mapDataFocus === "activity") {{
-        mapDataFocus = "auto";
-      }}
       if (next === "network") {{
         if (!networkMapInitialAutoResetDone) {{
           fitDone = false;
@@ -11626,7 +10887,7 @@
       syncNetworkOverviewPrimaryControls(next, activeNetworkSubview);
       syncNetworkRoutesPrimaryControls(next, activeNetworkSubview);
       syncNetworkTopNodesPrimaryControls(next, activeNetworkSubview);
-      syncEnvironmentMetricsDock(next, activeNetworkSubview);
+      syncNetworkSensorsPrimaryControls(next, activeNetworkSubview);
       if (typeof updateConsoleFullscreenControl === "function") {{
         updateConsoleFullscreenControl(next);
       }}
@@ -11640,10 +10901,8 @@
         const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";
         const networkTopNodesActive = next === "network" && activeNetworkSubview === "top10";
         let cachedNodeHistory = null;
-        const viewHistoryNodeId = next === "saved"
-          ? resolveSavedViewNodeId(latestState)
-          : (next === "network" ? normalizeNodeId(selectedNodeId || "") : "");
-        if ((next === "saved" || next === "network") && isSelectableNodeId(viewHistoryNodeId)) {{
+        const viewHistoryNodeId = next === "network" ? normalizeNodeId(selectedNodeId || "") : "";
+        if (next === "network" && isSelectableNodeId(viewHistoryNodeId)) {{
           const cached = nodeHistoryCache.get(viewHistoryNodeId);
           if (cached && cached.data) {{
             cachedNodeHistory = cached.data;
@@ -11659,7 +10918,7 @@
         ) {{
           renderChatNodeNavigatorList(latestState);
         }}
-        if (next === "saved" || networkMapSubviewActive) {{
+        if (networkMapSubviewActive) {{
           renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], cachedNodeHistory);
         }}
         if (next === "network") {{
@@ -11698,36 +10957,14 @@
         }}
         if (isChatWorkspaceLayoutView(next)) {{
           renderChat(latestState);
-          if (next === "chatlabs") {{
-            renderChatLabsView(latestState);
-          }}
         }}
         if (next === "files") {{
           renderFilesView(latestState);
         }}
-        if (next === "bbs") {{
-          renderBbsView(latestState);
-        }}
-        if (next === "bots") {{
-          renderBotsView(latestState);
-        }}
         if (next === "games") {{
           renderGamesView(latestState);
         }}
-        if (next === "remote") {{
-          renderRemoteView(latestState);
-        }}
-        if (next === "history") {{
-          renderHistoryChat(latestState.traffic || {{}});
-          renderEncription(latestState.traffic || {{}});
-          setMapDataMode("activity");
-          void refreshHistoryPanels(false);
-        }}
-        if (next === "saved") {{
-          renderFavorites(latestState, cachedNodeHistory);
-        }} else {{
-          renderSavedNodeDetails(latestState, cachedNodeHistory);
-        }}
+        renderNodeDetails(latestState, cachedNodeHistory);
         if (next === "settings") {{
           renderSettings(latestState);
           syncSettingsPositionSourceUi({{
@@ -11739,33 +10976,15 @@
             void ensureChannelsViewLocalStateHydrated(false);
           }}
         }}
-        if (next === "environment") {{
-          void renderEnvironmentMetricsView(false);
-        }}
         if (next === "console") {{
           renderConsole(latestState.traffic || {{}});
         }}
       }} else if (next === "network") {{
         renderNodesPlaceholder("Syncing nodes...");
-      }} else if (next === "history") {{
-        setMapDataMode("activity");
-        renderWeeklySummaryLoading();
-        renderHistoryChat({{}});
-        renderEncription({{}});
-      }} else if (next === "chatlabs") {{
-        renderChatLabsView(latestState);
       }} else if (next === "files") {{
         renderFilesView(latestState);
-      }} else if (next === "bbs") {{
-        renderBbsView(latestState);
-      }} else if (next === "bots") {{
-        renderBotsView(latestState);
       }} else if (next === "games") {{
         renderGamesView(latestState);
-      }} else if (next === "remote") {{
-        renderRemoteView(latestState);
-      }} else if (next === "environment") {{
-        void renderEnvironmentMetricsView(false);
       }}
       if (next === "console") {{
         window.requestAnimationFrame(() => {{
@@ -11779,30 +10998,14 @@
           scheduleConsoleTerminalScreenFillHeight();
         }});
       }}
-      if (next !== "saved") {{
-        closeSavedNodeSearchDropdown();
-      }}
-      renderSavedNodeSearchDropdown(latestState);
       renderFavoriteMenuNodeSearchDropdown(latestState);
       if (typeof syncChatNodeDetailsDrawer === "function") {{
         syncChatNodeDetailsDrawer(latestState, {{
           fetchHistory: false,
         }});
       }}
-      if (
-        requestedSavedAlias
-        && next === "network"
-        && isSelectableNodeId(normalizeNodeId(selectedNodeId || ""))
-        && typeof setChatNodeDetailsDrawerExpanded === "function"
-      ) {{
-        setChatNodeDetailsDrawerExpanded(true, {{
-          fetchHistory: false,
-          rerender: false,
-        }});
-      }}
       const shouldRefreshSelectedNodeHistoryForView = !!(
-        next === "saved"
-        || networkMapSubviewActive
+        networkMapSubviewActive
         || (
           typeof isChatNodeDetailsDrawerExpanded === "function"
           && isChatNodeDetailsDrawerExpanded()
@@ -11811,7 +11014,7 @@
       if (shouldRefreshSelectedNodeHistoryForView) {{
         void refreshSelectedNodeHistory(false);
       }}
-      if (next === "chat" || next === "macros" || next === "chatlabs" || next === "files" || next === "bbs" || next === "bots" || next === "games" || next === "remote" || next === "history" || next === "network" || next === "saved" || next === "environment") {{
+      if (next === "chat" || next === "files" || next === "games" || next === "network") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{
@@ -11889,15 +11092,7 @@
       activeNetworkSubview = loadPreferredNetworkSubview();
       setActiveNetworkSubview(activeNetworkSubview, {{ persist: false }});
       const preferred = normalizeLayoutView(rawPreferred);
-      const rawPreferredView = String(rawPreferred || "").trim().toLowerCase();
-      const migratedDataView = rawPreferredView === "data" || rawPreferredView === "packets";
-      const migratedChannelsView = rawPreferredView === "channels";
       applyLayoutView(preferred, false);
-      if (migratedDataView) {{
-        setActiveSettingsTab("data", true);
-      }} else if (migratedChannelsView) {{
-        setActiveSettingsTab("channels", true);
-      }}
     }}
 
     function bindLayoutNav() {{

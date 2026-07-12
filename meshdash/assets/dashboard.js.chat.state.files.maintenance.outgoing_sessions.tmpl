@@ -198,31 +198,31 @@
         }}
         let ackProgressThisTick = false;
         const ack = findAckForOutgoingSession(session, ackByTransferKey, localNodeId);
+        const confirmedAckChannel = fileTransferExplicitChannelIndex(ack && ack.channelIndex);
+        if (confirmedAckChannel != null && confirmedAckChannel !== fileTransferExplicitChannelIndex(session.channelIndex)) {{
+          session.channelIndex = confirmedAckChannel;
+        }}
         const destinationId = normalizeNodeId(session.destination || "");
         const senderId = normalizeNodeId(session.senderId || localNodeId || "");
-        const transferKey = fileTransferKeyOf(senderId, destinationId, session.transferId);
+        const sessionChannelIndex = fileTransferExplicitChannelIndex(session.channelIndex);
+        const transferKey = fileTransferKeyOf(
+          senderId,
+          destinationId,
+          session.transferId,
+          sessionChannelIndex
+        );
         let flow = flowByTransferKey.get(transferKey) || null;
-        if (!(flow && typeof flow === "object")) {{
-          let latestFallbackFlow = null;
-          for (const candidate of flowByTransferKey.values()) {{
-            if (!(candidate && typeof candidate === "object")) continue;
-            if (String(candidate.transferId || "").trim().toLowerCase() !== String(session.transferId || "").trim().toLowerCase()) {{
-              continue;
-            }}
-            if (normalizeNodeId(candidate.senderId || "") !== destinationId) continue;
-            const candidateUnix = Math.max(0, Math.trunc(Number(candidate.latestUnix) || 0));
-            const latestUnix = Math.max(0, Math.trunc(Number(latestFallbackFlow && latestFallbackFlow.latestUnix) || 0));
-            if (!latestFallbackFlow || candidateUnix >= latestUnix) {{
-              latestFallbackFlow = candidate;
-            }}
-          }}
-          flow = latestFallbackFlow;
-        }}
+        if (
+          !(flow && typeof flow === "object")
+          || normalizeNodeId(flow.senderId || "") !== destinationId
+          || normalizeNodeId(flow.receiverId || "") !== senderId
+          || fileTransferExplicitChannelIndex(flow.channelIndex) !== sessionChannelIndex
+        ) flow = null;
         const flowAction = flow && typeof flow === "object"
           ? String(flow.action || "").trim().toLowerCase()
           : "";
         const flowUnix = Math.max(0, Math.trunc(Number(flow && flow.latestUnix) || 0));
-        if (flowAction && flowUnix > session.lastReceiverFlowUnix && normalizeNodeId(flow.senderId || "") === destinationId) {{
+        if (flowAction && flowUnix > session.lastReceiverFlowUnix) {{
           session.lastReceiverFlowUnix = flowUnix;
           if (flowAction === "pause") {{
             if (!session.pausedByReceiver) {{
@@ -285,7 +285,15 @@
           && createdAtMs > 0
           && (nowMs - createdAtMs) <= Math.max(0, Math.trunc(Number(fileTransferPeerUnknownGraceMs) || 0))
         );
-        const peerLikelyOnline = ackSuggestsOnline || peerFreshnessKey === "online" || peerFreshnessKey === "warn" || unknownWithinGrace;
+        // While waiting for receiver acceptance, the metadata/ACK handshake is
+        // the authoritative liveness probe. Node-info freshness may legitimately
+        // be stale even though the peer is receiving file packets. Pausing here
+        // would also suppress metadata retries and deadlock manual acceptance.
+        const peerLikelyOnline = session.waitingForAccept
+          || ackSuggestsOnline
+          || peerFreshnessKey === "online"
+          || peerFreshnessKey === "warn"
+          || unknownWithinGrace;
         if (session.pausedByReceiver) {{
           continue;
         }}
@@ -750,8 +758,14 @@
             const unsentMissing = missingIndexes.filter((idx) => idx >= frontierIndex);
             const olderMissing = missingIndexes.filter((idx) => idx < frontierIndex);
             const selected = [];
-            if (!endgame && !inFlightOverCap && unsentMissing.length > 0) {{
-              const newChunkBias = hasRecentAckProgress ? 0.82 : 0.7;
+            if (!inFlightOverCap && unsentMissing.length > 0) {{
+              // Never let endgame retransmission starve chunks that have not
+              // crossed the wire yet. Previously, once a short transfer entered
+              // endgame, the selector repeatedly chose older missing chunks and
+              // could resend them forever without advancing the frontier.
+              const newChunkBias = endgame
+                ? 1
+                : (hasRecentAckProgress ? 0.82 : 0.7);
               const desiredNew = Math.max(
                 1,
                 Math.min(

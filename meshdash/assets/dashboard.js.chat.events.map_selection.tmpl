@@ -128,25 +128,6 @@
       }}
     }}
 
-    function refreshNodeSelectionCrossReferenceRows(nodeId, isSelected) {{
-      const cleanNodeId = normalizeNodeId(nodeId || "");
-      if (!isSelectableNodeId(cleanNodeId)) return;
-      const rowMatchers = [
-        "#encription-packets-table tbody tr",
-        "#encription-traffic-table tbody tr",
-        "#history-chat-table tbody tr",
-      ];
-      for (const selector of rowMatchers) {{
-        for (const row of document.querySelectorAll(selector)) {{
-          if (!(row instanceof HTMLTableRowElement)) continue;
-          const fromNodeId = normalizeNodeId(row.dataset.fromNodeId || "");
-          const toNodeId = normalizeNodeId(row.dataset.toNodeId || "");
-          if (fromNodeId !== cleanNodeId && toNodeId !== cleanNodeId) continue;
-          row.classList.toggle("selected-node", !!isSelected);
-        }}
-      }}
-    }}
-
     function highlightNodeSelection(previousNodeId = "", nextNodeId = selectedNodeId) {{
       const previousId = normalizeNodeId(previousNodeId || "");
       const nextId = normalizeNodeId(nextNodeId || "");
@@ -157,7 +138,6 @@
         '#chat-room-meshtastic-list .chat-member-item[data-node-id="%ID%"]',
         '#chat-room-pinned-list .chat-member-item[data-node-id="%ID%"]',
         '#chat-room-list .chat-member-item[data-node-id="%ID%"]',
-        '#favorites-list .favorite-node-item[data-node-id="%ID%"]',
       ];
       const applyNodeIdSelection = (nodeId, isSelected) => {{
         const cleanNodeId = normalizeNodeId(nodeId || "");
@@ -166,7 +146,6 @@
         for (const pattern of directSelectors) {{
           applySelectedNodeClassToSelector(pattern.replace("%ID%", escapedId), isSelected);
         }}
-        refreshNodeSelectionCrossReferenceRows(cleanNodeId, isSelected);
       }};
 
       if (previousId && previousId !== nextId) {{
@@ -202,7 +181,7 @@
       nodeSelectionUiState.pendingShouldFocus = false;
 
       let cachedHistory = null;
-      if (latestState && (activeLayoutView === "saved" || activeLayoutView === "network")) {{
+      if (latestState && activeLayoutView === "network") {{
         cachedHistory = cachedNodeHistory(activeSelectedId);
       }}
       const activeNetworkSubviewName = (typeof normalizeNetworkSubview === "function")
@@ -215,24 +194,11 @@
       );
       const networkGraphVisible = activeLayoutView === "network" && activeNetworkSubviewName === "graph" && !networkSubviewUsesMap(activeNetworkSubviewName);
 
-      if (activeLayoutView === "saved") {{
-        const phaseStartMs = perfToken > 0 ? nodeSelectionPerfNow() : 0;
-        if (cachedHistory) {{
-          renderTraffic((latestState && latestState.traffic) || {{}}, (latestState && latestState.nodes) || [], cachedHistory);
-          renderSavedNodeDetails(latestState || {{}}, cachedHistory);
-        }} else {{
-          renderNodeHistoryLoading(activeSelectedId);
-        }}
-        if (perfToken > 0) {{
-          markNodeSelectionPerf(perfToken, "selection.saved_view", phaseStartMs, {{
-            cachedHistory: !!cachedHistory,
-          }});
-        }}
-      }} else if (activeLayoutView === "network") {{
+      if (activeLayoutView === "network") {{
         const phaseStartMs = perfToken > 0 ? nodeSelectionPerfNow() : 0;
         if (networkMapVisible) {{
           renderTraffic((latestState && latestState.traffic) || {{}}, (latestState && latestState.nodes) || [], cachedHistory);
-          setMapDataMode(mapDataFocus === "activity" ? "activity" : "live");
+          setMapDataMode("live");
         }}
         if (perfToken > 0) {{
           markNodeSelectionPerf(perfToken, "selection.network_view", phaseStartMs, {{
@@ -240,8 +206,6 @@
             subview: activeNetworkSubviewName,
           }});
         }}
-      }} else if (activeLayoutView === "history") {{
-        setMapDataMode("activity");
       }} else {{
         setMapDataMode("live");
       }}
@@ -269,7 +233,6 @@
 
       const focusSelection = (
         shouldFocus
-        && activeLayoutView !== "saved"
         && (
           activeLayoutView !== "network"
           || networkMapVisible
@@ -316,8 +279,6 @@
         renderGamesView(latestState);
       }} else if (activeLayoutView === "files") {{
         renderFilesView(latestState);
-      }} else if (activeLayoutView === "bbs" && typeof renderBbsView === "function") {{
-        renderBbsView(latestState);
       }}
       if (perfToken > 0) {{
         markNodeSelectionPerf(perfToken, "selection.ui_flush", flushStartedAtMs, {{
@@ -453,31 +414,6 @@
           }}
           didScroll = true;
           break;
-        }}
-      }}
-
-      const favoritesList = document.getElementById("favorites-list");
-      if (isVisibleForSelectionScroll(favoritesList)) {{
-        let favoriteItem = null;
-        for (const row of favoritesList.querySelectorAll(".favorite-node-item")) {{
-          if (normalizeNodeId(row.dataset.nodeId || "") === selectedNodeId) {{
-            favoriteItem = row;
-            break;
-          }}
-        }}
-        if (favoriteItem instanceof HTMLElement) {{
-          const listRect = favoritesList.getBoundingClientRect();
-          const rowRect = favoriteItem.getBoundingClientRect();
-          const topSafe = listRect.top + 3;
-          const bottomSafe = listRect.bottom - 3;
-          if (rowRect.top < topSafe) {{
-            const delta = rowRect.top - topSafe;
-            favoritesList.scrollTo({{ top: favoritesList.scrollTop + delta, behavior: "smooth" }});
-          }} else if (rowRect.bottom > bottomSafe) {{
-            const delta = rowRect.bottom - bottomSafe;
-            favoritesList.scrollTo({{ top: favoritesList.scrollTop + delta, behavior: "smooth" }});
-          }}
-          didScroll = true;
         }}
       }}
 
@@ -794,23 +730,19 @@
     }}
 
     function setMapDataMode(mode) {{
-      const normalized = mode === "node" || mode === "activity" ? mode : "live";
+      const normalized = mode === "node" ? "node" : "live";
       activeMapDataMode = normalized;
       const live = document.getElementById("map-data-live");
       const node = document.getElementById("map-data-node");
-      const activity = document.getElementById("map-data-activity");
       const title = document.getElementById("map-data-title");
       const networkHost = document.getElementById("network-node-history-host");
       if (live) live.hidden = normalized !== "live";
       if (node) node.hidden = normalized !== "node";
-      if (activity) activity.hidden = normalized !== "activity";
       if (networkHost instanceof HTMLElement) {{
         networkHost.classList.toggle("empty", normalized !== "node");
       }}
       if (title) {{
-        title.textContent = normalized === "node"
-          ? "Node History"
-          : (normalized === "activity" ? "History Trends" : "Map Data");
+        title.textContent = normalized === "node" ? "Node History" : "Map Data";
       }}
     }}
 
@@ -941,7 +873,7 @@
         loading: true,
         defaultWindowHours: nodeHistoryHours,
       }});
-      renderSavedNodeDetails(latestState || {{}}, null, nodeId);
+      renderNodeDetails(latestState || {{}}, null, nodeId);
     }}
 
     function selectNode(nodeId, shouldFocus = true, toggleIfSelected = true) {{
@@ -990,23 +922,17 @@
       if (typeof clearChatNodeNavigatorSelectionScrollLock === "function") {{
         clearChatNodeNavigatorSelectionScrollLock();
       }}
-      // Keep History view pinned to trend mode; node selection should not yank
-      // the left pane into live Map Data tables.
-      mapDataFocus = activeLayoutView === "history" ? "activity" : "auto";
       pendingSelectionScroll = true;
       persistSelection();
       renderSelectionStatus();
-      renderSavedNodeSearchDropdown(latestState);
       highlightNodeSelection(previousSelectedId, normalized);
       if (latestState) {{
         renderSummary(latestState);
       }}
       if (
         typeof renderEnvironmentMetricsView === "function"
-        && (
-          activeLayoutView === "environment"
-          || (activeLayoutView === "network" && activeNetworkSubviewName === "sensors")
-        )
+        && activeLayoutView === "network"
+        && activeNetworkSubviewName === "sensors"
       ) {{
         void renderEnvironmentMetricsView(false);
       }}
@@ -1067,7 +993,6 @@
       }}
       const focusSelection = (
         shouldFocus
-        && activeLayoutView !== "saved"
         && (
           activeLayoutView !== "network"
           || (
@@ -1105,7 +1030,6 @@
       pendingSelectionScroll = false;
       persistSelection();
       renderSelectionStatus();
-      renderSavedNodeSearchDropdown(latestState);
       if (latestState) {{
         renderSummary(latestState);
       }}
@@ -1114,10 +1038,8 @@
         : String(activeNetworkSubview || "map").trim().toLowerCase();
       if (
         typeof renderEnvironmentMetricsView === "function"
-        && (
-          activeLayoutView === "environment"
-          || (activeLayoutView === "network" && activeNetworkSubviewName === "sensors")
-        )
+        && activeLayoutView === "network"
+        && activeNetworkSubviewName === "sensors"
       ) {{
         void renderEnvironmentMetricsView(false);
       }}
@@ -1141,7 +1063,7 @@
       }}
       updateMapSelection(false);
       map.closePopup();
-      setMapDataMode(mapDataFocus === "activity" ? "activity" : "live");
+      setMapDataMode("live");
       applyChatChannel(activeChatChannel, false);
       if (typeof syncChatNodeDetailsDrawer === "function") {{
         syncChatNodeDetailsDrawer(latestState, {{
@@ -1151,16 +1073,16 @@
       const shouldRenderSelectionMap = (
         typeof isMapVisibleLayoutView === "function"
           ? isMapVisibleLayoutView(activeLayoutView)
-          : (activeLayoutView === "saved" || activeLayoutView === "network")
+          : activeLayoutView === "network"
       );
       if (latestState) {{
         if (shouldRenderSelectionMap) {{
           renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], null);
         }}
         renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], null);
-        renderSavedNodeDetails(latestState, null);
+        renderNodeDetails(latestState, null);
       }} else {{
-        renderSavedNodeDetails({{}}, null);
+        renderNodeDetails({{}}, null);
       }}
       if (
         activeLayoutView === "network"
@@ -1257,9 +1179,12 @@
 
     function resolveDirectionalNodeEntries() {{
       const selectedId = normalizeNodeId(selectedNodeId || "");
+      const visibleRosterEntries = chatRosterDirectionalEntries({{ requireVisible: true }});
+      if (visibleRosterEntries.some((entry) => entry.id === selectedId)) {{
+        return visibleRosterEntries;
+      }}
       if (
-        isChatWorkspaceLayoutView(activeLayoutView)
-        && typeof isChatNodeDetailsDrawerExpanded === "function"
+        typeof isChatNodeDetailsDrawerExpanded === "function"
         && isChatNodeDetailsDrawerExpanded()
         && !(
           typeof isChatNodeDetailsPromotedActive === "function"
@@ -1273,21 +1198,11 @@
       }}
       const defs = isChatWorkspaceLayoutView(activeLayoutView)
         ? [
-            ["#chat-room-list", ".chat-member-item[data-node-id]"],
-            ["#favorites-list", ".favorite-node-item[data-node-id]"],
             ["#nodes-table", "tbody tr.node-selectable[data-node-id]"],
           ]
-        : (activeLayoutView === "saved"
-          ? [
-              ["#favorites-list", ".favorite-node-item[data-node-id]"],
+        : [
               ["#nodes-table", "tbody tr.node-selectable[data-node-id]"],
-              ["#chat-room-list", ".chat-member-item[data-node-id]"],
-            ]
-          : [
-              ["#nodes-table", "tbody tr.node-selectable[data-node-id]"],
-              ["#favorites-list", ".favorite-node-item[data-node-id]"],
-              ["#chat-room-list", ".chat-member-item[data-node-id]"],
-            ]);
+            ];
       let fallback = [];
       for (const [containerSelector, itemSelector] of defs) {{
         const entries = visibleNodeDirectionalEntriesFrom(containerSelector, itemSelector);
@@ -1357,53 +1272,4 @@
       if (fromSelectable) return fromNodeId;
       if (toSelectable) return toNodeId;
       return "";
-    }}
-
-    function bindEncriptionRowClicks() {{
-      const bindTable = (tableId, fromColIndex, toColIndex) => {{
-        const tbody = document.querySelector(`#${{tableId}} tbody`);
-        if (!(tbody instanceof HTMLElement) || tbody.dataset.bound === "1") return;
-        tbody.dataset.bound = "1";
-        tbody.addEventListener("click", (ev) => {{
-          const target = ev.target;
-          if (!(target instanceof Element)) return;
-          const row = target.closest("tr");
-          if (!(row instanceof HTMLTableRowElement)) return;
-          const cell = target.closest("td");
-          const nodeId = selectNodeFromDirectionalRow(
-            row,
-            cell instanceof HTMLTableCellElement ? cell : null,
-            fromColIndex,
-            toColIndex
-          );
-          if (!isSelectableNodeId(nodeId)) return;
-          selectNode(nodeId, true, false);
-        }});
-      }};
-      bindTable("encription-packets-table", 1, 2);
-      bindTable("encription-traffic-table", 0, 1);
-    }}
-
-    function bindHistoryChatRowClicks() {{
-      const tbody = document.querySelector("#history-chat-table tbody");
-      if (!(tbody instanceof HTMLElement) || tbody.dataset.bound === "1") return;
-      tbody.dataset.bound = "1";
-      tbody.addEventListener("click", (ev) => {{
-        const target = ev.target;
-        if (!(target instanceof Element)) return;
-        if (target.closest("a.chat-link")) {{
-          return;
-        }}
-        const row = target.closest("tr");
-        if (!(row instanceof HTMLTableRowElement)) return;
-        const cell = target.closest("td");
-        const nodeId = selectNodeFromDirectionalRow(
-          row,
-          cell instanceof HTMLTableCellElement ? cell : null,
-          1,
-          2
-        );
-        if (!isSelectableNodeId(nodeId)) return;
-        selectNode(nodeId, true, false);
-      }});
     }}

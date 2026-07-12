@@ -154,7 +154,6 @@
     function renderMeshChannelPills(options) {{
       const panelSet = new Set([
         document.getElementById("mesh-channel-pill-strip"),
-        document.getElementById("chat-labs-channel-pill-strip"),
       ]);
       const panels = Array.from(panelSet).filter((panel) => panel instanceof HTMLElement);
       if (!panels.length) return;
@@ -267,25 +266,11 @@
         label: "Node Appearance",
         description: "Shared node appearance broadcasts",
       }});
-      if (bbsFeatureEnabled) {{
-        rows.push({{
-          id: "bbs",
-          label: "BBS",
-          description: "Profiles, MOTDs, directory announces, and board posts",
-        }});
-      }}
       if (fileTransferFeatureEnabled) {{
         rows.push({{
           id: "files",
           label: "Files",
-          description: "Chunked direct-message file transfer traffic",
-        }});
-      }}
-      if (gamesFeatureEnabled) {{
-        rows.push({{
-          id: "bots",
-          label: "Bots",
-          description: "Managed bot command and reply traffic",
+          description: "Dedicated MF_FILE_V2 packet traffic",
         }});
       }}
       rows.push({{
@@ -299,9 +284,7 @@
     function normalizeMeshChannelAppId(rawAppId) {{
       const token = String(rawAppId == null ? "" : rawAppId).trim().toLowerCase();
       if (token === "profiles") return "profiles";
-      if (token === "bbs" && bbsFeatureEnabled) return "bbs";
       if (token === "files" && fileTransferFeatureEnabled) return "files";
-      if (token === "bots" && gamesFeatureEnabled) return "bots";
       if (token === "games") return "games";
       return "";
     }}
@@ -318,12 +301,6 @@
         profiles: {{ mode: "global", channel_index: sendIndex }},
         games: {{ mode: "global", channel_index: sendIndex }},
       }};
-      if (gamesFeatureEnabled) {{
-        defaults.bots = {{ mode: "global", channel_index: sendIndex }};
-      }}
-      if (bbsFeatureEnabled) {{
-        defaults.bbs = {{ mode: "global", channel_index: sendIndex }};
-      }}
       if (fileTransferFeatureEnabled) {{
         defaults.files = {{ mode: "global", channel_index: sendIndex }};
       }}

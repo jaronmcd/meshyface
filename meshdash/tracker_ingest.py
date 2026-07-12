@@ -31,6 +31,23 @@ def _normalize_packet_node_id(value: object) -> object:
     return text
 
 
+def _canonical_outer_node_id(value: object) -> str:
+    """Canonicalize the numeric packet header identity without consulting NodeDB."""
+    if isinstance(value, bool):
+        return ""
+    if isinstance(value, float) and not value.is_integer():
+        return ""
+    try:
+        numeric = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return ""
+    if numeric < 0 or numeric > 0xFFFFFFFF:
+        return ""
+    if numeric == 0xFFFFFFFF:
+        return "^all"
+    return f"!{numeric:08x}"
+
+
 def _clean_node_name(value: object) -> str:
     return str(value or "").replace("\x00", "").strip()
 
@@ -100,11 +117,15 @@ def parse_tracker_packet(
     extract_emoji_codepoint_fn: ExtractEmojiCodepointFn,
     emoji_from_codepoint_fn: EmojiFromCodepointFn,
 ) -> TrackerParsedPacket:
-    from_id = _normalize_packet_node_id(
-        packet.get("fromId") or get_node_id_from_num_fn(interface, packet.get("from"))
-    )
-    to_id = _normalize_packet_node_id(
-        packet.get("toId") or get_node_id_from_num_fn(interface, packet.get("to"))
+    # Packet-header numbers are the transport identity. NodeDB names/ids are
+    # untrusted display metadata and must not override them.
+    raw_from = packet.get("from")
+    raw_to = packet.get("to")
+    from_id = _canonical_outer_node_id(raw_from)
+    to_id = (
+        _canonical_outer_node_id(raw_to)
+        if raw_to is not None
+        else _normalize_packet_node_id(packet.get("toId"))
     )
     rx_time = to_int_fn(packet.get("rxTime"))
     hops = calculate_hops_fn(packet.get("hopStart"), packet.get("hopLimit"))
@@ -126,8 +147,7 @@ def parse_tracker_packet(
     is_reaction = bool(reply_id is not None and reply_id > 0 and emoji_glyph)
     neighbor_info_edges = _extract_neighbor_info_edges_helper(
         decoded,
-        interface=interface,
-        get_node_id_from_num_fn=get_node_id_from_num_fn,
+        outer_source_id=from_id,
     )
     short_name, long_name = _extract_user_names_from_packet(
         {"from": from_id, "from_num": packet.get("from")},

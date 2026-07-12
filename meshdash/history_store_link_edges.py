@@ -119,12 +119,21 @@ def _decode_link_metric_edge_rows(rows: Iterable[tuple[object, ...]]) -> list[di
         count = max(0, _to_int(packet_count) or 0)
         if count <= 0:
             continue
-        hops_total = _to_int(hops_sum) or 0
+        hops_total = _to_float(hops_sum)
         hops_samples = _to_int(hops_count) or 0
-        snr_total = _to_float(snr_sum) or 0.0
+        if hops_total is None or hops_samples <= 0:
+            hops_total = 0.0
+            hops_samples = 0
+        snr_total = _to_float(snr_sum)
         snr_samples = _to_int(snr_count) or 0
-        rssi_total = _to_float(rssi_sum) or 0.0
+        if snr_total is None or snr_samples <= 0:
+            snr_total = 0.0
+            snr_samples = 0
+        rssi_total = _to_float(rssi_sum)
         rssi_samples = _to_int(rssi_count) or 0
+        if rssi_total is None or rssi_samples <= 0:
+            rssi_total = 0.0
+            rssi_samples = 0
         edge: dict[str, object] = {
             "from": str(from_id),
             "to": str(to_id),
@@ -142,7 +151,8 @@ def _decode_link_metric_edge_rows(rows: Iterable[tuple[object, ...]]) -> list[di
         }
         if hops_samples > 0:
             edge["avg_hops"] = round(hops_total / hops_samples, 2)
-            edge["last_hops"] = _to_int(hops_max)
+            last_hops = _to_int(hops_max)
+            edge["last_hops"] = last_hops if last_hops is not None and 0 <= last_hops <= 255 else None
         if snr_samples > 0:
             edge["avg_snr"] = round(snr_total / snr_samples, 2)
             edge["snr_min"] = _to_float(snr_min)

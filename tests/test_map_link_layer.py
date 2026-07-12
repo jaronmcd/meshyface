@@ -294,7 +294,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "function endMapViewportInteraction()" in js
     assert "map.on(\"move\", () => {" in js
     assert "syncSignalHeatmapLayer(nodes, true, { bypassFade: true });" in js
-    assert "syncSignalHeatmapLayer(nodes, activeLayoutView === \"saved\", { bypassFade: true });" in js
+    assert "syncSignalHeatmapLayer(nodes, false, { bypassFade: true });" in js
     assert "animateMapHeatLayerCanvasOpacity(layer, 1, {" in js
     assert "activeState.onComplete = onComplete;" in js
     assert "marker._meshMapNodeMarkerFadeBaseStyle = resolvedStyle;" in js
@@ -369,7 +369,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "canvas.style.zIndex = String(zIndex);" in js
     assert "canvas.dataset.meshSignalHeatmapMode = key;" in js
     assert "collectSignalHeatmapBuckets(nodes, profile, mode)" in js
-    assert "collectSavedNodeHeatmapBuckets(nodes, profile, mode)" in js
+    assert "collectSavedNodeHeatmapBuckets" not in js
     assert "function signalHeatmapPointMaskKey(point)" in js
     assert "function signalHeatmapBucketPointCount(buckets)" in js
     assert "function maskSignalCoverageBucketsWithLive(coverageBuckets, liveBuckets)" in js
@@ -393,7 +393,7 @@ def test_dashboard_js_supports_map_link_layer_overlay() -> None:
     assert "applySignalHeatmapLayerCanvasStacking(layer, state.mode);" in js
     assert 'const liveRadiusMul = state.mode === "live" ? 0.72 : 1;' not in js
     assert 'const liveBlurMul = state.mode === "live" ? 0.68 : 1;' not in js
-    assert "const desiredLayerVisible = !!(shouldShow && !(savedSingleNodeMode && i > 0));" in js
+    assert "const desiredLayerVisible = !!shouldShow;" in js
     assert "if (!desiredLayerVisible) {" in js
     assert "removeSignalHeatmapLayerSafely(layer, { fade: !bypassFade });" in js
     assert "function removeSignalHeatmapLayerSafely(layer, options = null)" in js
@@ -498,7 +498,7 @@ def test_dashboard_js_uses_single_popup_for_map_node_hover_and_click() -> None:
     assert "map-node-tooltip-measure" not in overlay_block
     assert "if (isSelected) {" in js
     assert "marker.unbindTooltip();" in js
-    assert "suppressHoverTooltip: true," in js
+    assert "suppressHoverTooltip: true," not in js
     assert "suppressHoverTooltip: isSelected," in js
 
 
@@ -1003,7 +1003,7 @@ def test_dashboard_map_renders_effective_node_identity_on_markers_and_popups() -
     assert "const identityStyle = applyMapNodeAppearanceStyle(baseStyle, nodeId, kind, safeState);" in js
     assert "const activityStyle = applyMapNodeActivityFlashStyle(identityStyle, flashStrength, kind);" in js
     assert "mapNodeAppearanceSignature(nodeId, latestState)" in js
-    assert "mapNodeAppearanceSignature(selection, latestState)" in js
+    assert "mapNodeAppearanceSignature(selection, latestState)" not in js
     assert "mapNodeAppearanceSignature(normalizedId, latestState)" in js
     assert "const appearanceEntry = mapNodeEffectiveAppearance(normalizedId, state);" in js
     assert '"map-node-info-card${isEstimated ? " is-estimated" : ""}${appearanceClass}"${appearanceStyleAttr}' in js

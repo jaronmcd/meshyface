@@ -1,0 +1,15 @@
+    function resolveTrafficRenderContext(source, fallbackState = latestState) {{
+      const safeFallback = (fallbackState && typeof fallbackState === "object") ? fallbackState : {{}};
+      const safeSource = (source && typeof source === "object") ? source : {{}};
+      const sourceHasTraffic = !!(safeSource.traffic && typeof safeSource.traffic === "object");
+      const traffic = sourceHasTraffic
+        ? safeSource.traffic
+        : safeSource;
+      const nodes = sourceHasTraffic
+        ? (Array.isArray(safeSource.nodes) ? safeSource.nodes : [])
+        : (Array.isArray(safeFallback.nodes) ? safeFallback.nodes : []);
+      return {{
+        traffic: (traffic && typeof traffic === "object") ? traffic : {{}},
+        nodes,
+      }};
+    }}

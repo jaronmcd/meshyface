@@ -1,20 +1,3 @@
-    async function fetchOnlineActivity(hoursOverride = nodeHistoryHours) {{
-      const cleanHours = Math.max(1, Math.round(Number(hoursOverride) || nodeHistoryHours));
-      const cacheKey = String(cleanHours);
-      const cached = onlineActivityCache.get(cacheKey);
-      const nowMs = Date.now();
-      // Online activity is an aggregate rollup; refresh less frequently.
-      if (cached && (nowMs - (cached.fetchedAt || 0)) < Math.max(refreshMs * 5, 30000)) {{
-        return cached.data;
-      }}
-      const url = `/api/history/online?hours=${{encodeURIComponent(cleanHours)}}`;
-      const resp = await fetch(url, {{ cache: "no-store" }});
-      if (!resp.ok) throw new Error(`online activity API ${{resp.status}}`);
-      const data = await resp.json();
-      onlineActivityCache.set(cacheKey, {{ fetchedAt: nowMs, data }});
-      return data;
-    }}
-
     function summaryMetricsIncludePacketSeriesFromOptions(options = null) {{
       const opts = (options && typeof options === "object") ? options : {{}};
       return !!opts.includePacketSeries;
@@ -23,10 +6,6 @@
     function summaryMetricsCacheKey(hours, includePacketSeries = false) {{
       const cleanHours = Math.max(1, Math.round(Number(hours) || nodeHistoryHours));
       return `${{cleanHours}}|packet_series=${{includePacketSeries ? "1" : "0"}}`;
-    }}
-
-    function historySummaryNeedsPacketSeries(metricKey = weeklySummaryMetric) {{
-      return normalizeWeeklySummaryMetric(metricKey) === "packets";
     }}
 
     function networkOverviewSummaryNeedsPacketSeries(metricKey = networkOverviewMetric) {{
@@ -207,32 +186,6 @@
         }}
       }} catch (_err) {{
         summaryMetricsHydrated = false;
-      }}
-    }}
-
-    async function refreshHistoryPanels(force = false) {{
-      if (activeLayoutView !== "history") return;
-      setMapDataMode("activity");
-      const includePacketSeries = historySummaryNeedsPacketSeries();
-      const weeklyKey = summaryMetricsCacheKey(weeklySummaryWindowHours, includePacketSeries);
-      if (force) {{
-        summaryMetricsCache.delete(weeklyKey);
-      }}
-      const cachedWeekly = summaryMetricsCache.get(weeklyKey);
-      if (cachedWeekly && cachedWeekly.data) {{
-        renderWeeklySummary(cachedWeekly.data);
-      }} else {{
-        renderWeeklySummaryLoading();
-      }}
-
-      try {{
-        const weekly = await fetchSummaryMetrics(weeklySummaryWindowHours, {{ includePacketSeries }});
-        if (activeLayoutView !== "history") return;
-        renderWeeklySummary(weekly);
-      }} catch (reason) {{
-        if (activeLayoutView !== "history") return;
-        const message = reason instanceof Error ? reason.message : String(reason || "unknown error");
-        renderWeeklySummaryError(message);
       }}
     }}
 

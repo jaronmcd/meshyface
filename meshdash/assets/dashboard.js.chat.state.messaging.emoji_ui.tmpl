@@ -53,7 +53,7 @@
     function suppressChatReactionContextTooltip(anchor = null) {{
       restoreChatReactionContextTooltip();
       if (!(anchor instanceof HTMLElement)) return;
-      const owner = anchor.closest(".chat-feed-item[title], .chatlabs-message-row[title], [data-message-id][title]");
+      const owner = anchor.closest(".chat-feed-item[title], [data-message-id][title]");
       if (!(owner instanceof HTMLElement)) return;
       owner.dataset.chatReactionMutedTitle = owner.getAttribute("title") || "";
       owner.removeAttribute("title");

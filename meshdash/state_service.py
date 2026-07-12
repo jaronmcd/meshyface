@@ -722,8 +722,8 @@ def _slim_recent_packets(
         return []
     slimmed: list[dict[str, object]] = []
     # The tracker buffer is chronological; lite state needs the newest packet
-    # frames so protocol side channels such as file-transfer/BBS snapshots can
-    # complete from the current poll window.
+    # frames so protocol side channels such as file transfer can complete from
+    # the current poll window.
     for entry in recent_packets[-max_packets:]:
         if not isinstance(entry, Mapping):
             continue
@@ -902,7 +902,6 @@ def _slim_recent_chat_for_map_activity(
             "delivery_updated_at",
             "delivery_updated_unix",
             "retry_of",
-            "bot_command",
         ):
             value = entry.get(key)
             if value is not None:
@@ -1371,14 +1370,6 @@ def build_dashboard_state_typed(
     summary["radio_link"] = _build_radio_link_summary(tracker=tracker, target=target)
     if isinstance(radio_connection_status, Mapping) and radio_connection_status:
         summary["radio_connection"] = dict(radio_connection_status)
-    get_zork_bot_runtime_fn = getattr(tracker, "get_zork_bot_runtime", None)
-    if callable(get_zork_bot_runtime_fn):
-        try:
-            bots_runtime = get_zork_bot_runtime_fn()
-            if isinstance(bots_runtime, Mapping):
-                summary["bots"] = dict(bots_runtime)
-        except Exception:
-            pass
     get_file_transfer_runtime_fn = getattr(tracker, "get_file_transfer_runtime", None)
     if callable(get_file_transfer_runtime_fn):
         try:

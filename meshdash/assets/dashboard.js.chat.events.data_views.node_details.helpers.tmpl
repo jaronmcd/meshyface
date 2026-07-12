@@ -1,43 +1,43 @@
-    function savedDetailText(value, fallback = "n/a") {{
+    function nodeDetailsText(value, fallback = "n/a") {{
       const text = String(value == null ? "" : value).trim();
       if (text) return text;
       return String(fallback == null ? "n/a" : fallback);
     }}
 
-    function savedDetailHtmlValue(html, text = "", fallback = "n/a") {{
+    function nodeDetailsHtmlValue(html, text = "", fallback = "n/a") {{
       return {{
-        __savedDetailHtml: true,
+        __nodeDetailsHtml: true,
         html: String(html == null ? "" : html),
-        text: savedDetailText(text, fallback),
+        text: nodeDetailsText(text, fallback),
       }};
     }}
 
-    function savedDetailValueMarkup(value, fallback = "n/a") {{
-      if (value && typeof value === "object" && value.__savedDetailHtml === true) {{
+    function nodeDetailsValueMarkup(value, fallback = "n/a") {{
+      if (value && typeof value === "object" && value.__nodeDetailsHtml === true) {{
         const markup = String(value.html == null ? "" : value.html).trim();
         if (markup) {{
           return markup;
         }}
-        return escAttr(savedDetailText(value.text, fallback));
+        return escAttr(nodeDetailsText(value.text, fallback));
       }}
-      return escAttr(savedDetailText(value, fallback));
+      return escAttr(nodeDetailsText(value, fallback));
     }}
 
-    function savedDetailPercent(value, decimals = 1) {{
+    function nodeDetailsPercent(value, decimals = 1) {{
       const num = Number(value);
       if (!Number.isFinite(num)) return "n/a";
       return `${{num.toFixed(decimals)}}%`;
     }}
 
-    function savedDetailCoord(lat, lon) {{
+    function nodeDetailsCoord(lat, lon) {{
       const latNum = Number(lat);
       const lonNum = Number(lon);
       if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return "n/a";
       return `${{latNum.toFixed(5)}}, ${{lonNum.toFixed(5)}}`;
     }}
 
-    function savedDetailMapCoordLink(nodeId, lat, lon, title = "Focus GPS position on map") {{
-      const text = savedDetailCoord(lat, lon);
+    function nodeDetailsMapCoordLink(nodeId, lat, lon, title = "Focus GPS position on map") {{
+      const text = nodeDetailsCoord(lat, lon);
       const cleanNodeId = normalizeNodeId(nodeId || "");
       const latNum = Number(lat);
       const lonNum = Number(lon);
@@ -49,13 +49,13 @@
         return text;
       }}
       const titleText = String(title || "Focus GPS position on map").trim() || "Focus GPS position on map";
-      return savedDetailHtmlValue(
-        `<a href="#map" class="saved-node-inline-link saved-node-coordinate-link" data-map-node-id="${{escAttr(cleanNodeId)}}" data-map-lat="${{escAttr(latNum.toFixed(6))}}" data-map-lon="${{escAttr(lonNum.toFixed(6))}}" title="${{escAttr(titleText)}}" aria-label="${{escAttr(titleText)}}">${{escAttr(text)}}</a>`,
+      return nodeDetailsHtmlValue(
+        `<a href="#map" class="node-details-inline-link node-details-coordinate-link" data-map-node-id="${{escAttr(cleanNodeId)}}" data-map-lat="${{escAttr(latNum.toFixed(6))}}" data-map-lon="${{escAttr(lonNum.toFixed(6))}}" title="${{escAttr(titleText)}}" aria-label="${{escAttr(titleText)}}">${{escAttr(text)}}</a>`,
         text
       );
     }}
 
-    function savedDetailDurationHours(startUnix, endUnix) {{
+    function nodeDetailsDurationHours(startUnix, endUnix) {{
       const start = Number(startUnix);
       const end = Number(endUnix);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return "n/a";
@@ -63,7 +63,7 @@
       return `${{hours.toFixed(1)}}h`;
     }}
 
-    function savedDetailAge(unix, nowUnix = Math.floor(Date.now() / 1000)) {{
+    function nodeDetailsAge(unix, nowUnix = Math.floor(Date.now() / 1000)) {{
       const ts = Number(unix);
       if (!Number.isFinite(ts) || ts <= 0) return "n/a";
       const ageSec = Math.max(0, Math.floor(nowUnix - ts));
@@ -76,24 +76,24 @@
       return `${{ageDay.toFixed(ageDay < 10 ? 1 : 0)}}d ago`;
     }}
 
-    function savedDetailSectionHtml(title, items, note = "") {{
+    function nodeDetailsSectionHtml(title, items, note = "") {{
       const rows = items.map(([label, value]) => (
-        `<div class="saved-node-stat">
-          <div class="saved-node-stat-k">${{escAttr(label)}}</div>
-          <div class="saved-node-stat-v">${{savedDetailValueMarkup(value)}}</div>
+        `<div class="node-details-stat">
+          <div class="node-details-stat-k">${{escAttr(label)}}</div>
+          <div class="node-details-stat-v">${{nodeDetailsValueMarkup(value)}}</div>
         </div>`
       )).join("");
       const noteHtml = note
-        ? `<div class="saved-node-note">${{escAttr(note)}}</div>`
+        ? `<div class="node-details-note">${{escAttr(note)}}</div>`
         : "";
-      return `<section class="saved-node-section">
-        <h3 class="saved-node-section-title">${{escAttr(title)}}</h3>
-        <div class="saved-node-grid">${{rows}}</div>
+      return `<section class="node-details-section">
+        <h3 class="node-details-section-title">${{escAttr(title)}}</h3>
+        <div class="node-details-grid">${{rows}}</div>
         ${{noteHtml}}
       </section>`;
     }}
 
-    function savedDetailNameHistorySectionHtml(entries, {{
+    function nodeDetailsNameHistorySectionHtml(entries, {{
       loading = false,
       maxRows = 12,
       title = "Name History",
@@ -106,23 +106,23 @@
       const emptyText = String(emptyMessage || "No saved name updates yet.").trim() || "No saved name updates yet.";
       let bodyHtml = "";
       if (loading && safeEntries.length === 0) {{
-        bodyHtml = '<div class="saved-node-name-history-empty">Name history is loading...</div>';
+        bodyHtml = '<div class="node-details-name-history-empty">Name history is loading...</div>';
       }} else if (safeEntries.length === 0) {{
-        bodyHtml = `<div class="saved-node-name-history-empty">${{escAttr(emptyText)}}</div>`;
+        bodyHtml = `<div class="node-details-name-history-empty">${{escAttr(emptyText)}}</div>`;
       }} else {{
         const shown = safeEntries.slice(-safeMaxRows).reverse();
-        bodyHtml = `<ul class="saved-node-name-history-list">${{shown.map((entry) => {{
-          const shortName = savedDetailText(entry && entry.short_name, "n/a");
-          const longName = savedDetailText(entry && entry.long_name, "n/a");
-          const when = savedDetailText(entry && entry.time);
-          const source = savedDetailText(entry && entry.source_portnum);
-          return `<li class="saved-node-name-history-item">
-            <div class="saved-node-name-history-main">
-              <div class="saved-node-name-history-short">${{escAttr(shortName)}}</div>
-              <div class="saved-node-name-history-long">${{escAttr(longName)}}</div>
+        bodyHtml = `<ul class="node-details-name-history-list">${{shown.map((entry) => {{
+          const shortName = nodeDetailsText(entry && entry.short_name, "n/a");
+          const longName = nodeDetailsText(entry && entry.long_name, "n/a");
+          const when = nodeDetailsText(entry && entry.time);
+          const source = nodeDetailsText(entry && entry.source_portnum);
+          return `<li class="node-details-name-history-item">
+            <div class="node-details-name-history-main">
+              <div class="node-details-name-history-short">${{escAttr(shortName)}}</div>
+              <div class="node-details-name-history-long">${{escAttr(longName)}}</div>
             </div>
-            <div class="saved-node-name-history-meta">${{escAttr(when)}}</div>
-            <div class="saved-node-name-history-meta">${{escAttr(source)}}</div>
+            <div class="node-details-name-history-meta">${{escAttr(when)}}</div>
+            <div class="node-details-name-history-meta">${{escAttr(source)}}</div>
           </li>`;
         }}).join("")}}</ul>`;
       }}
@@ -131,10 +131,10 @@
           ? `Showing newest ${{safeMaxRows}} of ${{safeEntries.length}} saved name updates.`
           : "Newest first."
       );
-      return `<section class="saved-node-section">
-        <h3 class="saved-node-section-title">${{escAttr(titleText)}}</h3>
+      return `<section class="node-details-section">
+        <h3 class="node-details-section-title">${{escAttr(titleText)}}</h3>
         ${{bodyHtml}}
-        <div class="saved-node-note">${{escAttr(note)}}</div>
+        <div class="node-details-note">${{escAttr(note)}}</div>
       </section>`;
     }}
 
@@ -173,7 +173,7 @@
       const lastPointUnix = historyPoints.length
         ? Number(historyPoints[historyPoints.length - 1] && historyPoints[historyPoints.length - 1].bucket_unix)
         : null;
-      const coveredHoursText = savedDetailDurationHours(firstPointUnix, lastPointUnix);
+      const coveredHoursText = nodeDetailsDurationHours(firstPointUnix, lastPointUnix);
       const peakPacketsPerMinute = historyPoints.reduce((peak, point) => {{
         const count = Number(point && point.packet_count);
         if (!Number.isFinite(count)) return peak;
@@ -211,16 +211,16 @@
       const rssiRange = `${{formatMetricValue(historySummary.rssi_min, 0)}} to ${{formatMetricValue(historySummary.rssi_max, 0)}} dBm`;
       const note = String(noteText || "").trim() || (loading ? "Historical points are loading for this node." : "");
 
-      return savedDetailSectionHtml(String(title || "History").trim() || "History", [
+      return nodeDetailsSectionHtml(String(title || "History").trim() || "History", [
         ["Window", historyWindowText],
         ["Samples (1m)", String(historyPointCount)],
         ["Active Hours", activeHoursText],
         ["Covered Range", coveredHoursText],
         ["Total Packets", String(historyTotalPackets)],
         ["Peak Packets/min", String(Math.round(peakPacketsPerMinute || 0))],
-        ["First Bucket", savedDetailText(historySummary.first_bucket)],
-        ["Last Bucket", savedDetailText(historySummary.last_bucket)],
-        ["History Last Seen", savedDetailText(historySummary.last_seen)],
+        ["First Bucket", nodeDetailsText(historySummary.first_bucket)],
+        ["Last Bucket", nodeDetailsText(historySummary.last_bucket)],
+        ["History Last Seen", nodeDetailsText(historySummary.last_seen)],
         ["Avg SNR", Number.isFinite(snrAvg) ? `${{formatMetricValue(snrAvg, 2)}} dB` : "n/a"],
         ["SNR Range", snrRange],
         ["Avg RSSI", Number.isFinite(rssiAvg) ? `${{formatMetricValue(rssiAvg, 1)}} dBm` : "n/a"],

@@ -1494,6 +1494,19 @@
       return matches;
     }}
 
+    function touchChatNodeNavigatorRetainedNodes(touchNodeById) {{
+      if (typeof touchNodeById !== "function") return;
+      if (favoriteNodeIds && typeof favoriteNodeIds.forEach === "function") {{
+        favoriteNodeIds.forEach((nodeId) => touchNodeById(nodeId));
+      }}
+      if (pinnedNodeIds && typeof pinnedNodeIds.forEach === "function") {{
+        pinnedNodeIds.forEach((nodeId) => touchNodeById(nodeId));
+      }}
+      if (nodeNotesById && typeof nodeNotesById.forEach === "function") {{
+        nodeNotesById.forEach((_entry, nodeId) => touchNodeById(nodeId));
+      }}
+    }}
+
     function buildChatNodeNavigatorDefaultRoster(
       state,
       nodesById,
@@ -1612,27 +1625,11 @@
           }});
         }}
       }}
-      if (favoriteNodeIds && typeof favoriteNodeIds.forEach === "function") {{
-        favoriteNodeIds.forEach((nodeId) => {{
-          touchNodeById(nodeId, {{
-            p2pPinned: manualDirectPeerIds.has(normalizeNodeId(nodeId)),
-          }});
+      touchChatNodeNavigatorRetainedNodes((nodeId) => {{
+        touchNodeById(nodeId, {{
+          p2pPinned: manualDirectPeerIds.has(normalizeNodeId(nodeId)),
         }});
-      }}
-      if (pinnedNodeIds && typeof pinnedNodeIds.forEach === "function") {{
-        pinnedNodeIds.forEach((nodeId) => {{
-          touchNodeById(nodeId, {{
-            p2pPinned: manualDirectPeerIds.has(normalizeNodeId(nodeId)),
-          }});
-        }});
-      }}
-      if (nodeNotesById && typeof nodeNotesById.forEach === "function") {{
-        nodeNotesById.forEach((_entry, nodeId) => {{
-          touchNodeById(nodeId, {{
-            p2pPinned: manualDirectPeerIds.has(normalizeNodeId(nodeId)),
-          }});
-        }});
-      }}
+      }});
 
       const rows = Array.from(participants.values());
       if (typeof sortChatNodeNavigatorParticipants === "function") {{
@@ -2023,7 +2020,6 @@
             ? `~ ${{memberCityTextRaw}}`
             : memberCityTextRaw
         );
-        // Legacy guard for compatibility tests: class="chat-member-city"
         const memberCityHtml = memberCityKey
           ? `<span class="chat-member-city${{memberCitySource === "estimated" ? " is-estimated" : ""}}" data-chat-member-city-key="${{escAttr(memberCityKey)}}" data-chat-member-city-lat="${{escAttr(memberLocation.lat.toFixed(6))}}" data-chat-member-city-lon="${{escAttr(memberLocation.lon.toFixed(6))}}" data-chat-member-city-source="${{escAttr(memberCitySource)}}"${{memberCityText ? "" : " hidden"}}>${{escAttr(memberCityText)}}</span>`
           : "";
@@ -3575,7 +3571,7 @@
         '<button id="chat-node-details-tab-links" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="links">Links</button>',
         '<button id="chat-node-details-tab-notes" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="notes">Notes</button>',
         '</div>',
-        '<div id="chat-node-details-panel-details" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-details"><div id="chat-node-details-content-host" class="chat-node-details-content-host"></div></div>',
+        '<div id="chat-node-details-panel-details" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-details"><div id="chat-node-details-content-host" class="chat-node-details-content-host"><div id="node-details" class="node-details" aria-live="polite"></div></div></div>',
         '<div id="chat-node-details-panel-notes" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-notes" hidden><div id="chat-node-details-notes-host" class="chat-node-details-notes-host"></div></div>',
         '<div id="chat-node-details-panel-messages" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-messages" hidden><div id="chat-node-details-messages-host" class="chat-node-details-messages-host"></div></div>',
         '<div id="chat-node-details-panel-history" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-history" hidden><div id="chat-node-details-history-host" class="chat-node-details-history-host"></div></div>',
@@ -3628,21 +3624,6 @@
         workspaceShell.classList.toggle("has-promoted-node-details", usePromoted);
       }}
       return usePromoted;
-    }}
-
-    function syncSavedNodeDetailsDock(forceToSaved = false) {{
-      const detailsHost = document.getElementById("saved-node-details");
-      if (!(detailsHost instanceof HTMLElement)) return;
-      const savedPane = document.querySelector(".saved-node-pane");
-      const drawerHost = document.getElementById("chat-node-details-content-host");
-      const useDrawerHost = !forceToSaved
-        && isChatNodeDetailsDrawerExpanded()
-        && (drawerHost instanceof HTMLElement);
-      const target = useDrawerHost ? drawerHost : savedPane;
-      if (!(target instanceof HTMLElement)) return;
-      if (detailsHost.parentElement !== target) {{
-        target.appendChild(detailsHost);
-      }}
     }}
 
     function setDrawerElementTextIfChanged(element, nextText) {{
@@ -3848,6 +3829,9 @@
         }}
         const detailsHost = document.getElementById("chat-node-details-content-host");
         const historyHost = document.getElementById("chat-node-details-history-host");
+        // The history panel is shared with the map-data workspace. Return it before
+        // clearing or removing the drawer so its tabs and charts stay in the DOM.
+        syncNodeHistoryDock();
         setDrawerElementHtmlIfChanged(detailsHost, "", "details");
         setDrawerElementHtmlIfChanged(historyHost, "", "history");
         setDrawerElementHtmlIfChanged(locationHost, "", "location");
@@ -3857,8 +3841,6 @@
         setDrawerElementHtmlIfChanged(notesHost, "", "notes");
         setDrawerElementHtmlIfChanged(messagesHost, "", "messages");
         setDrawerElementHtmlIfChanged(tagHost, "", "tag");
-        syncSavedNodeDetailsDock(true);
-        syncNodeHistoryDock();
         const inlineHost = document.getElementById("chat-node-details-inline-host");
         if (inlineHost instanceof HTMLElement) {{
           resetChatNodeDetailsInlineHost(inlineHost);
@@ -3995,7 +3977,7 @@
             }}
             refreshFavoriteToggleButtons();
             if (latestState) {{
-              renderFavorites(latestState);
+              renderNodeDetails(latestState);
             }} else {{
               renderStarredNodeSelect({{}});
             }}
@@ -4046,7 +4028,7 @@
             syncChatNodeDetailsDrawer(latestState, {{ fetchHistory: false }});
             refreshFavoriteToggleButtons();
             if (latestState) {{
-              renderFavorites(latestState);
+              renderNodeDetails(latestState);
             }}
           }};
           iconInput.addEventListener("input", saveIconOverride);
@@ -4095,8 +4077,8 @@
         bindFavoriteMenuTagEditorControls(selectedId);
       }}
 
-      const resolvedName = (typeof resolveSavedViewNodeName === "function")
-        ? resolveSavedViewNodeName(safeState, selectedId)
+      const resolvedName = (typeof resolveNodeDisplayName === "function")
+        ? resolveNodeDisplayName(safeState, selectedId)
         : "";
       const fallbackName = nodeNameCache.get(selectedId) || selectedId;
       const titleName = String(resolvedName || fallbackName || selectedId);
@@ -4187,10 +4169,9 @@
         );
       }}
 
-      syncSavedNodeDetailsDock(false);
       const cachedHistory = cachedNodeHistory(selectedId);
-      renderSavedNodeDetails(safeState, cachedHistory);
-      if (notesHost instanceof HTMLElement && !notesHost.querySelector("#saved-node-note-input")) {{
+      renderNodeDetails(safeState, cachedHistory);
+      if (notesHost instanceof HTMLElement && !notesHost.querySelector("#node-details-note-input")) {{
         notesHost.innerHTML = "";
       }}
       const activeNetworkSubviewName = (typeof normalizeNetworkSubview === "function")
@@ -4199,8 +4180,7 @@
       const shouldPrefetchNodeHistory = !!(
         opts.fetchHistory !== false
         && (
-          activeLayoutView === "saved"
-          || (
+          (
             activeLayoutView === "network"
             && (
               typeof networkSubviewUsesMap === "function"

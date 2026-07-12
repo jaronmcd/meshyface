@@ -17,11 +17,11 @@ def test_dashboard_js_uses_curated_default_ticker_layout() -> None:
     )
 
     assert re.search(
-        r'const tickerDefaultOrder = \[\s*"self",\s*"radio",\s*"known_nodes",\s*"online_nodes",\s*"new_nodes",\s*"packets_per_min",\s*"channel_util",\s*"node",\s*"links",\s*"bots",\s*"battery",',
+        r'const tickerDefaultOrder = \[\s*"self",\s*"radio",\s*"known_nodes",\s*"online_nodes",\s*"new_nodes",\s*"packets_per_min",\s*"channel_util",\s*"node",\s*"links",\s*"battery",',
         js,
     )
     assert re.search(
-        r'for \(const id of \[\s*"self",\s*"radio",\s*"known_nodes",\s*"online_nodes",\s*"new_nodes",\s*"packets_per_min",\s*"channel_util",\s*"node",\s*"links",\s*"bots",\s*\]\)',
+        r'for \(const id of \[\s*"self",\s*"radio",\s*"known_nodes",\s*"online_nodes",\s*"new_nodes",\s*"packets_per_min",\s*"channel_util",\s*"node",\s*"links",\s*\]\)',
         js,
     )
     assert 'if (key === "target") return "self";' in js
@@ -30,7 +30,7 @@ def test_dashboard_js_uses_curated_default_ticker_layout() -> None:
     assert "prefs.enabled[id] = !!defaults.enabled[id];" in js
 
 
-def test_dashboard_exposes_bot_ticker_gated_by_runtime() -> None:
+def test_dashboard_omits_removed_bot_ticker_and_keeps_standalone_zork() -> None:
     html = render_html(
         refresh_ms=1000,
         packet_limit=200,
@@ -49,55 +49,25 @@ def test_dashboard_exposes_bot_ticker_gated_by_runtime() -> None:
         node_history_max_points=240,
     )
 
-    assert 'id="summary-ticker-bots"' in html
-    assert 'data-ticker-id="bots"' in html
-    assert '<div class="label" data-ticker-label>Bots</div>' in html
-    assert 'id="m-bots-ticker"' in html
-    assert '{ id: "bots", defaultLabel: "Bots", metric: false }' in js
-    assert 'function botTickerAvailableForState(state = latestState) {' in js
-    assert 'const zorkRuntime = botRuntimeFromState("zork", state);' in js
-    assert 'const pingRuntime = botRuntimeFromState("ping", state);' in js
-    assert 'id="bots-ping-command-item"' in html
-    assert 'data-bot-command="ping"' in html
-    assert "adventureBotRuntimeFromState" not in js
-    assert 'function buildBotTickerSummary(state = latestState) {' in js
-    assert 'function renderBotTickerSummary(state = latestState) {' in js
-    assert 'tickerItem.classList.toggle("has-active-bot-sessions", summary.activeSessionCount > 0);' in js
-    assert 'tickerItem.classList.toggle("has-pending-bot-activity", summary.pendingCount > 0);' in js
-    assert 'const zorkBotActivityResetStorageKey = "meshDashboardZorkActivityResetCutoffUnixV1";' in js
-    assert 'function zorkBotActivityResetCutoffUnix() {' in js
-    assert 'function setZorkBotActivityResetCutoffUnix(value) {' in js
-    assert 'function resetZorkBotActivityFromUi() {' in js
-    assert 'if (resetCutoffUnix > 0 && timeUnix > 0 && timeUnix <= resetCutoffUnix) return;' in js
-    assert 'Activity stats reset at' in js
-    assert 'id="bots-zork-reset-activity-btn"' in html
-    assert "bots-adventure-command-item" not in html
-    assert 'data-bot-command="adventure"' not in html
-    assert "bots-adventure-list-state" not in html
-    assert 'id="bots-detail-title"' in html
-    assert 'let selectedBotCommand = "zork";' in js
-    assert 'function selectBotCatalogCommand(command) {' in js
-    assert 'renderSelectedBotDetail(state, {' in js
-    assert "bots-adventure-list-state" not in js
-    assert "selectedCommand === \"adventure\"" not in js
-    assert 'function buildBotActivity(command = "zork", state = latestState, runtime = null) {' in js
-    assert 'botCommand: botCommandFromActivityRow(row),' in js
-    assert 'No ${escAttr(spec.title)} activity since the reset.' in js
-    assert 'function isZorkBotPublicStartText(text) {' in js
-    assert 'return isBotPublicStartText("zork", text);' in js
-    assert 'const isPublicStart = publicStartEnabled && item.toAll && isBotPublicStartText(selectedCommand, item.text);' in js
-    assert 'const isDirectStart = item.toLocal && isBotPublicStartText(selectedCommand, item.text);' in js
-    assert 'const isDirectSessionCommand = item.toLocal && (linkedReplies.length > 0 || sessionPeers.has(item.from));' in js
-    assert 'const isCommand = isPublicStart || isDirectStart || isDirectSessionCommand;' in js
-    assert 'isZorkBotCommandText(text) && (toLocal || toAll)' not in js
-    assert 'if (replyCommand !== selectedCommand) return;' in js
-    assert re.search(r"if \\(fromLocal && replyId !== null\\) \\{\\s*addReply\\(replyId, item\\);", js) is None
-    assert 'const isEnabled = tickerEnabled(id) && tickerAvailable(id, state);' in js
-    assert 'renderBotTickerSummary(state);' in js
-    assert 'function syncTickerRuntimeAvailability(state = latestState) {' in js
-    assert 'syncTickerRuntimeAvailability(state);' in js
-    assert 'if (id === "bots") return "bots";' in js
-    assert 'applyLayoutView(navigationTarget, true);' in js
+    for token in (
+        'id="summary-ticker-bots"',
+        'data-ticker-id="bots"',
+        'data-app-view="bots"',
+        "/api/bots/",
+    ):
+        assert token not in html
+    for token in (
+        '{ id: "bots", defaultLabel: "Bots", metric: false }',
+        "botTickerAvailableForState",
+        "buildBotTickerSummary",
+        "botRuntimeFromState",
+        'if (id === "bots") return "bots";',
+        "/api/bots/",
+    ):
+        assert token not in js
+    assert 'fetch("/api/games/zork"' in js
+    assert 'name: "zork"' in js
+
 
 
 def test_dashboard_js_does_not_include_live_update_ticker() -> None:
@@ -187,7 +157,7 @@ def test_render_html_exposes_auto_new_nodes_ticker() -> None:
     assert 'id="ticker-chart-new-nodes"' in html
 
 
-def test_dashboard_nodes_plots_expose_new_nodes_series_controls() -> None:
+def test_dashboard_network_nodes_plot_exposes_new_nodes_series_controls() -> None:
     html = render_html(
         refresh_ms=1000,
         packet_limit=200,
@@ -207,13 +177,12 @@ def test_dashboard_nodes_plots_expose_new_nodes_series_controls() -> None:
     )
 
     assert 'id="network-overview-node-line-new"' in html
-    assert 'id="weekly-summary-node-line-new"' in html
+    assert 'id="weekly-summary-node-line-new"' not in html
     assert "Show new nodes (24h) line" in html
     assert re.search(
         r'const weeklySummaryNodeSeriesOrder = \[\s*"online_nodes",\s*"new_nodes",\s*"known_nodes",\s*"saved_nodes",\s*"position_nodes",\s*\];',
         js,
     )
-    assert 'new_nodes: "weekly-summary-node-line-new",' in js
     assert 'new_nodes: "network-overview-node-line-new",' in js
     assert 'new_nodes: "New Nodes (24h)",' in js
     assert 'new_nodes: { tone: "aux3", dashed: false, width: 2.1 },' in js
@@ -444,18 +413,14 @@ def test_render_html_uses_single_row_compact_ticker_strip() -> None:
     assert "flex: 1 1 min(208px, 100%);" in html
     assert ".topbar.ticker-expanded.ticker-wrap-balanced .summary-ticker-item {" in html
     assert "flex-basis: min(300px, 100%);" in html
-    assert ".topbar.ticker-expanded .summary-ticker-item-bots {" in html
-    assert "flex-grow: 0;" in html
-    assert ".topbar.ticker-expanded .summary-ticker-item-bots .value.bot-ticker-value {" in html
-    assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in html
     ticker_item_section = html.split(".topbar .summary-ticker-item {", 1)[1].split("}", 1)[0]
-    assert "--ticker-text: var(--theme-text-color, var(--ink));" in ticker_item_section
+    assert "--ticker-text: var(--theme-text-color, var(--ui-text));" in ticker_item_section
     assert "--ticker-text-strong: var(--theme-text-color-strong, var(--ticker-text));" in ticker_item_section
-    assert "--ticker-text-soft: var(--theme-text-color-soft, var(--muted));" in ticker_item_section
+    assert "--ticker-text-soft: var(--theme-text-color-soft, var(--ui-text-soft));" in ticker_item_section
     assert "--ticker-text-muted: var(--theme-text-color-muted, var(--ticker-text-soft));" in ticker_item_section
     assert "color: var(--ticker-text);" in ticker_item_section
     assert re.search(
-        r"\.topbar \.summary-ticker-item \{\s*--ticker-text: var\(--theme-text-color, var\(--ink\)\);\s*--ticker-text-strong: var\(--theme-text-color-strong, var\(--ticker-text\)\);\s*--ticker-text-soft: var\(--theme-text-color-soft, var\(--muted\)\);\s*--ticker-text-muted: var\(--theme-text-color-muted, var\(--ticker-text-soft\)\);\s*border: 1px solid .*?\s*background: var\(--panel\);\s*border-radius: 7px;\s*padding: 4px 7px;\s*min-width: 0;\s*color: var\(--ticker-text\);\s*position: relative;\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-rows: auto;",
+        r"\.topbar \.summary-ticker-item \{\s*--ticker-text: var\(--theme-text-color, var\(--ui-text\)\);\s*--ticker-text-strong: var\(--theme-text-color-strong, var\(--ticker-text\)\);\s*--ticker-text-soft: var\(--theme-text-color-soft, var\(--ui-text-soft\)\);\s*--ticker-text-muted: var\(--theme-text-color-muted, var\(--ticker-text-soft\)\);\s*border: 1px solid .*?\s*background: var\(--ui-panel\);\s*border-radius: 7px;\s*padding: 4px 7px;\s*min-width: 0;\s*color: var\(--ticker-text\);\s*position: relative;\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) auto;\s*grid-template-rows: auto;",
         html,
     )
     assert ".topbar:not(.ticker-expanded) .summary-ticker-item > .label {" in html
@@ -584,7 +549,7 @@ def test_dashboard_js_renders_selected_or_local_identity_in_node_ticker() -> Non
     assert 'selectedSlot = addIdentitySlot("selected", "", selectedTickerId, selectedTickerNode, null, selectedNodeName, "Selected node");' in js
     assert '? `${metricBaseTitle} • Click self or selected side to focus that node`' in js
     assert "nearestOfflineCityHintFromCoords(" in js
-    assert 'source: "linked",' in js
+    assert 'source: "estimated",' in js
     assert "const cityRequests = [];" in js
     assert "addIdentityCityRequest(localSlot, localId, localNode, localOwner);" in js
     assert "addIdentityCityRequest(selectedSlot, selectedTickerId, selectedTickerNode, null);" in js
@@ -640,11 +605,6 @@ def test_render_html_styles_node_identity_ticker() -> None:
     assert 'id="ticker-rate-radio"' in html
     assert 'id="ticker-chart-radio"' in html
     assert ".topbar .summary-ticker-item-self .value.self-node-value" in html
-    assert ".topbar .summary-ticker-item-bots.has-active-bot-sessions," in html
-    assert ".topbar .summary-ticker-item-bots.has-pending-bot-activity {" in html
-    assert ".topbar .summary-ticker-item-bots.has-active-bot-sessions::before," in html
-    assert ".topbar .summary-ticker-item-bots.has-pending-bot-activity::before {" in html
-    assert '[data-theme="dark"] .topbar .summary-ticker-item-bots.has-active-bot-sessions,' in html
     assert ".topbar .summary-ticker-item-self.has-node-emoji::after" in html
     assert ".topbar .summary-ticker-item-self.has-node-emoji.has-fallback-node-watermark::after" in html
     assert "content: attr(data-node-emoji);" in html
@@ -677,8 +637,8 @@ def test_render_html_styles_node_identity_ticker() -> None:
     assert ".summary-ticker-item-self.has-selected-node" in html
     assert ".summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot" in html
     assert ".summary-ticker-item-self.profiled-node:not(.has-selected-node) .value.self-node-value .self-node-identity-local.profiled-node" in html
-    assert "color-mix(in srgb, var(--panel) 46%, transparent)" in html
-    assert "color-mix(in srgb, var(--surface-tint-bg-alt, var(--panel)) 88%, transparent)" in html
+    assert "color-mix(in srgb, var(--ui-panel) 46%, transparent)" in html
+    assert "color-mix(in srgb, var(--surface-tint-bg-alt, var(--ui-panel)) 88%, transparent)" in html
     assert ".self-node-identity-local.profiled-node" in html
     assert "background: transparent !important;" in html
     assert ".summary-ticker-item-self.profiled-node.has-node-profile-watermark::before" in html

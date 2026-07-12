@@ -1,31 +1,3 @@
-    function renderPackets(source) {{
-      const context = resolveTrafficRenderContext(source);
-      const traffic = context.traffic;
-      const describeNode = buildHistoryNodeIdentityResolver(context.nodes);
-      const packets = Array.isArray(traffic && traffic.recent_packets)
-        ? traffic.recent_packets.slice().reverse().slice(0, 120)
-        : [];
-      const rows = packets.map((entry) => {{
-        const s = entry.summary || {{}};
-        const packet = (entry && entry.packet && typeof entry.packet === "object")
-          ? entry.packet
-          : {{}};
-        const fromIdentity = describeNode(s.from ?? packet.from ?? "");
-        const toIdentity = describeNode(s.to ?? packet.to ?? packet.destination ?? "");
-        const text = s.decoded_text == null ? "" : String(s.decoded_text);
-        return `<tr>
-          <td data-sort="${{escAttr(s.captured_at || "")}}">${{s.captured_at || "n/a"}}</td>
-          <td data-sort="${{escAttr(fromIdentity.sort)}}" title="${{escAttr(fromIdentity.title)}}">${{fromIdentity.html}}</td>
-          <td data-sort="${{escAttr(toIdentity.sort)}}" title="${{escAttr(toIdentity.title)}}">${{toIdentity.html}}</td>
-          <td data-sort="${{escAttr(s.portnum || "")}}">${{s.portnum || "n/a"}}</td>
-          <td data-sort="${{escAttr(s.rx_snr ?? "")}}">${{s.rx_snr ?? "n/a"}}</td>
-          <td data-sort="${{escAttr(s.rx_rssi ?? "")}}">${{s.rx_rssi ?? "n/a"}}</td>
-          <td data-sort="${{escAttr(text)}}">${{text}}</td>
-        </tr>`;
-      }});
-      fillTable("packets-table", rows);
-    }}
-
     function explicitPacketChannelIndex(entry) {{
       const summary = (entry && entry.summary && typeof entry.summary === "object")
         ? entry.summary

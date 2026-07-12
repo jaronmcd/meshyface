@@ -1,5 +1,7 @@
 from collections.abc import Mapping
+from hmac import compare_digest
 from importlib import import_module
+import ipaddress
 import os
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -16,7 +18,6 @@ from .emoji_catalog import (
 )
 from .api_history import (
     build_node_history_response as _build_node_history_response_helper,
-    build_online_activity_response as _build_online_activity_response_helper,
     build_summary_metrics_response as _build_summary_metrics_response_helper,
 )
 from .api_history_chat import (
@@ -68,15 +69,6 @@ _handle_custom_telemetry_settings_get_helper = _load_optional_handler(
     ".api_custom_telemetry",
     "handle_custom_telemetry_settings_get",
 )
-_handle_bbs_settings_get_helper = _load_optional_handler(
-    ".api_bbs",
-    "handle_bbs_settings_get",
-)
-_handle_bbs_host_get_helper = _load_optional_handler(
-    ".api_bbs",
-    "handle_bbs_host_get",
-)
-
 _VENDOR_ASSETS_DIR = Path(__file__).with_name("assets") / "vendor"
 _VENDOR_ASSETS: Mapping[str, tuple[str, str]] = {
     "/assets/vendor/leaflet-1.9.4.css": ("leaflet-1.9.4.css", "text/css; charset=utf-8"),
@@ -89,6 +81,51 @@ _VENDOR_ASSETS: Mapping[str, tuple[str, str]] = {
     "/assets/vendor/images/marker-icon-2x.png": ("images/marker-icon-2x.png", "image/png"),
     "/assets/vendor/images/marker-shadow.png": ("images/marker-shadow.png", "image/png"),
 }
+
+
+def _request_header_value(handler: object, name: str) -> str:
+    headers = getattr(handler, "headers", None)
+    if headers is None:
+        return ""
+    try:
+        direct = headers.get(name)
+    except Exception:
+        direct = None
+    if direct is not None:
+        return str(direct)
+    name_lower = name.lower()
+    for key, value in getattr(headers, "items", lambda: [])():
+        if str(key).lower() == name_lower:
+            return str(value)
+    return ""
+
+
+def _sensitive_download_is_authorized(
+    handler: object,
+    *,
+    required_token: object,
+    allow_tokenless: bool,
+) -> bool:
+    required = str(required_token or "").strip()
+    if not required:
+        if not allow_tokenless:
+            return False
+        client_address = getattr(handler, "client_address", None)
+        client_host = client_address[0] if isinstance(client_address, tuple) and client_address else ""
+        try:
+            address = ipaddress.ip_address(str(client_host))
+            return bool(address.is_loopback or address.is_private or address.is_link_local)
+        except ValueError:
+            return False
+    authorization = _request_header_value(handler, "Authorization").strip()
+    supplied = ""
+    if authorization:
+        parts = authorization.split(None, 1)
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            supplied = parts[1].strip()
+    if not supplied:
+        supplied = _request_header_value(handler, "X-API-Token").strip()
+    return bool(supplied) and compare_digest(supplied, required)
 
 
 def _write_vendor_asset_response(
@@ -171,6 +208,34 @@ def _write_binary_download_response(
     handler.send_header("Content-Length", str(len(payload)))
     handler.end_headers()
     handler.wfile.write(payload)
+
+
+def _write_binary_file_download_response(
+    handler: DashboardHttpHandler,
+    *,
+    path: object,
+    size_bytes: object,
+    filename: object,
+    content_type: object,
+) -> None:
+    source_path = os.fspath(path)
+    expected_size = _to_int_helper(size_bytes)
+    if expected_size is None or expected_size < 0:
+        expected_size = max(0, int(os.path.getsize(source_path)))
+    safe_filename = _download_filename_token(filename, "download.bin")
+    handler.send_response(200)
+    handler.send_header("Content-Type", str(content_type or "application/octet-stream"))
+    _send_no_store_headers(handler)
+    handler.send_header("Content-Disposition", f'attachment; filename="{safe_filename}"')
+    handler.send_header("X-Content-Type-Options", "nosniff")
+    handler.send_header("Content-Length", str(expected_size))
+    handler.end_headers()
+    with open(source_path, "rb") as source:
+        while True:
+            chunk = source.read(64 * 1024)
+            if not chunk:
+                break
+            handler.wfile.write(chunk)
 
 
 def _write_cacheable_json_bytes_response(
@@ -458,23 +523,7 @@ def handle_dashboard_get(
             )
         return
 
-    if path == "/api/bbs/host":
-        if not callable(_handle_bbs_host_get_helper):
-            deps.write_json_response_fn(
-                handler,
-                status_code=503,
-                payload_obj={"ok": False, "error": "BBS host runtime is not enabled on this dashboard instance"},
-            )
-            return
-        _handle_bbs_host_get_helper(
-            handler,
-            get_bbs_host_runtime_fn=deps.get_bbs_host_runtime_fn,
-            write_json_response_fn=deps.write_json_response_fn,
-        )
-        return
-
-    # Raw/debug payloads are fetched on-demand (Data view) so the primary
-    # /api/state polling stays lean.
+    # Raw device payloads are fetched on demand so primary /api/state polling stays lean.
     if path == "/api/raw/my_info":
         raw_fn = getattr(deps.state_fn, "raw_my_info", None)
         if callable(raw_fn):
@@ -505,16 +554,6 @@ def handle_dashboard_get(
         deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
         return
 
-    if path == "/api/raw/nodes_full":
-        raw_fn = getattr(deps.state_fn, "raw_nodes_full", None)
-        if callable(raw_fn):
-            response_obj = raw_fn()
-        else:
-            snapshot = deps.state_fn()
-            response_obj = snapshot.get("nodes_full") if isinstance(snapshot, dict) else []
-        deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
-        return
-
     if path == "/api/system/database":
         database_stats_fn = getattr(deps.state_fn, "database_stats_fn", None)
         if callable(database_stats_fn):
@@ -536,6 +575,21 @@ def handle_dashboard_get(
         return
 
     if path == "/api/system/database/raw_packets/download":
+        if not _sensitive_download_is_authorized(
+            handler,
+            required_token=getattr(deps, "api_token", None),
+            allow_tokenless=bool(
+                getattr(deps, "allow_tokenless_raw_packet_download", True)
+            ),
+        ):
+            deps.write_json_response_fn(
+                handler,
+                status_code=401,
+                payload_obj={"ok": False, "error": "API token required for raw packet download"},
+                no_store=True,
+                extra_headers={"WWW-Authenticate": "Bearer"},
+            )
+            return
         download_fn = getattr(deps.state_fn, "raw_packet_database_download_fn", None)
         if not callable(download_fn):
             deps.write_json_response_fn(
@@ -566,7 +620,17 @@ def handle_dashboard_get(
             )
             return
         raw_payload = response_obj.get("bytes")
-        if not isinstance(raw_payload, (bytes, bytearray, memoryview)):
+        download_path = response_obj.get("path")
+        cleanup_fn = response_obj.get("cleanup_fn")
+        if not isinstance(raw_payload, (bytes, bytearray, memoryview)) and not isinstance(
+            download_path,
+            (str, os.PathLike),
+        ):
+            if callable(cleanup_fn):
+                try:
+                    cleanup_fn()
+                except Exception:
+                    pass
             deps.write_json_response_fn(
                 handler,
                 status_code=500,
@@ -574,12 +638,28 @@ def handle_dashboard_get(
                 no_store=True,
             )
             return
-        _write_binary_download_response(
-            handler,
-            payload=bytes(raw_payload),
-            filename=response_obj.get("filename") or "meshdash_raw_packets.sqlite3",
-            content_type=response_obj.get("content_type") or "application/vnd.sqlite3",
-        )
+        try:
+            if isinstance(download_path, (str, os.PathLike)):
+                _write_binary_file_download_response(
+                    handler,
+                    path=download_path,
+                    size_bytes=response_obj.get("size_bytes"),
+                    filename=response_obj.get("filename") or "meshdash_raw_packets.sqlite3",
+                    content_type=response_obj.get("content_type") or "application/vnd.sqlite3",
+                )
+            else:
+                _write_binary_download_response(
+                    handler,
+                    payload=bytes(raw_payload),
+                    filename=response_obj.get("filename") or "meshdash_raw_packets.sqlite3",
+                    content_type=response_obj.get("content_type") or "application/vnd.sqlite3",
+                )
+        finally:
+            if callable(cleanup_fn):
+                try:
+                    cleanup_fn()
+                except Exception:
+                    pass
         return
 
     if path == "/api/system/update":
@@ -614,21 +694,6 @@ def handle_dashboard_get(
         )
         return
 
-    if path == "/api/settings/bbs":
-        if not callable(_handle_bbs_settings_get_helper):
-            deps.write_json_response_fn(
-                handler,
-                status_code=503,
-                payload_obj={"ok": False, "error": "BBS settings are not enabled on this dashboard instance"},
-            )
-            return
-        _handle_bbs_settings_get_helper(
-            handler,
-            get_bbs_settings_fn=deps.get_bbs_settings_fn,
-            write_json_response_fn=deps.write_json_response_fn,
-        )
-        return
-
     if path == "/api/settings/custom_telemetry":
         if not callable(_handle_custom_telemetry_settings_get_helper):
             deps.write_json_response_fn(
@@ -658,25 +723,13 @@ def handle_dashboard_get(
         deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
         return
 
-    if path == "/api/history/online":
-        response_obj = _build_online_activity_response_helper(
-            query=query,
-            online_activity_fn=deps.online_activity_fn,
-            default_node_history_hours=deps.default_node_history_hours,
-            to_int_fn=deps.to_int_fn,
-            parse_online_activity_request_fn=deps.parse_online_activity_request_fn,
-            empty_online_activity_fn=deps.empty_online_activity_fn,
-        )
-        deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
-        return
-
     if path == "/api/history/summary":
         response_obj = _build_summary_metrics_response_helper(
             query=query,
             summary_metrics_fn=deps.summary_metrics_fn,
             default_node_history_hours=deps.default_node_history_hours,
             to_int_fn=deps.to_int_fn,
-            parse_online_activity_request_fn=deps.parse_online_activity_request_fn,
+            parse_history_window_request_fn=deps.parse_history_window_request_fn,
             empty_summary_metrics_fn=deps.empty_summary_metrics_fn,
         )
         deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)

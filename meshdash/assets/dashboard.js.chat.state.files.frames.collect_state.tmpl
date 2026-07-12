@@ -51,9 +51,6 @@
         const activeIdx = activeMeshChannelFilterIndex();
         const msgChannelIndex = explicitMessageMeshChannelIndex(msg);
         if (respectActiveChannel && activeIdx !== meshChannelAllIndex) {{
-          // Keep unknown-channel frames visible while scoped to a concrete channel.
-          // LoRa capture metadata can lose explicit channel tags, and dropping these
-          // frames makes completed transfers appear as "no transfers" on the receiver.
           if (Number.isInteger(msgChannelIndex) && msgChannelIndex >= 0 && msgChannelIndex !== activeIdx) {{
             continue;
           }}
@@ -67,9 +64,25 @@
         const explicitChannelIndex = Number.isInteger(msgChannelIndex) && msgChannelIndex >= 0
           ? Math.trunc(msgChannelIndex)
           : null;
+        if (
+          !isCanonicalNodeId(localNodeId)
+          || !isCanonicalNodeId(fromId)
+          || !isCanonicalNodeId(toId)
+          || explicitChannelIndex == null
+        ) {{
+          continue;
+        }}
+        const directInbound = toId === localNodeId && fromId !== localNodeId;
+        const directOutbound = fromId === localNodeId && toId !== localNodeId;
+        if (!directInbound && !directOutbound) continue;
 
         if (frame.kind === "ack") {{
-          const transferKey = fileTransferKeyOf(toId, fromId, frame.transferId);
+          const transferKey = fileTransferKeyOf(
+            toId,
+            fromId,
+            frame.transferId,
+            explicitChannelIndex
+          );
           const receivedSet = decodeFileTransferChunkBitmap(frame.bitmap, frame.totalChunks);
           const receivedCount = Math.max(
             Math.min(frame.totalChunks, frame.receivedCount),
@@ -95,8 +108,18 @@
           continue;
         }}
         if (frame.kind === "flow") {{
-          const keyA = fileTransferKeyOf(fromId, toId, frame.transferId);
-          const keyB = fileTransferKeyOf(toId, fromId, frame.transferId);
+          const keyA = fileTransferKeyOf(
+            fromId,
+            toId,
+            frame.transferId,
+            explicitChannelIndex
+          );
+          const keyB = fileTransferKeyOf(
+            toId,
+            fromId,
+            frame.transferId,
+            explicitChannelIndex
+          );
           const keys = keyA === keyB ? [keyA] : [keyA, keyB];
           for (const transferKey of keys) {{
             const flow = {{
@@ -116,7 +139,12 @@
           continue;
         }}
 
-        const key = fileTransferKeyOf(fromId, toId, frame.transferId);
+        const key = fileTransferKeyOf(
+          fromId,
+          toId,
+          frame.transferId,
+          explicitChannelIndex
+        );
         const requiresInboundAccept = fileTransferInboundTransferNeedsAccept(fromId, toId, localNodeId);
         const inboundDecision = requiresInboundAccept
           ? fileTransferInboundDecisionForKey(key)
@@ -160,21 +188,6 @@
 
         if (frame.kind === "meta") {{
           transfer.fileName = normalizeFileTransferName(frame.fileName || transfer.fileName || "mesh-file.bin");
-          if (
-            transfer.requiresInboundAccept
-            && transfer.inboundDecision !== "accepted"
-            && String(transfer.fileName || "").startsWith("bbs-snapshot-")
-            && String(transfer.fileName || "").endsWith(".json")
-          ) {{
-            setFileTransferInboundDecisionByKey(key, "accepted", {{
-              transferId: frame.transferId,
-              senderId: fromId,
-              receiverId: toId,
-              fileName: transfer.fileName,
-              totalChunks: frame.totalChunks,
-            }});
-            transfer.inboundDecision = "accepted";
-          }}
           if (transfer.requiresInboundAccept && transfer.inboundDecision !== "accepted") {{
             const autoAccepted = autoAcceptInboundFileTransferIfEnabled(
               transfer,
@@ -195,6 +208,19 @@
         }}
 
         if (frame.kind === "chunk") {{
+          const cachedTransfer = fileTransferChunkCacheByKey.get(key);
+          const transferTotal = Math.trunc(Number(transfer.totalChunks));
+          const cachedTotal = Math.trunc(Number(cachedTransfer && cachedTransfer.totalChunks));
+          const knownTotalChunks = Number.isInteger(transferTotal) && transferTotal > 0
+            ? transferTotal
+            : (
+              Number.isInteger(cachedTotal) && cachedTotal > 0
+                ? cachedTotal
+                : null
+            );
+          if (knownTotalChunks == null || frame.chunkIndex >= knownTotalChunks) {{
+            continue;
+          }}
           if (transfer.requiresInboundAccept && transfer.inboundDecision !== "accepted") {{
             const autoAccepted = autoAcceptInboundFileTransferIfEnabled(
               transfer,
@@ -273,9 +299,33 @@
         const transferTotalChunks = Number.isFinite(transferTotalChunksRaw) && transferTotalChunksRaw > 0
           ? transferTotalChunksRaw
           : null;
-        if (cacheTotalChunks != null && transferTotalChunks != null && cacheTotalChunks !== transferTotalChunks) {{
+        const currentFileSize = Number.isFinite(Number(transfer.fileSize))
+          ? Math.max(0, Math.trunc(Number(transfer.fileSize) || 0))
+          : null;
+        const currentOriginalFileSize = Number.isFinite(Number(transfer.originalFileSize))
+          ? Math.max(0, Math.trunc(Number(transfer.originalFileSize) || 0))
+          : null;
+        const currentCodec = normalizeFileTransferCompressionCodec(
+          transfer.codec || fileTransferCompressionCodecRaw
+        );
+        const cacheMetadataMismatch = !!(
+          cacheTotalChunks != null
+          && transferTotalChunks != null
+          && (
+            cacheTotalChunks !== transferTotalChunks
+            || (cacheFileSize != null && currentFileSize != null && cacheFileSize !== currentFileSize)
+            || (
+              cacheOriginalFileSize != null
+              && currentOriginalFileSize != null
+              && cacheOriginalFileSize !== currentOriginalFileSize
+            )
+            || cacheCodec !== currentCodec
+          )
+        );
+        if (cacheMetadataMismatch) {{
           cacheChunks = new Map();
           cacheTotalChunks = transferTotalChunks;
+          clearFileTransferMaterializedStateForKey(key);
         }}
         if (inboundAccepted) {{
           for (const [idxRaw, bytes] of transfer.chunks.entries()) {{
@@ -321,6 +371,7 @@
           transfer.channelIndex = cacheChannelIndex;
         }}
         transfer.latestUnix = latestUnixTimestamp(transfer.latestUnix, cacheLatestUnix);
+        fileTransferChunkCacheByKey.delete(key);
         fileTransferChunkCacheByKey.set(key, {{
           chunks: cacheChunks,
           totalChunks: effectiveTotalChunks,
@@ -332,17 +383,11 @@
           latestUnix: Number(transfer.latestUnix || transfer.firstUnix || 0),
           lastSeenAtMs: nowMs,
         }});
+        enforceFileTransferChunkCacheLimits(nowMs);
       }}
       pruneFileTransferInboundDecisionState(activeTransferKeys, nowMs);
       pruneFileTransferInboundFlowState(activeTransferKeys, nowMs);
-      const staleChunkCutoffMs = nowMs - (45 * 60 * 1000);
-      for (const [key, cacheRaw] of fileTransferChunkCacheByKey.entries()) {{
-        if (activeTransferKeys.has(key)) continue;
-        const lastSeenAtMs = Number(cacheRaw && cacheRaw.lastSeenAtMs) || 0;
-        if (lastSeenAtMs <= 0 || lastSeenAtMs < staleChunkCutoffMs) {{
-          fileTransferChunkCacheByKey.delete(key);
-        }}
-      }}
+      enforceFileTransferChunkCacheLimits(nowMs);
 
       return {{
         transfers,

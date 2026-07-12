@@ -2,12 +2,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Mapping, Optional, Protocol
 
 if TYPE_CHECKING:
-    from .api_input_bots import ZorkBotToggleRequest
-    from .api_input_bbs import BbsHostRequest, BbsSettingsRequest
     from .api_input_channels import ChannelSettingsRequest
     from .api_input_chat import ChatSendRequest
     from .api_input_custom_telemetry import CustomTelemetrySettingsRequest
-    from .api_input_history import NodeHistoryQuery, OnlineActivityQuery
+    from .api_input_history import HistoryWindowQuery, NodeHistoryQuery
     from .api_input_meshyface_profile import MeshyfaceProfileThemeRequest
     from .api_input_network_tools import NetworkToolRequest
     from .api_input_radio import RadioSettingsRequest
@@ -15,20 +13,17 @@ if TYPE_CHECKING:
     from .api_input_theme import ThemeSettingsRequest
     from .api_input_zork import StandaloneZorkRequest
 else:
-    BbsHostRequest = object
-    BbsSettingsRequest = object
     ChannelSettingsRequest = object
     ChatSendRequest = object
     CustomTelemetrySettingsRequest = object
     MeshyfaceProfileThemeRequest = object
     NodeHistoryQuery = object
     NetworkToolRequest = object
-    OnlineActivityQuery = object
+    HistoryWindowQuery = object
     RadioSettingsRequest = object
     RawPacketCaptureSettingsRequest = object
     ThemeSettingsRequest = object
     StandaloneZorkRequest = object
-    ZorkBotToggleRequest = object
 from .http_handler_contracts import DashboardHttpHandler
 from .state_payload_contracts import DashboardStatePayload
 
@@ -47,11 +42,6 @@ class NodeHistoryFn(Protocol):
         hours_override: Optional[int],
         points_override: Optional[int],
     ) -> dict[str, object]:
-        ...
-
-
-class OnlineActivityFn(Protocol):
-    def __call__(self, hours_override: Optional[int]) -> dict[str, object]:
         ...
 
 
@@ -99,58 +89,8 @@ class GetThemeSettingsFn(Protocol):
         ...
 
 
-class GetBbsSettingsFn(Protocol):
-    def __call__(self) -> dict[str, object]:
-        ...
-
-
-class GetBbsHostRuntimeFn(Protocol):
-    def __call__(self) -> dict[str, object]:
-        ...
-
-
 class SetThemePresetFn(Protocol):
     def __call__(self, payload: object) -> dict[str, object]:
-        ...
-
-
-class SetBbsSettingsFn(Protocol):
-    def __call__(self, settings: object) -> dict[str, object]:
-        ...
-
-
-class SetZorkBotEnabledFn(Protocol):
-    def __call__(self, enabled: bool) -> dict[str, object]:
-        ...
-
-
-class SetPingBotEnabledFn(Protocol):
-    def __call__(self, enabled: bool) -> dict[str, object]:
-        ...
-
-
-class SetPingBotMessageOnlyFn(Protocol):
-    def __call__(self, message_only: bool) -> dict[str, object]:
-        ...
-
-
-class ManageZorkBotFn(Protocol):
-    def __call__(self, action: object, *, peer_id: object = None) -> dict[str, object]:
-        ...
-
-
-class StartBbsHostFn(Protocol):
-    def __call__(self, request: BbsHostRequest) -> dict[str, object]:
-        ...
-
-
-class StopBbsHostFn(Protocol):
-    def __call__(self) -> dict[str, object]:
-        ...
-
-
-class AppendBbsHostPostFn(Protocol):
-    def __call__(self, request: BbsHostRequest) -> dict[str, object]:
         ...
 
 
@@ -184,23 +124,18 @@ class ParseNodeHistoryRequestFn(Protocol):
         ...
 
 
-class ParseOnlineActivityRequestFn(Protocol):
+class ParseHistoryWindowRequestFn(Protocol):
     def __call__(
         self,
         raw_query: str,
         *,
         to_int_fn: ToIntFn,
-    ) -> OnlineActivityQuery:
+    ) -> HistoryWindowQuery:
         ...
 
 
 class EmptyNodeHistoryFn(Protocol):
     def __call__(self, node_id: str) -> dict[str, object]:
-        ...
-
-
-class EmptyOnlineActivityFn(Protocol):
-    def __call__(self, hours: int) -> dict[str, object]:
         ...
 
 
@@ -245,16 +180,6 @@ class ParseThemeSettingsRequestFn(Protocol):
         ...
 
 
-class ParseBbsSettingsRequestFn(Protocol):
-    def __call__(self, raw_body: bytes) -> BbsSettingsRequest:
-        ...
-
-
-class ParseBbsHostRequestFn(Protocol):
-    def __call__(self, raw_body: bytes) -> BbsHostRequest:
-        ...
-
-
 class ParseCustomTelemetrySettingsRequestFn(Protocol):
     def __call__(self, raw_body: bytes) -> CustomTelemetrySettingsRequest:
         ...
@@ -282,11 +207,6 @@ class ParseNetworkToolRequestFn(Protocol):
         *,
         to_int_fn: ToIntFn,
     ) -> NetworkToolRequest:
-        ...
-
-
-class ParseZorkBotToggleRequestFn(Protocol):
-    def __call__(self, raw_body: bytes) -> ZorkBotToggleRequest:
         ...
 
 
@@ -385,22 +305,20 @@ class DashboardGetRouteDependencies:
     html_text: str
     state_fn: StateFn
     node_history_fn: Optional[NodeHistoryFn]
-    online_activity_fn: Optional[OnlineActivityFn]
     summary_metrics_fn: Optional[SummaryMetricsHistoryFn]
     default_node_history_hours: int
     to_int_fn: ToIntFn
     parse_node_history_request_fn: ParseNodeHistoryRequestFn
-    parse_online_activity_request_fn: ParseOnlineActivityRequestFn
+    parse_history_window_request_fn: ParseHistoryWindowRequestFn
     empty_node_history_fn: EmptyNodeHistoryFn
-    empty_online_activity_fn: EmptyOnlineActivityFn
     empty_summary_metrics_fn: EmptySummaryMetricsFn
     write_html_response_fn: WriteHtmlResponseFn
     write_json_response_fn: WriteJsonResponseFn
     write_text_response_fn: WriteTextResponseFn
     get_theme_settings_fn: Optional[GetThemeSettingsFn] = None
-    get_bbs_settings_fn: Optional[GetBbsSettingsFn] = None
-    get_bbs_host_runtime_fn: Optional[GetBbsHostRuntimeFn] = None
     get_custom_telemetry_settings_fn: Optional[GetCustomTelemetrySettingsFn] = None
+    api_token: Optional[str] = None
+    allow_tokenless_raw_packet_download: bool = True
     private_mode: bool = False
     api_metrics: Optional[ApiMetricsRecorder] = None
     dashboard_asset_map: Mapping[str, tuple[str, bytes]] | None = None
@@ -422,17 +340,6 @@ class DashboardPostRouteDependencies:
     ] = None
     set_theme_preset_fn: Optional[SetThemePresetFn] = None
     parse_theme_settings_request_fn: Optional[ParseThemeSettingsRequestFn] = None
-    set_bbs_settings_fn: Optional[SetBbsSettingsFn] = None
-    parse_bbs_settings_request_fn: Optional[ParseBbsSettingsRequestFn] = None
-    set_zork_bot_enabled_fn: Optional[SetZorkBotEnabledFn] = None
-    set_ping_bot_enabled_fn: Optional[SetPingBotEnabledFn] = None
-    set_ping_bot_message_only_fn: Optional[SetPingBotMessageOnlyFn] = None
-    manage_zork_bot_fn: Optional[ManageZorkBotFn] = None
-    parse_zork_bot_toggle_request_fn: Optional[ParseZorkBotToggleRequestFn] = None
-    start_bbs_host_fn: Optional[StartBbsHostFn] = None
-    stop_bbs_host_fn: Optional[StopBbsHostFn] = None
-    append_bbs_host_post_fn: Optional[AppendBbsHostPostFn] = None
-    parse_bbs_host_request_fn: Optional[ParseBbsHostRequestFn] = None
     set_custom_telemetry_settings_fn: Optional[SetCustomTelemetrySettingsFn] = None
     parse_custom_telemetry_settings_request_fn: Optional[ParseCustomTelemetrySettingsRequestFn] = None
     set_raw_packet_capture_settings_fn: Optional[SetRawPacketCaptureSettingsFn] = None

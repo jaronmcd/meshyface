@@ -2,6 +2,7 @@ import json
 import os
 import sqlite3
 import tempfile
+import threading
 import time
 from collections.abc import Mapping
 from typing import Callable
@@ -14,6 +15,12 @@ _RAW_PACKET_SETTINGS_KEY = "raw_packet_capture_v1"
 _RAW_PACKET_SETTINGS_DEFAULT = {
     "capture_enabled": False,
 }
+_RAW_PACKET_DEFAULT_MAX_ROWS = 200_000
+_RAW_PACKET_DEFAULT_RETENTION_SECONDS = 30 * 24 * 60 * 60
+_RAW_PACKET_DEFAULT_MAX_BYTES = 64 * 1024 * 1024
+_RAW_PACKET_MAX_SINGLE_PACKET_BYTES = 64 * 1024
+_RAW_PACKET_PRUNE_INTERVAL_WRITES = 100
+_RAW_PACKET_FALLBACK_DOWNLOAD_LOCK = threading.Lock()
 
 
 def raw_packet_db_path_for_history_db_path(history_db_path: object) -> str:
@@ -160,9 +167,29 @@ def initialize_raw_packet_store_runtime(
     raw_db_path = raw_packet_db_path_for_history_db_path(history_db_path)
     setattr(store, "raw_packet_db_path", raw_db_path)
     setattr(store, "_raw_packet_lock", lock_factory())
+    setattr(store, "_raw_packet_download_lock", lock_factory())
     setattr(store, "_raw_packet_conn", None)
     setattr(store, "_raw_packet_capture_enabled", False)
     setattr(store, "_raw_packet_error", "")
+    setattr(
+        store,
+        "_raw_packet_max_rows",
+        max(1, int(getattr(store, "max_rows", _RAW_PACKET_DEFAULT_MAX_ROWS) or _RAW_PACKET_DEFAULT_MAX_ROWS)),
+    )
+    setattr(
+        store,
+        "_raw_packet_retention_seconds",
+        max(
+            1,
+            int(
+                getattr(store, "retention_seconds", _RAW_PACKET_DEFAULT_RETENTION_SECONDS)
+                or _RAW_PACKET_DEFAULT_RETENTION_SECONDS
+            ),
+        ),
+    )
+    setattr(store, "_raw_packet_max_bytes", _RAW_PACKET_DEFAULT_MAX_BYTES)
+    setattr(store, "_raw_packet_max_single_bytes", _RAW_PACKET_MAX_SINGLE_PACKET_BYTES)
+    setattr(store, "_raw_packet_writes_since_prune", 0)
     if not raw_db_path:
         setattr(store, "_raw_packet_error", "raw packet database path unavailable")
         return
@@ -171,6 +198,8 @@ def initialize_raw_packet_store_runtime(
         settings = _load_raw_packet_settings(conn)
         setattr(store, "_raw_packet_conn", conn)
         setattr(store, "_raw_packet_capture_enabled", bool(settings.get("capture_enabled")))
+        _prune_raw_packet_capture_unlocked(store, conn, now_unix=int(time.time()))
+        conn.commit()
     except Exception as exc:
         setattr(store, "_raw_packet_error", str(exc or "raw packet database open failed"))
 
@@ -267,34 +296,88 @@ def build_raw_packet_database_download(
             "status_code": 503,
             "error": str(getattr(store, "_raw_packet_error", "") or "raw packet database unavailable"),
         }
+    if not callable(getattr(conn, "backup", None)):
+        return {
+            "ok": False,
+            "status_code": 503,
+            "error": "raw packet database download is unavailable",
+        }
+
+    download_lock = getattr(
+        store,
+        "_raw_packet_download_lock",
+        _RAW_PACKET_FALLBACK_DOWNLOAD_LOCK,
+    )
+    acquire_download = getattr(download_lock, "acquire", None)
+    release_download = getattr(download_lock, "release", None)
+    acquired = True
+    if callable(acquire_download):
+        acquired = bool(acquire_download(blocking=False))
+    if not acquired:
+        return {
+            "ok": False,
+            "status_code": 429,
+            "error": "a raw packet database download is already in progress",
+        }
 
     lock = getattr(store, "_raw_packet_lock", None) or getattr(store, "_lock", None)
+    temp_path = ""
+    size_bytes = 0
     try:
         if lock is None:
-            return _build_raw_packet_database_download_unlocked(store, conn, temp_dir=temp_dir)
-        with lock:
-            return _build_raw_packet_database_download_unlocked(store, conn, temp_dir=temp_dir)
+            temp_path = _create_raw_packet_database_backup_unlocked(conn, temp_dir=temp_dir)
+        else:
+            with lock:
+                temp_path = _create_raw_packet_database_backup_unlocked(conn, temp_dir=temp_dir)
+        size_bytes = max(0, int(os.path.getsize(temp_path)))
     except Exception as exc:
+        if temp_path:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+        if acquired and callable(release_download):
+            release_download()
         return {
             "ok": False,
             "status_code": 500,
             "error": str(exc or "raw packet database download failed"),
         }
 
+    cleanup_lock = threading.Lock()
+    cleaned_up = False
 
-def _build_raw_packet_database_download_unlocked(
-    store: object,
+    def _cleanup_download() -> None:
+        nonlocal cleaned_up
+        with cleanup_lock:
+            if cleaned_up:
+                return
+            cleaned_up = True
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+            if acquired and callable(release_download):
+                release_download()
+
+    return {
+        "ok": True,
+        "filename": _raw_packet_download_filename(getattr(store, "raw_packet_db_path", "")),
+        "content_type": "application/vnd.sqlite3",
+        "path": temp_path,
+        "size_bytes": size_bytes,
+        "cleanup_fn": _cleanup_download,
+    }
+
+
+def _create_raw_packet_database_backup_unlocked(
     conn: object,
     *,
     temp_dir: str | None,
-) -> dict[str, object]:
+) -> str:
     backup_fn = getattr(conn, "backup", None)
     if not callable(backup_fn):
-        return {
-            "ok": False,
-            "status_code": 503,
-            "error": "raw packet database download is unavailable",
-        }
+        raise RuntimeError("raw packet database download is unavailable")
 
     fd, temp_path = tempfile.mkstemp(
         prefix="meshdash_raw_packets_",
@@ -309,21 +392,13 @@ def _build_raw_packet_database_download_unlocked(
             dest.commit()
         finally:
             dest.close()
-        with open(temp_path, "rb") as file_obj:
-            payload = file_obj.read()
-    finally:
+    except Exception:
         try:
             os.unlink(temp_path)
         except OSError:
             pass
-
-    return {
-        "ok": True,
-        "filename": _raw_packet_download_filename(getattr(store, "raw_packet_db_path", "")),
-        "content_type": "application/vnd.sqlite3",
-        "bytes": payload,
-        "size_bytes": len(payload),
-    }
+        raise
+    return temp_path
 
 
 def _load_raw_packet_stats_unlocked(
@@ -359,6 +434,42 @@ def _load_raw_packet_stats_unlocked(
                 "raw_packets": _fetch_range(conn),
             },
             "encoding_counts": _fetch_encoding_counts(conn),
+            "policy": {
+                "max_rows": max(
+                    1,
+                    int(getattr(store, "_raw_packet_max_rows", _RAW_PACKET_DEFAULT_MAX_ROWS)),
+                ),
+                "retention_seconds": max(
+                    1,
+                    int(
+                        getattr(
+                            store,
+                            "_raw_packet_retention_seconds",
+                            _RAW_PACKET_DEFAULT_RETENTION_SECONDS,
+                        )
+                    ),
+                ),
+                "max_packet_bytes": max(
+                    1,
+                    int(
+                        getattr(
+                            store,
+                            "_raw_packet_max_single_bytes",
+                            _RAW_PACKET_MAX_SINGLE_PACKET_BYTES,
+                        )
+                    ),
+                ),
+                "max_stored_bytes": max(
+                    1,
+                    int(
+                        getattr(
+                            store,
+                            "_raw_packet_max_bytes",
+                            _RAW_PACKET_DEFAULT_MAX_BYTES,
+                        )
+                    ),
+                ),
+            },
         }
     )
     return base_payload
@@ -528,16 +639,114 @@ def save_raw_packet_capture(store: object, packet: object) -> bool:
         return False
     if not raw_bytes:
         return False
+    max_packet_bytes = max(
+        1,
+        int(
+            getattr(
+                store,
+                "_raw_packet_max_single_bytes",
+                _RAW_PACKET_MAX_SINGLE_PACKET_BYTES,
+            )
+        ),
+    )
+    if len(raw_bytes) > max_packet_bytes:
+        return False
     metadata = _extract_raw_metadata(packet)
     created_unix = int(time.time())
     lock = getattr(store, "_raw_packet_lock", None) or getattr(store, "_lock", None)
     if lock is None:
-        return _save_raw_packet_capture_unlocked(conn, raw_bytes, encoding, metadata, created_unix)
+        return _save_raw_packet_capture_unlocked(
+            store,
+            conn,
+            raw_bytes,
+            encoding,
+            metadata,
+            created_unix,
+        )
     with lock:
-        return _save_raw_packet_capture_unlocked(conn, raw_bytes, encoding, metadata, created_unix)
+        return _save_raw_packet_capture_unlocked(
+            store,
+            conn,
+            raw_bytes,
+            encoding,
+            metadata,
+            created_unix,
+        )
+
+
+def _prune_raw_packet_capture_unlocked(
+    store: object,
+    conn: object,
+    *,
+    now_unix: int,
+) -> int:
+    """Apply age, row-count, and stored-payload quotas to raw packet capture."""
+    deleted = 0
+    retention_seconds = max(
+        1,
+        int(
+            getattr(
+                store,
+                "_raw_packet_retention_seconds",
+                _RAW_PACKET_DEFAULT_RETENTION_SECONDS,
+            )
+        ),
+    )
+    cutoff = max(0, int(now_unix) - retention_seconds)
+    cursor = conn.execute("DELETE FROM raw_packets WHERE created_unix < ?", (cutoff,))
+    deleted += max(0, int(getattr(cursor, "rowcount", 0) or 0))
+
+    max_rows = max(
+        1,
+        int(getattr(store, "_raw_packet_max_rows", _RAW_PACKET_DEFAULT_MAX_ROWS)),
+    )
+    row_count = _fetch_one_int(conn, "SELECT COUNT(*) FROM raw_packets")
+    excess_rows = max(0, row_count - max_rows)
+    if excess_rows:
+        cursor = conn.execute(
+            "DELETE FROM raw_packets WHERE id IN "
+            "(SELECT id FROM raw_packets ORDER BY id ASC LIMIT ?)",
+            (excess_rows,),
+        )
+        deleted += max(0, int(getattr(cursor, "rowcount", 0) or 0))
+
+    max_bytes = max(
+        1,
+        int(getattr(store, "_raw_packet_max_bytes", _RAW_PACKET_DEFAULT_MAX_BYTES)),
+    )
+    stored_bytes = _fetch_one_int(
+        conn,
+        "SELECT COALESCE(SUM(MAX(0, byte_length)), 0) FROM raw_packets",
+    )
+    excess_bytes = max(0, stored_bytes - max_bytes)
+    if excess_bytes:
+        removed_bytes = 0
+        newest_deleted_id: int | None = None
+        for row in conn.execute(
+            "SELECT id, byte_length FROM raw_packets ORDER BY id ASC"
+        ):
+            newest_deleted_id = int(row[0])
+            removed_bytes += max(0, int(row[1] or 0))
+            if removed_bytes >= excess_bytes:
+                break
+        if newest_deleted_id is not None:
+            cursor = conn.execute(
+                "DELETE FROM raw_packets WHERE id <= ?",
+                (newest_deleted_id,),
+            )
+            deleted += max(0, int(getattr(cursor, "rowcount", 0) or 0))
+    elif row_count <= 0:
+        return deleted
+    if stored_bytes > max_bytes and deleted <= 0:
+        cursor = conn.execute(
+            "DELETE FROM raw_packets",
+        )
+        deleted += max(0, int(getattr(cursor, "rowcount", 0) or 0))
+    return deleted
 
 
 def _save_raw_packet_capture_unlocked(
+    store: object,
     conn: object,
     raw_bytes: bytes,
     encoding: str,
@@ -577,5 +786,10 @@ def _save_raw_packet_capture_unlocked(
             sqlite3.Binary(raw_bytes),
         ),
     )
+    writes_since_prune = int(getattr(store, "_raw_packet_writes_since_prune", 0) or 0) + 1
+    if writes_since_prune >= _RAW_PACKET_PRUNE_INTERVAL_WRITES:
+        _prune_raw_packet_capture_unlocked(store, conn, now_unix=created_unix)
+        writes_since_prune = 0
+    setattr(store, "_raw_packet_writes_since_prune", writes_since_prune)
     conn.commit()
     return True

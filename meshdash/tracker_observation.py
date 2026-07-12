@@ -10,6 +10,9 @@ from .runtime_types import (
 )
 
 
+MAX_TRACKED_PORTNUMS = 512
+
+
 def apply_tracker_observation(
     *,
     parsed: TrackerParsedPacket,
@@ -40,7 +43,8 @@ def apply_tracker_observation(
     )
     if portnum is not None:
         key = str(portnum)
-        port_counts[key] = int(port_counts.get(key, 0)) + 1
+        if len(key) <= 64 and (key in port_counts or len(port_counts) < MAX_TRACKED_PORTNUMS):
+            port_counts[key] = int(port_counts.get(key, 0)) + 1
 
     direct_keys: list[tuple[str, str]] = []
     direct_key = record_direct_edge_observation_fn(

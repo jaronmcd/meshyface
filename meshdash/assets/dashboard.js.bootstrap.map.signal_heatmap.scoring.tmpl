@@ -222,41 +222,6 @@
       return buckets;
     }}
 
-    function collectSavedNodeHeatmapBuckets(nodes, profile, mode = signalHeatmapMode) {{
-      const buckets = signalHeatBucketDefs.map(() => []);
-      const selectedId = resolveSavedViewNodeId(latestState);
-      if (!(activeLayoutView === "saved" && isSelectableNodeId(selectedId))) {{
-        return buckets;
-      }}
-      const selectedNode = (nodes || []).find((node) => normalizeNodeId(node && node.id) === selectedId);
-      if (!selectedNode) {{
-        return buckets;
-      }}
-      const lat = Number(selectedNode.lat);
-      const lon = Number(selectedNode.lon);
-      if (!isValidMapCoord(lat, lon)) {{
-        return buckets;
-      }}
-      const nowUnix = Math.floor(Date.now() / 1000);
-      const modeConfig = resolveSignalHeatModeConfig(mode);
-      const ageSeconds = signalHeatNodeAgeSeconds(selectedNode, nowUnix);
-      if (!signalHeatNodeWithinWindow(ageSeconds, modeConfig)) {{
-        return buckets;
-      }}
-      const weight = signalHeatWeight(selectedNode, profile, nowUnix, modeConfig, ageSeconds);
-      if (!Number.isFinite(weight)) {{
-        return buckets;
-      }}
-      const intensityFloor = signalHeatDevKnobs.intensityFloor;
-      const eased = Math.pow(clampUnitInterval(weight), signalHeatDevKnobs.intensityGamma);
-      const intensity = intensityFloor + (eased * (1 - intensityFloor));
-      // Saved/Node view uses a simple singular footprint for the selected node.
-      const heatPoint = [lat, lon, Math.max(intensityFloor, clampUnitInterval(intensity))];
-      heatPoint._meshHeatKey = `signal-saved:${{selectedId}}`;
-      buckets[0].push(heatPoint);
-      return buckets;
-    }}
-
     function resolveSignalHeatVisualOptions(pointsCount) {{
       const geoLocked = signalHeatDevKnobs.geoRadiusLock >= 0.5;
       const zoom = Number(map.getZoom());

@@ -30,18 +30,10 @@
       const opts = (options && typeof options === "object") ? options : {{}};
       const bypassFade = !!opts.bypassFade;
       const profile = resolveSignalHeatProfile();
-      const savedSingleNodeMode = activeLayoutView === "saved"
-        && isSelectableNodeId(resolveSavedViewNodeId(latestState));
       const modeStates = ["coverage", "live"].map((mode) => {{
         const layers = ensureSignalHeatmapLayers(mode);
         const supported = Array.isArray(layers) && layers.length > 0;
-        const buckets = supported
-          ? (
-              savedSingleNodeMode
-                ? collectSavedNodeHeatmapBuckets(nodes, profile, mode)
-                : collectSignalHeatmapBuckets(nodes, profile, mode)
-            )
-          : [];
+        const buckets = supported ? collectSignalHeatmapBuckets(nodes, profile, mode) : [];
         const pointsCount = supported
           ? buckets.reduce((acc, pts) => acc + (Array.isArray(pts) ? pts.length : 0), 0)
           : 0;
@@ -84,8 +76,6 @@
       heatSignatureHash = hashMixInt(heatSignatureHash, signalHeatmapLiveEnabled ? 1 : 0);
       heatSignatureHash = hashMixInt(heatSignatureHash, forceHide ? 1 : 0);
       heatSignatureHash = hashMixInt(heatSignatureHash, mapDrawable ? 1 : 0);
-      heatSignatureHash = hashMixInt(heatSignatureHash, savedSingleNodeMode ? 1 : 0);
-      heatSignatureHash = hashMixStr(heatSignatureHash, savedSingleNodeMode ? normalizeNodeId(resolveSavedViewNodeId(latestState)) : "");
       heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(map.getZoom()) * 100) || 0);
       heatSignatureHash = hashMixStr(heatSignatureHash, String(profile && profile.label || ""));
       heatSignatureHash = hashMixStr(heatSignatureHash, JSON.stringify(signalHeatDevKnobs || {{}}));
@@ -94,7 +84,7 @@
       heatSignatureHash = hashMixInt(heatSignatureHash, Math.round(Number(baseVisual.minOpacity) * 1000) || 0);
       let heatLayerPresenceMatches = true;
       for (const state of modeStates) {{
-        const shouldShow = !(forceHide && !savedSingleNodeMode)
+        const shouldShow = !forceHide
           && mapDrawable
           && state.enabled
           && state.pointsCount > 0;
@@ -105,7 +95,7 @@
         heatSignatureHash = hashMixStr(heatSignatureHash, JSON.stringify(state.gradient || {{}}));
         for (let i = 0; i < state.layers.length; i++) {{
           const layer = state.layers[i];
-          const desiredLayerVisible = !!(shouldShow && !(savedSingleNodeMode && i > 0));
+          const desiredLayerVisible = !!shouldShow;
           if (map.hasLayer(layer) !== desiredLayerVisible) {{
             heatLayerPresenceMatches = false;
           }}
@@ -126,13 +116,13 @@
       lastSignalHeatmapSignature = heatSignature;
 
       for (const state of modeStates) {{
-        const shouldShow = !(forceHide && !savedSingleNodeMode)
+        const shouldShow = !forceHide
           && mapDrawable
           && state.enabled
           && state.pointsCount > 0;
         for (let i = 0; i < state.layers.length; i++) {{
           const layer = state.layers[i];
-          const desiredLayerVisible = !!(shouldShow && !(savedSingleNodeMode && i > 0));
+          const desiredLayerVisible = !!shouldShow;
           if (!desiredLayerVisible) {{
             removeSignalHeatmapLayerSafely(layer, {{ fade: !bypassFade }});
             continue;
@@ -143,24 +133,7 @@
           const baseBlurMul = Number(bucket.blurMul);
           const radiusMul = 1 + ((Number.isFinite(baseRadiusMul) ? baseRadiusMul : 1) - 1) * signalGain;
           const blurMul = 1 + ((Number.isFinite(baseBlurMul) ? baseBlurMul : 1) - 1) * signalGain;
-          const visual = savedSingleNodeMode
-            ? {{
-                radius: clampNumber(
-                  Math.round(baseVisual.radius * 1.3),
-                  10,
-                  160,
-                  baseVisual.radius
-                ),
-                blur: clampNumber(
-                  Math.round(baseVisual.blur * 1.2),
-                  8,
-                  140,
-                  baseVisual.blur
-                ),
-                minOpacity: Math.max(baseVisual.minOpacity, state.mode === "live" ? 0.54 : 0.42),
-                gradient: state.gradient,
-              }}
-            : {{
+          const visual = {{
                 radius: clampNumber(
                   Math.round(baseVisual.radius * radiusMul),
                   10,

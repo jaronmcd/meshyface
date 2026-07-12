@@ -10,18 +10,30 @@ def merge_metric(
     max_value: object,
     sample: Optional[float],
 ) -> tuple[float, int, Optional[float], Optional[float]]:
-    merged_sum = float(sum_value or 0.0)
-    merged_count = int(count_value or 0)
+    merged_sum = _to_float(sum_value)
+    try:
+        merged_count = max(0, int(count_value or 0))
+    except (TypeError, ValueError, OverflowError):
+        merged_count = 0
     merged_min = _to_float(min_value)
     merged_max = _to_float(max_value)
+    if merged_sum is None:
+        merged_sum = 0.0
+        merged_count = 0
+        merged_min = None
+        merged_max = None
 
-    if sample is None:
+    clean_sample = _to_float(sample)
+    if clean_sample is None:
         return merged_sum, merged_count, merged_min, merged_max
 
-    merged_sum += sample
+    clean_sum = _to_float(merged_sum + clean_sample)
+    if clean_sum is None:
+        return merged_sum, merged_count, merged_min, merged_max
+    merged_sum = clean_sum
     merged_count += 1
-    merged_min = sample if merged_min is None else min(merged_min, sample)
-    merged_max = sample if merged_max is None else max(merged_max, sample)
+    merged_min = clean_sample if merged_min is None else min(merged_min, clean_sample)
+    merged_max = clean_sample if merged_max is None else max(merged_max, clean_sample)
     return merged_sum, merged_count, merged_min, merged_max
 
 

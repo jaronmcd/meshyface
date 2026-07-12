@@ -52,24 +52,24 @@
               {{ level: "warn" }}
             );
           }}
-          fileTransferFlowSignalSentByKey.set(transferKey, {{
+          setBoundedFileTransferMapEntry(fileTransferFlowSignalSentByKey, transferKey, {{
             action: String(prior && prior.action || ""),
             lastSentAtMs: Math.max(0, Math.trunc(Number(prior && prior.lastSentAtMs) || 0)),
             updatedAtMs: nowMs,
             lastErrorAtMs: nowMs,
             sendCount: priorSendCount,
-          }});
+          }}, fileTransferRuntimeStateMaxEntries);
           return false;
         }}
         const sentAtMs = Date.now();
         const sendCount = changed ? 1 : (priorSendCount + 1);
-        fileTransferFlowSignalSentByKey.set(transferKey, {{
+        setBoundedFileTransferMapEntry(fileTransferFlowSignalSentByKey, transferKey, {{
           action,
           lastSentAtMs: sentAtMs,
           updatedAtMs: sentAtMs,
           lastErrorAtMs: 0,
           sendCount,
-        }});
+        }}, fileTransferRuntimeStateMaxEntries);
         if (changed) {{
           const channelLabel = meshChannelLabelForIndex(sentChannel, {{ allowAll: false }});
           const actionLabel = action === "pause"
@@ -110,22 +110,11 @@
         const transferKey = String(transfer.key || "").trim();
         if (!transferKey) continue;
         let latestFlow = flowByTransferKey.get(transferKey) || null;
-        if (!(latestFlow && typeof latestFlow === "object")) {{
-          let latestFallbackFlow = null;
-          for (const candidate of flowByTransferKey.values()) {{
-            if (!(candidate && typeof candidate === "object")) continue;
-            if (String(candidate.transferId || "").trim().toLowerCase() !== String(transfer.transferId || "").trim().toLowerCase()) {{
-              continue;
-            }}
-            if (normalizeNodeId(candidate.senderId || "") !== senderId) continue;
-            const candidateUnix = Math.max(0, Math.trunc(Number(candidate.latestUnix) || 0));
-            const latestUnix = Math.max(0, Math.trunc(Number(latestFallbackFlow && latestFallbackFlow.latestUnix) || 0));
-            if (!latestFallbackFlow || candidateUnix >= latestUnix) {{
-              latestFallbackFlow = candidate;
-            }}
-          }}
-          latestFlow = latestFallbackFlow;
-        }}
+        if (
+          !(latestFlow && typeof latestFlow === "object")
+          || fileTransferExplicitChannelIndex(latestFlow.channelIndex)
+            !== fileTransferExplicitChannelIndex(transfer.channelIndex)
+        ) latestFlow = null;
         const flowAction = latestFlow && typeof latestFlow === "object"
           ? String(latestFlow.action || "").trim().toLowerCase()
           : "";
@@ -160,16 +149,7 @@
               totalChunks: transfer.totalChunks,
             }});
           }}
-          fileTransferChunkCacheByKey.delete(transferKey);
-          fileTransferBlobByKey.delete(transferKey);
-          const staleUrl = fileTransferDownloadUrlByKey.get(transferKey);
-          if (staleUrl) {{
-            try {{
-              URL.revokeObjectURL(staleUrl);
-            }} catch (_err) {{
-            }}
-          }}
-          fileTransferDownloadUrlByKey.delete(transferKey);
+          deleteFileTransferChunkCacheEntry(transferKey);
           fileTransferAckSentState.delete(transferKey);
           fileTransferAckObservedChunksByKey.delete(transferKey);
           fileTransferAckProbeCursorByKey.delete(transferKey);
@@ -214,7 +194,12 @@
                 const lastPromptAtMs = Number(fileTransferInboundDecisionPromptByKey.get(transferKey) || 0);
                 const promptIntervalMs = 30 * 1000;
                 if ((nowMs - lastPromptAtMs) >= promptIntervalMs) {{
-                  fileTransferInboundDecisionPromptByKey.set(transferKey, nowMs);
+                  setBoundedFileTransferMapEntry(
+                    fileTransferInboundDecisionPromptByKey,
+                    transferKey,
+                    nowMs,
+                    fileTransferRuntimeStateMaxEntries
+                  );
                   const actionLabel = inboundDecision === "declined" ? "declined" : "pending acceptance";
                   appendFileTransferConsole(
                     `Inbound transfer ${{fileTransferShortTransferId(transfer.transferId)}} from ${{senderId}} is ${{actionLabel}}. ACKs paused until you accept it.`,
@@ -277,11 +262,12 @@
           ? "AA=="
           : buildFileTransferChunkBitmapBase64(totalChunks, mergedIndexes);
         if (!bitmap) continue;
-        fileTransferAckObservedChunksByKey.set(transferKey, {{
+        setBoundedFileTransferMapEntry(fileTransferAckObservedChunksByKey, transferKey, {{
           totalChunks,
           indexes: observedIndexes,
           lastSeenAtMs: nowMs,
-        }});
+        }}, fileTransferRuntimeStateMaxEntries);
+        enforceFileTransferAckObservedLimits();
         const signature = `${{receivedCount}}/${{totalChunks}}|${{bitmap}}`;
         const prior = fileTransferAckSentState.get(transferKey) || null;
         const lastSentAtMs = Number(prior && prior.lastSentAtMs) || 0;
@@ -301,7 +287,6 @@
           ? unknownChannelRefreshMs
           : fileTransferAckPeriodicRefreshMs;
         const periodicRefresh = !signatureChanged
-          && receivedCount < totalChunks
           && periodicRefreshCount < fileTransferAckPeriodicRefreshMax
           && periodicWithinWindow
           && (nowMs - lastSentAtMs) > periodicRefreshMs;
@@ -373,7 +358,12 @@
                 : [];
               if (selected.length > 0) {{
                 const nextCursor = (priorCursor + 1) % sendChannels.length;
-                fileTransferAckProbeCursorByKey.set(transferKey, nextCursor);
+                setBoundedFileTransferMapEntry(
+                  fileTransferAckProbeCursorByKey,
+                  transferKey,
+                  nextCursor,
+                  fileTransferRuntimeStateMaxEntries
+                );
                 sendChannels = selected;
                 stagnationCount = 0;
               }}
@@ -390,7 +380,7 @@
             sendChannels = [sendChannels[0]];
           }}
           const nextProbeChannel = sendChannels.length > 0 ? sendChannels[0] : null;
-          fileTransferAckProbeStateByKey.set(transferKey, {{
+          setBoundedFileTransferMapEntry(fileTransferAckProbeStateByKey, transferKey, {{
             channels: sendChannels.slice(),
             stagnationCount,
             lastReceivedCount: receivedCount,
@@ -398,10 +388,15 @@
             lastRotateAtMs: nextRotateAtMs,
             lockedChannelIndex: nextProbeChannel,
             updatedAtMs: nowMs,
-          }});
+          }}, fileTransferRuntimeStateMaxEntries);
           const lastWarnMs = Number(fileTransferAckMissingChannelWarnByKey.get(transferKey) || 0);
           if ((nowMs - lastWarnMs) > fileTransferAckUnknownWarnIntervalMs) {{
-            fileTransferAckMissingChannelWarnByKey.set(transferKey, nowMs);
+            setBoundedFileTransferMapEntry(
+              fileTransferAckMissingChannelWarnByKey,
+              transferKey,
+              nowMs,
+              fileTransferRuntimeStateMaxEntries
+            );
             const labels = sendChannels.map((idx) => meshChannelLabelForIndex(idx, {{ allowAll: false }}));
             appendFileTransferConsole(
               `ACK channel unknown for ${{fileTransferShortTransferId(transfer.transferId)}} from ${{senderId}}. ${{fileTransferAckUnknownLockChannel ? "Locked on" : "Probing on"}} ${{labels.join(", ")}}.`,
@@ -424,14 +419,21 @@
         }}
         try {{
           let sentChannels = [];
-          for (let idx = 0; idx < sendChannels.length; idx += 1) {{
-            const channelIndex = sendChannels[idx];
+          const finalAckCopies = signatureChanged && receivedCount >= totalChunks
+            ? fileTransferFinalAckDuplicateSends
+            : 1;
+          const sendAttempts = [];
+          for (let copyIndex = 0; copyIndex < finalAckCopies; copyIndex += 1) {{
+            sendAttempts.push(...sendChannels);
+          }}
+          for (let idx = 0; idx < sendAttempts.length; idx += 1) {{
+            const channelIndex = sendAttempts[idx];
             try {{
               await sendFileTransferFrameText(frame, senderId, channelIndex);
-              sentChannels.push(channelIndex);
+              if (!sentChannels.includes(channelIndex)) sentChannels.push(channelIndex);
             }} catch (_err) {{
             }}
-            if (idx + 1 < sendChannels.length) {{
+            if (idx + 1 < sendAttempts.length) {{
               await waitFileTransferFrameGap();
             }}
           }}
@@ -445,14 +447,14 @@
           const nextFirstSentAtMs = signatureChanged
             ? sentAtMs
             : (firstSentAtMs > 0 ? firstSentAtMs : sentAtMs);
-          fileTransferAckSentState.set(transferKey, {{
+          setBoundedFileTransferMapEntry(fileTransferAckSentState, transferKey, {{
             signature,
             firstSentAtMs: nextFirstSentAtMs,
             lastSentAtMs: sentAtMs,
             periodicRefreshCount: nextPeriodicRefreshCount,
             receivedCount,
             totalChunks,
-          }});
+          }}, fileTransferRuntimeStateMaxEntries);
           if (signatureChanged || receivedCount >= totalChunks) {{
             const channelLabel = sentChannels.length <= 1
               ? meshChannelLabelForIndex(sentChannels[0], {{ allowAll: false }})

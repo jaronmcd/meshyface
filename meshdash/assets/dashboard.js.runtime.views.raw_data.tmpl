@@ -1,16 +1,5 @@
-    function setRaw(id, value) {{
-      const el = document.getElementById(id);
-      if (!el) return;
-      const details = el.closest && el.closest("details");
-      if (details && !details.open) return;
-      el.textContent = JSON.stringify(value, null, 2);
-    }}
-
     const rawDataCache = {{
-      myInfo: {{ fetchedAt: 0, data: null }},
-      metadata: {{ fetchedAt: 0, data: null }},
       localState: {{ fetchedAt: 0, data: null }},
-      nodesFull: {{ fetchedAt: 0, data: null }},
     }};
 
     const envMetricsViewState = {{
@@ -1698,68 +1687,4 @@
         cacheEntry.data = data;
       }}
       return data;
-    }}
-
-    async function loadRawMyInfo() {{
-      const data = await fetchRawJson("/api/raw/my_info", rawDataCache.myInfo, 60000);
-      setRaw("raw-my-info", data);
-      return data;
-    }}
-
-    async function loadRawMetadata() {{
-      const data = await fetchRawJson("/api/raw/metadata", rawDataCache.metadata, 60000);
-      setRaw("raw-metadata", data);
-      return data;
-    }}
-
-    async function loadRawLocalState() {{
-      const data = await fetchRawJson("/api/raw/local_state", rawDataCache.localState, 60000);
-      const obj = (data && typeof data === "object") ? data : {{}};
-      setRaw("raw-local-config", obj.local_config);
-      setRaw("raw-module-config", obj.module_config);
-      setRaw("raw-channels", obj.channels);
-      return data;
-    }}
-
-    async function loadRawNodesFull(ttlMs = 60000) {{
-      const safeTtlMs = Number.isFinite(Number(ttlMs)) ? Math.max(0, Math.trunc(Number(ttlMs))) : 60000;
-      const data = await fetchRawJson("/api/raw/nodes_full", rawDataCache.nodesFull, safeTtlMs);
-      setRaw("raw-nodes-full", data);
-      return data;
-    }}
-
-    function bindRawDataFetch() {{
-      bindEnvironmentMetricsControls();
-      const pairs = [
-        ["raw-my-info", loadRawMyInfo],
-        ["raw-metadata", loadRawMetadata],
-        ["raw-local-config", loadRawLocalState],
-        ["raw-module-config", loadRawLocalState],
-        ["raw-channels", loadRawLocalState],
-        ["raw-nodes-full", loadRawNodesFull],
-      ];
-      for (const [preId, loader] of pairs) {{
-        const pre = document.getElementById(preId);
-        if (!pre) continue;
-        const details = pre.closest && pre.closest("details");
-        if (!details) continue;
-        details.addEventListener("toggle", () => {{
-          if (!details.open) return;
-          void loader().catch((err) => {{
-            const msg = err instanceof Error ? err.message : String(err || "unknown error");
-            setRaw(preId, {{ error: msg }});
-          }});
-        }});
-
-        if (details.open) {{
-          void loader().catch(() => {{}});
-        }}
-      }}
-
-      if (
-        activeLayoutView === "environment"
-        || (activeLayoutView === "network" && activeNetworkSubview === "sensors")
-      ) {{
-        void renderEnvironmentMetricsView(false);
-      }}
     }}

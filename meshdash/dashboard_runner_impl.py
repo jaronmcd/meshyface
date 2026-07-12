@@ -30,7 +30,6 @@ from .helpers import format_epoch, to_int
 from .history_profile import build_shared_history_db_path
 from .runtime_types import (
     BuildNodeHistoryLoaderFn,
-    BuildOnlineActivityLoaderFn,
     BuildSummaryMetricsLoaderFn,
     BuildStateFn,
     GetLocalNodeIdFn,
@@ -429,7 +428,6 @@ def _build_offline_runtime_context(
         revision_info=revision_info,
         state_fn=state_fn,
         node_history_fn=None,  # type: ignore[arg-type]
-        online_activity_fn=None,  # type: ignore[arg-type]
         summary_metrics_fn=None,  # type: ignore[arg-type]
         send_chat_fn=None,  # type: ignore[arg-type]
         history_enabled=history_store is not None,
@@ -449,7 +447,6 @@ def _build_runtime_context_with_retry(
     revision_info_fn: RevisionInfoFn,
     build_state_fn: BuildStateFn,
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn,
-    build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
     build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn,
     send_chat_message_fn: SendChatMessageFn,
     send_reaction_packet_fn: SendReactionPacketFn,
@@ -481,7 +478,6 @@ def _build_runtime_context_with_retry(
                 build_state_fn=build_state_fn,
                 build_state_snapshot_loader_fn=build_state_snapshot_loader,
                 build_node_history_loader_fn=build_node_history_loader_fn,
-                build_online_activity_loader_fn=build_online_activity_loader_fn,
                 build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
                 build_send_chat_loader_fn=build_send_chat_loader,
             )
@@ -510,7 +506,6 @@ def _build_runtime_context_once(
     revision_info_fn: RevisionInfoFn,
     build_state_fn: BuildStateFn,
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn,
-    build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
     build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn,
     send_chat_message_fn: SendChatMessageFn,
     send_reaction_packet_fn: SendReactionPacketFn,
@@ -540,7 +535,6 @@ def _build_runtime_context_once(
         build_state_fn=build_state_fn,
         build_state_snapshot_loader_fn=build_state_snapshot_loader,
         build_node_history_loader_fn=build_node_history_loader_fn,
-        build_online_activity_loader_fn=build_online_activity_loader_fn,
         build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
         build_send_chat_loader_fn=build_send_chat_loader,
         startup_receive_buffer=startup_receive_buffer,
@@ -559,7 +553,6 @@ def run_dashboard_runtime(
     revision_info_fn: RevisionInfoFn,
     build_state_fn: BuildStateFn,
     build_node_history_loader_fn: BuildNodeHistoryLoaderFn,
-    build_online_activity_loader_fn: BuildOnlineActivityLoaderFn,
     build_summary_metrics_loader_fn: BuildSummaryMetricsLoaderFn,
     send_chat_message_fn: SendChatMessageFn,
     send_reaction_packet_fn: SendReactionPacketFn,
@@ -660,7 +653,6 @@ def run_dashboard_runtime(
                     revision_info_fn=revision_info_fn,
                     build_state_fn=build_state_fn,
                     build_node_history_loader_fn=build_node_history_loader_fn,
-                    build_online_activity_loader_fn=build_online_activity_loader_fn,
                     build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
                     send_chat_message_fn=send_chat_message_fn,
                     send_reaction_packet_fn=send_reaction_packet_fn,
@@ -714,7 +706,6 @@ def run_dashboard_runtime(
                 revision_info_fn=revision_info_fn,
                 build_state_fn=build_state_fn,
                 build_node_history_loader_fn=build_node_history_loader_fn,
-                build_online_activity_loader_fn=build_online_activity_loader_fn,
                 build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
                 send_chat_message_fn=send_chat_message_fn,
                 send_reaction_packet_fn=send_reaction_packet_fn,
@@ -736,7 +727,6 @@ def run_dashboard_runtime(
             history_enabled=context.history_enabled,
             state_fn=context.state_fn,
             node_history_fn=context.node_history_fn,
-            online_activity_fn=context.online_activity_fn,
             summary_metrics_fn=context.summary_metrics_fn,
             send_chat_fn=context.send_chat_fn,
             render_html_fn=render_html_fn,
@@ -877,6 +867,16 @@ def run_dashboard_runtime(
             if callable(close_receive_buffer):
                 try:
                     close_receive_buffer()
+                except Exception:
+                    pass
+            close_file_transfer = getattr(
+                getattr(context.tracker, "_file_transfer_auto_accept_service", None),
+                "close",
+                None,
+            )
+            if callable(close_file_transfer):
+                try:
+                    close_file_transfer()
                 except Exception:
                     pass
             close_runtime_resources(

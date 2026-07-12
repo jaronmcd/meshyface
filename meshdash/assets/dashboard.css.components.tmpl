@@ -362,7 +362,7 @@
     }}
     #chat-input:hover {{
       border-color: #b7cfbe;
-      background: var(--panel);
+      background: var(--ui-panel);
     }}
     #chat-input:focus {{
       outline: 2px solid var(--surface-tint-border-strong);
@@ -441,14 +441,14 @@
       background:
         linear-gradient(
           180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--panel)) 76%, #07121f 24%),
-          color-mix(in srgb, var(--workspace-shell-bg, var(--panel)) 88%, #050b13 12%)
+          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--ui-panel)) 76%, #07121f 24%),
+          color-mix(in srgb, var(--workspace-shell-bg, var(--ui-panel)) 88%, #050b13 12%)
         ),
         #0b1930;
       backdrop-filter: blur(14px) saturate(138%);
       -webkit-backdrop-filter: blur(14px) saturate(138%);
       box-shadow: 0 18px 38px rgba(0, 0, 0, 0.48);
-      color: var(--workspace-shell-text, var(--ink));
+      color: var(--workspace-shell-text, var(--ui-text));
       padding: 8px;
       z-index: 80;
       display: flex;
@@ -471,7 +471,7 @@
       width: min(360px, 96vw);
       border: 1px solid #c9dbcc;
       border-radius: 8px;
-      background: var(--panel);
+      background: var(--ui-panel);
       box-shadow: 0 8px 20px rgba(16, 36, 24, 0.18);
       padding: 6px;
       z-index: 82;
@@ -493,7 +493,7 @@
       top: 0;
       z-index: 1;
       padding-bottom: 1px;
-      background: var(--panel);
+      background: var(--ui-panel);
     }}
     .chat-unicode-menu-btn {{
       border: 1px solid #c9dbcc;
@@ -875,62 +875,6 @@
       line-height: 1.25;
       overflow: hidden;
     }}
-    .chat-macro-preview {{
-      min-height: 0;
-      font-size: 10px;
-      line-height: 1.25;
-      color: #2f5c44;
-      border: 1px dashed rgba(var(--chat-send-channel-rgb), 0.42);
-      background: rgba(var(--chat-send-channel-rgb), 0.08);
-      border-radius: 7px;
-      padding: 4px 7px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }}
-    .chat-macro-preview[hidden] {{
-      display: none !important;
-    }}
-    .chat-macro-preview-text {{
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }}
-    .chat-macro-help-title {{
-      font-weight: 600;
-      color: #2a583f;
-    }}
-    .chat-macro-help-list {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-    }}
-    .chat-macro-help-empty {{
-      font-size: 10px;
-      color: #446551;
-      opacity: 0.9;
-      padding: 1px 2px;
-    }}
-    .chat-macro-help-btn {{
-      appearance: none;
-      border: 1px solid rgba(var(--chat-send-channel-rgb), 0.48);
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.9);
-      color: #214e37;
-      padding: 2px 8px;
-      font-size: 10px;
-      line-height: 1.2;
-      cursor: pointer;
-      white-space: nowrap;
-    }}
-    .chat-macro-help-btn:hover {{
-      background: rgba(var(--chat-send-channel-rgb), 0.14);
-      border-color: rgba(var(--chat-send-channel-rgb), 0.58);
-    }}
-    .chat-macro-help-btn:focus-visible {{
-      outline: 2px solid rgba(var(--chat-send-channel-rgb), 0.5);
-      outline-offset: 1px;
-    }}
     .chat-channel-mismatch-warning {{
       display: block;
       min-height: 0;
@@ -1240,7 +1184,7 @@
       background: #eaf4eb;
     }}
     .env-node-legend-toggle:focus-visible {{
-      outline: 2px solid var(--accent);
+      outline: 2px solid var(--ui-accent);
       outline-offset: 1px;
     }}
     .env-node-legend-toggle.is-hidden {{
@@ -1255,7 +1199,7 @@
       width: 8px;
       height: 8px;
       border-radius: 999px;
-      background: var(--node-color, var(--accent));
+      background: var(--node-color, var(--ui-accent));
       transform: translateY(-50%);
       box-shadow: 0 0 0 1px rgba(15, 35, 25, 0.15);
     }}
@@ -1427,7 +1371,7 @@
     .disk-fill.danger {{
       background: #ff7676;
     }}
-    .warn {{ color: var(--danger); font-weight: 600; }}
+    .warn {{ color: var(--ui-danger); font-weight: 600; }}
     .console {{
       display: flex;
       flex-direction: column;
@@ -1596,7 +1540,7 @@
       padding: 4px;
       opacity: 0;
       transform: scale(0.92);
-      box-shadow: var(--shadow);
+      box-shadow: var(--ui-shadow);
       backdrop-filter: blur(10px);
       pointer-events: auto;
       transition:
@@ -1664,7 +1608,7 @@
       border: 1px solid transparent;
       border-radius: 6px;
       background: transparent;
-      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ink) 14%);
+      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ui-text) 14%);
       text-align: left;
       font: inherit;
       cursor: pointer;
@@ -1673,7 +1617,7 @@
     .console-autocomplete-item.is-selected {{
       border-color: color-mix(in srgb, var(--surface-tint-border-strong) 64%, transparent);
       background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, white 14%);
-      color: color-mix(in srgb, var(--surface-tint-text) 94%, var(--ink) 6%);
+      color: color-mix(in srgb, var(--surface-tint-text) 94%, var(--ui-text) 6%);
     }}
     .console-autocomplete-item-name,
     .console-autocomplete-item-meta {{
@@ -1702,7 +1646,7 @@
       justify-content: center;
       border-radius: 50%;
       background: color-mix(in srgb, var(--surface-tint-color) 14%, transparent);
-      color: color-mix(in srgb, var(--surface-tint-text) 88%, var(--ink) 12%);
+      color: color-mix(in srgb, var(--surface-tint-text) 88%, var(--ui-text) 12%);
       font-size: 15px;
       line-height: 1;
       overflow: hidden;
@@ -1745,7 +1689,7 @@
       font-size: 10px;
     }}
     .console-autocomplete-node-meta {{
-      color: color-mix(in srgb, var(--surface-tint-text) 70%, var(--ink) 30%);
+      color: color-mix(in srgb, var(--surface-tint-text) 70%, var(--ui-text) 30%);
       font-size: 10px;
     }}
     .console-context-menu {{
@@ -1788,7 +1732,7 @@
     .console-context-menu-item:hover {{
       border-color: color-mix(in srgb, var(--surface-tint-border-strong) 68%, transparent);
       background: color-mix(in srgb, var(--surface-tint-bg-alt) 96%, white 4%);
-      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ink) 14%);
+      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ui-text) 14%);
     }}
     .console-context-menu-item:focus-visible {{
       outline: 2px solid var(--surface-tint-border-strong);
@@ -1861,7 +1805,7 @@
     .console-command-palette-title {{
       font-size: 12px;
       font-weight: 800;
-      color: color-mix(in srgb, var(--surface-tint-text) 90%, var(--ink) 10%);
+      color: color-mix(in srgb, var(--surface-tint-text) 90%, var(--ui-text) 10%);
       letter-spacing: 0.04em;
       text-transform: uppercase;
     }}
@@ -1882,7 +1826,7 @@
       border: 1px solid color-mix(in srgb, var(--surface-tint-border-strong) 58%, transparent);
       border-radius: 9px;
       background: color-mix(in srgb, var(--surface-tint-bg-soft) 95%, white 5%);
-      color: color-mix(in srgb, var(--surface-tint-text) 88%, var(--ink) 12%);
+      color: color-mix(in srgb, var(--surface-tint-text) 88%, var(--ui-text) 12%);
       font-size: 12px;
       font-weight: 600;
       padding: 0 10px;
@@ -1918,7 +1862,7 @@
       border-radius: 9px;
       padding: 7px 9px;
       background: color-mix(in srgb, var(--surface-tint-bg-soft) 90%, white 10%);
-      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ink) 14%);
+      color: color-mix(in srgb, var(--surface-tint-text) 86%, var(--ui-text) 14%);
       cursor: pointer;
       text-align: left;
     }}
@@ -2027,7 +1971,7 @@
       margin: 0;
       background: transparent;
       border: none;
-      color: color-mix(in srgb, var(--surface-tint-text) 90%, var(--ink) 10%);
+      color: color-mix(in srgb, var(--surface-tint-text) 90%, var(--ui-text) 10%);
       border-radius: 0;
       padding: var(--console-pad-top, 12px) 12px var(--console-pad-bottom, 10px) 12px;
       box-sizing: border-box;
@@ -2127,8 +2071,8 @@
       text-decoration-color: rgba(219, 39, 119, 0.62);
     }}
     #live-console .console-syntax-node.console-syntax-node-tagged {{
-      color: var(--node-tag-color, var(--accent));
-      text-decoration-color: color-mix(in srgb, var(--node-tag-color, var(--accent)) 70%, transparent);
+      color: var(--node-tag-color, var(--ui-accent));
+      text-decoration-color: color-mix(in srgb, var(--node-tag-color, var(--ui-accent)) 70%, transparent);
     }}
     #live-console .console-syntax-broadcast {{
       color: #0f766e;
@@ -2350,10 +2294,8 @@
       border-color: color-mix(in srgb, var(--workspace-shell-border-muted) 82%, var(--ui-border));
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .teams-rail,
     [data-theme="dark"] .chat-panel-splitter,
-    [data-theme="dark"] .chat-left-panel,
-    [data-theme="dark"] .card {{
+    [data-theme="dark"] .chat-left-panel {{
       background: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--ui-panel));
       border-color: color-mix(in srgb, var(--workspace-shell-border-muted) 82%, var(--ui-border));
       color: var(--workspace-shell-text);
@@ -2821,16 +2763,6 @@
     [data-theme="dark"] .btn.btn-secondary {{
       background: transparent;
     }}
-    [data-theme="dark"] .card.files {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg);
-      color: var(--workspace-shell-text);
-    }}
-    [data-theme="dark"] .card.games {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg);
-      color: var(--workspace-shell-text);
-    }}
     [data-theme="dark"] .files-controls {{
       border-color: var(--workspace-shell-border);
       background: var(--workspace-shell-bg-alt);
@@ -2838,10 +2770,20 @@
     [data-theme="dark"] .files-caption,
     [data-theme="dark"] .files-send-status,
     [data-theme="dark"] .files-channel-hint,
+    [data-theme="dark"] .files-hop-limit-preview,
     [data-theme="dark"] .files-option,
     [data-theme="dark"] .files-transfer-name-sub,
     [data-theme="dark"] .files-transfer-progress-text {{
       color: var(--workspace-shell-text-soft);
+    }}
+    [data-theme="dark"] .files-hop-limit-preview {{
+      border-color: var(--workspace-shell-border-muted);
+      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 74%, transparent);
+    }}
+    [data-theme="dark"] .files-hop-limit-preview[data-source="detected"] {{
+      border-color: var(--workspace-shell-border-strong);
+      background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, transparent);
+      color: var(--workspace-shell-text);
     }}
     [data-theme="dark"] .files-label,
     [data-theme="dark"] .files-console-title,
@@ -2997,378 +2939,6 @@
       background: color-mix(in srgb, var(--workspace-shell-hover-bg) 78%, black 22%);
       border-color: var(--workspace-shell-border-strong);
     }}
-    [data-theme="dark"] .card.bbs {{
-      border-color: var(--workspace-shell-border);
-      background:
-        radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--ui-accent) 18%, transparent) 0%, transparent 54%),
-        linear-gradient(180deg, color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, black 16%) 0%, var(--workspace-shell-bg) 100%);
-      color: var(--workspace-shell-text);
-      box-shadow: var(--workspace-shell-shadow);
-    }}
-    [data-theme="dark"] .card.bbs > h2 {{
-      border-bottom-color: var(--workspace-shell-border);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, white 12%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 72%, var(--ui-accent) 28%) 100%
-        );
-      color: color-mix(in srgb, var(--workspace-shell-active-text) 78%, white 22%);
-    }}
-    [data-theme="dark"] .bbs-sidebar {{
-      border-color: var(--workspace-shell-border-muted);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, white 16%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 94%, black 6%) 100%
-        );
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.04),
-        0 18px 34px rgba(0, 0, 0, 0.24);
-    }}
-    [data-theme="dark"] .bbs-panel {{
-      border-color: var(--workspace-shell-border-muted);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, white 18%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 90%, black 10%) 100%
-        );
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.04),
-        0 14px 28px rgba(0, 0, 0, 0.18);
-    }}
-    [data-theme="dark"] .bbs-panel-title,
-    [data-theme="dark"] .bbs-label {{
-      color: var(--workspace-shell-text-soft);
-    }}
-    [data-theme="dark"] .bbs-input {{
-      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, black 18%);
-      border-color: var(--workspace-shell-border-muted);
-      color: var(--workspace-shell-text);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    }}
-    [data-theme="dark"] .bbs-input:focus {{
-      outline-color: var(--ui-accent);
-      border-color: var(--ui-accent);
-      background: color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, black 12%);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-accent) 22%, transparent);
-    }}
-    [data-theme="dark"] .bbs-host-status,
-    [data-theme="dark"] .bbs-post-status,
-    [data-theme="dark"] .bbs-board-meta,
-    [data-theme="dark"] .bbs-board-motd,
-    [data-theme="dark"] .bbs-directory-target {{
-      color: var(--workspace-shell-text-soft);
-    }}
-    [data-theme="dark"] .bbs-directory-target.is-empty {{
-      color: color-mix(in srgb, var(--workspace-shell-text-soft) 72%, var(--workspace-shell-bg-alt) 28%);
-    }}
-    [data-theme="dark"] .bbs-host-status,
-    [data-theme="dark"] .bbs-post-status {{
-      border-color: color-mix(in srgb, var(--workspace-shell-border-muted) 78%, var(--ui-accent) 22%);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 80%, white 20%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 92%, black 8%) 100%
-        );
-    }}
-    [data-theme="dark"] .bbs-board-list {{
-      border-color: var(--workspace-shell-border-muted);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 74%, white 26%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 92%, black 8%) 100%
-        );
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    }}
-    [data-theme="dark"] .bbs-board-empty {{
-      border-color: var(--workspace-shell-border-muted);
-      background: color-mix(in srgb, var(--workspace-shell-bg) 96%, black 4%);
-      color: var(--workspace-shell-text-soft);
-    }}
-    [data-theme="dark"] .bbs-board-item {{
-      border-color: var(--workspace-shell-border-muted);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 76%, white 24%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 88%, black 12%) 100%
-        );
-      color: var(--workspace-shell-text);
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.16);
-    }}
-    [data-theme="dark"] .bbs-board-item:hover {{
-      border-color: var(--workspace-shell-border-strong);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, white 18%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 84%, black 16%) 100%
-        );
-      box-shadow: 0 14px 24px rgba(0, 0, 0, 0.22);
-    }}
-    [data-theme="dark"] .bbs-board-item.is-active {{
-      border-color: var(--workspace-shell-border-strong);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-active-bg) 88%, white 12%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 70%, var(--workspace-shell-active-bg) 30%) 100%
-        );
-      color: var(--workspace-shell-active-text);
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--workspace-shell-border-strong) 26%, transparent),
-        0 16px 28px rgba(0, 0, 0, 0.24);
-    }}
-    [data-theme="dark"] .bbs-main {{
-      border-color: var(--workspace-shell-border);
-      background:
-        radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--ui-accent) 18%, transparent) 0%, transparent 42%),
-        linear-gradient(180deg, color-mix(in srgb, var(--workspace-shell-bg-alt) 72%, black 28%) 0%, color-mix(in srgb, var(--workspace-shell-bg) 94%, black 6%) 100%);
-      color: color-mix(in srgb, var(--workspace-shell-active-text) 80%, #d7ffe8 20%);
-      box-shadow:
-        inset 0 0 0 1px rgba(166, 231, 190, 0.08),
-        0 24px 44px rgba(0, 0, 0, 0.32);
-    }}
-    [data-theme="dark"] .bbs-main::before {{
-      background:
-        repeating-linear-gradient(180deg, rgba(154, 244, 192, 0.04) 0 1px, transparent 1px 4px),
-        radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--ui-accent) 24%, transparent), transparent 40%),
-        radial-gradient(circle at 82% 120%, rgba(26, 68, 49, 0.28), transparent 44%);
-    }}
-    [data-theme="dark"] .bbs-terminal-head {{
-      border-bottom-color: color-mix(in srgb, var(--workspace-shell-border) 72%, rgba(146, 206, 165, 0.24));
-      background:
-        linear-gradient(180deg, rgba(12, 26, 18, 0.92) 0%, rgba(7, 16, 11, 0.72) 100%);
-    }}
-    [data-theme="dark"] .bbs-terminal-title {{
-      color: color-mix(in srgb, var(--workspace-shell-active-text) 84%, white 16%);
-    }}
-    [data-theme="dark"] .bbs-terminal-meta {{
-      color: var(--workspace-shell-text-soft);
-    }}
-    [data-theme="dark"] .bbs-terminal-log {{
-      color: color-mix(in srgb, var(--workspace-shell-active-text) 82%, #d3ffe4 18%);
-      text-shadow: 0 0 8px color-mix(in srgb, var(--ui-accent) 18%, transparent);
-      scrollbar-color: color-mix(in srgb, var(--workspace-shell-border-strong) 74%, transparent) rgba(5, 13, 9, 0.42);
-    }}
-    [data-theme="dark"] .bbs-compose-row {{
-      border-top-color: color-mix(in srgb, var(--workspace-shell-border) 76%, rgba(146, 206, 165, 0.18));
-      background:
-        linear-gradient(180deg, rgba(9, 20, 14, 0.84) 0%, rgba(5, 12, 8, 0.92) 100%);
-    }}
-    [data-theme="dark"] .bbs-compose-row .bbs-post-input {{
-      border-color: var(--workspace-shell-border-muted);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 76%, black 24%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 92%, black 8%) 100%
-        );
-      color: var(--workspace-shell-text);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    }}
-    [data-theme="dark"] .bbs-compose-row .bbs-post-input::placeholder {{
-      color: var(--workspace-shell-text-soft);
-      opacity: 0.9;
-    }}
-    [data-theme="dark"] .bbs-compose-row .bbs-post-input:focus {{
-      outline-color: var(--ui-accent);
-      border-color: var(--ui-accent);
-      background:
-        linear-gradient(
-          180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt) 84%, black 16%) 0%,
-          color-mix(in srgb, var(--workspace-shell-bg) 88%, black 12%) 100%
-      );
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-accent) 22%, transparent);
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs {{
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-sidebar {{
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-main {{
-      background: transparent;
-      color: var(--workspace-shell-text);
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-main::before,
-    [data-theme="dark"] .layout.view-bbs .bbs-main::after {{
-      content: none;
-      display: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-terminal-head {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg-alt);
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-terminal-log {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg);
-      color: var(--workspace-shell-text);
-      text-shadow: none;
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-compose-row {{
-      border-color: color-mix(in srgb, var(--ui-border) 62%, transparent);
-      background: var(--ui-panel);
-      background-image: none;
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-compose-row .bbs-post-input {{
-      background: var(--workspace-shell-bg-alt);
-      border-color: var(--workspace-shell-border-strong);
-      color: var(--workspace-shell-text);
-      box-shadow: none;
-    }}
-    [data-theme="dark"] .layout.view-bbs .bbs-compose-row .bbs-post-input:focus {{
-      border-color: var(--ui-accent);
-      background: var(--workspace-shell-bg-alt);
-      box-shadow: inset 0 0 0 1px var(--ui-accent);
-    }}
-    [data-theme="dark"] .remote-sidebar {{
-      border-color: var(--workspace-shell-border-muted);
-      background: var(--workspace-shell-bg-alt);
-    }}
-    [data-theme="dark"] .remote-field {{
-      color: #96efb9;
-    }}
-    [data-theme="dark"] .remote-search-input {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg-alt);
-      color: var(--workspace-shell-text);
-    }}
-    [data-theme="dark"] .remote-search-input::placeholder {{
-      color: #90d9ac;
-    }}
-    [data-theme="dark"] .remote-search-input:focus {{
-      outline-color: #39af72;
-      border-color: #39af72;
-      background: var(--workspace-shell-hover-bg);
-    }}
-    [data-theme="dark"] .remote-list-caption {{
-      color: #96efb9;
-    }}
-    [data-theme="dark"] .remote-node-list {{
-      border-color: var(--workspace-shell-border-muted);
-      background: #050905;
-    }}
-    [data-theme="dark"] .remote-node-btn {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg-alt);
-      color: var(--workspace-shell-text);
-    }}
-    [data-theme="dark"] .remote-node-btn:hover {{
-      border-color: #39af72;
-      background: var(--workspace-shell-hover-bg);
-    }}
-    [data-theme="dark"] .remote-node-btn.is-active {{
-      border-color: #3fb950;
-      box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.34);
-      background: #0f2518;
-      color: #ebfff3;
-    }}
-    [data-theme="dark"] .remote-node-id,
-    [data-theme="dark"] .remote-node-meta {{
-      color: #96efb9;
-    }}
-    [data-theme="dark"] .remote-freshness-chip {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg-alt);
-      color: #96efb9;
-    }}
-    [data-theme="dark"] .remote-freshness-chip.status-online {{
-      border-color: #34a56a;
-      color: #c2ffd8;
-      background: #0b2b19;
-    }}
-    [data-theme="dark"] .remote-freshness-chip.status-warn {{
-      border-color: #8f7a17;
-      color: #ffe59b;
-      background: #342f0a;
-    }}
-    [data-theme="dark"] .remote-freshness-chip.status-stale {{
-      border-color: #944343;
-      color: #ffbcbc;
-      background: #3d1515;
-    }}
-    [data-theme="dark"] .remote-freshness-chip.status-unknown {{
-      border-color: var(--workspace-shell-border);
-      color: #96efb9;
-      background: var(--workspace-shell-bg-alt);
-    }}
-    [data-theme="dark"] .remote-node-empty {{
-      border-color: var(--workspace-shell-border);
-      background: #050905;
-      color: #96efb9;
-    }}
-    [data-theme="dark"] .remote-panel {{
-      border-color: var(--workspace-shell-border-muted);
-      background: var(--workspace-shell-bg-alt);
-      color: var(--workspace-shell-text);
-    }}
-    [data-theme="dark"] .remote-panel h3 {{
-      color: #aef8c8;
-    }}
-    [data-theme="dark"] .remote-target-meta {{
-      color: #96efb9;
-    }}
-    [data-theme="dark"] .remote-meta-pill {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg-alt);
-      color: #96efb9;
-    }}
-    [data-theme="dark"] .remote-capability-row {{
-      border-color: var(--workspace-shell-border-muted);
-      background: #050905;
-    }}
-    [data-theme="dark"] .remote-capability-title {{
-      color: var(--workspace-shell-text);
-    }}
-    [data-theme="dark"] .remote-capability-detail {{
-      color: #96efb9;
-    }}
-    [data-theme="dark"] .remote-capability-status {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg-alt);
-      color: #96efb9;
-    }}
-    [data-theme="dark"] .remote-capability-status.ready {{
-      border-color: #34a56a;
-      color: #c2ffd8;
-      background: #0b2b19;
-    }}
-    [data-theme="dark"] .remote-capability-status.partial {{
-      border-color: #8f7a17;
-      color: #ffe59b;
-      background: #342f0a;
-    }}
-    [data-theme="dark"] .remote-capability-status.planned {{
-      border-color: #4f6898;
-      color: #b8d6ff;
-      background: #122035;
-    }}
-    [data-theme="dark"] .remote-capability-status.blocked {{
-      border-color: #944343;
-      color: #ffbcbc;
-      background: #3d1515;
-    }}
-    [data-theme="dark"] .remote-action-status {{
-      color: #96efb9;
-    }}
-    [data-theme="dark"] .remote-action-status.error {{
-      color: #ffbcbc;
-    }}
     [data-theme="dark"] .btn.btn-danger {{
       border-color: #6a3a34;
       background: #3a221f;
@@ -3448,12 +3018,10 @@
     [data-theme="dark"] .chat-feed-item.chat-selectable.self-authored:hover {{
       background: var(--chat-feed-channel-edge-bg), #274133;
     }}
-    [data-theme="dark"] .chat-feed-text .chat-link,
-    [data-theme="dark"] #history-chat-table .chat-link {{
+    [data-theme="dark"] .chat-feed-text .chat-link {{
       color: #8bc3ff;
     }}
-    [data-theme="dark"] .chat-feed-text .chat-link:hover,
-    [data-theme="dark"] #history-chat-table .chat-link:hover {{
+    [data-theme="dark"] .chat-feed-text .chat-link:hover {{
       color: #b8dcff;
     }}
     [data-theme="dark"] .chat-inline-emoji {{
@@ -3873,28 +3441,6 @@
       color: var(--workspace-shell-text);
       box-shadow: none;
     }}
-    [data-theme="dark"] .topbar .summary-ticker-item-bots.has-active-bot-sessions,
-    [data-theme="dark"] .topbar .summary-ticker-item-bots.has-pending-bot-activity {{
-      border-color: transparent;
-      background:
-        linear-gradient(var(--workspace-shell-bg), var(--workspace-shell-bg)) padding-box,
-        conic-gradient(
-          from 150deg,
-          color-mix(in srgb, var(--workspace-shell-active-text) 78%, white 22%),
-          color-mix(in srgb, #75d7ff 70%, var(--workspace-shell-active-text) 30%),
-          color-mix(in srgb, #f2d072 70%, var(--workspace-shell-active-text) 30%),
-          color-mix(in srgb, var(--workspace-shell-active-text) 78%, white 22%)
-        ) border-box;
-      box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--workspace-shell-active-text) 18%, transparent),
-        0 0 18px color-mix(in srgb, var(--workspace-shell-active-text) 20%, transparent);
-    }}
-    [data-theme="dark"] .topbar .summary-ticker-item-bots.has-active-bot-sessions::before,
-    [data-theme="dark"] .topbar .summary-ticker-item-bots.has-pending-bot-activity::before {{
-      background:
-        radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--workspace-shell-active-text) 22%, transparent) 0, transparent 46%),
-        linear-gradient(105deg, transparent 0, color-mix(in srgb, #75d7ff 12%, transparent) 42%, transparent 78%);
-    }}
     [data-theme="dark"] .topbar .summary-ticker-item.metric-state-neutral {{
       --ticker-card-accent: color-mix(in srgb, var(--workspace-shell-border-muted) 82%, var(--workspace-shell-text-soft) 18%);
       --ticker-card-accent-soft: var(--workspace-shell-text-soft);
@@ -3966,9 +3512,6 @@
     [data-theme="dark"] .topbar .summary-ticker-item .radio-ticker-status.status-lost::before {{
       background: #ff9e9e;
     }}
-    [data-theme="dark"] .teams-rail {{
-      border-color: transparent !important;
-    }}
     [data-theme="dark"] .summary-freshness {{
       border-color: rgba(124, 161, 190, 0.36);
       background: rgba(121, 192, 255, 0.08);
@@ -3976,7 +3519,7 @@
     }}
     [data-theme="dark"] .summary-freshness.status-online {{
       border-color: rgba(63, 185, 80, 0.7);
-      background: color-mix(in srgb, var(--accent) 30%, transparent);
+      background: color-mix(in srgb, var(--ui-accent) 30%, transparent);
       color: #cbf7d8;
     }}
     [data-theme="dark"] .summary-freshness.status-warn {{
@@ -3994,10 +3537,8 @@
       background: rgba(121, 192, 255, 0.08);
       color: #cfe4f8;
     }}
-    [data-theme="dark"] .teams-rail,
     [data-theme="dark"] .chat-panel-splitter,
     [data-theme="dark"] .chat-left-panel,
-    [data-theme="dark"] .card,
     [data-theme="dark"] details,
     [data-theme="dark"] #live-console,
     [data-theme="dark"] pre {{
@@ -4130,7 +3671,6 @@
     [data-theme="dark"] .starred-node-wrap,
     [data-theme="dark"] .theme-btn,
     [data-theme="dark"] .disk-meter,
-    [data-theme="dark"] .rail-btn,
     [data-theme="dark"] .chat-channel-item,
     [data-theme="dark"] .metric,
     [data-theme="dark"] .chat-endpoint .chat-id-bg,
@@ -4151,7 +3691,6 @@
       box-shadow: none;
     }}
     [data-theme="dark"] .history-caption,
-    [data-theme="dark"] .teams-rail-title,
     [data-theme="dark"] .chat-left-title,
     [data-theme="dark"] .chat-left-label,
     [data-theme="dark"] .chat-left-sub,
@@ -4159,6 +3698,7 @@
     [data-theme="dark"] .metric .label,
     [data-theme="dark"] .chat-feed-meta,
     [data-theme="dark"] .chat-feed-time,
+    [data-theme="dark"] .response-telemetry-meta,
     [data-theme="dark"] .chat-feed-arrow,
     [data-theme="dark"] .chat-reply-inline,
     [data-theme="dark"] .chat-reply-inline .chat-reply-inline-text,
@@ -4192,10 +3732,6 @@
       background: var(--workspace-shell-bg-alt);
       border-color: #2b8a59;
       color: var(--workspace-shell-text);
-    }}
-    [data-theme="dark"] .card.chat {{
-      background: var(--ui-panel);
-      border-color: var(--ui-border);
     }}
     [data-theme="dark"] .layout.view-chat .card.chat {{
       background: transparent;
@@ -4255,9 +3791,6 @@
       background: var(--workspace-shell-bg-alt);
       border-bottom: 1px solid var(--workspace-shell-border-muted);
       color: var(--ui-text-soft) !important;
-    }}
-    [data-theme="dark"] .card.chat .body {{
-      background: var(--workspace-shell-bg);
     }}
     [data-theme="dark"] .layout.view-chat .card.chat .body,
     [data-theme="dark"] .layout.view-chat .card.chat .chat-shell {{
@@ -4531,7 +4064,7 @@
       --telemetry-running-accent: color-mix(in srgb, var(--ui-accent) 26%, #7ea0d8 74%);
       --telemetry-error-accent: color-mix(in srgb, var(--ui-accent) 20%, #da7c7c 80%);
     }}
-    [data-theme="dark"] .chat-node-details-drawer .saved-node-details {{
+    [data-theme="dark"] .chat-node-details-drawer .node-details {{
       border-color: var(--workspace-shell-border);
       background: var(--workspace-shell-bg);
     }}
@@ -4601,20 +4134,6 @@
     [data-theme="dark"] .history-tabs {{
       border-bottom-color: var(--ui-border);
     }}
-    [data-theme="dark"] .history-chat-tabbar {{
-      border-bottom-color: var(--ui-border);
-    }}
-    [data-theme="dark"] .history-chat-tab-btn {{
-      background: var(--ui-panel-alt);
-      border-color: var(--ui-border);
-      color: var(--ui-text-soft);
-    }}
-    [data-theme="dark"] .history-chat-tab-btn.is-active,
-    [data-theme="dark"] .history-chat-tab-btn[aria-selected="true"] {{
-      background: #223447;
-      border-color: #3d5973;
-      color: #ebf3ff;
-    }}
     [data-theme="dark"] .history-metric-wrap {{
       border-color: var(--ui-border);
       background: var(--ui-panel-alt);
@@ -4633,22 +4152,11 @@
     [data-theme="dark"] .history-metric-toggle {{
       accent-color: var(--ui-accent);
     }}
-    [data-theme="dark"] .history-encription-section {{
-      border-top-color: var(--ui-border);
-    }}
-    [data-theme="dark"] .history-encription-panel h3 {{
-      color: var(--ui-text-soft);
-    }}
     [data-theme="dark"] #signal-chart-wrap,
     [data-theme="dark"] #node-link-quality-chart-wrap,
     [data-theme="dark"] #node-online-chart-wrap,
     [data-theme="dark"] #node-packets-chart-wrap,
-    [data-theme="dark"] #online-activity-chart-wrap,
-    [data-theme="dark"] #weekly-summary-chart-wrap,
-    [data-theme="dark"] #network-overview-chart-wrap,
-    [data-theme="dark"] #history-chat-trend-chart-wrap,
-    [data-theme="dark"] #encription-route-chart-wrap,
-    [data-theme="dark"] #encription-trend-chart-wrap {{
+    [data-theme="dark"] #network-overview-chart-wrap {{
       background:
         linear-gradient(
           180deg,
@@ -4694,7 +4202,7 @@
     [data-theme="dark"] .signal-timeline-label-major {{
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .saved-node-details {{
+    [data-theme="dark"] .node-details {{
       border-color: var(--ui-border);
       background: var(--ui-panel-alt);
     }}
@@ -4722,62 +4230,62 @@
     [data-theme="dark"] .node-search-empty {{
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-details-empty {{
+    [data-theme="dark"] .node-details-empty {{
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, transparent);
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-section-title,
-    [data-theme="dark"] .saved-node-stat-k,
-    [data-theme="dark"] .saved-node-note {{
+    [data-theme="dark"] .node-details-section-title,
+    [data-theme="dark"] .node-details-stat-k,
+    [data-theme="dark"] .node-details-note {{
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-note-label {{
+    [data-theme="dark"] .node-details-note-label {{
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-section {{
+    [data-theme="dark"] .node-details-section {{
       border-color: var(--workspace-shell-border);
       background: var(--workspace-shell-bg-alt);
     }}
-    [data-theme="dark"] .saved-node-stat {{
+    [data-theme="dark"] .node-details-stat {{
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--workspace-shell-bg-alt) 22%);
     }}
-    [data-theme="dark"] .saved-node-stat-v {{
+    [data-theme="dark"] .node-details-stat-v {{
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .saved-node-inline-link:hover {{
+    [data-theme="dark"] .node-details-inline-link:hover {{
       color: var(--workspace-shell-active-text);
     }}
-    [data-theme="dark"] .saved-node-inline-link:focus-visible {{
+    [data-theme="dark"] .node-details-inline-link:focus-visible {{
       outline-color: var(--workspace-shell-border-strong);
     }}
-    [data-theme="dark"] .saved-node-name-history-item {{
+    [data-theme="dark"] .node-details-name-history-item {{
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--workspace-shell-bg-alt) 22%);
     }}
-    [data-theme="dark"] .saved-node-name-history-short {{
+    [data-theme="dark"] .node-details-name-history-short {{
       color: #e6eef8;
     }}
-    [data-theme="dark"] .saved-node-name-history-long,
-    [data-theme="dark"] .saved-node-name-history-meta {{
+    [data-theme="dark"] .node-details-name-history-long,
+    [data-theme="dark"] .node-details-name-history-meta {{
       color: #9db3c8;
     }}
-    [data-theme="dark"] .saved-node-name-history-empty {{
+    [data-theme="dark"] .node-details-name-history-empty {{
       border-color: var(--workspace-shell-border-muted);
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, transparent);
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-note-input {{
+    [data-theme="dark"] .node-details-note-input {{
       border-color: var(--workspace-shell-border);
       background: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--workspace-shell-bg-alt) 22%);
       color: var(--workspace-shell-text);
       caret-color: var(--workspace-shell-active-text);
     }}
-    [data-theme="dark"] .saved-node-note-input::placeholder {{
+    [data-theme="dark"] .node-details-note-input::placeholder {{
       color: var(--workspace-shell-text-soft);
     }}
-    [data-theme="dark"] .saved-node-note-input:focus {{
+    [data-theme="dark"] .node-details-note-input:focus {{
       border-color: var(--workspace-shell-border-strong);
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--workspace-shell-border-strong) 24%, transparent);
     }}
@@ -4807,78 +4315,9 @@
       border-color: var(--ui-border);
       background: linear-gradient(90deg, #1a2430, #16202c);
     }}
-    [data-theme="dark"] .bots-main-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(180deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .bots-main-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .bots-main-splitter:hover::before,
-    [data-theme="dark"] .bots-main-splitter.active::before {{
-      background: #79c0ff;
-    }}
     [data-theme="dark"] .layout.view-network .splitter {{
       border-color: var(--ui-border);
       background: linear-gradient(90deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .saved-node-history-host {{
-      border-top: none;
-    }}
-    [data-theme="dark"] .saved-node-history-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(90deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .history-activity-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(90deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .history-chat-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(90deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .saved-node-history-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .history-activity-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .history-chat-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .saved-node-history-splitter:hover::before,
-    [data-theme="dark"] .saved-node-history-splitter.active::before {{
-      background: #79c0ff;
-    }}
-    [data-theme="dark"] .history-activity-splitter:hover::before,
-    [data-theme="dark"] .history-activity-splitter.active::before {{
-      background: #79c0ff;
-    }}
-    [data-theme="dark"] .history-chat-splitter:hover::before,
-    [data-theme="dark"] .history-chat-splitter.active::before {{
-      background: #79c0ff;
-    }}
-    [data-theme="dark"] .saved-map-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(180deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .saved-map-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .saved-map-splitter:hover::before,
-    [data-theme="dark"] .saved-map-splitter.active::before {{
-      background: #79c0ff;
-    }}
-    [data-theme="dark"] .saved-map-splitter-head {{
-      border-color: var(--ui-border);
-      background: linear-gradient(180deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .saved-map-splitter-head::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .saved-map-splitter-head:hover::before,
-    [data-theme="dark"] .saved-map-splitter-head.active::before {{
-      background: #79c0ff;
     }}
     [data-theme="dark"] .network-node-splitter::before {{
       background: #44566a;
@@ -4910,7 +4349,6 @@
     [data-theme="dark"] .theme-btn:hover,
     [data-theme="dark"] .selection-btn:hover,
     [data-theme="dark"] .starred-node-wrap:hover,
-    [data-theme="dark"] .rail-btn:hover,
     [data-theme="dark"] .chat-channel-item:hover,
     [data-theme="dark"] .metric:hover,
     [data-theme="dark"] .chat-reaction-chip:hover,
@@ -4926,16 +4364,6 @@
       color: var(--surface-tint-text);
       transform: none;
       box-shadow: none;
-    }}
-    [data-theme="dark"] .rail-btn.active {{
-      background: #1e3342;
-      border-color: #3f5b73;
-      color: #eef6ff;
-      box-shadow: inset 0 0 0 1px rgba(121, 192, 255, 0.15);
-    }}
-    [data-theme="dark"] .rail-btn.has-unread {{
-      border-color: #3fb950 !important;
-      box-shadow: inset 0 0 0 1px rgba(63, 185, 80, 0.3);
     }}
     [data-theme="dark"] .chat-feed-item.selected-node {{
       box-shadow:
@@ -4979,41 +4407,6 @@
     [data-theme="dark"] #nodes-table tbody tr.selected-node td:first-child {{
       box-shadow: inset 3px 0 0 #79c0ff;
     }}
-    [data-theme="dark"] #encription-packets-table tbody tr.node-selectable:hover,
-    [data-theme="dark"] #encription-traffic-table tbody tr.node-selectable:hover {{
-      background: #122031;
-    }}
-    [data-theme="dark"] #history-chat-table tbody tr.history-node-selectable.selected-node td {{
-      background: #243646 !important;
-      border-color: #4a617a !important;
-      color: #ecf5ff !important;
-    }}
-    [data-theme="dark"] #history-chat-table tbody tr.history-node-selectable.selected-node td:first-child {{
-      box-shadow: inset 3px 0 0 #79c0ff;
-    }}
-    [data-theme="dark"] #encription-packets-table tbody tr.selected-node td,
-    [data-theme="dark"] #encription-traffic-table tbody tr.selected-node td {{
-      background: #243646 !important;
-      border-color: #4a617a !important;
-      color: #ecf5ff !important;
-    }}
-    [data-theme="dark"] #encription-packets-table tbody tr.selected-node td:first-child,
-    [data-theme="dark"] #encription-traffic-table tbody tr.selected-node td:first-child {{
-      box-shadow: inset 3px 0 0 #79c0ff;
-    }}
-    [data-theme="dark"] .history-node-secondary {{
-      opacity: 0.76;
-    }}
-    [data-theme="dark"] .history-message-pill {{
-      border-color: #3d647c;
-      background: #173247;
-      color: #c4dbeb;
-    }}
-    [data-theme="dark"] .history-message-pill.history-message-pill-name-change {{
-      border-color: #3f7255;
-      background: #153223;
-      color: #b5e0c3;
-    }}
     [data-theme="dark"] .channels-evidence-pill {{
       border-color: #355145;
       background: #14241b;
@@ -5042,7 +4435,6 @@
     [data-theme="dark"] .chat-feed-item,
     [data-theme="dark"] .chat-channel-item,
     [data-theme="dark"] .chat-member-item,
-    [data-theme="dark"] .rail-btn,
     [data-theme="dark"] .metric,
     [data-theme="dark"] .card {{
       transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
@@ -5077,11 +4469,9 @@
       padding-right: 28px;
     }}
     [data-theme="dark"] .chat-peer-input,
-    [data-theme="dark"] .remote-search-input,
     [data-theme="dark"] .settings-input,
     [data-theme="dark"] .settings-textarea,
-    [data-theme="dark"] .chat-input,
-    [data-theme="dark"] .bbs-post-input {{
+    [data-theme="dark"] .chat-input {{
       background: var(--ui-panel);
       border-color: var(--ui-border);
       color: var(--ui-text);
@@ -5135,11 +4525,9 @@
       box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-accent) 22%, transparent);
     }}
     [data-theme="dark"] .chat-peer-input:focus,
-    [data-theme="dark"] .remote-search-input:focus,
     [data-theme="dark"] .settings-input:focus,
     [data-theme="dark"] .settings-textarea:focus,
-    [data-theme="dark"] .chat-input:focus,
-    [data-theme="dark"] .bbs-post-input:focus {{
+    [data-theme="dark"] .chat-input:focus {{
       outline-color: var(--ui-accent);
       border-color: var(--ui-accent);
       background: var(--ui-panel-alt);
@@ -5163,11 +4551,9 @@
     }}
     [data-theme="dark"] .list-search-input::placeholder,
     [data-theme="dark"] #chat-input::placeholder,
-    [data-theme="dark"] .remote-search-input::placeholder,
     [data-theme="dark"] .settings-input::placeholder,
     [data-theme="dark"] .settings-textarea::placeholder,
-    [data-theme="dark"] .chat-input::placeholder,
-    [data-theme="dark"] .bbs-post-input::placeholder {{
+    [data-theme="dark"] .chat-input::placeholder {{
       color: var(--workspace-shell-text-soft);
       opacity: 0.9;
     }}
@@ -5181,30 +4567,6 @@
       color: #ff9a9a;
       border-color: rgba(255, 116, 116, 0.44);
       background: rgba(64, 20, 20, 0.96);
-    }}
-    [data-theme="dark"] .chat-macro-preview {{
-      color: var(--ui-text-soft);
-      border-color: rgba(var(--chat-send-channel-rgb), 0.56);
-      background: rgba(var(--chat-send-channel-rgb), 0.16);
-    }}
-    [data-theme="dark"] .chat-macro-help-title {{
-      color: var(--ui-text);
-    }}
-    [data-theme="dark"] .chat-macro-help-empty {{
-      color: var(--ui-text-soft);
-    }}
-    [data-theme="dark"] .chat-macro-help-btn {{
-      background: rgba(7, 20, 13, 0.92);
-      border-color: rgba(var(--chat-send-channel-rgb), 0.64);
-      color: var(--ui-text-soft);
-    }}
-    [data-theme="dark"] .chat-macro-help-btn:hover {{
-      background: rgba(var(--chat-send-channel-rgb), 0.2);
-      border-color: rgba(var(--chat-send-channel-rgb), 0.78);
-      color: var(--ui-text);
-    }}
-    [data-theme="dark"] .chat-macro-help-btn:focus-visible {{
-      outline-color: rgba(var(--chat-send-channel-rgb), 0.78);
     }}
     [data-theme="dark"] .chat-member-empty {{
       border-color: var(--ui-border);
@@ -5378,55 +4740,6 @@
       border-color: var(--workspace-shell-border-strong);
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .favorites-clear-btn {{
-      border-color: var(--surface-tint-border);
-      background: var(--workspace-shell-bg-alt);
-      color: var(--surface-tint-text);
-    }}
-    [data-theme="dark"] .favorites-clear-btn:hover {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 76%, transparent);
-      border-color: var(--surface-tint-border-strong);
-    }}
-    [data-theme="dark"] .favorites-empty {{
-      border-color: var(--surface-tint-border);
-      background: color-mix(in srgb, var(--surface-tint-bg-soft) 76%, transparent);
-      color: var(--surface-tint-text-soft);
-    }}
-    [data-theme="dark"] .favorite-node-item {{
-      border-color: var(--surface-tint-border);
-      background: color-mix(in srgb, var(--surface-tint-bg-alt) 82%, transparent);
-      color: var(--surface-tint-text);
-    }}
-    [data-theme="dark"] .favorite-node-item:hover {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, transparent);
-      border-color: var(--surface-tint-border-strong);
-    }}
-    [data-theme="dark"] .favorite-node-item.status-warn {{
-      background: #40351f;
-      color: #ffe4a0;
-      border-color: #725f2e;
-    }}
-    [data-theme="dark"] .favorite-node-item.status-stale {{
-      background: #412323;
-      color: #ffc5c5;
-      border-color: #744040;
-    }}
-    [data-theme="dark"] .favorite-node-item.status-unknown {{
-      background: color-mix(in srgb, var(--surface-tint-bg-soft) 72%, transparent);
-      color: var(--surface-tint-text-soft);
-      border-color: color-mix(in srgb, var(--surface-tint-border) 76%, transparent);
-    }}
-    [data-theme="dark"] .favorite-node-item.selected-node {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, var(--surface-tint-border-strong) 14%) !important;
-      border-color: var(--surface-tint-border-strong) !important;
-      color: var(--surface-tint-text) !important;
-      box-shadow: inset 2px 0 0 var(--surface-tint-border-strong);
-    }}
-    [data-theme="dark"] .favorite-node-id,
-    [data-theme="dark"] .favorite-node-meta,
-    [data-theme="dark"] .favorites-caption {{
-      color: var(--surface-tint-text-soft);
-    }}
     [data-theme="dark"] .favorite-toggle-btn,
     [data-theme="dark"] .mute-toggle-btn {{
       border-color: color-mix(in srgb, var(--surface-tint-border) 70%, transparent);
@@ -5531,22 +4844,6 @@
       border: 0;
       background: transparent;
       padding: 0;
-    }}
-    [data-theme="dark"] .layout.view-saved .map-card-head {{
-      background: transparent;
-      border-bottom-color: transparent;
-    }}
-    [data-theme="dark"] .layout.view-saved .map-card-head .pane-head-actions {{
-      border-color: var(--saved-pane-head-border);
-      background: var(--saved-pane-head-bg);
-    }}
-    [data-theme="dark"] .layout.view-saved .map-card-head .pane-head-title {{
-      color: var(--ui-text-soft) !important;
-      border: 1px solid var(--saved-pane-head-border);
-      border-bottom: 1px solid var(--saved-pane-head-border);
-      border-radius: 8px 8px 0 0;
-      background: var(--saved-pane-head-bg);
-      padding: 8px 10px 7px 10px;
     }}
     [data-theme="dark"] .map-heatmap-wrap {{
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 78%, var(--ui-bg-elev) 22%);
@@ -6561,11 +5858,6 @@
       background: var(--workspace-shell-hover-bg) !important;
       border-color: var(--workspace-shell-border) !important;
     }}
-    [data-theme="dark"] .card.chat .body,
-    [data-theme="dark"] .card.chat .chat-shell {{
-      background: var(--workspace-shell-bg) !important;
-      background-image: none !important;
-    }}
     [data-theme="dark"] .chat-left-panel {{
       background: transparent !important;
       border-color: transparent !important;
@@ -6992,14 +6284,14 @@
       outline-color: var(--workspace-shell-border-strong);
     }}
     [data-theme="dark"] .peer-dm-popout-send-btn {{
-      border-color: color-mix(in srgb, var(--ui-accent, var(--accent)) 68%, white 32%);
-      background: color-mix(in srgb, var(--ui-accent, var(--accent)) 78%, white 22%);
+      border-color: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 68%, white 32%);
+      background: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 78%, white 22%);
       color: color-mix(in srgb, black 76%, var(--workspace-shell-bg) 24%);
       font-weight: 700;
     }}
     [data-theme="dark"] .peer-dm-popout-send-btn:hover {{
-      background: color-mix(in srgb, var(--ui-accent, var(--accent)) 84%, white 16%);
-      border-color: color-mix(in srgb, var(--ui-accent, var(--accent)) 72%, white 28%);
+      background: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 84%, white 16%);
+      border-color: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 72%, white 28%);
     }}
     [data-theme="dark"] .peer-dm-popout-file-progress {{
       border-color: var(--workspace-shell-border-muted);
@@ -7013,7 +6305,7 @@
       background: color-mix(in srgb, var(--workspace-shell-border-muted) 64%, transparent);
     }}
     [data-theme="dark"] .peer-dm-popout-file-progress-meter > span {{
-      background: var(--ui-accent, var(--accent));
+      background: var(--ui-accent, var(--ui-accent));
     }}
     [data-theme="dark"] .peer-dm-popout-file-progress.is-error {{
       border-color: #734545;
@@ -7100,29 +6392,6 @@
     [data-theme="dark"] .settings-system-disk-meter .disk-track {{
       background: color-mix(in srgb, var(--ui-accent) 18%, transparent);
     }}
-    [data-theme="dark"] .chat-settings-menu .chat-bot-toggle-wrap {{
-      color: #c5e2d2;
-    }}
-    [data-theme="dark"] .chat-settings-menu .chat-bot-cheatsheet {{
-      background: var(--workspace-shell-bg-alt);
-      border-color: #2a4638;
-    }}
-    [data-theme="dark"] .chat-settings-menu .chat-bot-cheatsheet-title {{
-      color: #93b8a6;
-    }}
-    [data-theme="dark"] .chat-settings-menu .chat-bot-cheatsheet-row {{
-      color: #c5e2d2;
-    }}
-    [data-theme="dark"] .chat-settings-menu .chat-bot-cheatsheet-row code {{
-      background: #1b2f3e;
-      border-color: #35556d;
-      color: #dbeeff;
-    }}
-    [data-theme="dark"] .bots .chat-bot-toggle-wrap.bots-master-toggle {{
-      border-color: #8f4d4d;
-      background: #2a1616;
-      color: #f2b7b7;
-    }}
     [data-theme="dark"] .games-shell-splitter {{
       border-color: var(--ui-border);
       background: linear-gradient(180deg, #1a2430, #16202c);
@@ -7139,9 +6408,19 @@
       background: var(--workspace-shell-bg);
       border-color: var(--workspace-shell-border);
     }}
-    [data-theme="dark"] .layout.view-games .games .body,
-    [data-theme="dark"] .layout.view-files .files .body {{
-      background: var(--workspace-shell-bg);
+    .card.workspace-app-shell,
+    [data-theme="dark"] .card.workspace-app-shell {{
+      background: transparent;
+      border-color: transparent;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }}
+    .card.workspace-app-shell > .body,
+    [data-theme="dark"] .card.workspace-app-shell > .body {{
+      background: transparent;
+      padding: 0;
+      box-shadow: none;
     }}
     [data-theme="dark"] .games-board-wrap {{
       --games-board-accent: var(--ui-accent-soft);
@@ -7324,7 +6603,7 @@
       box-shadow: 0 0 0 2px rgba(250, 230, 139, 0.55), 0 0 0 3px rgba(4, 13, 10, 0.55);
     }}
     [data-theme="dark"] .reversi-player-pill.is-over {{
-      border-color: var(--accent);
+      border-color: var(--ui-accent);
       box-shadow: inset 0 0 0 1px rgba(76, 168, 118, 0.36);
     }}
     [data-theme="dark"] .reversi-board {{
@@ -7437,183 +6716,6 @@
       border-color: color-mix(in srgb, var(--classic-board-accent) 72%, #f4fffa);
       box-shadow: 0 0 0 1px color-mix(in srgb, var(--workspace-shell-bg) 58%, transparent);
     }}
-    .bots {{
-      --bots-panel-bg: var(--surface-tint-bg);
-      --bots-panel-bg-alt: var(--surface-tint-bg-soft);
-      --bots-panel-bg-strong: color-mix(in srgb, var(--surface-tint-bg) 72%, #ffffff);
-      --bots-panel-hover-bg: var(--surface-tint-bg-hover);
-      --bots-panel-active-bg: color-mix(in srgb, var(--surface-tint-bg-hover) 72%, #ffffff);
-      --bots-divider-bg: var(--surface-tint-divider-bg);
-      --bots-border: var(--surface-tint-border);
-      --bots-border-strong: var(--surface-tint-border-strong);
-      --bots-text: var(--surface-tint-text);
-      --bots-text-strong: color-mix(in srgb, var(--ink) 72%, var(--accent) 28%);
-      --bots-text-soft: var(--surface-tint-text-soft);
-      --bots-active: var(--accent);
-      --bots-active-text: var(--accent-2);
-      --bots-active-bg: color-mix(in srgb, var(--accent) 13%, var(--surface-tint-bg));
-      --bots-code-bg: var(--surface-tint-bg-alt);
-      --bots-danger-text: #8f4234;
-      --bots-warning-bg: #fff8e8;
-      --bots-warning-border: #d3a856;
-      --bots-warning-text: #7a5a1f;
-    }}
-    [data-theme="dark"] .bots {{
-      --bots-panel-bg: color-mix(in srgb, var(--workspace-shell-bg) 78%, var(--ui-panel));
-      --bots-panel-bg-alt: color-mix(in srgb, var(--workspace-shell-bg-alt) 82%, var(--ui-panel));
-      --bots-panel-bg-strong: color-mix(in srgb, var(--workspace-shell-bg-alt) 70%, var(--ui-panel-alt));
-      --bots-panel-hover-bg: color-mix(in srgb, var(--workspace-shell-hover-bg) 80%, var(--ui-panel-alt));
-      --bots-panel-active-bg: color-mix(in srgb, var(--workspace-shell-active-bg) 88%, transparent);
-      --bots-divider-bg: linear-gradient(180deg, var(--workspace-shell-bg-alt), var(--workspace-shell-bg));
-      --bots-border: color-mix(in srgb, var(--workspace-shell-border-muted) 82%, var(--ui-border));
-      --bots-border-strong: color-mix(in srgb, var(--workspace-shell-border-strong) 82%, var(--ui-border));
-      --bots-text: var(--workspace-shell-text);
-      --bots-text-strong: color-mix(in srgb, var(--workspace-shell-text) 88%, white 12%);
-      --bots-text-soft: var(--workspace-shell-text-soft);
-      --bots-active: var(--ui-accent);
-      --bots-active-text: var(--workspace-shell-active-text);
-      --bots-active-bg: color-mix(in srgb, var(--workspace-shell-active-bg) 86%, transparent);
-      --bots-code-bg: color-mix(in srgb, var(--workspace-shell-bg-alt) 80%, var(--ui-panel-alt));
-      --bots-danger-text: #e3aa9f;
-      --bots-warning-bg: #2d2715;
-      --bots-warning-border: #8d7232;
-      --bots-warning-text: #f3dfad;
-    }}
-    .bots-panel {{
-      background: var(--bots-panel-bg);
-      border-color: var(--bots-border);
-      color: var(--bots-text);
-    }}
-    .bots-panel h3 {{
-      color: var(--bots-text-strong);
-    }}
-    .bots-main-splitter,
-    .bots-command-splitter {{
-      border-color: var(--bots-border);
-      background: var(--bots-divider-bg);
-    }}
-    .bots-main-splitter::before,
-    .bots-command-splitter::before {{
-      background: var(--bots-border-strong);
-    }}
-    .bots-main-splitter:hover::before,
-    .bots-main-splitter.active::before,
-    .bots-command-splitter:hover::before,
-    .bots-command-splitter.active::before {{
-      background: var(--bots-active);
-    }}
-    .bots-setting-note,
-    .bots-command-config-name,
-    .bots-command-config-description,
-    .bots-command-config-label,
-    .bots-command-item-order,
-    .bots-command-description,
-    .bots-history-stats,
-    .bots-history-meta,
-    .bots-session-meta,
-    .bots-sniffer-filter-label,
-    .bots .chat-bot-toggle-wrap,
-    .bots .chat-bot-cheatsheet-title,
-    .bots .chat-bot-cheatsheet-row {{
-      color: var(--bots-text-soft);
-    }}
-    .bots-setting-note code,
-    .bots .chat-bot-cheatsheet-row code {{
-      background: var(--bots-code-bg);
-      border-color: var(--bots-border);
-      color: var(--bots-text-strong);
-    }}
-    .bots-command-list,
-    .bots-command-config,
-    .bots-session-list,
-    .bots-history-list,
-    .bots .chat-bot-cheatsheet {{
-      background: var(--bots-panel-bg-alt);
-      border-color: var(--bots-border);
-    }}
-    .bots-command-config-section {{
-      border-top-color: var(--bots-border);
-    }}
-    .bots-command-item,
-    .bots-session-item,
-    .bots-history-empty,
-    .bots-history-item {{
-      background: var(--bots-panel-bg);
-      border-color: var(--bots-border);
-      color: var(--bots-text);
-    }}
-    .bots-command-item:hover {{
-      background: var(--bots-panel-hover-bg);
-      border-color: var(--bots-border-strong);
-    }}
-    .bots-command-item:focus-visible {{
-      outline-color: var(--bots-active);
-    }}
-    .bots-command-item.is-active {{
-      background: var(--bots-panel-active-bg);
-      border-color: var(--bots-border-strong);
-      color: var(--bots-active-text);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--bots-active) 32%, transparent);
-    }}
-    .bots-command-config-usage,
-    .bots-command-usage,
-    .bots-session-peer,
-    .bots-history-command,
-    .bots-history-response strong {{
-      color: var(--bots-text-strong);
-    }}
-    .bots-command-kind,
-    .bots-history-status-pill {{
-      background: var(--bots-active-bg);
-      border-color: var(--bots-border);
-      color: var(--bots-text);
-    }}
-    .bots-command-state {{
-      color: var(--bots-text-soft);
-    }}
-    .bots-command-state.is-enabled,
-    .bots .chat-bot-toggle-wrap input[type="checkbox"] {{
-      color: var(--bots-active-text);
-      accent-color: var(--bots-active);
-    }}
-    .bots-history-status-pill.responded {{
-      background: var(--bots-active-bg);
-      border-color: var(--bots-border-strong);
-      color: var(--bots-active-text);
-    }}
-    .bots-command-state.is-disabled {{
-      color: var(--bots-danger-text);
-    }}
-    .bots-review-tab {{
-      background: var(--bots-panel-bg-alt);
-      border-color: var(--bots-border);
-      color: var(--bots-text-soft);
-    }}
-    .bots-review-tab.is-active {{
-      background: var(--bots-panel-active-bg);
-      border-color: var(--bots-border-strong);
-      color: var(--bots-active-text);
-    }}
-    .bots-history-status-pill.pending {{
-      border-color: var(--bots-warning-border);
-      background: var(--bots-warning-bg);
-      color: var(--bots-warning-text);
-    }}
-    .bots-history-response {{
-      border-left-color: var(--bots-border-strong);
-      color: var(--bots-text);
-    }}
-    .bots-command-config-textarea,
-    .bots-sniffer-command-input {{
-      background: var(--bots-panel-bg-strong);
-      border-color: var(--bots-border);
-      color: var(--bots-text);
-    }}
-    .bots-command-config-textarea:focus,
-    .bots-sniffer-command-input:focus {{
-      border-color: var(--bots-border-strong);
-      outline-color: var(--bots-border-strong);
-    }}
     [data-theme="dark"] .chat-change-title {{
       color: #c7e8d6;
     }}
@@ -7680,60 +6782,6 @@
       border-color: #253c31;
       color: #8aa598;
       background: #122117;
-    }}
-    [data-theme="dark"] .history-notification-section {{
-      border-top-color: #2a4638;
-    }}
-    [data-theme="dark"] .history-notification-clear-btn {{
-      background: #162820;
-      border-color: #3a5a49;
-      color: #c6e8d5;
-    }}
-    [data-theme="dark"] .history-notification-clear-btn:hover {{
-      background: #1d3228;
-      border-color: #4e7962;
-    }}
-    [data-theme="dark"] .history-notification-empty {{
-      background: var(--workspace-shell-bg-alt);
-      border-color: #2a4638;
-      color: #b8d9c8;
-    }}
-    [data-theme="dark"] .history-notification-item {{
-      background: var(--workspace-shell-bg-alt);
-      border-color: #2a4638;
-      color: #c5e2d2;
-    }}
-    [data-theme="dark"] .history-notification-item.is-new {{
-      box-shadow: inset 2px 0 0 #79c0ff;
-    }}
-    [data-theme="dark"] .history-notification-meta {{
-      color: #9ab7a7;
-    }}
-    [data-theme="dark"] .history-notification-pill {{
-      background: #183126;
-      border-color: #3d6a56;
-      color: #a6d4be;
-    }}
-    [data-theme="dark"] .history-notification-pill.status-new {{
-      background: #173228;
-      border-color: #3f7a60;
-      color: #8cd7b2;
-    }}
-    [data-theme="dark"] .history-notification-pill.kind-reaction {{
-      background: #352c16;
-      border-color: #776033;
-      color: #e7cf93;
-    }}
-    [data-theme="dark"] .history-notification-pill.kind-status {{
-      background: #162734;
-      border-color: #355970;
-      color: #9ac7e6;
-    }}
-    [data-theme="dark"] .history-notification-text {{
-      color: #d7ece0;
-    }}
-    [data-theme="dark"] .history-notification-time {{
-      color: #9ab7a7;
     }}
     [data-theme="dark"] .chat-feed-item.has-change-marker {{
       background: var(--chat-feed-channel-edge-bg), rgba(201, 150, 44, 0.08);
@@ -7843,24 +6891,6 @@
         grid-column: 1;
         grid-row: 2;
       }}
-      .teams-rail {{
-        grid-column: 1;
-        grid-row: 1;
-        position: static;
-        height: auto;
-        min-height: 0;
-        flex-direction: row;
-        align-items: center;
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding: 6px;
-      }}
-      .teams-rail-title {{
-        display: none;
-      }}
-      .rail-btn {{
-        min-width: 74px;
-      }}
       .workspace-shell.chat-panel-open {{
         grid-template-columns: 1fr;
         grid-template-rows: auto auto minmax(0, 1fr);
@@ -7902,47 +6932,6 @@
         height: auto;
         min-height: 0;
       }}
-      .layout.view-history {{
-        height: auto;
-        min-height: 0;
-      }}
-      .layout.view-saved {{
-        height: auto;
-        min-height: 0;
-      }}
-      .layout.view-saved .map-card-head {{
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        border-bottom: 1px solid var(--surface-tint-border);
-        background: var(--surface-tint-bg-alt);
-        padding: 8px 10px 7px 10px;
-      }}
-      .layout.view-saved .map-card-head::before {{
-        content: none;
-      }}
-      .layout.view-saved .map-card-head .pane-head-title,
-      .layout.view-saved .map-card-head .pane-head-actions {{
-        border: 0;
-        border-radius: 0;
-        background: transparent;
-        min-height: 0;
-        padding: 0;
-      }}
-      [data-theme="dark"] .layout.view-saved .map-card-head {{
-        background: var(--workspace-shell-bg-alt);
-        border-bottom-color: var(--workspace-shell-border-muted);
-      }}
-      .layout.view-saved .map .body {{
-        display: flex;
-        flex-direction: column;
-      }}
-      .layout.view-saved .map-frame,
-      .layout.view-saved .saved-node-details {{
-        border-top: 1px solid var(--saved-pane-head-border);
-        border-radius: 8px;
-      }}
       .network-map-chrome {{
         top: 8px;
         left: 8px;
@@ -7974,49 +6963,7 @@
       .network-map-placeholder {{
         padding: 108px 18px 22px;
       }}
-      .saved-map-splitter,
-      .saved-map-splitter-head {{
-        display: none !important;
-      }}
-      .saved-node-history-splitter {{
-        display: none !important;
-      }}
-      .history-activity-splitter {{
-        display: none !important;
-      }}
-      .history-chat-splitter {{
-        display: none !important;
-      }}
-      .layout.view-history .history-activity-main-scroll {{
-        flex: 1 1 auto;
-      }}
-      .layout.view-history .history-chat-main-scroll {{
-        flex: 1 1 auto;
-      }}
-      .layout.view-saved .saved-node-main-scroll {{
-        flex: 1 1 auto;
-      }}
-      .layout.view-packets {{
-        height: auto;
-        min-height: 0;
-      }}
-      .layout.view-channels {{
-        height: auto;
-        min-height: 0;
-      }}
-      .layout.view-data {{
-        height: auto;
-        min-height: 0;
-      }}
-      .layout.view-environment {{
-        height: auto;
-        min-height: 0;
-      }}
       .layout.view-console {{
-        height: auto;
-        min-height: 0;
-      }}
-      .layout.view-bots {{
         height: auto;
         min-height: 0;
       }}
@@ -8024,40 +6971,11 @@
         height: auto;
         min-height: 0;
       }}
-      .layout.view-bbs {{
-        height: auto;
-        min-height: 0;
-      }}
-      .layout.view-remote {{
-        height: auto;
-        min-height: 0;
-      }}
-      .bots-grid {{
-        grid-template-columns: minmax(0, 1fr);
-      }}
-      .bots-main-splitter {{
-        display: none;
-      }}
-      .bots-command-shell {{
-        grid-template-columns: minmax(0, 1fr);
-      }}
-      .bots-command-splitter {{
-        display: none;
-      }}
-      .bots-command-list-wrap {{
-        padding-right: 0;
-      }}
-      .bots-command-config {{
-        padding-left: 10px;
-      }}
       .games-shell {{
         grid-template-columns: minmax(0, 1fr);
       }}
       .games-shell-splitter {{
         display: none;
-      }}
-      .bbs-shell {{
-        grid-template-columns: minmax(0, 1fr);
       }}
       .reversi-link-actions {{
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -8066,7 +6984,7 @@
         display: none !important;
       }}
       .splitter, .hsplitter {{ display: none; }}
-      .summary, .map, .map-data, .nodes, .favorites, .chat, .bots, .games, .bbs, .remote, .history-chat, .packets, .channels-view, .encription, .raw, .console {{ grid-column: 1; grid-row: auto; }}
+      .summary, .map, .map-data, .nodes, .chat, .games, .console {{ grid-column: 1; grid-row: auto; }}
       .map-frame {{ max-width: none; }}
       .nodes .scroll {{ max-height: 360px; }}
     }}
@@ -8202,10 +7120,6 @@
       }}
       .reversi-link-actions {{
         grid-template-columns: minmax(0, 1fr);
-      }}
-      .rail-btn {{
-        min-width: 68px;
-        font-size: 9px;
       }}
       .topbar .sub .summary-ticker-row {{
         grid-template-columns: var(--topbar-corner-reserve, 30px) repeat(var(--summary-visible-ticker-count, 10), minmax(168px, 82vw));
@@ -8447,8 +7361,8 @@
       );
       background: var(--node-profile-theme-wash, var(--chat-member-node-gradient)), var(--chat-member-node-bg);
       box-shadow:
-        inset 2px 0 0 var(--node-profile-border, var(--accent)),
-        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 16%, transparent);
+        inset 2px 0 0 var(--node-profile-border, var(--ui-accent)),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 16%, transparent);
     }}
     .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node):hover,
     #chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node):hover {{
@@ -8459,7 +7373,7 @@
     .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 38%,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 38%,
         var(--chat-member-node-fg, var(--workspace-shell-text)) 62%
       );
     }}
@@ -8483,8 +7397,8 @@
     .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 38%,
-        var(--theme-text-color, var(--ink)) 62%
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 38%,
+        var(--theme-text-color, var(--ui-text)) 62%
       );
     }}
     [data-theme="dark"] #nodes-table tbody tr.profiled-node .node-name-label {{
@@ -8509,19 +7423,19 @@
       );
     }}
     .chat-feed.chat-feed-view-monitor .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .short-name {{
-      border-color: var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) !important;
-      background: var(--node-profile-theme-base, var(--node-profile-border, var(--accent))) !important;
+      border-color: var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) !important;
+      background: var(--node-profile-theme-base, var(--node-profile-border, var(--ui-accent))) !important;
       color: var(--node-profile-theme-contrast, var(--theme-text-color-on-fill, #ffffff)) !important;
     }}
     .card.chat .chat-reply-inline.profiled-node:not(.missing) {{
-      border-left-color: var(--node-profile-theme-line, var(--node-profile-border, var(--accent)));
+      border-left-color: var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent)));
       background: var(--node-profile-theme-wash, var(--node-profile-color-wash, transparent));
     }}
     .card.chat .chat-reply-inline.profiled-node:not(.missing) .chat-reply-inline-label {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 54%,
-        var(--theme-text-color, var(--ink)) 46%
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 54%,
+        var(--theme-text-color, var(--ui-text)) 46%
       ) !important;
     }}
     [data-theme="dark"] .card.chat .chat-reply-inline.profiled-node:not(.missing) .chat-reply-inline-label {{
@@ -8538,8 +7452,8 @@
     .peer-dm-popout-head.profiled-node .peer-dm-popout-name {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 54%,
-        var(--theme-text-color, var(--ink)) 46%
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 54%,
+        var(--theme-text-color, var(--ui-text)) 46%
       );
     }}
     [data-theme="dark"] .peer-dm-popout-head.profiled-node .peer-dm-popout-name {{
@@ -8556,14 +7470,14 @@
     .peer-dm-popout-msg.profiled-node:not(.is-alert) .peer-dm-popout-msg-meta {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 44%,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 44%,
         var(--theme-text-color-soft, var(--workspace-shell-text-soft, #5c7868)) 56%
       );
     }}
     .network-graph-node.has-theme-identity .network-graph-node-label {{
       fill: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 38%,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 38%,
         var(--surface-tint-text) 62%
       );
     }}
@@ -8583,8 +7497,8 @@
     .map-node-info-card.has-node-appearance:not(.is-estimated) {{
       border-color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 72%,
-        var(--line) 28%
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 72%,
+        var(--ui-border) 28%
       );
       background:
         var(
@@ -8593,12 +7507,12 @@
             --node-profile-color-wash,
             linear-gradient(
               180deg,
-              color-mix(in srgb, var(--node-profile-border, var(--accent)) 18%, var(--panel) 82%) 0%,
-              color-mix(in srgb, var(--node-profile-border, var(--accent)) 7%, var(--panel) 93%) 100%
+              color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 18%, var(--ui-panel) 82%) 0%,
+              color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 7%, var(--ui-panel) 93%) 100%
             )
           )
         ),
-        linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, var(--accent) 8%) 0%, color-mix(in srgb, var(--panel) 96%, black 4%) 100%);
+        linear-gradient(180deg, color-mix(in srgb, var(--ui-panel) 92%, var(--ui-accent) 8%) 0%, color-mix(in srgb, var(--ui-panel) 96%, black 4%) 100%);
     }}
     .map-node-info-card.has-node-appearance .map-node-info-emoji {{
       border-color: var(--node-profile-theme-line, var(--node-profile-border, #9fb5ff));
@@ -8607,21 +7521,21 @@
         var(--node-profile-theme-base, var(--node-profile-border, #31457f))
       );
       box-shadow:
-        0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 24%, transparent),
+        0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 24%, transparent),
         0 4px 14px color-mix(in srgb, var(--node-profile-border, #0a1224) 30%, transparent);
     }}
     .map-node-info-card.has-node-appearance .map-node-info-title {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 42%,
-        var(--ink) 58%
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 42%,
+        var(--ui-text) 58%
       );
     }}
     [data-theme="dark"] .map-node-info-card.has-node-appearance .map-node-info-title {{
       color: color-mix(
         in srgb,
         var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 42%,
-        var(--ink) 58%
+        var(--ui-text) 58%
       );
     }}
     .chat-node-details-drawer.has-node-appearance .chat-node-details-head {{
@@ -8640,7 +7554,7 @@
     .chat-node-details-drawer.has-node-appearance .chat-node-details-title {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 46%,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 46%,
         var(--surface-tint-text) 54%
       );
     }}
@@ -8656,7 +7570,7 @@
       background: var(--node-profile-theme-base, var(--node-profile-border, rgba(28, 50, 61, 0.94)));
       color: var(--node-profile-theme-contrast, var(--theme-text-color-on-fill, #ffffff));
     }}
-    .saved-node-details.has-node-appearance {{
+    .node-details.has-node-appearance {{
       border-color: color-mix(
         in srgb,
         var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border-strong))) 64%,
@@ -8669,7 +7583,7 @@
         ),
         var(--surface-tint-bg-soft);
     }}
-    .saved-node-details.has-node-appearance .saved-node-section:first-child {{
+    .node-details.has-node-appearance .node-details-section:first-child {{
       border-color: color-mix(
         in srgb,
         var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border-strong))) 56%,
@@ -8682,14 +7596,14 @@
         ),
         var(--surface-tint-bg-alt);
     }}
-    .saved-node-details.has-node-appearance .saved-node-section:first-child .saved-node-section-title {{
+    .node-details.has-node-appearance .node-details-section:first-child .node-details-section-title {{
       color: color-mix(
         in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 48%,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent))) 48%,
         var(--surface-tint-text-soft) 52%
       );
     }}
-    [data-theme="dark"] .saved-node-details.has-node-appearance .saved-node-section:first-child .saved-node-section-title {{
+    [data-theme="dark"] .node-details.has-node-appearance .node-details-section:first-child .node-details-section-title {{
       color: color-mix(
         in srgb,
         var(--node-profile-theme-contrast, var(--node-profile-border, var(--ui-accent))) 48%,
@@ -8705,7 +7619,7 @@
       font-family: var(--node-profile-theme-font-family, inherit);
       --node-profile-identity-color: var(
         --node-profile-theme-border,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--accent)))
+        var(--node-profile-theme-line, var(--node-profile-border, var(--ui-accent)))
       );
       --node-profile-identity-edge: var(--node-profile-identity-color);
       --node-profile-theme-surface:
@@ -8727,8 +7641,8 @@
     .peer-dm-popout-msg.profiled-node,
     .map-node-info-card.profiled-node,
     .chat-node-details-drawer.profiled-node .chat-node-details-head,
-    .saved-node-details.profiled-node,
-    .saved-node-details.profiled-node .saved-node-section:first-child {{
+    .node-details.profiled-node,
+    .node-details.profiled-node .node-details-section:first-child {{
       position: relative;
       overflow: hidden;
       isolation: isolate;
@@ -8739,8 +7653,8 @@
     .peer-dm-popout-msg.profiled-node::after,
     .map-node-info-card.profiled-node::after,
     .chat-node-details-drawer.profiled-node .chat-node-details-head::after,
-    .saved-node-details.profiled-node::after,
-    .saved-node-details.profiled-node .saved-node-section:first-child::after {{
+    .node-details.profiled-node::after,
+    .node-details.profiled-node .node-details-section:first-child::after {{
       content: var(--node-profile-ghost-text, "");
       position: absolute;
       top: 50%;
@@ -8767,28 +7681,28 @@
     .peer-dm-popout-msg.profiled-node > *,
     .map-node-info-card.profiled-node > *,
     .chat-node-details-drawer.profiled-node .chat-node-details-head > *,
-    .saved-node-details.profiled-node > *,
-    .saved-node-details.profiled-node .saved-node-section:first-child > * {{
+    .node-details.profiled-node > *,
+    .node-details.profiled-node .node-details-section:first-child > * {{
       position: relative;
       z-index: 1;
     }}
     .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node {{
       background-image:
         linear-gradient(
-          color-mix(in srgb, var(--panel) 46%, transparent),
-          color-mix(in srgb, var(--panel) 46%, transparent)
+          color-mix(in srgb, var(--ui-panel) 46%, transparent),
+          color-mix(in srgb, var(--ui-panel) 46%, transparent)
         ),
         var(--node-profile-theme-surface) !important;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--line) 24%);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--ui-border) 24%);
     }}
     .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node[role="button"]:hover {{
       background-image:
         linear-gradient(
-          color-mix(in srgb, var(--panel) 34%, transparent),
-          color-mix(in srgb, var(--panel) 34%, transparent)
+          color-mix(in srgb, var(--ui-panel) 34%, transparent),
+          color-mix(in srgb, var(--ui-panel) 34%, transparent)
         ),
         var(--node-profile-theme-surface-hover) !important;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 86%, var(--line) 14%);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 86%, var(--ui-border) 14%);
     }}
     /* Remote colors decorate the surface and border only. Text remains in the
      * receiver's theme so an arbitrary remote contrast color cannot reduce
@@ -8825,23 +7739,23 @@
       background: var(--self-node-channel-edge-bg), var(--node-profile-theme-surface-hover) !important;
     }}
     .topbar .summary-ticker-item-self.has-selected-node {{
-      border-color: color-mix(in srgb, var(--line) 72%, var(--accent) 28%);
+      border-color: color-mix(in srgb, var(--ui-border) 72%, var(--ui-accent) 28%);
       background: linear-gradient(
         112deg,
-        color-mix(in srgb, var(--panel) 92%, transparent),
-        color-mix(in srgb, var(--surface-tint-bg-alt, var(--panel)) 88%, transparent)
+        color-mix(in srgb, var(--ui-panel) 92%, transparent),
+        color-mix(in srgb, var(--surface-tint-bg-alt, var(--ui-panel)) 88%, transparent)
       ) !important;
       color: var(--ticker-text-strong);
       box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--line) 68%, transparent),
+        inset 0 0 0 1px color-mix(in srgb, var(--ui-border) 68%, transparent),
         0 5px 18px color-mix(in srgb, #000 13%, transparent);
       font-family: inherit;
     }}
     .topbar .summary-ticker-item-self.has-selected-node:hover {{
       background: linear-gradient(
         112deg,
-        color-mix(in srgb, var(--panel) 88%, var(--accent) 12%),
-        color-mix(in srgb, var(--surface-tint-bg-alt, var(--panel)) 86%, var(--accent-2) 14%)
+        color-mix(in srgb, var(--ui-panel) 88%, var(--ui-accent) 12%),
+        color-mix(in srgb, var(--surface-tint-bg-alt, var(--ui-panel)) 86%, var(--ui-accent-soft) 14%)
       ) !important;
     }}
     .topbar .summary-ticker-item-self.has-selected-node > .label,
@@ -8850,17 +7764,17 @@
       color: color-mix(in srgb, var(--ticker-text-muted) 82%, var(--ticker-text-strong) 18%);
     }}
     .topbar .summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot {{
-      background-color: color-mix(in srgb, var(--panel) 78%, transparent);
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 72%, transparent);
+      background-color: color-mix(in srgb, var(--ui-panel) 78%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-border) 72%, transparent);
     }}
     .topbar .summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot.profiled-node {{
       box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--line) 24%),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 76%, var(--ui-border) 24%),
         0 4px 12px color-mix(in srgb, #000 12%, transparent);
     }}
     .topbar .summary-ticker-item-self.has-selected-node .value.self-node-value.is-dual-node-context .self-node-identity-slot.profiled-node[role="button"]:hover {{
       box-shadow:
-        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 88%, var(--line) 12%),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-identity-edge) 88%, var(--ui-border) 12%),
         0 6px 16px color-mix(in srgb, #000 15%, transparent);
     }}
     .topbar .summary-ticker-item-self.profiled-node.has-selected-node .self-node-name-text {{
@@ -8965,12 +7879,12 @@
       background-image: var(--chat-feed-channel-edge-bg), var(--node-profile-theme-surface-hover) !important;
     }}
     .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {{
-      color: var(--theme-text-color, var(--ink)) !important;
+      color: var(--theme-text-color, var(--ui-text)) !important;
     }}
     .chat-feed.chat-feed-view-monitor .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .short-name {{
       border-color: var(--node-profile-identity-edge) !important;
       background-image: var(--node-profile-theme-surface) !important;
-      color: var(--theme-text-color, var(--ink)) !important;
+      color: var(--theme-text-color, var(--ui-text)) !important;
     }}
     .card.chat .chat-reply-inline.profiled-node:not(.missing) {{
       border-left-width: 1px;
@@ -8978,7 +7892,7 @@
       background-image: var(--node-profile-theme-surface) !important;
     }}
     .card.chat .chat-reply-inline.profiled-node:not(.missing) .chat-reply-inline-label {{
-      color: var(--theme-text-color, var(--ink)) !important;
+      color: var(--theme-text-color, var(--ui-text)) !important;
     }}
     .peer-dm-popout-head.profiled-node {{
       border-color: var(--node-profile-identity-edge);
@@ -8989,7 +7903,7 @@
       background-image: var(--node-profile-theme-surface) !important;
     }}
     .peer-dm-popout-head.profiled-node .peer-dm-popout-name {{
-      color: var(--theme-text-color, var(--ink));
+      color: var(--theme-text-color, var(--ui-text));
     }}
     .peer-dm-popout-msg.profiled-node:not(.is-alert) .peer-dm-popout-msg-meta {{
       color: var(--theme-text-color-soft, var(--workspace-shell-text-soft, #5c7868));
@@ -9000,8 +7914,8 @@
     .map-node-emoji-marker.profiled-node:not(.is-trace-running):not(.is-trace-result) {{
       border-color: var(--node-profile-identity-edge);
       box-shadow:
-        0 0 0 calc(2px + (2px * var(--map-node-flash, 0))) color-mix(in srgb, var(--node-profile-border, var(--accent)) 38%, transparent),
-        0 0 14px color-mix(in srgb, var(--node-profile-border, var(--accent)) 46%, transparent),
+        0 0 0 calc(2px + (2px * var(--map-node-flash, 0))) color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 38%, transparent),
+        0 0 14px color-mix(in srgb, var(--node-profile-border, var(--ui-accent)) 46%, transparent),
         0 3px 8px rgba(10, 18, 36, 0.28);
     }}
     .map-node-info-card.profiled-node:not(.is-estimated) {{
@@ -9011,7 +7925,7 @@
         0 10px 30px color-mix(in srgb, var(--node-profile-border, #061012) 26%, transparent);
     }}
     .map-node-info-card.profiled-node .map-node-info-title {{
-      color: var(--ink) !important;
+      color: var(--ui-text) !important;
     }}
     .chat-node-details-drawer.profiled-node .chat-node-details-head {{
       border-bottom-color: var(--node-profile-identity-edge);
@@ -9020,14 +7934,14 @@
     .chat-node-details-drawer.profiled-node .chat-node-details-title {{
       color: var(--surface-tint-text) !important;
     }}
-    .saved-node-details.profiled-node {{
+    .node-details.profiled-node {{
       border-color: var(--node-profile-identity-edge);
       background-image: var(--node-profile-theme-surface) !important;
     }}
-    .saved-node-details.profiled-node .saved-node-section:first-child {{
+    .node-details.profiled-node .node-details-section:first-child {{
       border-color: var(--node-profile-identity-edge);
       background-image: var(--node-profile-theme-surface) !important;
     }}
-    .saved-node-details.profiled-node .saved-node-section:first-child .saved-node-section-title {{
+    .node-details.profiled-node .node-details-section:first-child .node-details-section-title {{
       color: var(--surface-tint-text-soft) !important;
     }}

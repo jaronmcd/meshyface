@@ -8,6 +8,12 @@ from .chat_send import (
     prepare_chat_send_input,
 )
 from .send_chat_contracts import SendLock, SendTextInterface
+from .file_transfer_protocol import (
+    FILE_TRANSFER_PORTNUM,
+    FILE_TRANSFER_PROTOCOL_PREFIX,
+    encode_file_transfer_frame,
+    parse_file_transfer_frame_text,
+)
 from .runtime_types import (
     LocalNodeIdFn,
     NormalizeSingleEmojiFn,
@@ -21,7 +27,171 @@ from .runtime_types import (
 _OUTGOING_RETRY_ACK_WAIT_SECONDS = 45.0
 _OUTGOING_RETRY_ACK_POLL_SECONDS = 1.0
 _OUTGOING_RETRY_LIMIT = 1
+_OUTGOING_RETRY_MAX_IN_FLIGHT = 32
 _ACKED_DELIVERY_STATES = {"ack", "acked", "delivered"}
+_OUTGOING_RETRY_SLOTS = threading.BoundedSemaphore(_OUTGOING_RETRY_MAX_IN_FLIGHT)
+_FILE_TRANSFER_DEFAULT_HOP_LIMIT = 3
+_FILE_TRANSFER_MAX_HOP_LIMIT = 7
+_FILE_TRANSFER_ROUTE_FRESH_SECONDS = 60 * 60
+
+
+def _file_transfer_configured_hop_limit(
+    iface: object,
+    *,
+    to_int_fn: ToIntFn,
+) -> int:
+    local_node = getattr(iface, "localNode", None)
+    local_config = getattr(local_node, "localConfig", None)
+    lora = getattr(local_config, "lora", None)
+    configured = to_int_fn(getattr(lora, "hop_limit", None))
+    if configured is None or configured < 1:
+        return _FILE_TRANSFER_DEFAULT_HOP_LIMIT
+    return min(_FILE_TRANSFER_MAX_HOP_LIMIT, configured)
+
+
+def _file_transfer_destination_node(
+    iface: object,
+    destination: str,
+    *,
+    to_int_fn: ToIntFn,
+) -> dict[str, object] | None:
+    clean_destination = str(destination or "").strip().lower()
+    destination_num: int | None = None
+    if clean_destination.startswith("!"):
+        try:
+            destination_num = int(clean_destination[1:], 16)
+        except ValueError:
+            destination_num = None
+
+    try:
+        nodes_by_num = getattr(iface, "nodesByNum", None)
+        if not isinstance(nodes_by_num, dict):
+            return None
+        if destination_num is not None:
+            direct_match = nodes_by_num.get(destination_num)
+            if isinstance(direct_match, dict):
+                return direct_match
+        node_items = list(nodes_by_num.items())
+    except RuntimeError:
+        return None
+
+    for node_num, node_info in node_items:
+        if not isinstance(node_info, dict):
+            continue
+        user = node_info.get("user")
+        node_id = user.get("id") if isinstance(user, dict) else None
+        if str(node_id or "").strip().lower() == clean_destination:
+            return node_info
+        if destination_num is not None and to_int_fn(node_num) == destination_num:
+            return node_info
+    return None
+
+
+def _file_transfer_hop_limit(
+    iface: object,
+    destination: str,
+    *,
+    to_int_fn: ToIntFn,
+    now_unix: float | None = None,
+) -> tuple[int, int | None]:
+    configured = _file_transfer_configured_hop_limit(iface, to_int_fn=to_int_fn)
+    node_info = _file_transfer_destination_node(
+        iface,
+        destination,
+        to_int_fn=to_int_fn,
+    )
+    if node_info is None:
+        return configured, None
+
+    hops_away = to_int_fn(node_info.get("hopsAway"))
+    if hops_away is None or hops_away < 0:
+        return configured, None
+
+    last_heard = to_int_fn(node_info.get("lastHeard"))
+    current_unix = time.time() if now_unix is None else float(now_unix)
+    if (
+        last_heard is not None
+        and last_heard > 0
+        and current_unix - last_heard > _FILE_TRANSFER_ROUTE_FRESH_SECONDS
+    ):
+        return configured, None
+
+    # Leave one extra relay opportunity for route changes while avoiding the
+    # radio-wide hop limit for destinations known to be nearby.
+    return min(configured, max(1, hops_away + 1)), hops_away
+
+
+def _send_file_transfer_frame_v2(
+    *,
+    text: str,
+    destination: object,
+    channel_index: Optional[int],
+    iface: object,
+    send_lock: SendLock,
+    chat_max_bytes: int,
+    normalize_single_emoji_fn: NormalizeSingleEmojiFn,
+    to_int_fn: ToIntFn,
+) -> dict[str, object]:
+    frame = parse_file_transfer_frame_text(text)
+    if frame is None:
+        raise ValueError("Invalid MF_FILE_V2 frame")
+    payload = encode_file_transfer_frame(frame)
+    prepared = prepare_chat_send_input(
+        text="file",
+        destination=destination,
+        channel_index=channel_index,
+        reply_id=None,
+        retry_of=None,
+        emoji=None,
+        chat_max_bytes=chat_max_bytes,
+        normalize_single_emoji_fn=normalize_single_emoji_fn,
+        to_int_fn=to_int_fn,
+    )
+    dest = str(prepared.get("destination") or "^all")
+    if dest == "^all":
+        raise ValueError("MF_FILE_V2 transfers require a direct destination")
+    chan_candidate = to_int_fn(prepared.get("channel_index"))
+    chan = chan_candidate if chan_candidate is not None and chan_candidate >= 0 else 0
+    send_data = getattr(iface, "sendData", None)
+    if not callable(send_data):
+        raise RuntimeError("Connected interface does not support sendData()")
+    hop_limit, detected_hops = _file_transfer_hop_limit(
+        iface,
+        dest,
+        to_int_fn=to_int_fn,
+    )
+    with send_lock:
+        sent_packet = send_data(
+            payload,
+            destinationId=dest,
+            portNum=FILE_TRANSFER_PORTNUM,
+            # MF_FILE_V2 carries selective application ACKs. Requesting a
+            # Meshtastic routing ACK for every metadata, chunk, and ACK frame
+            # doubles control traffic and can starve completion packets on a
+            # busy half-duplex link.
+            wantAck=False,
+            wantResponse=False,
+            channelIndex=chan,
+            hopLimit=hop_limit,
+        )
+    packet_id = _sent_packet_id(sent_packet, to_int_fn=to_int_fn)
+    response: dict[str, object] = {
+        "ok": True,
+        "sent": True,
+        "protocol": "MF_FILE_V2",
+        "destination": dest,
+        "channel_index": chan,
+        "portnum": FILE_TRANSFER_PORTNUM,
+        "wire_bytes": len(payload),
+        "hop_limit": hop_limit,
+        "hop_limit_source": "detected" if detected_hops is not None else "configured",
+    }
+    if detected_hops is not None:
+        response["detected_hops"] = detected_hops
+    if packet_id is not None:
+        response["message_id"] = packet_id
+        response["packet_id"] = packet_id
+    return response
 
 
 def _sent_packet_id(sent_packet: object, *, to_int_fn: ToIntFn) -> Optional[int]:
@@ -121,6 +291,16 @@ def _retry_outgoing_chat_once_if_unacked(
     )
 
 
+def _retry_outgoing_chat_with_slot(
+    kwargs: dict[str, object],
+    retry_slots: threading.BoundedSemaphore,
+) -> None:
+    try:
+        _retry_outgoing_chat_once_if_unacked(**kwargs)  # type: ignore[arg-type]
+    finally:
+        retry_slots.release()
+
+
 def _start_outgoing_retry_if_needed(
     *,
     should_request_ack: bool,
@@ -169,11 +349,16 @@ def _start_outgoing_retry_if_needed(
         "sleep_fn": sleep_fn,
     }
     if outgoing_retry_async:
-        threading.Thread(
-            target=_retry_outgoing_chat_once_if_unacked,
-            kwargs=kwargs,
-            daemon=True,
-        ).start()
+        if not _OUTGOING_RETRY_SLOTS.acquire(blocking=False):
+            return
+        try:
+            threading.Thread(
+                target=_retry_outgoing_chat_with_slot,
+                args=(kwargs, _OUTGOING_RETRY_SLOTS),
+                daemon=True,
+            ).start()
+        except Exception:
+            _OUTGOING_RETRY_SLOTS.release()
         return
     _retry_outgoing_chat_once_if_unacked(**kwargs)
 
@@ -202,6 +387,18 @@ def send_chat_message(
     outgoing_retry_async: bool = True,
     sleep_fn: Callable[[float], None] = time.sleep,
 ) -> dict[str, object]:
+    raw_text = str(text or "").strip()
+    if raw_text.startswith(FILE_TRANSFER_PROTOCOL_PREFIX):
+        return _send_file_transfer_frame_v2(
+            text=raw_text,
+            destination=destination,
+            channel_index=channel_index,
+            iface=iface,
+            send_lock=send_lock,
+            chat_max_bytes=chat_max_bytes,
+            normalize_single_emoji_fn=normalize_single_emoji_fn,
+            to_int_fn=to_int_fn,
+        )
     prepared = prepare_chat_send_input(
         text=text,
         destination=destination,

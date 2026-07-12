@@ -127,15 +127,15 @@ def test_chat_layout_spacing_matches_tighter_network_style() -> None:
     assert "align-items: center;" not in stack_bottom_shell_section
     assert "display: flex;" in left_bottom_bar_section
     assert "align-items: center;" in left_bottom_bar_section
-    assert "border: 1px solid color-mix(in srgb, var(--line) 88%, var(--ink) 12%);" in css
+    assert "border: 1px solid color-mix(in srgb, var(--ui-border) 88%, var(--ui-text) 12%);" in css
     assert "border-radius: 10px;" in css
-    assert "background: color-mix(in srgb, var(--panel) 78%, var(--bg) 22%);" in css
+    assert "background: color-mix(in srgb, var(--ui-panel) 78%, var(--ui-bg) 22%);" in css
     assert "padding: 6px 8px;" in css
     assert "gap: 0;" in css
     assert ".chat-left-bottom-bar {" in css
     assert "margin: 0;" in css
-    assert "border: 1px solid color-mix(in srgb, var(--line) 88%, var(--ink) 12%);" in css
-    assert "background: color-mix(in srgb, var(--panel) 78%, var(--bg) 22%);" in css
+    assert "border: 1px solid color-mix(in srgb, var(--ui-border) 88%, var(--ui-text) 12%);" in css
+    assert "background: color-mix(in srgb, var(--ui-panel) 78%, var(--ui-bg) 22%);" in css
     assert "position: relative;" in css
     assert "display: flex;" in css
     assert ".chat-user-search-wrap {" in css
@@ -187,8 +187,8 @@ def test_light_mode_chat_channel_controls_keep_dark_text_on_light_shells() -> No
     dark_chat_compose_input_focus_section = css.split("[data-theme=\"dark\"] .chat-left-bottom-bar .list-search-input:focus,\n    [data-theme=\"dark\"] .layout.view-chat .card.chat #chat-input:focus {", 1)[1].split("}", 1)[0]
     dark_send_btn_section = css.split("[data-theme=\"dark\"] #chat-emoji-btn,\n    [data-theme=\"dark\"] #chat-unicode-btn,\n    [data-theme=\"dark\"] #chat-send-btn {", 1)[1].split("}", 1)[0]
 
-    assert "border: 1px solid color-mix(in srgb, var(--line) 88%, var(--ink) 12%);" in compose_shell_section
-    assert "background: color-mix(in srgb, var(--panel) 78%, var(--bg) 22%);" in compose_shell_section
+    assert "border: 1px solid color-mix(in srgb, var(--ui-border) 88%, var(--ui-text) 12%);" in compose_shell_section
+    assert "background: color-mix(in srgb, var(--ui-panel) 78%, var(--ui-bg) 22%);" in compose_shell_section
     assert "box-shadow: none;" in compose_shell_section
     assert "border-radius: 10px;" in compose_shell_section
     assert "padding: 6px 8px;" in compose_shell_section
@@ -196,9 +196,9 @@ def test_light_mode_chat_channel_controls_keep_dark_text_on_light_shells() -> No
     assert "border-color: rgba(var(--chat-send-channel-rgb), 0.34);" in tinted_compose_shell_section
     assert "rgba(var(--chat-send-channel-rgb), 0.06)" in tinted_compose_shell_section
     assert "box-shadow: inset 0 0 0 1px rgba(var(--chat-send-channel-rgb), 0.06);" in tinted_compose_shell_section
-    assert "color-mix(in srgb, var(--ink) 88%, var(--accent-2) 12%)" in channel_wrap_section
+    assert "color-mix(in srgb, var(--ui-text) 88%, var(--ui-accent-soft) 12%)" in channel_wrap_section
     assert "#f2fff7" not in channel_wrap_section
-    assert "color-mix(in srgb, var(--ink) 88%, var(--accent-2) 12%)" in channel_pill_section
+    assert "color-mix(in srgb, var(--ui-text) 88%, var(--ui-accent-soft) 12%)" in channel_pill_section
     assert "--mesh-channel-all-edge-fill:" in channel_pill_section
     assert "var(--workspace-shell-border-strong, var(--surface-tint-border-strong)) 72%" in channel_pill_section
     assert "--mesh-channel-edge-bg: linear-gradient(" in channel_pill_section
@@ -226,14 +226,14 @@ def test_light_mode_chat_channel_controls_keep_dark_text_on_light_shells() -> No
     assert "box-shadow: none;" not in channel_pill_bookmark_section
     assert '[data-theme="dark"] .mesh-channel-pill .channel-bookmark-tab {' not in css
     assert "#f2fff7" not in channel_pill_section
-    assert "color-mix(in srgb, var(--ink) 78%, var(--accent-2) 22%)" in channel_badge_section
+    assert "color-mix(in srgb, var(--ui-text) 78%, var(--ui-accent-soft) 22%)" in channel_badge_section
     assert "rgba(242, 255, 247, 0.88)" not in channel_badge_section
-    assert "color-mix(in srgb, var(--muted) 82%, var(--accent-2) 18%)" in channel_unread_section
+    assert "color-mix(in srgb, var(--ui-text-soft) 82%, var(--ui-accent-soft) 18%)" in channel_unread_section
     assert "rgba(242, 255, 247, 0.88)" not in channel_unread_section
-    assert "color-mix(in srgb, var(--ink) 88%, var(--accent-2) 12%)" in channel_menu_btn_section
+    assert "color-mix(in srgb, var(--ui-text) 88%, var(--ui-accent-soft) 12%)" in channel_menu_btn_section
     assert "#f2fff7" not in channel_menu_btn_section
-    assert "[data-theme=\"dark\"] .card.chat .body," in css
-    assert "[data-theme=\"dark\"] .card.chat .chat-shell {" in css
+    assert "[data-theme=\"dark\"] .card.chat .body," not in css
+    assert '[data-theme="dark"] .card.workspace-app-shell {' in css
     assert "[data-theme=\"dark\"] .chat-left-bottom-bar:not(.workspace-stack-bottom-shell) {" in css
     assert "var(--workspace-shell-border-muted)" in dark_channel_badge_section
     assert "var(--workspace-shell-active-bg)" in dark_channel_badge_section
@@ -250,7 +250,7 @@ def test_light_mode_chat_channel_controls_keep_dark_text_on_light_shells() -> No
     assert "background: var(--surface-tint-bg-soft);" in chat_input_section
     assert "rgba(var(--chat-send-channel-rgb)" not in chat_input_section
     assert "border-color: #b7cfbe;" in chat_input_hover_section
-    assert "background: var(--panel);" in chat_input_hover_section
+    assert "background: var(--ui-panel);" in chat_input_hover_section
     assert "rgba(var(--chat-send-channel-rgb)" not in chat_input_hover_section
     assert "border-color: var(--ui-border);" in dark_chat_input_section
     assert "background: var(--ui-panel);" in dark_chat_input_section
@@ -338,8 +338,8 @@ def test_chat_composer_uses_200_byte_mesh_limit(dashboard_html: str, dashboard_j
     assert 'id="chat-input-inline-ghost-suffix"' in dashboard_html
     assert 'maxlength="200"' in dashboard_html
     assert "const chatMessageMaxBytes = Math.max(1, Math.trunc(Number(200) || 0));" in dashboard_js
-    assert "const fileTransferChatMaxBytes = chatMessageMaxBytes;" in dashboard_js
-    assert "const bbsMaxPostChars = chatMessageMaxBytes;" in dashboard_js
+    assert "const fileTransferChatMaxBytes = 1024;" in dashboard_js
+    assert 'fetch("/api/files/send"' in dashboard_js
     assert "function chatComposerByteLength(value) {" in dashboard_js
     assert "Message is too long (${textBytes} bytes). Limit is ${chatComposerMaxBytes} bytes." in dashboard_js
 
@@ -381,10 +381,8 @@ def test_dark_chat_palette_matches_workspace_theme() -> None:
     assert "[data-theme=\"dark\"] .workspace-stack-list-shell {" in css
     dark_roster_section = css.rsplit("[data-theme=\"dark\"] .workspace-stack-list-shell {", 1)[1].split("}", 1)[0]
     assert "box-shadow: inset 0 -1px 0 var(--workspace-shell-border);" in dark_roster_section
-    assert "[data-theme=\"dark\"] .card.chat .body {" in css
-    assert "[data-theme=\"dark\"] .card.chat .chat-shell {" in css
-    assert "background: var(--workspace-shell-bg);" in css
-    assert "background: var(--workspace-shell-bg) !important;" in css
+    assert "[data-theme=\"dark\"] .card.chat .body {" not in css
+    assert '[data-theme="dark"] .card.workspace-app-shell {' in css
     assert "[data-theme=\"dark\"] .layout.view-chat .card.chat .body," in css
     assert "[data-theme=\"dark\"] .layout.view-chat .card.chat .chat-shell {" in css
     assert "background: transparent !important;" in css
@@ -551,6 +549,12 @@ def test_chat_unicode_generator_wires_composer_styles() -> None:
     assert 'id: "modifiers", label: "Modifiers"' in js
     assert 'id: "boxed", label: "Boxed"' in js
     assert 'id: "marks", label: "Marks"' in js
+    assert "function toLeetSpeak(rawText) {" in js
+    assert "function toBackwards(rawText) {" in js
+    assert "function toScrambled(rawText) {" in js
+    assert "function toUpsideDown(rawText) {" in js
+    assert "function toDisemvowel(rawText) {" in js
+    assert "function toSpecialChars(rawText) {" in js
     assert "transformText: toLeetSpeak" in js
     assert "transformText: toBackwards" in js
     assert "transformText: toScrambled" in js
@@ -829,7 +833,7 @@ def test_chat_reaction_anchor_reuses_same_button_for_more_and_less_states() -> N
     assert 'const reactionAnchorGap = reactionAnchorOwnsToggle ? 0 : 6;' in emoji_src
     assert 'const availableAbove = Math.max(220, Math.round(anchorRect.top - minTop + 2));' in emoji_src
     assert 'if (target.closest(".chat-reaction-summary") || target.closest(".chat-react-btn")) return;' in emoji_src
-    assert 'const owner = anchor.closest(".chat-feed-item[title], .chatlabs-message-row[title], [data-message-id][title]");' in emoji_src
+    assert 'const owner = anchor.closest(".chat-feed-item[title], [data-message-id][title]");' in emoji_src
     assert 'owner.removeAttribute("title");' in emoji_src
     assert 'animateChatEmojiPanelTransition(previousRect, {{' in emoji_src
     assert 'animateChatEmojiPanelClose({{' in emoji_src
@@ -1360,7 +1364,7 @@ def test_chat_feed_self_authored_messages_render_as_bubbles_without_inline_time(
     assert "margin-right: auto;" in item_section
     assert "padding: 9px 12px;" in item_section
     assert "border-radius: 8px;" in self_item_section
-    assert "--chat-feed-border-color: color-mix(in srgb, var(--line) 88%, var(--ink) 12%);" in item_section
+    assert "--chat-feed-border-color: color-mix(in srgb, var(--ui-border) 88%, var(--ui-text) 12%);" in item_section
     assert "border: 1px solid var(--chat-feed-border-color);" in item_section
     assert "--chat-feed-channel-edge-bg: linear-gradient(90deg, transparent 0, transparent 100%);" in item_section
     assert "background: var(--chat-feed-channel-edge-bg), var(--chat-feed-node-gradient), var(--chat-feed-node-bg);" in item_section
@@ -1588,43 +1592,38 @@ def test_chat_feed_search_is_reapplied_after_feed_render() -> None:
     assert "applyChatFeedSearchFilter();" in js
 
 
-def test_chat_macro_menu_removes_novelty_face_shortcuts_only() -> None:
+def test_legacy_chat_macro_and_labs_workspaces_are_removed() -> None:
+    html = build_html_shell(
+        app_title="Meshyface",
+        app_heading="Meshyface",
+        style_css="",
+        app_js="",
+        revision_title="rev",
+        revision_label="rev",
+        safety_label="safe",
+        packet_limit=100,
+        history_label="history",
+        refresh_ms=1000,
+    )
+    css = build_dashboard_css(theme_css="")
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
 
-    assert "function renderChatMacroHelpPreview" in js
-    assert "Macro Menu - click a command to insert" in js
-    assert "Macro Help (${sourceLabel}) - click a command to insert" in js
-    assert '"/shrug"' not in js
-    assert '"/tableflip"' not in js
-    assert '"/flip"' not in js
-    assert '"/unflip"' not in js
-    assert '"/give"' not in js
-    assert '"/lenny"' not in js
-    assert '"/cheer"' not in js
-    assert '"/search <text>"' not in js
-    assert '"/1337 <text>"' not in js
-    assert '"/glyph <text>"' not in js
-    assert '"//search <text>"' in js
-    assert '"//1337 <text>"' not in js
-    assert '"//backwards <text>"' not in js
-    assert '"//scrambled <text>"' not in js
-    assert '"//upsidedown <text>"' not in js
-    assert '"//disemvowel <text>"' not in js
-    assert '"/special <text>"' not in js
-    assert '"//special <text>"' not in js
-    assert '"//glyph <text>"' not in js
-    assert "text.match(/^\\/\\/(1337|backwards|scrambled|upsidedown|disemvowel|glyph)" in js
+    for artifact in (html, css, js):
+        lowered = artifact.lower()
+        assert "chatlabs" not in lowered
+        assert "chat-labs" not in lowered
+        assert "chat-macro" not in lowered
+        assert "view-macros" not in lowered
+        assert "macros-panel" not in lowered
+    assert "function parseChatFeedSearchCommand(rawText)" in js
     assert "function chatTextStartsWithLocalCommandPrefix(rawText)" in js
-    assert 'trimmed.startsWith("//")' in js
+    assert '.trimStart().startsWith("//")' in js
     assert "Unknown local command" in js
-    assert "Messages starting with // are local commands and were not sent." in js
     assert 'trimmed.startsWith("/")' not in js
-    assert "Chat search mode: type text after //search" in js
-    assert "Chat search mode: type text after /search" not in js
 
 
 def test_launcher_menu_omits_header_block() -> None:

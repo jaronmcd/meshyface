@@ -28,13 +28,8 @@
       if ((changed || shouldFollowForSend) && latestState) {{
         if (isChatWorkspaceLayoutView(activeLayoutView)) {{
           renderChat(latestState);
-          if (activeLayoutView === "chatlabs") {{
-            renderChatLabsView(latestState);
-          }}
         }} else if (activeLayoutView === "files") {{
           renderFilesView(latestState);
-        }} else if (activeLayoutView === "bbs") {{
-          renderBbsView(latestState);
         }} else if (activeLayoutView === "games") {{
           renderGamesView(latestState);
         }} else if (isChannelsViewActive()) {{
@@ -63,13 +58,8 @@
       if (rerenderChat && changed && latestState) {{
         if (isChatWorkspaceLayoutView(activeLayoutView)) {{
           renderChat(latestState);
-          if (activeLayoutView === "chatlabs") {{
-            renderChatLabsView(latestState);
-          }}
         }} else if (activeLayoutView === "files") {{
           renderFilesView(latestState);
-        }} else if (activeLayoutView === "bbs") {{
-          renderBbsView(latestState);
         }} else if (activeLayoutView === "games") {{
           renderGamesView(latestState);
         }} else if (isChannelsViewActive()) {{
@@ -126,7 +116,6 @@
     function bindMeshChannelMenuControl() {{
       const panelSet = new Set([
         document.getElementById("mesh-channel-pill-strip"),
-        document.getElementById("chat-labs-channel-pill-strip"),
       ]);
       for (const panel of panelSet) {{
         if (!(panel instanceof HTMLElement) || panel.dataset.bound === "1") continue;

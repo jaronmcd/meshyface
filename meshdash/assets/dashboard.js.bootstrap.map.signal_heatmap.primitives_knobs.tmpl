@@ -210,7 +210,7 @@
 
     function syncSignalHeatmapAfterKnobChange() {{
       if (!latestState || !Array.isArray(latestState.nodes)) return;
-      syncSignalHeatmapLayer(latestState.nodes, activeLayoutView === "saved");
+      syncSignalHeatmapLayer(latestState.nodes, false);
     }}
 
     function setSignalHeatDevKnobs(overrides, persist = true) {{

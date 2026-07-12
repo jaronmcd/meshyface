@@ -85,8 +85,6 @@ def build_dashboard_parser(
     env_theme_settings_file: Optional[str],
     env_private_mode: Optional[str] = None,
     env_api_token: Optional[str] = None,
-    default_bbs_enable: bool = False,
-    env_bbs_enable: Optional[str] = None,
     default_file_transfer_enable: bool = False,
     default_file_transfer_auto_accept: bool = False,
     default_games_enable: bool = False,
@@ -105,10 +103,6 @@ def build_dashboard_parser(
     resolved_theme_settings_file = str(env_theme_settings_file or "mesh_dashboard_theme_settings.json")
     resolved_private_mode = parse_env_bool(env_private_mode, False)
     resolved_api_token = str(env_api_token or "").strip() or None
-    resolved_bbs_enable = parse_env_bool(
-        env_bbs_enable,
-        default_bbs_enable,
-    )
     resolved_file_transfer_enable = parse_env_bool(
         env_file_transfer_enable,
         default_file_transfer_enable,
@@ -148,7 +142,6 @@ def build_dashboard_parser(
         default_reset_ticker_scale_on_restart=default_reset_ticker_scale_on_restart,
         default_private_mode=resolved_private_mode,
         default_api_token=resolved_api_token,
-        default_bbs_enable=resolved_bbs_enable,
         default_file_transfer_enable=resolved_file_transfer_enable,
         default_file_transfer_auto_accept=resolved_file_transfer_auto_accept,
         default_games_enable=resolved_games_enable,

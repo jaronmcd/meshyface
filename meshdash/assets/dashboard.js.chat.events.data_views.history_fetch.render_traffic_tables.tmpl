@@ -20,33 +20,11 @@
         && isChatNodeDetailsHistoryActive()
       );
       const drawerNodeId = normalizeNodeId(selectedNodeId || "");
-      if (activeLayoutView === "history" && !drawerHistoryActive) {{
-        setMapDataMode("activity");
-        return false;
-      }}
-      if (mapDataFocus === "activity" && !drawerHistoryActive) {{
-        setMapDataMode("activity");
-        return false;
-      }}
-
       if (drawerHistoryActive && isSelectableNodeId(drawerNodeId)) {{
         if (nodeHistory && normalizeNodeId(nodeHistory.node_id) === drawerNodeId) {{
           return renderNodeHistory(nodeHistory, nodes);
         }} else {{
           renderNodeHistoryLoading(drawerNodeId);
-        }}
-        return false;
-      }}
-
-      const savedNodeId = activeLayoutView === "saved"
-        ? resolveSavedViewNodeId(latestState)
-        : "";
-      const showNodeHistory = activeLayoutView === "saved" && isSelectableNodeId(savedNodeId);
-      if (showNodeHistory) {{
-        if (nodeHistory && normalizeNodeId(nodeHistory.node_id) === savedNodeId) {{
-          return renderNodeHistory(nodeHistory, nodes);
-        }} else {{
-          renderNodeHistoryLoading(savedNodeId);
         }}
         return false;
       }}

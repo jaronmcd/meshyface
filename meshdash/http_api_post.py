@@ -11,22 +11,14 @@ from .http_route_contracts import (
     ApplyChannelSettingsFn,
     DashboardPostRouteDependencies,
     PlayStandaloneZorkFn,
-    AppendBbsHostPostFn,
-    ManageZorkBotFn,
-    StartBbsHostFn,
-    StopBbsHostFn,
     RunNetworkToolFn,
     ScheduleBackendRestartFn,
     SendChatFn,
     SendMeshyfaceProfileFn,
     SetMeshyfaceProfileProcessingEnabledFn,
-    SetBbsSettingsFn,
-    SetPingBotEnabledFn,
-    SetPingBotMessageOnlyFn,
     SetCustomTelemetrySettingsFn,
     SetRawPacketCaptureSettingsFn,
     SetThemePresetFn,
-    SetZorkBotEnabledFn,
     ToIntFn,
 )
 from .http_routes import handle_dashboard_post
@@ -60,12 +52,6 @@ parse_chat_send_request = _load_optional_callable(".api_input_chat", "parse_chat
 parse_radio_settings_request = _load_optional_callable(".api_input_radio", "parse_radio_settings_request")
 parse_channel_settings_request = _load_optional_callable(".api_input_channels", "parse_channel_settings_request")
 parse_theme_settings_request = _load_optional_callable(".api_input_theme", "parse_theme_settings_request")
-parse_bbs_settings_request = _load_optional_callable(".api_input_bbs", "parse_bbs_settings_request")
-parse_bbs_host_request = _load_optional_callable(".api_input_bbs", "parse_bbs_host_request")
-parse_zork_bot_toggle_request = _load_optional_callable(
-    ".api_input_bots",
-    "parse_zork_bot_toggle_request",
-)
 parse_custom_telemetry_settings_request = _load_optional_callable(
     ".api_input_custom_telemetry",
     "parse_custom_telemetry_settings_request",
@@ -93,14 +79,6 @@ def build_post_route_dependencies(
         SetMeshyfaceProfileProcessingEnabledFn | None
     ) = None,
     set_theme_preset_fn: SetThemePresetFn | None = None,
-    set_bbs_settings_fn: SetBbsSettingsFn | None = None,
-    set_zork_bot_enabled_fn: SetZorkBotEnabledFn | None = None,
-    set_ping_bot_enabled_fn: SetPingBotEnabledFn | None = None,
-    set_ping_bot_message_only_fn: SetPingBotMessageOnlyFn | None = None,
-    manage_zork_bot_fn: ManageZorkBotFn | None = None,
-    start_bbs_host_fn: StartBbsHostFn | None = None,
-    stop_bbs_host_fn: StopBbsHostFn | None = None,
-    append_bbs_host_post_fn: AppendBbsHostPostFn | None = None,
     apply_radio_settings_fn: ApplyRadioSettingsFn | None = None,
     apply_channel_settings_fn: ApplyChannelSettingsFn | None = None,
     set_custom_telemetry_settings_fn: SetCustomTelemetrySettingsFn | None = None,
@@ -131,17 +109,6 @@ def build_post_route_dependencies(
         parse_meshyface_profile_theme_request_fn=parse_meshyface_profile_theme_request,
         set_theme_preset_fn=set_theme_preset_fn,
         parse_theme_settings_request_fn=parse_theme_settings_request,
-        set_bbs_settings_fn=set_bbs_settings_fn,
-        parse_bbs_settings_request_fn=parse_bbs_settings_request,
-        set_zork_bot_enabled_fn=set_zork_bot_enabled_fn,
-        set_ping_bot_enabled_fn=set_ping_bot_enabled_fn,
-        set_ping_bot_message_only_fn=set_ping_bot_message_only_fn,
-        manage_zork_bot_fn=manage_zork_bot_fn,
-        parse_zork_bot_toggle_request_fn=parse_zork_bot_toggle_request,
-        start_bbs_host_fn=start_bbs_host_fn,
-        stop_bbs_host_fn=stop_bbs_host_fn,
-        append_bbs_host_post_fn=append_bbs_host_post_fn,
-        parse_bbs_host_request_fn=parse_bbs_host_request,
         set_custom_telemetry_settings_fn=set_custom_telemetry_settings_fn,
         parse_custom_telemetry_settings_request_fn=parse_custom_telemetry_settings_request,
         set_raw_packet_capture_settings_fn=set_raw_packet_capture_settings_fn,

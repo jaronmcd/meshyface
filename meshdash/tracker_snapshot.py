@@ -1,7 +1,9 @@
+import math
 from collections.abc import Iterable
 from typing import Optional
 
 from .runtime_types import FormatEpochFn
+from .tracker_edges import MAX_TRACKED_EDGE_KEYS
 from .tracker_snapshot_build_contracts import (
     BuildEdgeSnapshotRowsFn,
     ChatRow,
@@ -17,19 +19,100 @@ from .tracker_snapshot_contracts import TrackerSnapshot
 def _to_float(value: object) -> float | None:
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
-    if parsed != parsed:
+    if not math.isfinite(parsed):
+        return None
+    return parsed
+
+
+def _to_nonnegative_int(value: object, *, maximum: int | None = None) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    if parsed < 0 or (maximum is not None and parsed > maximum):
+        return 0
+    return parsed
+
+
+def _to_optional_nonnegative_int(value: object, *, maximum: int | None = None) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if parsed < 0 or (maximum is not None and parsed > maximum):
         return None
     return parsed
 
 
 def _metric_average(sum_value: object, count_value: object) -> Optional[float]:
     total = _to_float(sum_value)
-    count = int(count_value or 0)
+    count = _to_nonnegative_int(count_value)
     if total is None or count <= 0:
         return None
-    return round(total / count, 2)
+    average = total / count
+    return round(average, 2) if math.isfinite(average) else None
+
+
+def _edge_metric_values(edge: EdgeRow | None, prefix: str) -> tuple[float, int, float | None, float | None]:
+    if edge is None:
+        return 0.0, 0, None, None
+    total = _to_float(edge.get(f"{prefix}_sum"))
+    count = _to_nonnegative_int(edge.get(f"{prefix}_count"))
+    if total is None or count <= 0:
+        return 0.0, 0, None, None
+    return (
+        total,
+        count,
+        _to_float(edge.get(f"{prefix}_min")),
+        _to_float(edge.get(f"{prefix}_max")),
+    )
+
+
+def _edge_hop_values(edge: EdgeRow | None) -> tuple[int, int]:
+    if edge is None:
+        return 0, 0
+    total = _to_optional_nonnegative_int(edge.get("hops_sum"))
+    count = _to_optional_nonnegative_int(edge.get("hops_count"))
+    if total is None or count is None or count <= 0:
+        return 0, 0
+    return total, count
+
+
+def _portnum_set(edge: EdgeRow | None) -> set[str]:
+    if edge is None:
+        return set()
+    values = edge.get("portnums") or []
+    if isinstance(values, (str, bytes, dict)) or not isinstance(values, Iterable):
+        return set()
+    out: set[str] = set()
+    for value in values:
+        clean = str(value)
+        if len(clean) <= 64:
+            out.add(clean)
+        if len(out) >= 64:
+            break
+    return out
+
+
+def _bounded_edge_keys(
+    session_edges: dict[EdgeKey, EdgeRow],
+    historical_edges: dict[EdgeKey, EdgeRow],
+) -> list[EdgeKey]:
+    keys: list[EdgeKey] = []
+    seen: set[EdgeKey] = set()
+    # Prefer current-session observations, then the most-recent historical
+    # insertion order. Both input maps are also capped at ingestion/bootstrap.
+    for edge_map in (session_edges, historical_edges):
+        for key in reversed(edge_map):
+            if key in seen:
+                continue
+            seen.add(key)
+            keys.append(key)
+            if len(keys) >= MAX_TRACKED_EDGE_KEYS:
+                return keys
+    return keys
 
 
 def build_edge_snapshot_rows(
@@ -42,69 +125,50 @@ def build_edge_snapshot_rows(
 ) -> tuple[list[EdgeRow], int]:
     edge_rows: list[EdgeRow] = []
     real_edge_count = 0
-    combined_keys = set(session_edges.keys()) | set(historical_edges.keys())
+    combined_keys = _bounded_edge_keys(session_edges, historical_edges)
     for key in combined_keys:
         session_edge = session_edges.get(key)
         hist_edge = historical_edges.get(key)
         from_id, to_id = key
 
-        session_count = int(session_edge["count"]) if session_edge else 0
+        session_count = _to_nonnegative_int(session_edge.get("count")) if session_edge else 0
         if hist_edge:
-            lifetime_count = int(hist_edge["count"])
-            first_seen = hist_edge.get("first_rx_time")
-            last_seen = hist_edge.get("last_rx_time")
-            last_hops = hist_edge.get("last_hops")
-            hops_sum = int(hist_edge.get("hops_sum") or 0)
-            hops_count = int(hist_edge.get("hops_count") or 0)
-            port_set = set(hist_edge.get("portnums") or [])
-            snr_sum = _to_float(hist_edge.get("snr_sum")) or 0.0
-            snr_count = int(hist_edge.get("snr_count") or 0)
-            snr_min = _to_float(hist_edge.get("snr_min"))
-            snr_max = _to_float(hist_edge.get("snr_max"))
-            rssi_sum = _to_float(hist_edge.get("rssi_sum")) or 0.0
-            rssi_count = int(hist_edge.get("rssi_count") or 0)
-            rssi_min = _to_float(hist_edge.get("rssi_min"))
-            rssi_max = _to_float(hist_edge.get("rssi_max"))
+            lifetime_count = _to_nonnegative_int(hist_edge.get("count"))
+            first_seen = _to_nonnegative_int(hist_edge.get("first_rx_time")) or None
+            last_seen = _to_nonnegative_int(hist_edge.get("last_rx_time")) or None
+            last_hops = _to_optional_nonnegative_int(hist_edge.get("last_hops"), maximum=255)
+            hops_sum, hops_count = _edge_hop_values(hist_edge)
+            port_set = _portnum_set(hist_edge)
+            snr_sum, snr_count, snr_min, snr_max = _edge_metric_values(hist_edge, "snr")
+            rssi_sum, rssi_count, rssi_min, rssi_max = _edge_metric_values(hist_edge, "rssi")
         else:
             lifetime_count = session_count
-            first_seen = session_edge.get("first_rx_time") if session_edge else None
-            last_seen = session_edge.get("last_rx_time") if session_edge else None
-            last_hops = session_edge.get("last_hops") if session_edge else None
-            hops_sum = int(session_edge.get("hops_sum") or 0) if session_edge else 0
-            hops_count = int(session_edge.get("hops_count") or 0) if session_edge else 0
-            port_set = set(session_edge.get("portnums") or []) if session_edge else set()
-            snr_sum = _to_float(session_edge.get("snr_sum")) or 0.0 if session_edge else 0.0
-            snr_count = int(session_edge.get("snr_count") or 0) if session_edge else 0
-            snr_min = _to_float(session_edge.get("snr_min")) if session_edge else None
-            snr_max = _to_float(session_edge.get("snr_max")) if session_edge else None
-            rssi_sum = _to_float(session_edge.get("rssi_sum")) or 0.0 if session_edge else 0.0
-            rssi_count = int(session_edge.get("rssi_count") or 0) if session_edge else 0
-            rssi_min = _to_float(session_edge.get("rssi_min")) if session_edge else None
-            rssi_max = _to_float(session_edge.get("rssi_max")) if session_edge else None
+            first_seen = _to_nonnegative_int(session_edge.get("first_rx_time")) or None if session_edge else None
+            last_seen = _to_nonnegative_int(session_edge.get("last_rx_time")) or None if session_edge else None
+            last_hops = _to_optional_nonnegative_int(session_edge.get("last_hops"), maximum=255) if session_edge else None
+            hops_sum, hops_count = _edge_hop_values(session_edge)
+            port_set = _portnum_set(session_edge)
+            snr_sum, snr_count, snr_min, snr_max = _edge_metric_values(session_edge, "snr")
+            rssi_sum, rssi_count, rssi_min, rssi_max = _edge_metric_values(session_edge, "rssi")
 
         if session_edge:
-            port_set |= set(session_edge.get("portnums") or [])
+            port_set |= _portnum_set(session_edge)
             if first_seen is None:
-                first_seen = session_edge.get("first_rx_time")
-            session_last = session_edge.get("last_rx_time")
+                first_seen = _to_nonnegative_int(session_edge.get("first_rx_time")) or None
+            session_last = _to_nonnegative_int(session_edge.get("last_rx_time")) or None
             if session_last is not None and (last_seen is None or session_last > last_seen):
                 last_seen = session_last
             if last_hops is None and session_edge.get("last_hops") is not None:
-                last_hops = session_edge.get("last_hops")
+                last_hops = _to_optional_nonnegative_int(session_edge.get("last_hops"), maximum=255)
             if snr_count <= 0:
-                snr_sum = _to_float(session_edge.get("snr_sum")) or 0.0
-                snr_count = int(session_edge.get("snr_count") or 0)
-                snr_min = _to_float(session_edge.get("snr_min"))
-                snr_max = _to_float(session_edge.get("snr_max"))
+                snr_sum, snr_count, snr_min, snr_max = _edge_metric_values(session_edge, "snr")
             if rssi_count <= 0:
-                rssi_sum = _to_float(session_edge.get("rssi_sum")) or 0.0
-                rssi_count = int(session_edge.get("rssi_count") or 0)
-                rssi_min = _to_float(session_edge.get("rssi_min"))
-                rssi_max = _to_float(session_edge.get("rssi_max"))
+                rssi_sum, rssi_count, rssi_min, rssi_max = _edge_metric_values(session_edge, "rssi")
 
         avg_hops: Optional[float] = None
         if hops_count > 0:
-            avg_hops = round(hops_sum / hops_count, 2)
+            hops_average = hops_sum / hops_count
+            avg_hops = round(hops_average, 2) if math.isfinite(hops_average) else None
         avg_snr = _metric_average(snr_sum, snr_count)
         avg_rssi = _metric_average(rssi_sum, rssi_count)
         is_real = lifetime_count >= int(min_real_link_count)
@@ -124,7 +188,7 @@ def build_edge_snapshot_rows(
             "last_hops": last_hops,
             "avg_hops": avg_hops,
             "hops_samples": hops_count,
-            "portnums": sorted(port_set),
+            "portnums": sorted(port_set)[:64],
             "avg_snr": avg_snr,
             "snr_samples": snr_count,
             "snr_min": snr_min,
@@ -136,11 +200,15 @@ def build_edge_snapshot_rows(
         }
         src = nodes_by_id.get(from_id)
         dst = nodes_by_id.get(to_id)
-        if src and dst and src.get("lat") is not None and dst.get("lat") is not None:
-            row["src_lat"] = src.get("lat")
-            row["src_lon"] = src.get("lon")
-            row["dst_lat"] = dst.get("lat")
-            row["dst_lon"] = dst.get("lon")
+        src_lat = _to_float(src.get("lat")) if isinstance(src, dict) else None
+        src_lon = _to_float(src.get("lon")) if isinstance(src, dict) else None
+        dst_lat = _to_float(dst.get("lat")) if isinstance(dst, dict) else None
+        dst_lon = _to_float(dst.get("lon")) if isinstance(dst, dict) else None
+        if src_lat is not None and src_lon is not None and dst_lat is not None and dst_lon is not None:
+            row["src_lat"] = src_lat
+            row["src_lon"] = src_lon
+            row["dst_lat"] = dst_lat
+            row["dst_lon"] = dst_lon
         edge_rows.append(row)
 
     edge_rows.sort(key=lambda item: (-item["lifetime_count"], item["from"], item["to"]))

@@ -170,39 +170,8 @@
     }}
 
     function buildMapSignatures(nodes, edges, nodeHistory) {{
-      const selection = activeLayoutView === "saved"
-        ? resolveSavedViewNodeId(latestState)
-        : (isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "");
-      const savedSelectionMode = activeLayoutView === "saved" && !!selection;
+      const selection = isSelectableNodeId(selectedNodeId) ? normalizeNodeId(selectedNodeId) : "";
       const networkSelectionMode = activeLayoutView === "network" && !!selection;
-
-      if (savedSelectionMode) {{
-        let hash = 2166136261;
-        hash = hashMixStr(hash, "saved");
-        hash = hashMixStr(hash, selection);
-        hash = hashMixStr(hash, mapNodeAppearanceSignature(selection, latestState));
-        const selectedNode = savedViewNodeFrom(nodes, latestState);
-        if (
-          selectedNode &&
-          typeof selectedNode.lat === "number" &&
-          typeof selectedNode.lon === "number"
-        ) {{
-          hash = hashMixInt(hash, Math.round(selectedNode.lat * 100000));
-          hash = hashMixInt(hash, Math.round(selectedNode.lon * 100000));
-        }} else {{
-          hash = hashMixInt(hash, -2147483648);
-        }}
-        const trailSig = hashTrailSignature(nodeHistory, selection);
-        hash = hashMixInt(hash, trailSig.hash);
-        hash = hashMixInt(hash, trailSig.count);
-        return {{
-          signature: `saved:${{(hash >>> 0).toString(16)}}:${{trailSig.hash.toString(16)}}:${{trailSig.count}}`,
-          graphSignature: "",
-          selection,
-          savedSelectionMode: true,
-          networkSelectionMode: false,
-        }};
-      }}
 
       const graphSignature = buildMapGraphSignature(nodes, edges, {{
         includeTemporalEdgeFade: activeLayoutView === "network" && !!mapPacketLinesEnabled,
@@ -213,7 +182,6 @@
           signature: `${{graphSignature}}:network:${{selection}}:${{trailSig.hash.toString(16)}}:${{trailSig.count}}`,
           graphSignature,
           selection,
-          savedSelectionMode: false,
           networkSelectionMode: true,
         }};
       }}
@@ -221,7 +189,6 @@
         signature: `${{graphSignature}}:all`,
         graphSignature,
         selection,
-        savedSelectionMode: false,
         networkSelectionMode: false,
       }};
     }}

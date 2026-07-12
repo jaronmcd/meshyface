@@ -16,9 +16,7 @@
         && topbarElement.classList.contains("ticker-expanded");
     }}
 
-    function tickerNavigationTarget(tickerId) {{
-      const id = normalizeTickerId(tickerId);
-      if (id === "bots") return "bots";
+    function tickerNavigationTarget(_tickerId) {{
       return "";
     }}
 
@@ -353,12 +351,6 @@
       return normalized === "links" ? "nodes" : normalized;
     }}
 
-    function normalizeWeeklySummaryNodesCompare(raw) {{
-      if (raw === true || raw === 1) return true;
-      const clean = String(raw || "").trim().toLowerCase();
-      return clean === "1" || clean === "true" || clean === "on" || clean === "yes";
-    }}
-
     function normalizeWeeklySummaryNodeSeries(raw) {{
       const normalized = {{}};
       for (const key of weeklySummaryNodeSeriesOrder) {{
@@ -457,7 +449,7 @@
 
     function resolveWeeklySummaryMetricMeta(
       metricKey,
-      nodeSeries = weeklySummaryNodeSeriesEnabled,
+      nodeSeries = networkOverviewNodeSeriesEnabled,
       packetSeries = null,
       linkMode = null
     ) {{
@@ -544,87 +536,6 @@
         seriesLabels: weeklySummaryNodeSeriesLabels,
         seriesStyles: resolvedStyles,
       }};
-    }}
-
-    function updateWeeklySummaryNodeSeriesControls(metricKey = weeklySummaryMetric) {{
-      const metric = normalizeWeeklySummaryMetric(metricKey);
-      const showLines = metric === "nodes";
-      const wrap = document.getElementById("weekly-summary-node-lines-wrap");
-      if (wrap instanceof HTMLElement) {{
-        wrap.hidden = !showLines;
-      }}
-      for (const key of weeklySummaryNodeSeriesOrder) {{
-        const toggleId = weeklySummaryNodeSeriesControlIds[key];
-        const toggle = document.getElementById(toggleId);
-        if (!(toggle instanceof HTMLInputElement)) continue;
-        const seriesColor = weeklySummaryNodeSeriesPaletteColor(key);
-        if (seriesColor) {{
-          toggle.style.accentColor = seriesColor;
-        }} else {{
-          toggle.style.removeProperty("accent-color");
-        }}
-        toggle.checked = !!weeklySummaryNodeSeriesEnabled[key];
-        toggle.disabled = !showLines;
-      }}
-    }}
-
-    function applyWeeklySummaryMetric(metricKey, persist = true) {{
-      const normalized = normalizeWeeklySummaryMetric(metricKey);
-      weeklySummaryMetric = normalized;
-      const select = document.getElementById("weekly-summary-metric");
-      if (select instanceof HTMLSelectElement && select.value !== normalized) {{
-        select.value = normalized;
-      }}
-      updateWeeklySummaryNodeSeriesControls(normalized);
-      const cached = summaryMetricsCache.get(
-        summaryMetricsCacheKey(weeklySummaryWindowHours, historySummaryNeedsPacketSeries())
-      );
-      if (cached && cached.data) {{
-        renderWeeklySummary(cached.data);
-      }}
-      if (!persist) return;
-      try {{
-        window.localStorage.setItem(weeklySummaryMetricStorageKey, normalized);
-      }} catch (_err) {{
-      }}
-    }}
-
-    function applyWeeklySummaryWindow(hours, persist = true) {{
-      weeklySummaryWindowHours = normalizeSummaryWindowHours(hours);
-      const select = document.getElementById("weekly-summary-window");
-      if (select instanceof HTMLSelectElement && select.value !== String(weeklySummaryWindowHours)) {{
-        select.value = String(weeklySummaryWindowHours);
-      }}
-      const cached = summaryMetricsCache.get(
-        summaryMetricsCacheKey(weeklySummaryWindowHours, historySummaryNeedsPacketSeries())
-      );
-      if (cached && cached.data) {{
-        renderWeeklySummary(cached.data);
-      }}
-      if (!persist) return;
-      try {{
-        window.localStorage.setItem(weeklySummaryWindowStorageKey, String(weeklySummaryWindowHours));
-      }} catch (_err) {{
-      }}
-    }}
-
-    function applyWeeklySummaryNodeSeries(nextSeries, persist = true) {{
-      weeklySummaryNodeSeriesEnabled = normalizeWeeklySummaryNodeSeries(nextSeries);
-      updateWeeklySummaryNodeSeriesControls(weeklySummaryMetric);
-      const cached = summaryMetricsCache.get(
-        summaryMetricsCacheKey(weeklySummaryWindowHours, historySummaryNeedsPacketSeries())
-      );
-      if (cached && cached.data) {{
-        renderWeeklySummary(cached.data);
-      }}
-      if (!persist) return;
-      try {{
-        window.localStorage.setItem(
-          weeklySummaryNodeSeriesStorageKey,
-          JSON.stringify(weeklySummaryNodeSeriesEnabled)
-        );
-      }} catch (_err) {{
-      }}
     }}
 
     function updateNetworkOverviewNodeSeriesControls(metricKey = networkOverviewMetric) {{
@@ -1009,11 +920,6 @@
     function tickerAvailable(tickerId, state = latestState) {{
       const id = normalizeTickerId(tickerId);
       if (!id) return false;
-      if (id === "bots") {{
-        return typeof botTickerAvailableForState === "function"
-          ? botTickerAvailableForState(state)
-          : false;
-      }}
       return true;
     }}
 
@@ -1204,21 +1110,11 @@
       if (typeof rerenderMeshyfaceProfileAppearance === "function") {{
         rerenderMeshyfaceProfileAppearance();
       }}
-      const historyNodeId = activeLayoutView === "saved"
-        ? resolveSavedViewNodeId(latestState)
-        : normalizeNodeId(selectedNodeId || "");
+      const historyNodeId = normalizeNodeId(selectedNodeId || "");
       if (isSelectableNodeId(historyNodeId)) {{
         const cached = nodeHistoryCache.get(historyNodeId);
         if (cached && cached.data && Array.isArray(cached.data.points)) {{
           renderSignalChart(cached.data.points);
-        }}
-      }}
-      const cachedHistoryWeekly = summaryMetricsCache.get(
-        summaryMetricsCacheKey(weeklySummaryWindowHours, historySummaryNeedsPacketSeries())
-      );
-      if (cachedHistoryWeekly && cachedHistoryWeekly.data && Array.isArray(cachedHistoryWeekly.data.points)) {{
-        if (activeMapDataMode === "activity") {{
-          renderWeeklySummary(cachedHistoryWeekly.data);
         }}
       }}
       const cachedNetworkWeekly = summaryMetricsCache.get(

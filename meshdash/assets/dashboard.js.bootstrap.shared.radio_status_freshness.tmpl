@@ -208,7 +208,7 @@
         lastPacketUnix: trafficSnap.lastPacketUnix,
       }};
       const lastActivityText = Number.isFinite(trafficSnap.lastPacketUnix)
-        ? savedDetailAge(trafficSnap.lastPacketUnix, nowUnix)
+        ? nodeDetailsAge(trafficSnap.lastPacketUnix, nowUnix)
         : "n/a";
       const lastActivityCompact = String(lastActivityText).replace(/\s+ago$/, "");
       const activityText = `last activity ${{lastActivityText}}`;
@@ -313,7 +313,7 @@
         && Math.trunc(statusFreshnessUnix) === Math.trunc(trafficFreshnessUnix)
         && (!Number.isFinite(liveFreshnessUnix) || trafficFreshnessUnix >= liveFreshnessUnix);
       const lastSeenTitle = Number.isFinite(statusFreshnessUnix)
-        ? `last seen ${{savedDetailAge(statusFreshnessUnix, nowUnix)}}${{statusUsesTraffic ? " (packet activity)" : ""}}`
+        ? `last seen ${{nodeDetailsAge(statusFreshnessUnix, nowUnix)}}${{statusUsesTraffic ? " (packet activity)" : ""}}`
         : "last seen n/a";
       return {{
         ...trafficMetricPayload,
@@ -494,14 +494,14 @@
         }}
         const displayName = preferredNodeName(node) || nodeNameCache.get(nodeId) || nodeId;
         const whenText = Number.isFinite(lastSeenUnix)
-          ? savedDetailAge(lastSeenUnix, nowUnix)
+          ? nodeDetailsAge(lastSeenUnix, nowUnix)
           : "just now";
         const noticeKeyUnix = Number.isFinite(lastSeenUnix) ? Math.trunc(lastSeenUnix) : Math.trunc(nowUnix);
         trackChatChangeNotice({{
           key: `favorite-online:${{nodeId}}:${{noticeKeyUnix}}`,
           focusKey: nodeId,
           channel: "all",
-          targetView: "saved",
+          targetView: "network",
           sender: displayName,
           preview: `tagged node is online (${{nodeId}}, seen ${{whenText}})`,
           kind: "status",
@@ -666,34 +666,3 @@
           rosterAll: rosterModel.slice(),
         }});
       }}
-
-      // Saved nodes list freshness.
-      const favList = document.getElementById("favorites-list");
-      if (favList) {{
-        for (const item of favList.querySelectorAll(".favorite-node-item[data-node-id]")) {{
-          if (!(item instanceof HTMLElement)) continue;
-          const freshness = freshnessForNode(item.dataset.nodeId || "");
-          if (!freshness) continue;
-          applyFreshnessClass(item, freshness.status);
-        }}
-
-        const caption = document.getElementById("favorites-caption");
-        if (caption) {{
-          const favoriteIds = visibleFavoriteNodeIds();
-          let onlineCount = 0;
-          let warnCount = 0;
-          let staleCount = 0;
-          for (const nodeId of favoriteIds) {{
-            const freshness = freshnessForNode(nodeId);
-            if (!freshness) continue;
-            if (freshness.key === "online") onlineCount += 1;
-            else if (freshness.key === "warn") warnCount += 1;
-            else if (freshness.key === "stale") staleCount += 1;
-          }}
-          caption.textContent = `Tagged subsection: ${{favoriteIds.length}} total (${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale)`;
-        }}
-      }}
-
-      // Saved view summary freshness chip should age even if state is cached.
-      // Also: when the user clears selection, we must hide/reset it (304 responses would
-      // otherwise skip renderSummary() and the chip can get "stuck" stale).

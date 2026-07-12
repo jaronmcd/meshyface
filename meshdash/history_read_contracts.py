@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from typing import Callable, Protocol
+from typing import Protocol
 
 from .sql_contracts import SqlConnection, SqlRow, SqlRows
 
@@ -49,27 +49,6 @@ class BuildNodeHistoryPayloadFn(Protocol):
         packet_type_rows: Iterable[HistoryRow],
     ) -> HistoryPayload: ...
 
-
-class FetchOnlineActivityRowsFn(Protocol):
-    def __call__(
-        self,
-        conn: SqlConnection,
-        *,
-        cutoff: int,
-    ) -> tuple[HistoryRows, int]: ...
-
-
-class BuildOnlineActivityPayloadFn(Protocol):
-    def __call__(
-        self,
-        *,
-        window_hours: int,
-        hour_rows: Iterable[HistoryRow],
-        distinct_nodes: int,
-        timezone_label: str,
-    ) -> HistoryPayload: ...
-
-
 class FetchSummaryMetricsRowsFn(Protocol):
     def __call__(
         self,
@@ -98,6 +77,3 @@ class BuildSummaryMetricsPayloadFn(Protocol):
         packet_type_rows: Iterable[HistoryRow],
         bucket_seconds: int,
     ) -> HistoryPayload: ...
-
-
-TimezoneLabelFn = Callable[[], str]

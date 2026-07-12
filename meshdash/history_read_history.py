@@ -1,16 +1,12 @@
 import time
-from datetime import datetime
 
 from .history_read_contracts import (
     BuildSummaryMetricsPayloadFn,
     BuildNodeHistoryPayloadFn,
-    BuildOnlineActivityPayloadFn,
     FetchSummaryPacketTypeRowsFn,
     FetchSummaryMetricsRowsFn,
     FetchNodeHistoryRowsFn,
-    FetchOnlineActivityRowsFn,
     HistoryPayload,
-    TimezoneLabelFn,
 )
 from .history_summary_sampling import (
     summary_metrics_bucket_seconds as _summary_metrics_bucket_seconds,
@@ -57,29 +53,6 @@ def load_node_history_data(
         position_rows=position_rows,
         packet_rows=packet_rows,
         packet_type_rows=packet_type_rows,
-    )
-
-
-def load_online_activity_data(
-    conn: SqlConnection,
-    *,
-    window_hours: int,
-    fetch_online_activity_rows_fn: FetchOnlineActivityRowsFn,
-    build_online_activity_payload_fn: BuildOnlineActivityPayloadFn,
-    now_unix_fn: NowUnixFn = time.time,
-    timezone_label_fn: TimezoneLabelFn = lambda: datetime.now().astimezone().tzname() or "local",
-) -> HistoryPayload:
-    hours = max(1, min(24 * 365, int(window_hours)))
-    cutoff = int(now_unix_fn()) - (hours * 3600)
-    rows, distinct_nodes = fetch_online_activity_rows_fn(
-        conn,
-        cutoff=cutoff,
-    )
-    return build_online_activity_payload_fn(
-        window_hours=hours,
-        hour_rows=rows,
-        distinct_nodes=distinct_nodes,
-        timezone_label=timezone_label_fn(),
     )
 
 

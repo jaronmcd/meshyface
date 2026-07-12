@@ -1,4 +1,4 @@
-    function resolveWeeklySummaryChartLayout(targetKey = "history") {{
+    function resolveWeeklySummaryChartLayout(targetKey = "network-overview") {{
       const base = historyTrendChartLayout || {{}};
       const clean = String(targetKey || "").trim().toLowerCase();
       if (clean === "node-packets" || clean === "node-link-quality") {{
@@ -32,7 +32,7 @@
       }};
     }}
 
-    function resolveWeeklySummaryChartDomain(plottedSeriesEntries, targetKey = "history") {{
+    function resolveWeeklySummaryChartDomain(plottedSeriesEntries, targetKey = "network-overview") {{
       const rawValues = plottedSeriesEntries.flatMap((entry) => (
         Array.isArray(entry && entry.displayedRawValues) ? entry.displayedRawValues : []
       ));
@@ -117,7 +117,7 @@
 
     function renderWeeklySummaryChartRows(rows, metricMeta, emptyMessage, options = {{}}) {{
       const opts = (options && typeof options === "object") ? options : {{}};
-      const target = resolveWeeklySummaryRenderTarget(opts.targetKey || "history");
+      const target = resolveWeeklySummaryRenderTarget(opts.targetKey || "network-overview");
       const chartLayout = resolveWeeklySummaryChartLayout(target && target.key);
       const svg = document.getElementById(target.svgId);
       const empty = document.getElementById(target.emptyId);

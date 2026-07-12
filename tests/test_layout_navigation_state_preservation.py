@@ -22,36 +22,212 @@ def test_dashboard_js_keeps_layout_switches_in_app() -> None:
     assert "window.requestAnimationFrame(() => {" in switcher_block
 
 
-def test_dashboard_js_keeps_bbs_hidden_by_default() -> None:
+def test_dashboard_js_omits_removed_bbs_and_bots_views() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
 
-    assert 'const bbsFeatureEnabled = !!Number(0);' in js
+    known_layout_views = js.split(
+        "const knownLayoutViews = new Set([", 1
+    )[1].split("]);", 1)[0]
+    assert "bbsFeatureEnabled" not in js
+    assert 'clean === "bbs"' not in js
+    assert '"bbs"' not in known_layout_views
+    assert 'clean === "bots"' not in js
+    assert '"bots"' not in known_layout_views
     assert 'if (clean === "games") {' in js
-    assert 'if (clean === "bots" && gamesFeatureEnabled) {' in js
-    assert 'if (clean === "bbs" && bbsFeatureEnabled) {' in js
-    assert 'return clean === "games" || (clean === "bots" && gamesFeatureEnabled) || (clean === "bbs" && bbsFeatureEnabled) || (clean === "files" && fileTransferFeatureEnabled);' in js
-    assert '|| (resolved === "bots" && gamesFeatureEnabled)' in js
-    assert '|| (resolved === "bbs" && bbsFeatureEnabled)' in js
-    assert '"bbs"' in js.split("const knownLayoutViews = new Set([", 1)[1].split("]);", 1)[0]
-    assert '"bots"' in js.split("const knownLayoutViews = new Set([", 1)[1].split("]);", 1)[0]
 
 
-def test_dashboard_js_keeps_whois_quick_action_boot_helpers() -> None:
+def test_dashboard_js_omits_obsolete_data_packets_and_channels_layout_migrations() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
+    html = (Path(__file__).resolve().parents[1] / "meshdash/assets/dashboard.html.tmpl").read_text(encoding="utf-8")
+
+    known_layout_views = js.split(
+        "const knownLayoutViews = new Set([", 1
+    )[1].split("]);", 1)[0]
+    assert '"packets"' not in known_layout_views
+    assert '"channels"' not in known_layout_views
+    assert 'clean === "data"' not in js
+    assert 'clean === "channels"' not in js
+    assert 'requested === "data"' not in js
+    assert 'requested === "packets"' not in js
+    assert 'requested === "channels"' not in js
+    assert 'activeLayoutView === "data"' not in js
+    assert 'activeLayoutView === "packets"' not in js
+    assert "migratedDataView" not in js
+    assert "migratedChannelsView" not in js
+    assert 'data-settings-tab="channels"' in html
+    assert 'data-settings-tab-panel="channels"' in html
+    assert 'data-settings-tab="database"' in html
+    assert 'data-settings-tab-panel="database"' in html
+
+
+
+def test_dashboard_js_keeps_whois_builder_without_removed_remote_workspace() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    known_layout_views = js.split(
+        "const knownLayoutViews = new Set([", 1
+    )[1].split("]);", 1)[0]
 
     assert "function normalizeWhoisCommandPrefix(value)" in js
     assert "function nodeIdSuffixForWhois(nodeId)" in js
     assert "function buildWhoisCommandForNode(nodeId, prefixValue = chatWhoisQuickActionPrefix)" in js
     assert "function loadChatWhoisQuickActionConfig()" in js
-    assert "function bindChatWhoisQuickActionControls()" in js
+    assert "function bindChatWhoisQuickActionControls()" not in js
+    assert "chat-bot-" not in js
+    assert '"remote"' not in known_layout_views
+    assert "renderRemoteView" not in js
+    assert "stageRemoteChatCommand" not in js
+    assert "remote-stage-whois-btn" not in js
+
+
+def test_dashboard_omits_history_workspace_but_keeps_live_node_history_consumers() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "meshdash/assets/dashboard.html.tmpl").read_text(encoding="utf-8")
+    css = "\n".join(
+        (root / f"meshdash/assets/{name}").read_text(encoding="utf-8")
+        for name in (
+            "dashboard.css.base.tmpl",
+            "dashboard.css.layout.tmpl",
+            "dashboard.css.components.tmpl",
+        )
+    )
+    known_layout_views = js.split(
+        "const knownLayoutViews = new Set([", 1
+    )[1].split("]);", 1)[0]
+
+    assert '"history"' not in known_layout_views
+    assert 'activeLayoutView === "history"' not in js
+    assert 'next === "history"' not in js
+    assert "renderHistoryChat" not in js
+    assert "renderEncription" not in js
+    assert "refreshHistoryPanels" not in js
+    assert 'id="map-data-activity"' not in html
+    assert 'class="card history-chat"' not in html
+    assert ".layout.view-history" not in css
+    for removed_id in (
+        "weekly-summary-chart",
+        "weekly-summary-overview",
+        "weekly-summary-metric",
+        "online-activity-chart",
+        "online-activity-overview",
+    ):
+        assert f'id="{removed_id}"' not in html
+        assert f'#{removed_id}' not in css
+    for removed_runtime_name in (
+        "weeklySummaryMetricStorageKey",
+        "weeklySummaryWindowStorageKey",
+        "weeklySummaryNodeSeriesStorageKey",
+        "historySummaryNeedsPacketSeries",
+        "fetchOnlineActivity",
+        "renderOnlineActivity",
+        'setMapDataMode("activity")',
+    ):
+        assert removed_runtime_name not in js
+
+    assert 'id="network-overview-chart"' in html
+    assert "function renderNetworkOverviewSummary" in js
+    assert "function networkOverviewSummaryNeedsPacketSeries" in js
+
+
+def test_dashboard_omits_saved_workspace_but_keeps_drawer_node_details() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "meshdash/assets/dashboard.html.tmpl").read_text(encoding="utf-8")
+    css = "\n".join(
+        (root / f"meshdash/assets/{name}").read_text(encoding="utf-8")
+        for name in (
+            "dashboard.css.base.tmpl",
+            "dashboard.css.layout.tmpl",
+            "dashboard.css.components.tmpl",
+        )
+    )
+    known_layout_views = js.split(
+        "const knownLayoutViews = new Set([", 1
+    )[1].split("]);", 1)[0]
+
+    assert '"saved"' not in known_layout_views
+    assert 'activeLayoutView === "saved"' not in js
+    assert 'next === "saved"' not in js
+    assert "syncSavedNodeDetailsDock" not in js
+    assert "renderFavorites" not in js
+    assert "savedNodeSplitStorageKey" not in js
+    assert "savedNodeHistorySplitStorageKey" not in js
+    assert 'class="card favorites"' not in html
+    assert 'class="saved-node-pane"' not in html
+    assert 'id="saved-map-splitter"' not in html
+    assert 'id="saved-node-history-host"' not in js
+    assert ".layout.view-saved" not in css
+    assert ".saved-map-splitter" not in css
+    assert "saved-node-" not in html
+    assert "saved-node-" not in css
+    assert "saved-node-" not in js
+
+    assert "function renderNodeDetails" in js
+    assert '<div id="node-details" class="node-details" aria-live="polite"></div>' in js
+    assert 'id="chat-node-details-history-host"' in js
+    assert "function syncNodeHistoryDock" in js
+
+    for removed_view in ("packets", "channels", "data"):
+        assert f".layout.view-{removed_view}" not in css
+    for removed_runtime_name in (
+        "function renderPackets",
+        '"packets-table"',
+        "function bindRawDataFetch",
+        '"/api/raw/nodes_full"',
+        '"raw-nodes-full"',
+    ):
+        assert removed_runtime_name not in js
+
+    assert 'id="settings-channels-table"' in html
+    assert 'id="network-map-panel-sensors"' in html
+    assert "function renderChannelsView" in js
+    assert "function renderEnvironmentMetricsView" in js
+    assert 'fetchRawJson("/api/raw/local_state"' in js
+
+    assert '"encription"' not in js
+    assert ".encription" not in css
+    assert "function buildHistoryNodeIdentityResolver" not in js
+    assert "function isLikelyEncryptedPacketEntry" not in js
+    assert "function encryptedPacketPayloadPreview" not in js
+    assert ".history-node-cell" not in css
+    assert 'id="settings-mqtt-encryption-enabled"' in html
+    assert "encryption_enabled" in js
+
+    for element_id in (
+        "network-node-history-host",
+        "map-data-node",
+        "tab-panel-overview",
+        "tab-panel-signal",
+        "tab-panel-link",
+        "tab-panel-packets",
+        "tab-panel-online",
+        "tab-panel-names",
+    ):
+        assert html.count(f'id="{element_id}"') == 1
+    assert 'id="chat-node-details-history-host"' in js
+    assert "function fetchNodeHistory" in js
+    assert "function renderNodeHistory" in js
+    assert "function syncNodeHistoryDock" in js
 
 
 def test_dashboard_js_binds_games_picker_select() -> None:
@@ -68,7 +244,7 @@ def test_dashboard_js_binds_games_picker_select() -> None:
     assert 'activeGameId = normalizeActiveGameId(gamesLibrarySelect.value);' in js
 
 
-def test_dashboard_js_keeps_gated_apps_out_of_app_channel_routing_by_default() -> None:
+def test_dashboard_js_keeps_supported_gated_apps_in_channel_routing() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
@@ -79,52 +255,15 @@ def test_dashboard_js_keeps_gated_apps_out_of_app_channel_routing_by_default() -
     end = js.index("function normalizeMeshChannelAppId", start)
     routing_block = js[start:end]
 
-    assert 'if (bbsFeatureEnabled) {' in routing_block
-    assert 'id: "bbs"' in routing_block
-    assert 'label: "BBS"' in routing_block
+    assert 'id: "bbs"' not in routing_block
     assert 'if (fileTransferFeatureEnabled) {' in routing_block
     assert 'id: "files"' in routing_block
     assert 'label: "Files"' in routing_block
-    assert 'if (gamesFeatureEnabled) {' in routing_block
-    assert 'id: "bots"' in routing_block
-    assert 'label: "Bots"' in routing_block
+    assert 'id: "bots"' not in routing_block
+    assert 'label: "Bots"' not in routing_block
     assert 'id: "games"' in routing_block
     assert 'label: "Games"' in routing_block
 
-
-def test_dashboard_js_exposes_bbs_when_enabled() -> None:
-    js = build_dashboard_js(
-        refresh_ms=1000,
-        node_history_hours=24,
-        node_history_max_points=240,
-        bbs_enabled=True,
-    )
-
-    assert 'const bbsFeatureEnabled = !!Number(1);' in js
-    assert 'if (clean === "bbs" && bbsFeatureEnabled) {' in js
-    assert 'return clean === "games" || (clean === "bots" && gamesFeatureEnabled) || (clean === "bbs" && bbsFeatureEnabled) || (clean === "files" && fileTransferFeatureEnabled);' in js
-    assert '|| (resolved === "bots" && gamesFeatureEnabled)' in js
-    assert '|| (resolved === "bbs" && bbsFeatureEnabled)' in js
-
-
-def test_dashboard_js_exposes_bbs_in_app_channel_routing_when_enabled() -> None:
-    js = build_dashboard_js(
-        refresh_ms=1000,
-        node_history_hours=24,
-        node_history_max_points=240,
-        bbs_enabled=True,
-    )
-
-    start = js.index("function meshChannelAppRoutingRows() {")
-    end = js.index("function normalizeMeshChannelAppId", start)
-    routing_block = js[start:end]
-
-    assert 'id: "bbs"' in routing_block
-    assert 'label: "BBS"' in routing_block
-    assert 'id: "bots"' in routing_block
-    assert 'label: "Bots"' in routing_block
-    assert 'id: "games"' in routing_block
-    assert 'label: "Games"' in routing_block
 
 
 def test_dashboard_js_exposes_files_in_app_channel_routing_when_enabled() -> None:
@@ -142,7 +281,7 @@ def test_dashboard_js_exposes_files_in_app_channel_routing_when_enabled() -> Non
     assert 'id: "files"' in routing_block
     assert 'label: "Files"' in routing_block
     assert 'if (token === "files" && fileTransferFeatureEnabled) return "files";' in js
-    assert 'if (token === "bots" && gamesFeatureEnabled) return "bots";' in js
+    assert 'if (token === "bots"' not in js
     assert 'id: "games"' in routing_block
     assert 'label: "Games"' in routing_block
 
@@ -169,6 +308,9 @@ def test_dashboard_html_orders_files_controls_table_and_console() -> None:
     assert channel_idx < destination_idx
     assert file_row_idx < file_input_idx < send_btn_idx
     assert table_idx < splitter_idx < console_idx
+    assert 'id="files-transfers-cancel-all-btn"' in html_template
+    assert 'id="files-transfers-clear-all-btn"' in html_template
+    assert '>Clear console</button>' in html_template
 
 
 def test_dashboard_js_syncs_files_destination_from_node_selection() -> None:
@@ -218,3 +360,79 @@ def test_dashboard_js_uses_backend_file_transfer_runtime_for_rows_and_ack_suppre
     assert "backendAuthoritative: true" in js
     assert "Complete on receiver" in js
     assert "Backend receiver has the complete transfer; this browser does not have download bytes." in js
+
+
+def test_dashboard_js_bounds_inbound_file_transfer_metadata_and_ack_work() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+        file_transfer_enabled=True,
+        file_transfer_max_bytes=1024,
+    )
+
+    assert "const fileTransferMaxChunks = Math.max(1, Math.ceil(fileTransferMaxFileBytes / fileTransferChunkBytes));" in js
+    assert "const peerLikelyOnline = session.waitingForAccept" in js
+    assert "Pausing here" in js
+    assert "if (!inFlightOverCap && unsentMissing.length > 0)" in js
+    assert "Never let endgame retransmission starve chunks" in js
+    assert "const periodicRefresh = !signatureChanged\n          && periodicRefreshCount" in js
+    assert "const fileTransferFinalAckDuplicateSends = 3;" in js
+    assert "const finalAckCopies = signatureChanged && receivedCount >= totalChunks" in js
+    assert "sendAttempts.push(...sendChannels);" in js
+    assert "const metaSendResult = await sendFileTransferFrameText(metaFrame, destination, sendCtx.sendIndex);" in js
+    assert "metaSendResult && metaSendResult.channel_index" in js
+    assert "channelIndex: sessionChannelIndex," in js
+    assert "const matchesSession = (ack, requireChannel = true)" in js
+    assert "if (!matchesSession(candidate, false)) continue;" in js
+    assert "session.channelIndex = confirmedAckChannel;" in js
+    assert "function cancelAllFileTransfersAction()" in js
+    assert "function clearAllFileTransferRowsAction()" in js
+    assert 'document.getElementById("files-transfers-cancel-all-btn")' in js
+    assert 'document.getElementById("files-transfers-clear-all-btn")' in js
+    assert 'class="files-transfer-action decline files-transfer-row-close"' in js
+    assert "totalChunks > fileTransferMaxChunks" in js
+    assert "fileSize > fileTransferMaxFileBytes" in js
+    assert "const expectedChunks = Math.max(1, Math.ceil(fileSize / fileTransferChunkBytes));" in js
+    assert "if (totalChunks !== expectedChunks) return null;" in js
+    assert "chunkBytes.length > fileTransferChunkBytes" in js
+    assert "byteLen > fileTransferMaxAckBitmapBytes" in js
+    assert "bytes.length > fileTransferMaxAckBitmapBytes" in js
+    assert "const fileTransferChunkCacheMaxEntries = 96;" in js
+    assert "function enforceFileTransferChunkCacheLimits(nowMs = Date.now())" in js
+    assert "fileTransferChunkCacheByKey.size > fileTransferChunkCacheMaxEntries" in js
+    assert "totalBytes > fileTransferChunkCacheMaxBytes" in js
+    assert "const cacheMetadataMismatch = !!(" in js
+    assert "clearFileTransferMaterializedStateForKey(key);" in js
+    assert "if ((out.length + literalLen) > outputLimit) return null;" in js
+    assert "if ((out.length + matchLen) > outputLimit) return null;" in js
+    assert "function fileTransferKeyOf(fromId, toId, transferId, channelIndex)" in js
+    assert "const directInbound = toId === localNodeId && fromId !== localNodeId;" in js
+    assert "if (!directInbound && !directOutbound) continue;" in js
+    assert "knownTotalChunks == null || frame.chunkIndex >= knownTotalChunks" in js
+    assert "Final escape hatch" not in js
+    assert "Math.trunc(Number(ack.totalChunks)) !== expectedTotalChunks" in js
+    assert "fileTransferExplicitChannelIndex(ack.channelIndex) !== expectedChannel" in js
+    assert "findAckForOutgoingSession(outgoingSession, ackByTransferKey, localNodeId)" in js
+    assert "const fileTransferInboundStateMaxEntries = 1200;" in js
+    assert "const fileTransferActiveInboundMaxEntries = fileTransferChunkCacheMaxEntries;" in js
+    assert "function admitFileTransferAutoAcceptMetadata(senderIdRaw, nowMsRaw = Date.now())" in js
+    assert "fileTransferMetaAdmissionByPeer" in js
+    assert "fileTransferMetaAdmissionPeerCooldownMs" in js
+    assert "fileTransferMetaAdmissionGlobalCooldownMs" in js
+    assert "fileTransferAcceptedInboundDecisionCount() >= fileTransferActiveInboundMaxEntries" in js
+    assert "fileTransferInboundDecisionByKey.size >= fileTransferInboundStateMaxEntries" in js
+    assert "function setBoundedFileTransferMapEntry(targetMap, keyRaw, value, maxEntriesRaw)" in js
+    assert "function enforceFileTransferAckObservedLimits()" in js
+    assert "totalIndexes > fileTransferAckObservedMaxIndexes" in js
+    assert "fileTransferAckSentState, transferKey" in js
+    assert "const fileTransferMaterializedCacheMaxEntries = 8;" in js
+    assert "const fileTransferMaterializedCacheMaxBytes = Math.max(" in js
+    assert "function enforceFileTransferMaterializedCacheLimits(protectedKeyRaw = \"\")" in js
+    assert "function materializeFileTransferRowBytes(row)" in js
+    assert "merged.subarray(0, wireDeclaredBytes)" in js
+    assert "fileTransferMaterializeFailureByKey" in js
+    assert "const bytes = materializeFileTransferRowBytes(row);" in js
+    rows_start = js.index("function buildFileTransferRows(state = latestState)")
+    rows_end = js.index("function syncFileTransferBlobs(rows)", rows_start)
+    assert "decodeFileTransferPayloadBytes(" not in js[rows_start:rows_end]

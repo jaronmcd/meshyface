@@ -712,9 +712,14 @@ def parse_meshyface_profile_packet(
     if isinstance(version, bool) or _to_int(version) != MESHYFACE_PROFILE_VERSION:
         return None
 
-    # Meshtastic's decoded packet dictionary supplies fromId. Do not trust a
-    # self-asserted node in the JSON body without that transport identity.
-    from_id = normalize_meshyface_profile_node_id(_mapping_get(packet, "fromId"))
+    # The numeric packet header is the transport identity. ``fromId`` is only
+    # a compatibility fallback for legacy stored packets that lack it.
+    transport_sender = _mapping_get(packet, "from")
+    from_id = normalize_meshyface_profile_node_id(
+        transport_sender
+        if transport_sender is not None
+        else _mapping_get(packet, "fromId")
+    )
     body_node_id = normalize_meshyface_profile_node_id(body.get("node"))
     if not from_id or not body_node_id or from_id != body_node_id:
         return None

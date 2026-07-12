@@ -326,9 +326,6 @@
         && typeof normalizeChatNodeDetailsDrawerTab === "function"
         && normalizeChatNodeDetailsDrawerTab(chatNodeDetailsDrawerTab) === "links"
       );
-      if (activeLayoutView === "bbs") {{
-        return "chat";
-      }}
       if (isChatWorkspaceLayoutView(activeLayoutView) && !drawerLinksActive) {{
         return "chat";
       }}
@@ -429,12 +426,9 @@
             typeof isChatNodeDetailsDrawerExpanded === "function"
             && isChatNodeDetailsDrawerExpanded()
           );
-          const historyTargetId304 = activeLayoutView === "saved"
-            ? resolveSavedViewNodeId(latestState)
-            : normalizeNodeId(selectedNodeId || "");
+          const historyTargetId304 = normalizeNodeId(selectedNodeId || "");
           const networkMapActive304 = activeLayoutView === "network" && networkSubviewUsesMap(activeNetworkSubview);
-          const historyRelevant304 = (activeLayoutView === "saved" || networkMapActive304 || drawerHistoryVisible304)
-            && (mapDataFocus !== "activity" || drawerHistoryVisible304)
+          const historyRelevant304 = (networkMapActive304 || drawerHistoryVisible304)
             && isSelectableNodeId(historyTargetId304);
           const cachedHistory304 = historyRelevant304 ? cachedNodeHistory(historyTargetId304) : null;
           const nodes304 = Array.isArray(latestState.nodes) ? latestState.nodes : [];
@@ -456,8 +450,8 @@
             renderChatNodeNavigatorList(latestState);
           }}
           renderSummary(latestState);
-          const mapVisible304 = activeLayoutView === "saved" || networkMapActive304;
-          const trafficVisible304 = mapVisible304 || activeLayoutView === "history";
+          const mapVisible304 = networkMapActive304;
+          const trafficVisible304 = mapVisible304;
           markPollPerfPhase(pollPerfRun, "not-modified-context", {{
             hidden: hidden304,
             mapVisible: mapVisible304,
@@ -494,49 +488,23 @@
           if (activeLayoutView === "files") {{
             renderFilesView(latestState);
           }}
-          if (activeLayoutView === "bbs") {{
-            renderBbsView(latestState);
-          }}
-          if (activeLayoutView === "history") {{
-            renderHistoryChat(traffic304);
-            renderEncription(traffic304);
-            void refreshHistoryPanels(false);
-          }}
           if (activeLayoutView === "settings" && activeSettingsTab === "channels") {{
             renderChannelsView(latestState);
           }}
           if (activeLayoutView === "settings" && activeSettingsTab === "nodes") {{
             renderNodeVisibilityListsUi(latestRawState || latestState || {{}});
           }}
-          if (
-            activeLayoutView === "environment"
-            || (activeLayoutView === "network" && activeNetworkSubview === "sensors")
-          ) {{
+          if (activeLayoutView === "network" && activeNetworkSubview === "sensors") {{
             void renderEnvironmentMetricsView(false);
-          }}
-          if (activeLayoutView === "bots") {{
-            renderBotsView(latestState);
           }}
           if (activeLayoutView === "games") {{
             renderGamesView(latestState);
-          }}
-          if (activeLayoutView === "remote") {{
-            renderRemoteView(latestState);
-          }}
-          if (activeLayoutView === "saved") {{
-            const loadingId304 = (activeLayoutView === "saved" && historyRelevant304 && !cachedHistory304)
-              ? historyTargetId304
-              : null;
-            renderFavorites(latestState, cachedHistory304, loadingId304);
           }}
           let chatRenderedThisPoll304 = false;
           let chatMaintainedThisPoll304 = false;
           if (isChatWorkspaceLayoutView(activeLayoutView)) {{
             refreshUnchangedChatWorkspace(latestState, Math.floor(Date.now() / 1000));
             chatMaintainedThisPoll304 = true;
-            if (activeLayoutView === "chatlabs") {{
-              renderChatLabsView(latestState);
-            }}
           }} else if (shouldHydrateNodeNavigatorRoster(latestState)) {{
             renderChat(latestState);
             chatRenderedThisPoll304 = true;
@@ -640,19 +608,15 @@
         lastPollSuccessUnix = Math.floor(Date.now() / 1000);
         lastPollError = "";
         lastPollErrorUnix = 0;
-        applyServerBotSettingsFromState(state);
-        syncBackendBotRequestHistory(state);
         const nextLocalNodeId = resolveLocalNodeId(state);
         if (isCanonicalNodeId(nextLocalNodeId)) {{
           resolvedLocalNodeId = nextLocalNodeId;
         }}
         pruneSelfFromManualDirectPeers(state);
-        syncBotRequestHistoryWithMessages((state.traffic || {{}}).recent_chat || [], state);
         syncReversiNetworkState(state);
         syncBoardGameNetworkState("checkers", state);
         syncBoardGameNetworkState("chess", state);
         syncBoardGameNetworkState("wallchess", state);
-        syncBbsNetworkState(state);
         syncAppsLauncherNotifications(state);
         renderSelfRadioPill(state);
         markPollPerfPhase(pollPerfRun, "state-sync");
@@ -684,17 +648,14 @@
         markPollPerfPhase(pollPerfRun, "pre-render");
 
         const networkMapActive = activeLayoutView === "network" && networkSubviewUsesMap(activeNetworkSubview);
-        const mapVisible = activeLayoutView === "saved" || networkMapActive;
-        const trafficVisible = mapVisible || activeLayoutView === "history";
+        const mapVisible = networkMapActive;
+        const trafficVisible = mapVisible;
         const drawerHistoryVisible = (
           typeof isChatNodeDetailsDrawerExpanded === "function"
           && isChatNodeDetailsDrawerExpanded()
         );
-        const historyTargetId = activeLayoutView === "saved"
-          ? resolveSavedViewNodeId(state)
-          : normalizeNodeId(selectedNodeId || "");
-        const historyRelevant = (activeLayoutView === "saved" || networkMapActive || drawerHistoryVisible)
-          && (mapDataFocus !== "activity" || drawerHistoryVisible)
+        const historyTargetId = normalizeNodeId(selectedNodeId || "");
+        const historyRelevant = (networkMapActive || drawerHistoryVisible)
           && isSelectableNodeId(historyTargetId);
         const cachedHistory = historyRelevant ? cachedNodeHistory(historyTargetId) : null;
         const networkGraphActive = activeLayoutView === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
@@ -718,18 +679,9 @@
         }}
         markPollPerfPhase(pollPerfRun, "map-bootstrap");
 
-        const activeSummaryWindowHours = activeLayoutView === "network"
-          ? networkOverviewWindowHours
-          : weeklySummaryWindowHours;
-        const activeSummaryIncludePacketSeries = activeLayoutView === "history"
-          ? historySummaryNeedsPacketSeries()
-          : networkOverviewSummaryNeedsPacketSeries();
-        const weeklySummaryPromise = (
-          activeLayoutView === "history"
-          || networkOverviewActive
-        )
-          ? fetchSummaryMetrics(activeSummaryWindowHours, {{
-              includePacketSeries: activeSummaryIncludePacketSeries,
+        const weeklySummaryPromise = networkOverviewActive
+          ? fetchSummaryMetrics(networkOverviewWindowHours, {{
+              includePacketSeries: networkOverviewSummaryNeedsPacketSeries(),
             }}).catch((summaryErr) => ({{
               error: summaryErr instanceof Error
                 ? summaryErr.message
@@ -791,17 +743,6 @@
         if (activeLayoutView === "files") {{
           renderFilesView(state);
         }}
-        if (activeLayoutView === "history") {{
-          renderHistoryChat(state.traffic || {{}});
-          renderEncription(state.traffic || {{}});
-          if (weeklySummary && !weeklySummary.error) {{
-            renderWeeklySummary(weeklySummary);
-          }} else if (weeklySummary && weeklySummary.error) {{
-            renderWeeklySummaryError(weeklySummary.error);
-          }} else {{
-            renderWeeklySummaryLoading();
-          }}
-        }}
         if (networkOverviewActive) {{
           if (weeklySummary && !weeklySummary.error) {{
             renderNetworkOverviewSummary(weeklySummary);
@@ -811,7 +752,7 @@
             renderNetworkOverviewSummaryLoading();
           }}
         }}
-        markPollPerfPhase(pollPerfRun, "render-view-data", {{
+        markPollPerfPhase(pollPerfRun, "render-primary-views", {{
           trafficVisible,
           view: activeLayoutView,
           subview: activeNetworkSubview,
@@ -860,22 +801,8 @@
             runPollStep("renderChat.workspace", () => renderChat(state, {{ allowPollSkip: true }}));
             chatRenderedThisPoll = true;
           }}
-          if (activeLayoutView === "chatlabs") {{
-            runPollStep("renderChatLabsView", () => renderChatLabsView(state));
-          }}
-        }} else if (activeLayoutView === "bbs") {{
-          runPollStep("renderBbsView", () => renderBbsView(state));
-        }} else if (activeLayoutView === "bots") {{
-          runPollStep("renderBotsView", () => renderBotsView(state));
         }} else if (activeLayoutView === "games") {{
           runPollStep("renderGamesView", () => renderGamesView(state));
-        }} else if (activeLayoutView === "remote") {{
-          runPollStep("renderRemoteView", () => renderRemoteView(state));
-          if (!chatRenderedThisPoll) {{
-            runPollStep("syncChatUnreadFromState.remote", () => syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }}));
-          }}
-          runPollStep("renderChatChangeSummary.remote", () => renderChatChangeSummary());
-          runPollStep("bindChatChangeSummaryControls.remote", () => bindChatChangeSummaryControls());
         }} else {{
           if (!chatRenderedThisPoll) {{
             runPollStep("syncChatUnreadFromState.default", () => syncChatUnreadFromState(state, {{ clearActiveWhenInChat: false }}));
@@ -900,17 +827,7 @@
           }});
         }}
 
-        if (activeLayoutView === "saved") {{
-          const loadingId = (activeLayoutView === "saved" && historyRelevant && !cachedHistory)
-            ? historyTargetId
-            : null;
-          renderFavorites(state, cachedHistory, loadingId);
-        }}
-
-        if (
-          activeLayoutView === "environment"
-          || (activeLayoutView === "network" && activeNetworkSubview === "sensors")
-        ) {{
+        if (activeLayoutView === "network" && activeNetworkSubview === "sensors") {{
           void renderEnvironmentMetricsView(false);
         }}
 

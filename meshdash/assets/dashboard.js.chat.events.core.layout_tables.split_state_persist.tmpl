@@ -5,48 +5,6 @@
       }}
     }}
 
-    function persistSavedNodeSplitState() {{
-      try {{
-        window.localStorage.setItem(savedNodeSplitStorageKey, String(savedNodePanePct));
-      }} catch (_err) {{
-      }}
-    }}
-
-    function persistSavedNodeHistorySplitState() {{
-      try {{
-        window.localStorage.setItem(savedNodeHistorySplitStorageKey, String(savedNodeMainPct));
-      }} catch (_err) {{
-      }}
-    }}
-
-    function persistHistoryActivitySplitState() {{
-      try {{
-        window.localStorage.setItem(historyActivitySplitStorageKey, String(historyActivityTopPct));
-      }} catch (_err) {{
-      }}
-    }}
-
-    function persistHistoryChatSplitState() {{
-      try {{
-        window.localStorage.setItem(historyChatSplitStorageKey, String(historyChatMainPct));
-      }} catch (_err) {{
-      }}
-    }}
-
-    function persistBotsMainSplitState() {{
-      try {{
-        window.localStorage.setItem(botsMainSplitStorageKey, String(botsMainPanePct));
-      }} catch (_err) {{
-      }}
-    }}
-
-    function persistBotsCommandSplitState() {{
-      try {{
-        window.localStorage.setItem(botsCommandSplitStorageKey, String(botsCommandListPct));
-      }} catch (_err) {{
-      }}
-    }}
-
     function persistGamesSidebarSplitState() {{
       try {{
         window.localStorage.setItem(gamesSidebarSplitStorageKey, String(gamesSidebarWidthPx));
@@ -85,13 +43,6 @@
     function persistChatNodeListSplitState() {{
       try {{
         window.localStorage.setItem(chatNodeListSplitStorageKey, String(chatNodeListPct));
-      }} catch (_err) {{
-      }}
-    }}
-
-    function persistMacrosPanelSplitState() {{
-      try {{
-        window.localStorage.setItem(macrosPanelSplitStorageKey, String(macrosPanelWidthPx));
       }} catch (_err) {{
       }}
     }}

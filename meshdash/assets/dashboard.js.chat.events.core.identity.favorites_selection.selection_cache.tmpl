@@ -287,7 +287,7 @@
           persistFavoriteNodes();
           refreshFavoriteToggleButtons();
           if (latestState) {{
-            renderFavorites(latestState);
+            renderNodeDetails(latestState);
           }} else {{
             renderStarredNodeSelect({{}});
           }}
@@ -306,7 +306,7 @@
           applyPreview();
           refreshFavoriteToggleButtons();
           if (latestState) {{
-            renderFavorites(latestState);
+            renderNodeDetails(latestState);
           }} else {{
             renderStarredNodeSelect({{}});
           }}
@@ -324,7 +324,7 @@
           applyPreview();
           refreshFavoriteToggleButtons();
           if (latestState) {{
-            renderFavorites(latestState);
+            renderNodeDetails(latestState);
           }} else {{
             renderStarredNodeSelect({{}});
           }}
@@ -340,7 +340,7 @@
           clearNodeTagForNode(cleanNodeId);
           refreshFavoriteToggleButtons();
           if (latestState) {{
-            renderFavorites(latestState);
+            renderNodeDetails(latestState);
           }} else {{
             renderStarredNodeSelect({{}});
           }}
@@ -683,8 +683,7 @@
           clearNodeSurfaceTintStyle(row, "feed");
         }}
       }}
-      syncMapTitleFavoriteToggle();
-      renderSavedRailStatus();
+      renderSavedSelectionStatus();
 
       const nodesSort = tableSortState["nodes-table"];
       if (nodesSort && Number(nodesSort.index) === 9) {{
@@ -752,7 +751,7 @@
       persistFavoriteNodes();
       refreshFavoriteToggleButtons();
       if (latestState) {{
-        renderFavorites(latestState);
+        renderNodeDetails(latestState);
       }} else {{
         renderStarredNodeSelect({{}});
       }}
@@ -941,7 +940,7 @@
       }}
       refreshFavoriteToggleButtons();
       if (latestState) {{
-        renderFavorites(latestState);
+        renderNodeDetails(latestState);
       }} else {{
         renderStarredNodeSelect({{}});
       }}

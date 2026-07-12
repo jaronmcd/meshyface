@@ -1,511 +1,10 @@
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 10px;
-      color: #1f4e35;
-      background: #edf6ef;
-      border: 1px solid #c9dece;
-      border-radius: 6px;
-      padding: 1px 5px;
-      white-space: nowrap;
-    }}
-    .bots .chat-bot-cheatsheet {{
-      border: 1px solid #ccddcf;
-      background: #ffffff;
-      border-radius: 8px;
-      padding: 6px 7px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }}
-    .bots-command-shell {{
-      display: grid;
-      grid-template-columns: minmax(130px, var(--bots-command-list-pct)) var(--splitter-size) minmax(130px, 1fr);
-      gap: 0;
-      min-height: 0;
-      flex: 1 1 auto;
-    }}
-    .bots-command-list-wrap {{
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      min-height: 0;
-      padding-right: 8px;
-    }}
-    .bots-command-splitter {{
-      position: relative;
-      border-radius: 8px;
-      border: 1px solid var(--surface-tint-border);
-      background: linear-gradient(180deg, var(--surface-tint-bg-soft), var(--surface-tint-bg-alt));
-      cursor: col-resize;
-      touch-action: none;
-      user-select: none;
-      min-width: 6px;
-    }}
-    .bots-command-splitter::before {{
-      content: "";
-      position: absolute;
-      top: 8px;
-      bottom: 8px;
-      left: 50%;
-      width: 2px;
-      transform: translateX(-50%);
-      background: var(--surface-tint-border-strong);
-      border-radius: 1px;
-    }}
-    .bots-command-splitter:hover::before,
-    .bots-command-splitter.active::before {{
-      background: var(--accent);
-    }}
-    .bots .chat-bot-cheatsheet-title {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-    }}
-    .bots .chat-bot-cheatsheet-row {{
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 7px;
-      align-items: baseline;
-      font-size: 10px;
-      line-height: 1.25;
-      color: #2f4f3f;
-    }}
-    .bots .chat-bot-cheatsheet-row code {{
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 10px;
-      color: #1f4e35;
-      background: #edf6ef;
-      border: 1px solid #c9dece;
-      border-radius: 6px;
-      padding: 1px 5px;
-      white-space: nowrap;
-    }}
-    .bots-command-list {{
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-      padding: 8px;
-      border: 1px solid var(--surface-tint-border);
-      border-radius: 10px;
-      background: #f8fbf7;
-    }}
-    .bots-command-config {{
-      border: 1px solid var(--surface-tint-border);
-      border-radius: 10px;
-      padding: 10px;
-      background: #fdfefd;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding-left: 12px;
-    }}
-    .bots-command-config-head {{
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 0;
-    }}
-    .bots-command-config-title-row {{
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-      min-width: 0;
-    }}
-    .bots-command-config-usage {{
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 12px;
-      color: #1f4e35;
-      word-break: break-word;
-    }}
-    .bots-command-config-name {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-    }}
-    .bots-command-config-description {{
-      font-size: 11px;
-      line-height: 1.35;
-      color: var(--surface-tint-text-soft);
-    }}
-    .bots-command-config-toggle {{
-      margin-top: 2px;
-    }}
-    .bots-command-config-section {{
-      margin-top: 4px;
-      padding-top: 8px;
-      border-top: 1px solid var(--surface-tint-border);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }}
-    .bots-command-config-section[hidden] {{
-      display: none !important;
-    }}
-    .bots-command-config-label {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-    }}
-    .bots-command-config-textarea {{
-      width: 100%;
-      min-height: 52px;
-      border: 1px solid #c8d7c4;
-      border-radius: 8px;
-      padding: 6px 8px;
-      background: #ffffff;
-      color: #1e3a2b;
-      font: 11px/1.35 "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      resize: vertical;
-    }}
-    .bots-command-config-input {{
-      width: 100%;
-      font: 11px/1.35 "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-    }}
-    .bots-command-config-actions {{
-      display: flex;
-      justify-content: flex-start;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-    }}
-    .bots-zork-actions .bots-setting-note {{
-      min-height: 22px;
-      display: inline-flex;
-      align-items: center;
-    }}
-    .bots-history-panel .bots-command-config {{
-      flex: 1 1 auto;
-      overflow: hidden;
-    }}
-    .bots-zork-activity-section {{
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .bots-session-list {{
-      border: 1px solid #ccddcf;
-      border-radius: 8px;
-      background: #ffffff;
-      max-height: 180px;
-      overflow: auto;
-      padding: 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }}
-    .bots-session-item {{
-      border: 1px solid var(--surface-tint-border);
-      border-radius: 8px;
-      padding: 8px;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: center;
-      background: var(--surface-tint-bg-soft);
-    }}
-    .bots-session-main {{
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 0;
-    }}
-    .bots-session-peer {{
-      font-size: 12px;
-      color: #1f4e35;
-      font-weight: 700;
-      word-break: break-word;
-    }}
-    .bots-session-meta {{
-      font-size: 10px;
-      color: #5b7565;
-      display: flex;
-      gap: 7px;
-      flex-wrap: wrap;
-    }}
-    .bots-command-item {{
-      width: 100%;
-      border: 1px solid #c8d7c4;
-      border-radius: 10px;
-      background: #ffffff;
-      padding: 7px 8px;
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: center;
-      color: #1e3a2b;
-      text-align: left;
-      font: inherit;
-      cursor: pointer;
-      transition: border-color 0.16s ease, background 0.16s ease;
-    }}
-    .bots-command-item:hover {{
-      border-color: #8daf99;
-      background: #eef6f1;
-    }}
-    .bots-command-item:focus-visible {{
-      outline: 2px solid #5ba67a;
-      outline-offset: 1px;
-    }}
-    .bots-command-item.is-active {{
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
-      background: #e9f5ee;
-      color: #1f5d3d;
-    }}
-    .bots-command-item.is-disabled {{
-      opacity: 0.62;
-    }}
-    .bots-command-item-order {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      min-width: 18px;
-      white-space: nowrap;
-    }}
-    .bots-command-copy {{
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }}
-    .bots-command-heading {{
-      min-width: 0;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }}
-    .bots-command-usage {{
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 11px;
-      color: #1f4e35;
-      word-break: break-word;
-    }}
-    .bots-command-description {{
-      font-size: 11px;
-      line-height: 1.35;
-      color: var(--surface-tint-text-soft);
-    }}
-    .bots-command-kind {{
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-      text-transform: uppercase;
-      color: #315844;
-      border: 1px solid #c7d9cb;
-      border-radius: 999px;
-      background: #edf6ef;
-      padding: 2px 6px;
-      white-space: nowrap;
-    }}
-    .bots-command-state {{
-      font-size: 10px;
-      color: #355b44;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-      white-space: nowrap;
-      min-width: 24px;
-      text-align: right;
-    }}
-    .bots-command-state.is-enabled {{
-      color: #1f6e42;
-      font-weight: 700;
-    }}
-    .bots-command-state.is-disabled {{
-      color: #8f4234;
-      font-weight: 700;
-    }}
-    .bots-history-panel {{
-      min-height: 0;
-      overflow: visible;
-    }}
-    .bots-history-head {{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }}
-    .bots-review-head-copy {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-width: 0;
-    }}
-    .bots-review-tabs {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-    }}
-    .bots-review-tab {{
-      border: 1px solid #c8d9cc;
-      border-radius: 999px;
-      background: #edf6ef;
-      color: #365846;
-      font-size: 11px;
-      line-height: 1;
-      padding: 6px 10px;
-      cursor: pointer;
-    }}
-    .bots-review-tab.is-active {{
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #ffffff;
-    }}
-    .bots-history-clear-btn {{
-      padding: 4px 10px;
-      font-size: 11px;
-    }}
-    .bots-tab-panel {{
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      min-height: 0;
-      flex: 1 1 auto;
-    }}
-    .bots-tab-panel[hidden] {{
-      display: none !important;
-    }}
-    .bots-history-stats {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px 10px;
-      font-size: 11px;
-      color: #355b44;
-    }}
-    .bots-history-list {{
-      border: 1px solid #ccddcf;
-      border-radius: 8px;
-      background: #ffffff;
-      flex: 1 1 auto;
-      max-height: none;
-      min-height: 120px;
-      overflow: auto;
-      padding: 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }}
-    .bots-sniffer-controls {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: end;
-    }}
-    .bots-sniffer-filter-wrap {{
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      flex: 1 1 260px;
-      min-width: 220px;
-    }}
-    .bots-sniffer-filter-label {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-    }}
-    .bots-sniffer-command-input {{
-      width: 100%;
-      min-width: 0;
-      border-radius: 8px;
-      border: 1px solid #c8d9cc;
-      background: #ffffff;
-      color: #204231;
-      font-size: 12px;
-      padding: 8px 10px;
-    }}
-    .bots-sniffer-actions {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      flex: 0 0 auto;
-    }}
-    .bots-sniffer-btn {{
-      padding: 6px 10px;
-      font-size: 11px;
-    }}
-    .bots-history-empty {{
-      border: 1px dashed #cfe0d2;
-      border-radius: 8px;
-      color: var(--surface-tint-text-soft);
-      background: #f7fbf7;
-      font-size: 12px;
-      line-height: 1.35;
-      padding: 10px;
-      text-align: center;
-    }}
-    .bots-history-item {{
-      border: 1px solid var(--surface-tint-border);
-      border-radius: 8px;
-      padding: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      background: var(--surface-tint-bg-soft);
-    }}
-    .bots-history-item-head {{
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 8px;
-      flex-wrap: wrap;
-    }}
-    .bots-history-command {{
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 11px;
-      color: #1f4e35;
-      word-break: break-word;
-    }}
-    .bots-history-meta {{
+    .response-telemetry-meta {{
       font-size: 10px;
       color: #5b7565;
       display: inline-flex;
       align-items: center;
       gap: 7px;
       flex-wrap: wrap;
-    }}
-    .bots-history-status-pill {{
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      border: 1px solid #bfd4c3;
-      background: #edf6ef;
-      color: #204231;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.2px;
-      text-transform: uppercase;
-      line-height: 1.2;
-      padding: 2px 7px;
-    }}
-    .bots-history-status-pill.pending {{
-      border-color: #d3a856;
-      background: #fff8e8;
-      color: #7a5a1f;
-    }}
-    .bots-history-status-pill.responded {{
-      border-color: var(--accent);
-      background: #e9f8ee;
-      color: #1d5a3b;
-    }}
-    .bots-history-response {{
-      border-left: 2px solid #bfd4c3;
-      padding-left: 7px;
-      font-size: 11px;
-      color: #274935;
-      line-height: 1.3;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }}
-    .bots-history-response strong {{
-      color: #1f4e35;
     }}
 
     .settings-channels-table {{
@@ -577,98 +76,14 @@
       flex-direction: column;
       gap: 8px;
     }}
-    .map-data-live, .map-data-node, .map-data-activity {{
+    .map-data-live, .map-data-node {{
       min-height: 0;
       display: flex;
       flex-direction: column;
       gap: 8px;
       flex: 1 1 auto;
     }}
-    .history-activity-stack {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 8px;
-      overflow: hidden;
-    }}
-    .history-activity-tabbar {{
-      margin-bottom: 2px;
-    }}
-    .history-activity-panel {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 10px;
-      overflow: auto;
-      padding-right: 2px;
-    }}
-    .history-activity-panel[hidden] {{
-      display: none !important;
-    }}
-    .history-activity-main-scroll {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-      padding-right: 2px;
-    }}
-    .history-activity-splitter {{
-      display: none;
-      position: relative;
-      border-radius: 8px;
-      border: 1px solid var(--surface-tint-border);
-      background: linear-gradient(90deg, var(--surface-tint-bg-soft), var(--surface-tint-bg-alt));
-      cursor: row-resize;
-      touch-action: none;
-      user-select: none;
-      min-height: 6px;
-      flex: 0 0 var(--splitter-size);
-      margin: 8px 0;
-    }}
-    .history-activity-splitter::before {{
-      content: "";
-      position: absolute;
-      left: 8px;
-      right: 8px;
-      top: 50%;
-      height: 2px;
-      transform: translateY(-50%);
-      background: var(--surface-tint-border-strong);
-      border-radius: 1px;
-    }}
-    .history-activity-splitter:hover::before,
-    .history-activity-splitter.active::before {{
-      background: var(--accent);
-    }}
-    .history-activity-weekly-panel {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-      padding-right: 2px;
-    }}
-    .history-activity-encryption-trend {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .history-activity-chat-trend,
-    .history-activity-encryption-routes {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 220px;
-    }}
-    .map-data-live[hidden], .map-data-node[hidden], .map-data-activity[hidden] {{
+    .map-data-live[hidden], .map-data-node[hidden] {{
       display: none !important;
     }}
     .history-caption {{
@@ -705,73 +120,24 @@
     #node-link-quality-chart-wrap,
     #node-online-chart-wrap,
     #node-packets-chart-wrap,
-    #online-activity-chart-wrap,
-    #weekly-summary-chart-wrap,
-    #network-overview-chart-wrap,
-    #history-chat-trend-chart-wrap,
-    #encription-trend-chart-wrap,
-    #encription-route-chart-wrap {{
+    #network-overview-chart-wrap {{
       position: relative;
       width: 100%;
       min-height: 220px;
       height: 220px;
       border: 1px solid var(--surface-tint-border);
       border-radius: 8px;
-      background: linear-gradient(180deg, var(--panel) 0%, var(--surface-tint-bg-soft) 100%);
+      background: linear-gradient(180deg, var(--ui-panel) 0%, var(--surface-tint-bg-soft) 100%);
       overflow: hidden;
     }}
     #signal-chart,
     #node-link-quality-chart,
     #node-online-chart,
     #node-packets-chart,
-    #online-activity-chart,
-    #weekly-summary-chart,
-    #network-overview-chart,
-    #history-chat-trend-chart,
-    #encription-trend-chart,
-    #encription-route-chart {{
+    #network-overview-chart {{
       width: 100%;
       height: 100%;
       display: block;
-    }}
-    .layout.view-history #map-data-activity .history-activity-stack {{
-      min-height: 0;
-      height: 100%;
-      overflow: hidden;
-    }}
-    .layout.view-history #map-data-activity .history-activity-panel {{
-      overflow: visible;
-      padding-right: 0;
-    }}
-    .layout.view-history #map-data-activity .history-activity-weekly-panel {{
-      flex: 0 0 auto;
-      min-height: 0;
-      overflow: visible;
-      padding-right: 0;
-    }}
-    .layout.view-history #map-data-activity .history-activity-chat-trend,
-    .layout.view-history #map-data-activity .history-activity-encryption-trend,
-    .layout.view-history #map-data-activity .history-activity-encryption-routes {{
-      flex: 0 0 auto;
-      min-height: 0;
-    }}
-    .layout.view-history #map-data-activity #weekly-summary-chart-wrap {{
-      flex: 0 0 auto;
-      min-height: clamp(170px, 30vh, 260px);
-      height: clamp(170px, 30vh, 260px);
-    }}
-    .layout.view-history #map-data-activity #history-chat-trend-chart-wrap,
-    .layout.view-history #map-data-activity #encription-trend-chart-wrap {{
-      min-height: clamp(140px, 24vh, 220px);
-      height: clamp(140px, 24vh, 220px);
-    }}
-    .layout.view-history #map-data-activity #encription-route-chart-wrap {{
-      min-height: clamp(140px, 24vh, 220px);
-      height: clamp(140px, 24vh, 220px);
-    }}
-    .layout.view-history #map-data-activity #weekly-summary-overview {{
-      flex: 0 0 auto;
-      margin-top: auto;
     }}
     .history-metric-wrap {{
       display: inline-flex;
@@ -859,15 +225,15 @@
       position: relative;
       min-height: 27px;
       height: 27px;
-      border: 1px solid color-mix(in srgb, var(--line) 74%, var(--accent));
+      border: 1px solid color-mix(in srgb, var(--ui-border) 74%, var(--ui-accent));
       border-radius: 999px;
       background:
         linear-gradient(
           180deg,
-          color-mix(in srgb, var(--panel) 94%, var(--accent) 6%),
-          color-mix(in srgb, var(--panel) 84%, var(--accent) 16%)
+          color-mix(in srgb, var(--ui-panel) 94%, var(--ui-accent) 6%),
+          color-mix(in srgb, var(--ui-panel) 84%, var(--ui-accent) 16%)
         );
-      color: color-mix(in srgb, var(--ink) 86%, var(--accent-2));
+      color: color-mix(in srgb, var(--ui-text) 86%, var(--ui-accent-soft));
       padding: 0 23px 0 7px;
       box-shadow: none;
     }}
@@ -881,7 +247,7 @@
       height: 0;
       border-left: 3px solid transparent;
       border-right: 3px solid transparent;
-      border-top: 5px solid color-mix(in srgb, var(--accent-2) 64%, var(--ink));
+      border-top: 5px solid color-mix(in srgb, var(--ui-accent-soft) 64%, var(--ui-text));
       pointer-events: none;
       transform: translateY(-35%);
     }}
@@ -903,14 +269,14 @@
     .layout.view-network .history-select-chip-hide-label .history-metric-select option,
     .layout.view-network .history-select-chip-hide-label .env-metric-select option,
     .layout.view-network .map-heatmap-mode option {{
-      color: var(--ink);
-      background: color-mix(in srgb, var(--panel) 92%, var(--bg) 8%);
+      color: var(--ui-text);
+      background: color-mix(in srgb, var(--ui-panel) 92%, var(--ui-bg) 8%);
     }}
     .layout.view-network .history-select-chip-hide-label .history-metric-select option:checked,
     .layout.view-network .history-select-chip-hide-label .env-metric-select option:checked,
     .layout.view-network .map-heatmap-mode option:checked {{
-      color: color-mix(in srgb, var(--ink) 86%, var(--accent-2) 14%);
-      background: color-mix(in srgb, var(--panel) 76%, var(--accent) 24%);
+      color: color-mix(in srgb, var(--ui-text) 86%, var(--ui-accent-soft) 14%);
+      background: color-mix(in srgb, var(--ui-panel) 76%, var(--ui-accent) 24%);
     }}
     [data-theme="dark"] .layout.view-network .history-select-chip-hide-label .history-metric-select option,
     [data-theme="dark"] .layout.view-network .history-select-chip-hide-label .env-metric-select option,
@@ -927,7 +293,7 @@
     .history-metric-toggle {{
       width: 14px;
       height: 14px;
-      accent-color: var(--accent-2);
+      accent-color: var(--ui-accent-soft);
       cursor: pointer;
     }}
     #signal-chart,
@@ -946,31 +312,20 @@
     #node-packets-chart.chart-dragging {{
       cursor: grabbing;
     }}
-    #online-activity-chart,
-    #weekly-summary-chart,
     #network-overview-chart {{
       cursor: zoom-in;
       touch-action: none;
     }}
-    #online-activity-chart.zoomed,
-    #weekly-summary-chart.zoomed,
     #network-overview-chart.zoomed {{
       cursor: grab;
     }}
-    #online-activity-chart.chart-dragging,
-    #weekly-summary-chart.chart-dragging,
     #network-overview-chart.chart-dragging {{
       cursor: grabbing;
     }}
     #signal-chart text,
     #node-online-chart text,
     #node-packets-chart text,
-    #online-activity-chart text,
-    #weekly-summary-chart text,
     #network-overview-chart text,
-    #history-chat-trend-chart text,
-    #encription-trend-chart text,
-    #encription-route-chart text,
     #env-metrics-chart text {{
       font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
       font-variant-numeric: tabular-nums;
@@ -1157,363 +512,12 @@
       color: #193a28;
       line-height: 1.2;
     }}
-    .history-chat {{
-      display: none;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .history-chat .body {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      min-height: 0;
-    }}
-    .history-chat-tabbar {{
-      display: flex;
-      gap: 6px;
-      border-bottom: 1px solid var(--surface-tint-border);
-      padding-bottom: 6px;
-    }}
-    .history-chat-tab-btn {{
-      border: 1px solid var(--surface-tint-border);
-      background: #f3faf5;
-      color: #1f5d40;
-      border-radius: 999px;
-      font-size: 11px;
-      padding: 4px 10px;
-      cursor: pointer;
-    }}
-    .history-chat-tab-btn.is-active,
-    .history-chat-tab-btn[aria-selected="true"] {{
-      background: #dff1e6;
-      border-color: #87b99a;
-      color: #14442d;
-      font-weight: 600;
-    }}
-    .history-chat-panel {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 8px;
-    }}
-    .history-chat-panel[hidden] {{
-      display: none !important;
-    }}
-    .history-chat .scroll {{
-      flex: 1 1 auto;
-      min-height: 0;
-      max-height: none;
-    }}
-    .history-chat-stack {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 0;
-    }}
-    .history-chat-main-scroll {{
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-    }}
-    .history-chat-splitter {{
-      display: none;
-      position: relative;
-      border-radius: 8px;
-      border: 1px solid var(--surface-tint-border);
-      background: linear-gradient(90deg, var(--surface-tint-bg-soft), var(--surface-tint-bg-alt));
-      cursor: row-resize;
-      touch-action: none;
-      user-select: none;
-      min-height: 6px;
-      flex: 0 0 var(--splitter-size);
-      margin: 8px 0;
-    }}
-    .history-chat-splitter::before {{
-      content: "";
-      position: absolute;
-      left: 8px;
-      right: 8px;
-      top: 50%;
-      height: 2px;
-      transform: translateY(-50%);
-      background: var(--surface-tint-border-strong);
-      border-radius: 1px;
-    }}
-    .history-chat-splitter:hover::before,
-    .history-chat-splitter.active::before {{
-      background: var(--accent);
-    }}
-    .history-notification-section {{
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .history-notification-head {{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }}
-    .history-notification-clear-btn {{
-      border: 1px solid #b8d0bf;
-      background: #ffffff;
-      color: #28533c;
-      border-radius: 999px;
-      padding: 2px 8px;
-      font-size: 10px;
-      line-height: 1.3;
-      cursor: pointer;
-      white-space: nowrap;
-      flex: 0 0 auto;
-    }}
-    .history-notification-clear-btn:hover {{
-      background: #eaf5ed;
-      border-color: #94b7a0;
-    }}
-    .history-notification-list {{
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      flex: 1 1 auto;
-      min-height: 0;
-      max-height: none;
-      overflow: auto;
-      padding-right: 2px;
-    }}
-    .history-notification-empty {{
-      border: 1px dashed #c5d7ca;
-      border-radius: 8px;
-      padding: 10px 9px;
-      color: #4f6a5b;
-      font-size: 11px;
-      line-height: 1.35;
-      text-align: center;
-      background: var(--panel);
-    }}
-    .history-notification-item {{
-      border: 1px solid #d3e3d6;
-      background: var(--panel);
-      color: #214836;
-      border-radius: 8px;
-      padding: 6px 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      line-height: 1.3;
-    }}
-    .history-notification-item.is-new {{
-      box-shadow: inset 2px 0 0 var(--accent);
-    }}
-    .history-notification-meta {{
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 4px;
-      font-size: 10px;
-      color: #5e7a69;
-      line-height: 1.2;
-    }}
-    .history-notification-pill {{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 999px;
-      border: 1px solid #afc9b7;
-      background: #e6f3ea;
-      color: #2f6448;
-      font-size: 9px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.32px;
-      padding: 1px 6px;
-      line-height: 1.2;
-    }}
-    .history-notification-pill.status-new {{
-      background: #d7f0de;
-      border-color: #84b696;
-      color: #205238;
-    }}
-    .history-notification-pill.kind-reaction {{
-      background: #f4e8cb;
-      border-color: #c2a46b;
-      color: #6a4e14;
-    }}
-    .history-notification-pill.kind-status {{
-      background: #dceaf6;
-      border-color: #90b6d8;
-      color: #244f73;
-    }}
-    .history-notification-text {{
-      font-size: 11px;
-      color: #244734;
-      line-height: 1.35;
-      word-break: break-word;
-    }}
-    .history-notification-time {{
-      font-size: 10px;
-      color: #5d7666;
-      line-height: 1.25;
-    }}
-    .history-encription-section {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-      border-top: 1px solid var(--surface-tint-border);
-      padding-top: 8px;
-    }}
-    .history-encription-panels {{
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-    }}
-    .history-encription-panel {{
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .history-encription-panel h3 {{
-      margin: 0 0 6px 0;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      opacity: 0.82;
-    }}
-    .history-encription-panel .scroll {{
-      flex: 1 1 auto;
-      min-height: 0;
-      max-height: none;
-    }}
     .nodes {{
       grid-column: 1 / span 3;
       grid-row: 4;
       display: flex;
       flex-direction: column;
       min-height: 0;
-    }}
-    .favorites {{
-      grid-column: 1 / span 3;
-      grid-row: 4;
-      display: none;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .favorites .body {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .favorites-toolbar {{
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }}
-    .favorites-caption {{
-      font-size: 11px;
-      color: var(--surface-tint-text-soft);
-      line-height: 1.25;
-    }}
-    .favorites-list {{
-      flex: 1 1 auto;
-      min-height: 200px;
-      max-height: none;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }}
-    .favorites-empty {{
-      border: 1px dashed var(--surface-tint-border);
-      border-radius: 8px;
-      padding: 10px;
-      font-size: 11px;
-      color: var(--surface-tint-text-soft);
-      background: color-mix(in srgb, var(--surface-tint-bg-soft) 76%, transparent);
-      line-height: 1.3;
-    }}
-    .favorite-node-item {{
-      border: 1px solid var(--surface-tint-border);
-      background: color-mix(in srgb, var(--surface-tint-bg-alt) 82%, transparent);
-      color: var(--surface-tint-text);
-      border-radius: 8px;
-      padding: 6px 7px;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 7px;
-      align-items: start;
-      cursor: pointer;
-    }}
-    .favorite-node-item:hover {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, transparent);
-      border-color: var(--surface-tint-border-strong);
-    }}
-    .favorite-node-item.status-warn {{
-      background: #fff9e7;
-      color: #5d4a1b;
-      border-color: #ecd89c;
-    }}
-    .favorite-node-item.status-stale {{
-      background: #fff0f0;
-      color: #6a3333;
-      border-color: #e6b5b5;
-    }}
-    .favorite-node-item.status-unknown {{
-      background: color-mix(in srgb, var(--surface-tint-bg-soft) 72%, transparent);
-      color: var(--surface-tint-text-soft);
-      border-color: color-mix(in srgb, var(--surface-tint-border) 76%, transparent);
-    }}
-    .favorite-node-item.selected-node {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, var(--surface-tint-border-strong) 14%);
-      border-color: var(--surface-tint-border-strong);
-      color: var(--surface-tint-text);
-      box-shadow: inset 2px 0 0 var(--surface-tint-border-strong);
-    }}
-    .favorite-node-main {{
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }}
-    .favorite-node-name-row {{
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      min-width: 0;
-    }}
-    .favorite-node-name {{
-      font-size: 12px;
-      font-weight: 600;
-      color: inherit;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      min-width: 0;
-    }}
-    .favorite-node-id {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      opacity: 0.95;
-      white-space: nowrap;
-      flex: 0 0 auto;
-    }}
-    .favorite-node-meta {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      line-height: 1.25;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
     }}
     .nodes .body {{
       display: flex;
@@ -1561,7 +565,7 @@
     }}
     .network-node-splitter:hover::before,
     .network-node-splitter.active::before {{
-      background: var(--accent);
+      background: var(--ui-accent);
     }}
     .network-node-history-host {{
       display: none;
@@ -1584,19 +588,6 @@
       font-size: 11px;
       line-height: 1.3;
       padding: 8px 10px;
-    }}
-    .packets {{ grid-column: 1; grid-row: 8; }}
-    .channels-view {{
-      display: none;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .channels-view .body {{
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      min-height: 0;
-      overflow: hidden;
     }}
     .channels-dashboard-grid {{
       display: grid;
@@ -1983,26 +974,7 @@
       background: #faecec;
       color: #7a2f2f;
     }}
-    .environment {{
-      grid-column: 3;
-      grid-row: 8;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .environment .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow-x: hidden;
-      overflow-y: auto;
-    }}
-    .raw {{ grid-column: 3; grid-row: 8; }}
     .console {{ grid-column: 1 / span 3; grid-row: 10; }}
-    .layout:not(.view-environment) .environment {{
-      display: none !important;
-    }}
     .splitter {{
       grid-column: 2;
       position: relative;
@@ -2027,7 +999,7 @@
       border-radius: 1px;
     }}
     .splitter:hover::before, .splitter.active::before {{
-      background: var(--accent);
+      background: var(--ui-accent);
     }}
     .hsplitter {{
       grid-column: 1 / span 3;
@@ -2055,7 +1027,7 @@
       border-radius: 1px;
     }}
     .hsplitter:hover::before, .hsplitter.active::before {{
-      background: var(--accent);
+      background: var(--ui-accent);
     }}
     body.resizing-panels-x, body.resizing-panels-x * {{
       cursor: col-resize !important;
@@ -2064,381 +1036,8 @@
     body.resizing-panels-y, body.resizing-panels-y * {{
       cursor: row-resize !important;
       user-select: none !important;
-    }}
-    .layout .card.chatlabs {{
-      display: none;
-    }}
-    .layout.view-chatlabs {{
-      height: 100%;
-      min-height: 0;
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-chatlabs > :not(.chatlabs) {{
-      display: none !important;
-    }}
-    .layout.view-chatlabs .chatlabs {{
-      grid-column: 1;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      background: #0b1411;
-      border-color: #24513c;
-      box-shadow: inset 0 0 0 1px rgba(56, 126, 93, 0.25);
-    }}
-    .layout.view-chatlabs .chatlabs .chatlabs-head {{
-      display: flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 12px 14px 10px;
-      border-bottom: 1px solid #1f3f31;
-      background: linear-gradient(180deg, #0f1d17 0%, #0b1411 100%);
-    }}
-    .layout.view-chatlabs .chatlabs .chatlabs-head h2 {{
-      margin: 0;
-      font-size: 1rem;
-      letter-spacing: 0.02em;
-      color: #d9ffe9;
-    }}
-    .layout.view-chatlabs .chatlabs .chatlabs-caption {{
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 0;
-      font-size: 0.8rem;
-      color: #93c8ad;
-    }}
-    .layout.view-chatlabs .chatlabs .chatlabs-filter-row {{
-      flex: 1 1 100%;
-      width: 100%;
-      margin-top: 8px;
-    }}
-    .layout.view-chatlabs .chatlabs .chatlabs-channel-pill-strip {{
-      width: 100%;
-      max-width: none;
-      gap: 7px;
-    }}
-    .layout.view-chatlabs .chatlabs .chatlabs-count {{
-      display: inline-flex;
-      align-items: center;
-      min-height: 20px;
-      padding: 0 8px;
-      border-radius: 999px;
-      border: 1px solid #2d654b;
-      background: rgba(45, 101, 75, 0.35);
-      color: #b8f7d4;
-      font-size: 0.72rem;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-    }}
-    .layout.view-chatlabs .chatlabs .body {{
-      padding: 10px;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      background: radial-gradient(circle at 15% 0%, rgba(45, 100, 73, 0.2), transparent 58%);
-    }}
-    .layout.view-chatlabs .chatlabs-terminal {{
-      position: relative;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-      border-radius: 8px;
-      border: 1px solid #285741;
-      background: #07100d;
-      box-shadow: inset 0 0 0 1px rgba(67, 152, 111, 0.17);
-      font-family: "Segoe UI", "Inter", "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
-      scrollbar-width: thin;
-    }}
-    .layout.view-chatlabs .chatlabs-feed {{
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-height: 100%;
-      width: 100%;
-      margin: 0;
-      padding: 8px 8px 12px;
-    }}
-    .layout.view-chatlabs .chatlabs-message-row {{
-      display: flex;
-      align-items: flex-start;
-      gap: 0;
-      width: 100%;
-      max-width: 100%;
-    }}
-    .layout.view-chatlabs .chatlabs-message-row.is-continuation {{
-      margin-top: -1px;
-    }}
-    .layout.view-chatlabs .chatlabs-message-row.is-self {{
-      justify-content: flex-end;
-    }}
-    .layout.view-chatlabs .chatlabs-message-main {{
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      max-width: min(88%, 940px);
-      min-width: 0;
-    }}
-    .layout.view-chatlabs .chatlabs-message-row.is-self .chatlabs-message-main {{
-      align-items: flex-end;
-    }}
-    .layout.view-chatlabs .chatlabs-meta {{
-      display: inline-flex;
-      align-items: center;
-      flex-wrap: nowrap;
-      gap: 6px;
-      font-family: "Segoe UI", "Inter", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-      font-size: 0.72rem;
-      line-height: 1.2;
-      color: #9dc7b4;
-      margin-bottom: 1px;
-      max-width: 100%;
-      min-width: 0;
-      white-space: nowrap;
-      overflow: hidden;
-    }}
-    .layout.view-chatlabs .chatlabs-meta.chatlabs-meta-compact {{
-      opacity: 0.9;
-    }}
-    .layout.view-chatlabs .chatlabs-meta-name {{
-      flex: 1 1 auto;
-      min-width: 0;
-      font-size: 0.84rem;
-      font-weight: 700;
-      color: #d7ffe9;
-      letter-spacing: 0;
-      max-width: 30ch;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }}
-    .layout.view-chatlabs .chatlabs-message-row.is-self .chatlabs-meta-name {{
-      color: #d8eeff;
-    }}
-    .layout.view-chatlabs .chatlabs-meta-status {{
-      flex: 0 0 auto;
-      border: 1px solid rgba(113, 163, 139, 0.52);
-      border-radius: 999px;
-      padding: 0 6px;
-      min-height: 16px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.62rem;
-      font-weight: 600;
-      letter-spacing: 0.01em;
-      background: rgba(28, 59, 44, 0.86);
-      color: #bcebd2;
-    }}
-    .layout.view-chatlabs .chatlabs-meta-status.status-online {{
-      border-color: rgba(99, 172, 133, 0.58);
-      background: rgba(21, 61, 40, 0.86);
-      color: #c8f7dc;
-    }}
-    .layout.view-chatlabs .chatlabs-meta-status.status-warn {{
-      border-color: rgba(184, 157, 96, 0.58);
-      background: rgba(71, 58, 27, 0.86);
-      color: #ffe6ae;
-    }}
-    .layout.view-chatlabs .chatlabs-meta-status.status-stale {{
-      border-color: rgba(189, 103, 103, 0.58);
-      background: rgba(74, 33, 33, 0.86);
-      color: #ffd0d0;
-    }}
-    .layout.view-chatlabs .chatlabs-meta-status.status-unknown {{
-      border-color: rgba(114, 132, 122, 0.58);
-      background: rgba(33, 44, 39, 0.86);
-      color: #d6e5dd;
-    }}
-    .layout.view-chatlabs .chatlabs-meta-route {{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid rgba(116, 170, 143, 0.56);
-      border-radius: 999px;
-      padding: 0 6px;
-      min-height: 16px;
-      font-size: 0.62rem;
-      font-weight: 600;
-      letter-spacing: 0.01em;
-      text-transform: uppercase;
-      background: rgba(26, 56, 42, 0.86);
-      color: #bcebd2;
-    }}
-    .layout.view-chatlabs .chatlabs-meta-time {{
-      flex: 0 0 auto;
-      color: #8fb6a5;
-      font-size: 0.67rem;
-      font-weight: 500;
-      opacity: 0.95;
-    }}
-    .layout.view-chatlabs .chatlabs-react-meta {{
-      margin-left: 4px;
-      min-width: 16px;
-      min-height: 16px;
-      height: 16px;
-      padding: 0 4px;
-      border-radius: 999px;
-      border: 1px solid rgba(97, 148, 122, 0.42);
-      background: rgba(20, 42, 32, 0.9);
-      color: #c8f5de;
-      font-size: 0.58rem;
-      line-height: 1;
-      opacity: 0.65;
-    }}
-    .layout.view-chatlabs .chatlabs-message-row:hover .chatlabs-react-meta,
-    .layout.view-chatlabs .chatlabs-message-row:focus-within .chatlabs-react-meta {{
-      opacity: 1;
-    }}
-    .layout.view-chatlabs .chatlabs-message-row.is-continuation .chatlabs-react-meta {{
-      opacity: 0.45;
-    }}
-    .layout.view-chatlabs .chatlabs-react-meta:hover {{
-      border-color: rgba(146, 210, 175, 0.6);
-      background: rgba(32, 67, 50, 0.95);
-      color: #f5fffb;
-    }}
-    .layout.view-chatlabs .chatlabs-react-meta.has-reactions {{
-      border-color: rgba(168, 146, 92, 0.58);
-      background: rgba(59, 46, 19, 0.86);
-      color: #ffe5a9;
-      opacity: 0.9;
-    }}
-    .layout.view-chatlabs .chatlabs-react-meta.has-reactions:hover {{
-      border-color: rgba(214, 180, 103, 0.72);
-      background: rgba(80, 62, 25, 0.92);
-      color: #ffefc8;
-    }}
-    .layout.view-chatlabs .chatlabs-bubble {{
-      display: inline-block;
-      font-family: "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
-      letter-spacing: 0 !important;
-      word-spacing: normal !important;
-      font-kerning: normal;
-      font-variant-ligatures: normal;
-      font-feature-settings: normal;
-      font-variant-numeric: normal;
-      text-align: left;
-      color: #ddfff0;
-      font-size: 0.86rem;
-      line-height: 1.28;
-      white-space: normal !important;
-      word-break: break-word;
-      border: 1px solid rgba(62, 130, 97, 0.48);
-      border-radius: 14px 14px 14px 6px;
-      background: linear-gradient(180deg, rgba(15, 44, 33, 0.94), rgba(10, 28, 22, 0.94));
-      padding: 5px 9px;
-      box-shadow: inset 0 0 0 1px rgba(104, 184, 146, 0.12), 0 1px 5px rgba(0, 0, 0, 0.2);
-    }}
-    .layout.view-chatlabs .chatlabs-message-row.is-self .chatlabs-bubble {{
-      border-color: rgba(86, 154, 199, 0.5);
-      border-radius: 14px 14px 6px 14px;
-      background: linear-gradient(180deg, rgba(30, 58, 83, 0.92), rgba(21, 43, 62, 0.92));
-      box-shadow: inset 0 0 0 1px rgba(132, 186, 225, 0.16), 0 3px 10px rgba(0, 0, 0, 0.22);
-    }}
-    .layout.view-chatlabs .chatlabs-bubble.is-reaction {{
-      border-color: rgba(181, 150, 84, 0.5);
-      color: #ffeab7;
-      background: linear-gradient(180deg, rgba(59, 46, 21, 0.9), rgba(38, 30, 14, 0.9));
-    }}
-    .layout.view-chatlabs .chatlabs-bubble.is-emoji-only {{
-      display: inline-flex;
-      align-items: center;
-      min-width: 0;
-      font-size: 1.8rem;
-      line-height: 1.25;
-      padding: 8px 12px;
-      letter-spacing: 0.01em;
-    }}
-    .layout.view-chatlabs .chatlabs-bubble .chatlabs-bubble-text {{
-      display: block;
-      text-align: left !important;
-      text-justify: auto !important;
-      white-space: normal !important;
-      letter-spacing: 0 !important;
-      word-spacing: normal !important;
-      font-family: "Helvetica Neue", Arial, "Noto Sans", sans-serif !important;
-      unicode-bidi: plaintext;
-    }}
-    .layout.view-chatlabs .chatlabs-inline-header {{
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      max-width: 100%;
-      min-width: 0;
-      white-space: nowrap;
-      vertical-align: baseline;
-    }}
-    .layout.view-chatlabs .chatlabs-inline-name {{
-      display: inline-block;
-      max-width: 30ch;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-weight: 700;
-      color: #d7ffe9;
-      letter-spacing: 0;
-    }}
-    .layout.view-chatlabs .chatlabs-message-row.is-self .chatlabs-inline-name {{
-      color: #d8eeff;
-    }}
-    .layout.view-chatlabs .chatlabs-inline-time {{
-      color: #8fb6a5;
-      font-size: 0.67rem;
-      font-weight: 500;
-      opacity: 0.95;
-      white-space: nowrap;
-    }}
-    .layout.view-chatlabs .chatlabs-inline-sep {{
-      color: #9bc3b2;
-      opacity: 0.88;
-      padding: 0 2px 0 1px;
-      font-weight: 600;
-    }}
-    .layout.view-chatlabs .chatlabs-inline-body {{
-      display: inline;
-    }}
-    .layout.view-chatlabs .chatlabs-bubble a {{
-      color: #9edcff;
-      text-decoration-color: rgba(158, 220, 255, 0.4);
-    }}
-    .layout.view-chatlabs .chatlabs-message-tools {{
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      min-height: 0;
-      margin-top: 0;
-    }}
-    .layout.view-chatlabs .chatlabs-message-row.is-self .chatlabs-message-tools {{
-      justify-content: flex-end;
-    }}
-    .layout.view-chatlabs .chatlabs-message-tools .chat-reaction-summary {{
-      border-color: rgba(106, 160, 132, 0.44);
-      background: rgba(20, 46, 34, 0.9);
-      color: #d2ffea;
-    }}
-    .layout.view-chatlabs .chatlabs-message-tools .chat-reaction-summary:hover {{
-      border-color: rgba(139, 204, 171, 0.54);
-      background: rgba(29, 61, 46, 0.95);
-    }}
-    .layout.view-chatlabs .chatlabs-empty {{
-      color: #7ea994;
-      font-size: 0.82rem;
-      padding: 6px 2px;
-    }}
-    .layout.view-chatlabs .chatlabs-line {{
-      color: #d8fbe9;
-      font-size: 0.82rem;
-      line-height: 1.45;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }}
-    .workspace-main > .layout.view-chat,
+   }}
+   .workspace-main > .layout.view-chat,
     .workspace-main > .layout.view-console,
     .workspace-main > .layout.view-settings {{
       grid-row: 1 / -1;
@@ -2509,16 +1108,16 @@
     }}
     .workspace-shell[data-layout-view="chat"] .chat-users-head-launcher-shell .topbar-view-menu-btn:hover,
     .workspace-shell[data-layout-view="chat"] .chat-users-head-launcher-shell .topbar-view-menu-btn[aria-expanded="true"] {{
-      border-color: color-mix(in srgb, var(--line) 74%, var(--accent));
+      border-color: color-mix(in srgb, var(--ui-border) 74%, var(--ui-accent));
       background:
         linear-gradient(
           180deg,
-          color-mix(in srgb, var(--panel) 94%, var(--accent) 6%),
-          color-mix(in srgb, var(--panel) 84%, var(--accent) 16%)
+          color-mix(in srgb, var(--ui-panel) 94%, var(--ui-accent) 6%),
+          color-mix(in srgb, var(--ui-panel) 84%, var(--ui-accent) 16%)
         );
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.4),
-        0 8px 18px color-mix(in srgb, var(--accent-2) 14%, transparent);
+        0 8px 18px color-mix(in srgb, var(--ui-accent-soft) 14%, transparent);
     }}
     .workspace-shell[data-layout-view="chat"] .chat-users-head-action-btn {{
       min-width: 28px;
@@ -2703,477 +1302,12 @@
     .layout.view-chat .map-data,
     .layout.view-chat .summary,
     .layout.view-chat .nodes,
-    .layout.view-chat .bots,
-    .layout.view-chat .packets,
-    .layout.view-chat .raw,
     .layout.view-chat .console,
     .layout.view-chat .splitter,
     .layout.view-chat .hsplitter {{
       display: none !important;
     }}
 
-    .layout.view-macros {{
-      height: 100%;
-      min-height: 0;
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-macros .chat {{
-      grid-row: 1;
-      min-height: 0;
-    }}
-    .layout.view-macros .map,
-    .layout.view-macros .map-data,
-    .layout.view-macros .summary,
-    .layout.view-macros .nodes,
-    .layout.view-macros .bots,
-    .layout.view-macros .packets,
-    .layout.view-macros .raw,
-    .layout.view-macros .console,
-    .layout.view-macros .splitter,
-    .layout.view-macros .hsplitter {{
-      display: none !important;
-    }}
-    .layout.view-macros .card.chat {{
-      background: #191c22 !important;
-      border-color: #3a3f48 !important;
-      box-shadow: none !important;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      overflow: hidden;
-    }}
-    .layout.view-macros .card.chat .chat-card-head {{
-      display: none !important;
-    }}
-    .layout.view-macros .card.chat .body {{
-      display: grid;
-      grid-template-columns: minmax(360px, var(--macros-panel-width, 460px)) 12px minmax(280px, 1fr);
-      align-items: stretch;
-      justify-content: stretch;
-      padding: 6px;
-      background: #191c22 !important;
-      column-gap: 0;
-      row-gap: 0;
-      min-height: 0;
-      flex: 1 1 auto;
-      overflow: hidden;
-    }}
-    .macros-panel-splitter {{
-      display: none;
-    }}
-    .macros-right-pane {{
-      display: none;
-    }}
-    .layout.view-macros .card.chat .chat-shell {{
-      position: relative;
-      width: auto;
-      min-width: 0;
-      max-width: none;
-      height: auto;
-      min-height: 0;
-      border: 1px solid #444;
-      border-radius: 8px;
-      background: #222 !important;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      box-sizing: border-box;
-    }}
-    .layout.view-macros .card.chat .macros-panel-splitter {{
-      display: block;
-      position: relative;
-      width: 12px;
-      min-width: 12px;
-      max-width: 12px;
-      height: auto;
-      min-height: 0;
-      align-self: stretch;
-      cursor: col-resize;
-      touch-action: none;
-      user-select: none;
-      z-index: 2;
-    }}
-    .layout.view-macros .card.chat .macros-panel-splitter::before {{
-      content: "";
-      position: absolute;
-      left: 5px;
-      top: 0;
-      bottom: 0;
-      width: 2px;
-      background: #596276;
-      border-radius: 1px;
-      opacity: 0.9;
-    }}
-    .layout.view-macros .card.chat .macros-panel-splitter::after {{
-      content: "";
-      position: absolute;
-      left: 1px;
-      top: 50%;
-      width: 9px;
-      height: 56px;
-      transform: translateY(-50%);
-      border-radius: 999px;
-      border: 1px solid #6e778b;
-      background: rgba(118, 130, 152, 0.26);
-      box-shadow: inset 0 0 0 1px rgba(11, 16, 24, 0.22);
-    }}
-    .layout.view-macros .card.chat .macros-panel-splitter:hover::before,
-    .layout.view-macros .card.chat .macros-panel-splitter.active::before {{
-      background: #4ab0ff;
-      opacity: 1;
-    }}
-    .layout.view-macros .card.chat .macros-panel-splitter:hover::after,
-    .layout.view-macros .card.chat .macros-panel-splitter.active::after {{
-      border-color: #4ab0ff;
-      background: rgba(74, 176, 255, 0.28);
-    }}
-    .layout.view-macros .card.chat .macros-right-pane {{
-      display: block;
-      min-width: 0;
-      min-height: 0;
-      height: auto;
-      border: 1px solid #343a46;
-      border-radius: 8px;
-      background: linear-gradient(180deg, #1a1f28, #141a24);
-      overflow: hidden;
-      box-sizing: border-box;
-    }}
-    .layout.view-macros .card.chat .macros-right-pane-inner {{
-      height: 100%;
-      min-height: 0;
-      padding: 14px;
-      color: #90a4c0;
-      font-size: 12px;
-      line-height: 1.45;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      overflow: auto;
-    }}
-    .layout.view-macros .card.chat .macros-right-pane-inner h3 {{
-      margin: 0 0 6px;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-      color: #d7e2f3;
-    }}
-    .layout.view-macros .card.chat .macros-right-pane-inner p {{
-      margin: 0;
-      color: #8ea2bc;
-    }}
-    .layout.view-macros .card.chat .macros-studio-head {{
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }}
-    .layout.view-macros .card.chat .macros-studio-head p {{
-      font-size: 11px;
-      line-height: 1.35;
-      color: #8ea2bc;
-    }}
-    .layout.view-macros .card.chat .macros-left-view-toggle {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-    }}
-    .layout.view-macros .card.chat .macros-left-view-toggle .btn {{
-      min-height: 26px;
-      padding: 4px 10px;
-      font-size: 11px;
-      line-height: 1.1;
-    }}
-    .layout.view-macros .card.chat .macros-left-view-toggle .btn.is-active {{
-      border-color: #4ab0ff;
-      color: #dff1ff;
-      box-shadow: inset 0 0 0 1px rgba(74, 176, 255, 0.35);
-      background: linear-gradient(180deg, rgba(27, 52, 79, 0.9), rgba(18, 35, 56, 0.9));
-    }}
-    .layout.view-macros .card.chat .macros-send-strip {{
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }}
-    .layout.view-macros .card.chat .macros-send-primary {{
-      border-color: #8c2b2b !important;
-      background: linear-gradient(180deg, #5d1b1b, #451414) !important;
-      color: #ffdcdc !important;
-      font-weight: 700;
-      letter-spacing: 0.2px;
-      box-shadow: inset 0 0 0 1px rgba(255, 147, 147, 0.25);
-    }}
-    .layout.view-macros .card.chat .macros-send-primary:hover {{
-      background: linear-gradient(180deg, #702121, #531919) !important;
-    }}
-    .layout.view-macros .card.chat .macros-send-strip-note {{
-      font-size: 10px;
-      line-height: 1.25;
-      color: #f0a7ad;
-      max-width: 360px;
-    }}
-    .layout.view-macros .card.chat .macros-studio-grid {{
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: 8px;
-      min-height: 0;
-      flex: 0 0 auto;
-    }}
-    .layout.view-macros .card.chat .macros-tool-card,
-    .layout.view-macros .card.chat .macros-output-card {{
-      border: 1px solid #3a4250;
-      border-radius: 8px;
-      background: linear-gradient(180deg, rgba(24, 31, 43, 0.98), rgba(18, 25, 36, 0.98));
-      padding: 9px;
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-      min-height: 0;
-    }}
-    .layout.view-macros .card.chat .macros-tool-card h4,
-    .layout.view-macros .card.chat .macros-output-card h4 {{
-      margin: 0;
-      font-size: 11px;
-      line-height: 1.2;
-      letter-spacing: 0.25px;
-      text-transform: uppercase;
-      color: #d3dfef;
-      font-weight: 700;
-    }}
-    .layout.view-macros .card.chat .macros-tool-row {{
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 7px;
-      align-items: end;
-    }}
-    .layout.view-macros .card.chat .macros-tool-field {{
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 0;
-      font-size: 10px;
-      color: #9eb0c8;
-      text-transform: uppercase;
-      letter-spacing: 0.18px;
-    }}
-    .layout.view-macros .card.chat .macros-tool-field input,
-    .layout.view-macros .card.chat .macros-tool-field select {{
-      width: 100%;
-      min-width: 0;
-      border: 1px solid #4b5668;
-      border-radius: 6px;
-      background: #121923;
-      color: #deebff;
-      padding: 5px 7px;
-      font-size: 11px;
-      line-height: 1.2;
-      box-sizing: border-box;
-    }}
-    .layout.view-macros .card.chat .macros-tool-field input[type="file"] {{
-      padding: 4px 6px;
-      font-size: 10px;
-      color: #9eb6d7;
-    }}
-    .layout.view-macros .card.chat .macros-tool-check {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: #a9bad1;
-    }}
-    .layout.view-macros .card.chat .macros-tool-check input {{
-      margin: 0;
-    }}
-    .layout.view-macros .card.chat .macros-tool-actions {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-    }}
-    .layout.view-macros .card.chat .macros-mini-meta {{
-      font-size: 10px;
-      color: #8ea4c2;
-      line-height: 1.25;
-    }}
-    .layout.view-macros .card.chat .macros-output-card {{
-      flex: 1 1 auto;
-      overflow: hidden;
-    }}
-    .layout.view-macros .card.chat .macros-output-head {{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }}
-    .layout.view-macros .card.chat .macros-ascii-output {{
-      width: 100%;
-      flex: 1 1 auto;
-      min-height: 120px;
-      border: 1px solid #4b5668;
-      border-radius: 6px;
-      background: #0f1620;
-      color: #e8f1ff;
-      padding: 8px;
-      font: 11px/1.2 ui-monospace, Menlo, Consolas, monospace;
-      resize: vertical;
-      box-sizing: border-box;
-      white-space: pre;
-      overflow: auto;
-    }}
-    .layout.view-macros .card.chat .macros-output-actions {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-    }}
-    .layout.view-macros .card.chat .macros-status {{
-      min-height: 14px;
-      font-size: 10px;
-      line-height: 1.25;
-      color: #9eb2cf;
-      word-break: break-word;
-    }}
-    .layout.view-macros .card.chat .macros-status.is-error {{
-      color: #f39ca4;
-    }}
-    .layout.view-macros .card.chat .chat-shell::before {{
-      content: "Log";
-      position: absolute;
-      top: 0;
-      left: 25%;
-      transform: translateX(-50%);
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #ddd;
-      font-size: 12px;
-      line-height: 1;
-      pointer-events: none;
-      z-index: 2;
-    }}
-    .layout.view-macros .card.chat .chat-shell::after {{
-      content: "MediumFast";
-      position: absolute;
-      top: 0;
-      left: 62%;
-      transform: translateX(-50%);
-      height: 24px;
-      display: inline-flex;
-      align-items: center;
-      color: #2f9cff;
-      font-size: 12px;
-      line-height: 1;
-      pointer-events: none;
-      z-index: 2;
-    }}
-    .layout.view-macros .card.chat .chat-main-pane {{
-      row-gap: 0 !important;
-      height: auto;
-      padding-top: 24px;
-      min-height: 0;
-      overflow: hidden;
-    }}
-    .layout.view-macros .card.chat .chat-compose-shell {{
-      display: none !important;
-    }}
-    .layout.view-macros .card.chat .chat-log-scroll {{
-      background: #222 !important;
-      border: 0 !important;
-      border-top: 1px solid #2f9cff !important;
-      border-radius: 0 !important;
-      box-shadow: none !important;
-      min-height: 0;
-      overflow: auto;
-    }}
-    .layout.view-macros .card.chat .chat-feed {{
-      background: #222 !important;
-      font-family: ui-monospace, Menlo, Consolas, monospace !important;
-      margin-top: 0 !important;
-      padding: 6px !important;
-    }}
-    .layout.view-macros .card.chat .chat-feed-item-monitor-exact {{
-      border: 0 !important;
-      padding: 0 !important;
-      background: transparent !important;
-      box-shadow: none !important;
-      color: #bbb !important;
-    }}
-    .layout.view-macros .card.chat .chat-feed[data-macros-feed-mode="preview"] .chat-feed-item:not(.chat-feed-item-monitor-exact),
-    .layout.view-macros .card.chat .chat-feed[data-macros-feed-mode="preview"] .chat-feed-side,
-    .layout.view-macros .card.chat .chat-feed[data-macros-feed-mode="preview"] .chat-reaction-summary-row,
-    .layout.view-macros .card.chat .chat-feed[data-macros-feed-mode="preview"] .chat-reaction-row,
-    .layout.view-macros .card.chat .chat-feed[data-macros-feed-mode="preview"] .chat-feed-colon,
-    .layout.view-macros .card.chat .chat-feed[data-macros-feed-mode="preview"] .chat-feed-status-pill,
-    .layout.view-macros .card.chat .chat-feed[data-macros-feed-mode="preview"] .chat-feed-new-pill,
-    .layout.view-macros .card.chat .chat-feed[data-macros-feed-mode="preview"] .chat-feed-line,
-    .layout.view-macros .card.chat .chat-feed[data-macros-feed-mode="preview"] .chat-feed-summary {{
-      display: none !important;
-    }}
-    .layout.view-macros .card.chat .chat-feed-item-monitor-exact .chat-entry-msg {{
-      display: block;
-      font-family: ui-monospace, Menlo, Consolas, monospace !important;
-      font-size: 12px !important;
-      line-height: 1.35 !important;
-      color: #bbb !important;
-      white-space: normal !important;
-      overflow-wrap: anywhere !important;
-      margin: 0 !important;
-    }}
-    .layout.view-macros .card.chat .chat-feed-item-macro-preview .chat-entry-msg {{
-      white-space: normal !important;
-      line-height: 1.35 !important;
-    }}
-    .layout.view-macros .card.chat .chat-feed-item-macro-preview .chat-entry-copy {{
-      white-space: pre !important;
-    }}
-    .layout.view-macros .card.chat .chat-monitor-prefix {{
-      color: #bbb !important;
-      font-weight: 700 !important;
-      margin-right: 0 !important;
-    }}
-    .layout.view-macros .card.chat .chat-monitor-network-tag {{
-      color: #bbb !important;
-      margin-right: 2px !important;
-      font-weight: 700 !important;
-    }}
-    .layout.view-macros .card.chat .short-name {{
-      margin-right: 2px !important;
-      padding: 0 2px !important;
-      border-radius: 4px !important;
-    }}
-    .layout.view-macros .card.chat .chat-entry-reply {{
-      color: #999 !important;
-      font-style: italic !important;
-      margin-right: 4px !important;
-    }}
-    .layout.view-macros .card.chat .chat-monitor-text {{
-      color: #bbb !important;
-    }}
-    .layout.view-macros .card.chat .chat-link {{
-      color: #9bd !important;
-    }}
-    @media (max-width: 1100px) {{
-      .layout.view-macros .card.chat .body {{
-        grid-template-columns: minmax(0, 1fr);
-      }}
-      .layout.view-macros .card.chat .chat-shell {{
-        width: auto;
-        max-width: none;
-        min-width: 0;
-        height: auto;
-      }}
-      .layout.view-macros .card.chat .macros-panel-splitter,
-      .layout.view-macros .card.chat .macros-right-pane {{
-        display: none !important;
-      }}
-      .layout.view-macros .card.chat .chat-shell::before {{
-        left: 24%;
-      }}
-      .layout.view-macros .card.chat .chat-shell::after {{
-        left: 62%;
-      }}
-    }}
 
     .layout.view-files {{
       height: 100%;
@@ -3205,17 +1339,10 @@
     }}
     .layout.view-files .chat,
     .layout.view-files .settings,
-    .layout.view-files .bots,
     .layout.view-files .games,
     .layout.view-files .nodes,
     .layout.view-files .map,
     .layout.view-files .map-data,
-    .layout.view-files .favorites,
-    .layout.view-files .history-chat,
-    .layout.view-files .channels-view,
-    .layout.view-files .packets,
-    .layout.view-files .encription,
-    .layout.view-files .raw,
     .layout.view-files .console,
     .layout.view-files .summary,
     .layout.view-files .splitter,
@@ -3232,7 +1359,7 @@
       --network-pane-divider-bg: transparent;
       --network-pane-divider-border: var(--surface-tint-border);
       --network-pane-divider-line: var(--surface-tint-divider-line, var(--surface-tint-border-strong));
-      --network-pane-divider-line-active: var(--accent);
+      --network-pane-divider-line-active: var(--ui-accent);
       height: var(--layout-available-height, 100%);
       max-height: 100%;
       min-height: 0;
@@ -3444,9 +1571,6 @@
     }}
     .layout.view-network .map-data,
     .layout.view-network .chat,
-    .layout.view-network .bots,
-    .layout.view-network .packets,
-    .layout.view-network .raw,
     .layout.view-network .console,
     .layout.view-network .hsplitter[data-target="top"],
     .layout.view-network .hsplitter[data-target="mid"],
@@ -3464,222 +1588,6 @@
       background: var(--network-pane-divider-line-active);
     }}
 
-    .layout.view-history {{
-      --history-pane-head-bg: var(--surface-tint-vignette), var(--surface-tint-bg-alt);
-      --history-pane-body-bg: var(--surface-tint-vignette), var(--surface-tint-bg);
-      --history-pane-head-border: var(--surface-tint-border);
-      --history-pane-divider-bg: var(--surface-tint-divider-bg);
-      --history-pane-divider-border: var(--surface-tint-border);
-      --history-pane-divider-line: var(--surface-tint-divider-line, var(--surface-tint-border-strong));
-      --history-pane-divider-line-active: var(--accent);
-      height: 100%;
-      max-height: 100%;
-      min-height: 0;
-      grid-template-columns: minmax(320px, var(--split-left-pct)) var(--splitter-size) minmax(320px, 1fr);
-      grid-template-rows: auto minmax(0, 1fr);
-      overflow: hidden;
-    }}
-    .layout.view-history .summary {{
-      display: block;
-      grid-column: 1 / span 3;
-      grid-row: 1;
-    }}
-    .layout.view-history .map-data {{
-      grid-column: 1;
-      grid-row: 2;
-      min-height: 0;
-      border-color: var(--history-pane-head-border);
-    }}
-    .layout.view-history .map-data > h2 {{
-      border-bottom-color: var(--history-pane-head-border);
-      background: var(--history-pane-head-bg);
-    }}
-    .layout.view-history .map-data .body {{
-      min-height: 0;
-      background: var(--history-pane-body-bg);
-      overflow-y: auto;
-      overflow-x: hidden;
-    }}
-    .layout.view-history .history-activity-splitter {{
-      display: block;
-    }}
-    .layout.view-history .history-activity-main-scroll {{
-      flex: 0 0 var(--history-activity-top-pct);
-    }}
-    .layout.view-history .history-chat-splitter {{
-      display: none;
-    }}
-    .layout.view-history .history-chat-main-scroll {{
-      flex: 0 0 auto;
-      overflow: visible;
-    }}
-    .layout.view-history .history-notification-section {{
-      flex: 0 0 auto;
-      min-height: 0;
-    }}
-    .layout.view-history .history-chat {{
-      display: flex;
-      grid-column: 3;
-      grid-row: 2;
-      min-height: 0;
-      max-height: 100%;
-      overflow: hidden;
-      border-color: var(--history-pane-head-border);
-    }}
-    .layout.view-history .history-chat > h2 {{
-      border-bottom-color: var(--history-pane-head-border);
-      background: var(--history-pane-head-bg);
-    }}
-    .layout.view-history .history-chat .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      background: var(--history-pane-body-bg);
-      overflow: hidden;
-    }}
-    .layout.view-history .history-chat-stack {{
-      overflow-y: auto;
-      overflow-x: hidden;
-      padding-right: 2px;
-    }}
-    .layout.view-history .history-notification-list {{
-      overflow: visible;
-      padding-right: 0;
-    }}
-    .layout.view-history .splitter {{
-      display: block;
-      grid-row: 2;
-      border-color: var(--history-pane-divider-border);
-      background: var(--history-pane-divider-bg);
-    }}
-    .layout.view-history .splitter::before {{
-      background: var(--history-pane-divider-line);
-    }}
-    .layout.view-history .splitter:hover::before,
-    .layout.view-history .splitter.active::before {{
-      background: var(--history-pane-divider-line-active);
-    }}
-    .layout.view-history .chat,
-    .layout.view-history .bots,
-    .layout.view-history .settings,
-    .layout.view-history .nodes,
-    .layout.view-history .map,
-    .layout.view-history .favorites,
-    .layout.view-history .packets,
-    .layout.view-history .raw,
-    .layout.view-history .console,
-    .layout.view-history .hsplitter[data-target="top"],
-    .layout.view-history .hsplitter[data-target="mid"],
-    .layout.view-history .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
-    .layout.view-packets {{
-      height: 100%;
-      min-height: 0;
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-packets .packets {{
-      grid-column: 1 / span 3;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .layout.view-packets .packets .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .layout.view-packets .packets .body.scroll {{
-      max-height: none;
-      height: 100%;
-    }}
-    .layout.view-packets .chat,
-    .layout.view-packets .bots,
-    .layout.view-packets .nodes,
-    .layout.view-packets .map,
-    .layout.view-packets .map-data,
-    .layout.view-packets .summary,
-    .layout.view-packets .raw,
-    .layout.view-packets .console,
-    .layout.view-packets .splitter,
-    .layout.view-packets .hsplitter[data-target="top"],
-    .layout.view-packets .hsplitter[data-target="mid"],
-    .layout.view-packets .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
-    .layout.view-channels {{
-      height: 100%;
-      min-height: 0;
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-channels .channels-view {{
-      grid-column: 1 / span 3;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      min-height: 0;
-    }}
-    .layout.view-channels .channels-view .body {{
-      flex: 1 1 auto;
-      height: 100%;
-      min-height: 0;
-    }}
-    .layout.view-channels .channels-dashboard-grid {{
-      flex: 1 1 auto;
-      height: 100%;
-      min-height: 0;
-    }}
-    .layout.view-channels .channels-dashboard-panel-activity {{
-      height: 100%;
-      min-height: 0;
-    }}
-    .layout.view-channels .channels-activity-table-wrap {{
-      flex: 1 1 auto;
-      height: 100%;
-      min-height: 0;
-    }}
-    .layout.view-channels .chat,
-    .layout.view-channels .bots,
-    .layout.view-channels .nodes,
-    .layout.view-channels .map,
-    .layout.view-channels .map-data,
-    .layout.view-channels .summary,
-    .layout.view-channels .favorites,
-    .layout.view-channels .packets,
-    .layout.view-channels .encription,
-    .layout.view-channels .raw,
-    .layout.view-channels .console,
-    .layout.view-channels .splitter,
-    .layout.view-channels .hsplitter[data-target="top"],
-    .layout.view-channels .hsplitter[data-target="mid"],
-    .layout.view-channels .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
-    .layout.view-data {{
-      height: 100%;
-      min-height: 0;
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-data .raw {{
-      grid-column: 1 / span 3;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .layout.view-data .raw .body {{
-      display: block;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-    }}
     .layout.view-console {{
       height: 100%;
       max-height: 100%;
@@ -3729,64 +1637,10 @@
       min-height: 0;
       max-height: none;
     }}
-    .layout.view-data .chat,
-    .layout.view-data .bots,
-    .layout.view-data .nodes,
-    .layout.view-data .map,
-    .layout.view-data .map-data,
-    .layout.view-data .summary,
-    .layout.view-data .packets,
-    .layout.view-data .console,
-    .layout.view-data .splitter,
-    .layout.view-data .hsplitter[data-target="top"],
-    .layout.view-data .hsplitter[data-target="mid"],
-    .layout.view-data .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
-    .layout.view-environment {{
-      height: 100%;
-      min-height: 0;
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-environment .environment {{
-      grid-column: 1 / span 3;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .layout.view-environment .environment .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-    }}
-    .layout.view-environment .chat,
-    .layout.view-environment .bots,
-    .layout.view-environment .nodes,
-    .layout.view-environment .map,
-    .layout.view-environment .map-data,
-    .layout.view-environment .summary,
-    .layout.view-environment .packets,
-    .layout.view-environment .encription,
-    .layout.view-environment .raw,
-    .layout.view-environment .console,
-    .layout.view-environment .splitter,
-    .layout.view-environment .hsplitter[data-target="top"],
-    .layout.view-environment .hsplitter[data-target="mid"],
-    .layout.view-environment .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
     .layout.view-console .chat,
-    .layout.view-console .bots,
     .layout.view-console .nodes,
     .layout.view-console .map,
     .layout.view-console .map-data,
-    .layout.view-console .packets,
-    .layout.view-console .raw,
     .layout.view-console .splitter,
     .layout.view-console .hsplitter[data-target="top"],
     .layout.view-console .hsplitter[data-target="mid"],
@@ -3847,13 +1701,9 @@
       flex: 0 0 auto;
     }}
     .layout.view-settings .chat,
-    .layout.view-settings .bots,
     .layout.view-settings .nodes,
     .layout.view-settings .map,
     .layout.view-settings .map-data,
-    .layout.view-settings .favorites,
-    .layout.view-settings .packets,
-    .layout.view-settings .raw,
     .layout.view-settings .splitter,
     .layout.view-settings .hsplitter[data-target="top"],
     .layout.view-settings .hsplitter[data-target="mid"],
@@ -3861,58 +1711,6 @@
       display: none !important;
     }}
     .layout.view-settings .console {{
-      display: none !important;
-    }}
-
-    .layout.view-bots {{
-      height: 100%;
-      min-height: 0;
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-bots .bots {{
-      grid-column: 1;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      height: 100%;
-      max-height: 100%;
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-      overflow: hidden;
-    }}
-    .layout.view-bots .bots .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: hidden;
-      background: transparent;
-      padding: 0;
-    }}
-    .layout.view-bots .chat,
-    .layout.view-bots .files,
-    .layout.view-bots .bbs,
-    .layout.view-bots .settings,
-    .layout.view-bots .games,
-    .layout.view-bots .nodes,
-    .layout.view-bots .map,
-    .layout.view-bots .map-data,
-    .layout.view-bots .favorites,
-    .layout.view-bots .history-chat,
-    .layout.view-bots .channels-view,
-    .layout.view-bots .packets,
-    .layout.view-bots .encription,
-    .layout.view-bots .raw,
-    .layout.view-bots .console,
-    .layout.view-bots .remote,
-    .layout.view-bots .summary,
-    .layout.view-bots .splitter,
-    .layout.view-bots .hsplitter[data-target="top"],
-    .layout.view-bots .hsplitter[data-target="mid"],
-    .layout.view-bots .hsplitter[data-target="low"] {{
       display: none !important;
     }}
 
@@ -3943,16 +1741,9 @@
     }}
     .layout.view-games .chat,
     .layout.view-games .settings,
-    .layout.view-games .bots,
     .layout.view-games .nodes,
     .layout.view-games .map,
     .layout.view-games .map-data,
-    .layout.view-games .favorites,
-    .layout.view-games .history-chat,
-    .layout.view-games .channels-view,
-    .layout.view-games .packets,
-    .layout.view-games .encription,
-    .layout.view-games .raw,
     .layout.view-games .console,
     .layout.view-games .summary,
     .layout.view-games .splitter,
@@ -3962,337 +1753,6 @@
       display: none !important;
     }}
 
-    .layout.view-bbs {{
-      height: 100%;
-      min-height: 0;
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-bbs .bbs {{
-      grid-column: 1;
-      grid-row: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      height: 100%;
-      max-height: 100%;
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-      overflow: hidden;
-    }}
-    .layout.view-bbs .bbs .body {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: hidden;
-      background: transparent;
-      padding: 0;
-    }}
-    .layout.view-bbs .chat,
-    .layout.view-bbs .files,
-    .layout.view-bbs .settings,
-    .layout.view-bbs .bots,
-    .layout.view-bbs .games,
-    .layout.view-bbs .nodes,
-    .layout.view-bbs .map,
-    .layout.view-bbs .map-data,
-    .layout.view-bbs .favorites,
-    .layout.view-bbs .history-chat,
-    .layout.view-bbs .channels-view,
-    .layout.view-bbs .packets,
-    .layout.view-bbs .encription,
-    .layout.view-bbs .raw,
-    .layout.view-bbs .console,
-    .layout.view-bbs .summary,
-    .layout.view-bbs .splitter,
-    .layout.view-bbs .hsplitter[data-target="top"],
-    .layout.view-bbs .hsplitter[data-target="mid"],
-    .layout.view-bbs .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
-    .layout.view-remote {{
-      height: 100%;
-      min-height: 0;
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr);
-    }}
-    .layout.view-remote .remote {{
-      grid-column: 1;
-      grid-row: 1;
-      display: flex;
-      min-height: 0;
-      max-height: 100%;
-    }}
-    .layout.view-remote .remote .body {{
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      overflow: hidden;
-    }}
-    .layout.view-remote .chat,
-    .layout.view-remote .files,
-    .layout.view-remote .settings,
-    .layout.view-remote .bots,
-    .layout.view-remote .games,
-    .layout.view-remote .nodes,
-    .layout.view-remote .map,
-    .layout.view-remote .map-data,
-    .layout.view-remote .favorites,
-    .layout.view-remote .history-chat,
-    .layout.view-remote .channels-view,
-    .layout.view-remote .packets,
-    .layout.view-remote .encription,
-    .layout.view-remote .raw,
-    .layout.view-remote .console,
-    .layout.view-remote .summary,
-    .layout.view-remote .splitter,
-    .layout.view-remote .hsplitter[data-target="top"],
-    .layout.view-remote .hsplitter[data-target="mid"],
-    .layout.view-remote .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-
-    .layout.view-saved {{
-      height: 100%;
-      min-height: 0;
-      grid-template-columns: minmax(350px, var(--split-left-pct)) var(--splitter-size) minmax(320px, 1fr);
-      grid-template-rows: auto minmax(0, 1fr);
-    }}
-    .layout.view-saved .summary {{
-      display: block;
-      grid-column: 1 / span 3;
-      grid-row: 1;
-    }}
-    .layout.view-saved .favorites {{
-      display: none !important;
-    }}
-    .layout.view-saved .map {{
-      --saved-pane-head-bg: var(--surface-tint-vignette), var(--surface-tint-bg-alt);
-      --saved-pane-body-bg: var(--surface-tint-vignette), var(--surface-tint-bg);
-      --saved-pane-head-border: var(--surface-tint-border);
-      --saved-pane-divider-bg: var(--surface-tint-divider-bg);
-      --saved-pane-divider-border: var(--surface-tint-border);
-      --saved-pane-divider-line: var(--surface-tint-divider-line, var(--surface-tint-border-strong));
-      --saved-pane-divider-line-active: var(--accent);
-      display: flex;
-      grid-column: 1 / span 3;
-      grid-row: 2;
-      min-height: 0;
-      border: 0;
-      background: transparent;
-      box-shadow: none;
-      overflow: visible;
-    }}
-    .layout.view-saved .map-card-head {{
-      position: relative;
-      display: grid;
-      grid-template-columns: minmax(320px, var(--saved-node-pane-pct)) var(--splitter-size) minmax(320px, 1fr);
-      align-items: stretch;
-      gap: 8px;
-      border-bottom: 0;
-      background: transparent;
-      padding: 0 10px 0 10px;
-    }}
-    .layout.view-saved .map-card-head::before {{
-      content: none;
-    }}
-    .layout.view-saved .saved-map-splitter-head {{
-      display: block;
-      grid-column: 2;
-      grid-row: 1;
-      min-height: 0;
-      border: 1px solid var(--saved-pane-divider-border);
-      border-bottom: 0;
-      border-radius: 8px 8px 0 0;
-      background: var(--saved-pane-divider-bg);
-      z-index: 2;
-    }}
-    .layout.view-saved .saved-map-splitter-head::before {{
-      top: 8px;
-      bottom: 0;
-      background: var(--saved-pane-divider-line);
-    }}
-    .layout.view-saved .saved-map-splitter-head:hover::before,
-    .layout.view-saved .saved-map-splitter-head.active::before {{
-      background: var(--saved-pane-divider-line-active);
-    }}
-    .layout.view-saved .map-card-head .pane-head-title,
-    .layout.view-saved .map-card-head .pane-head-actions {{
-      min-height: 32px;
-      margin: 0;
-      border: 1px solid var(--saved-pane-head-border);
-      border-bottom: 1px solid var(--saved-pane-head-border);
-      border-radius: 8px 8px 0 0;
-      background: var(--saved-pane-head-bg);
-    }}
-    .layout.view-saved .map-card-head .pane-head-title {{
-      grid-column: 1;
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 8px;
-      padding: 8px 10px 7px 10px;
-    }}
-    .layout.view-saved .map-card-head #map-card-title-text {{
-      order: 2;
-      flex: 1 1 auto;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }}
-    .layout.view-saved .map-card-head .map-title-favorite-btn {{
-      order: 1;
-      margin-left: 0;
-      margin-right: 2px;
-      transform: none;
-    }}
-    .layout.view-saved .map-card-head .pane-head-actions {{
-      grid-column: 3;
-      display: inline-flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 8px;
-      flex-wrap: wrap;
-      padding: 6px 8px;
-    }}
-    .layout.view-saved .map .body {{
-      padding: 0 10px 8px 10px;
-      min-height: 0;
-      display: grid;
-      grid-template-columns: minmax(320px, var(--saved-node-pane-pct)) var(--splitter-size) minmax(320px, 1fr);
-      gap: 8px;
-    }}
-    .layout.view-saved .map-frame {{
-      display: block;
-      grid-column: 3;
-      grid-row: 1;
-      order: 0;
-      flex: 0 0 auto;
-      min-height: 260px;
-      border-color: var(--saved-pane-head-border);
-      border-top: 0;
-      border-radius: 0 0 8px 8px;
-    }}
-    .layout.view-saved .saved-node-pane {{
-      display: flex;
-      grid-column: 1;
-      grid-row: 1;
-      order: 0;
-      flex: 0 0 auto;
-      min-height: 0;
-      gap: 8px;
-      padding: 8px 10px;
-      border: 1px solid var(--saved-pane-head-border);
-      border-top: 0;
-      border-radius: 0 0 8px 8px;
-      background: var(--saved-pane-body-bg);
-    }}
-    .layout.view-saved .saved-node-search-wrap {{
-      display: block;
-      padding: 0;
-    }}
-    .layout.view-saved .saved-node-details {{
-      display: flex;
-      flex: 1 1 auto;
-      min-height: 0;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      padding: 0;
-    }}
-    .layout.view-saved .saved-map-splitter {{
-      display: block;
-      grid-column: 2;
-      grid-row: 1;
-      min-height: 0;
-      border-color: var(--saved-pane-divider-border);
-      background: var(--saved-pane-divider-bg);
-      border-top: 0;
-      border-radius: 0 0 8px 8px;
-    }}
-    .layout.view-saved .saved-map-splitter::before {{
-      background: var(--saved-pane-divider-line);
-      top: 0;
-      bottom: 8px;
-    }}
-    .layout.view-saved .saved-map-splitter:hover::before,
-    .layout.view-saved .saved-map-splitter.active::before {{
-      background: var(--saved-pane-divider-line-active);
-    }}
-    .layout.view-saved .saved-node-stack {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 0;
-    }}
-    .layout.view-saved .saved-node-main-scroll {{
-      flex: 0 0 var(--saved-node-main-pct);
-      min-height: 0;
-      overflow: auto;
-    }}
-    .layout.view-saved .saved-node-history-splitter {{
-      display: block;
-    }}
-    .layout.view-saved .saved-node-history-host {{
-      display: flex;
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .layout.view-saved .saved-node-history-host #map-data-node {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 8px;
-    }}
-    .layout.view-saved .saved-node-history-host #tab-panel-signal,
-    .layout.view-saved .saved-node-history-host #tab-panel-link,
-    .layout.view-saved .saved-node-history-host #tab-panel-online,
-    .layout.view-saved .saved-node-history-host #tab-panel-packets,
-    .layout.view-saved .saved-node-history-host #tab-panel-names,
-    .layout.view-saved .saved-node-history-host #tab-panel-overview {{
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      gap: 8px;
-    }}
-    .layout.view-saved .saved-node-history-host #tab-panel-signal,
-    .layout.view-saved .saved-node-history-host #tab-panel-link,
-    .layout.view-saved .saved-node-history-host #tab-panel-online,
-    .layout.view-saved .saved-node-history-host #tab-panel-packets,
-    .layout.view-saved .saved-node-history-host #tab-panel-names,
-    .layout.view-saved .saved-node-history-host #tab-panel-overview {{
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .layout.view-saved .saved-node-history-host #signal-chart-wrap,
-    .layout.view-saved .saved-node-history-host #node-link-quality-chart-wrap,
-    .layout.view-saved .saved-node-history-host #node-online-chart-wrap,
-    .layout.view-saved .saved-node-history-host #node-packets-chart-wrap {{
-      height: 260px;
-      min-height: 220px;
-    }}
-    .layout.view-saved .map-data,
-    .layout.view-saved .chat,
-    .layout.view-saved .bots,
-    .layout.view-saved .nodes,
-    .layout.view-saved .packets,
-    .layout.view-saved .raw,
-    .layout.view-saved .console,
-    .layout.view-saved .hsplitter[data-target="top"],
-    .layout.view-saved .hsplitter[data-target="mid"],
-    .layout.view-saved .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-    .layout.view-saved .splitter {{
-      display: none !important;
-      grid-row: 1;
-    }}
     table {{
       width: 100%;
       border-collapse: collapse;
@@ -4341,21 +1801,6 @@
     #nodes-table tbody tr.node-selectable:hover {{
       background: var(--surface-tint-bg-soft);
     }}
-    #encription-packets-table tbody tr.node-selectable,
-    #encription-traffic-table tbody tr.node-selectable {{
-      cursor: pointer;
-    }}
-    #encription-packets-table tbody tr.node-selectable:hover,
-    #encription-traffic-table tbody tr.node-selectable:hover {{
-      background: var(--surface-tint-bg-soft);
-    }}
-    #history-chat-table tbody tr.history-node-selectable.selected-node td {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, var(--surface-tint-border-strong) 14%);
-      color: var(--surface-tint-text);
-    }}
-    #history-chat-table tbody tr.history-node-selectable.selected-node td:first-child {{
-      box-shadow: inset 3px 0 0 var(--surface-tint-border-strong);
-    }}
     .node-status-dot {{
       display: inline-block;
       width: 10px;
@@ -4379,15 +1824,6 @@
     #nodes-table tbody tr.selected-node td:first-child {{
       box-shadow: inset 3px 0 0 var(--surface-tint-border-strong);
     }}
-    #encription-packets-table tbody tr.selected-node td,
-    #encription-traffic-table tbody tr.selected-node td {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, var(--surface-tint-border-strong) 14%);
-      color: var(--surface-tint-text);
-    }}
-    #encription-packets-table tbody tr.selected-node td:first-child,
-    #encription-traffic-table tbody tr.selected-node td:first-child {{
-      box-shadow: inset 3px 0 0 var(--surface-tint-border-strong);
-    }}
     .mono {{ font-family: "IBM Plex Mono", "Consolas", "Menlo", monospace; }}
     #nodes-table th:nth-child(10), #nodes-table td:nth-child(10) {{
       text-align: right;
@@ -4396,69 +1832,6 @@
       padding-right: 4px;
       overflow: visible;
       text-overflow: clip;
-    }}
-    #encription-packets-table td:nth-child(7) {{
-      font-family: "IBM Plex Mono", "Consolas", "Menlo", monospace;
-      letter-spacing: 0.01em;
-    }}
-    .history-node-cell {{
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      min-width: 0;
-      line-height: 1.2;
-    }}
-    #history-chat-table td.history-node-clickable {{
-      cursor: pointer;
-    }}
-    #history-chat-table td.history-node-clickable:hover .history-node-primary {{
-      text-decoration: underline;
-      text-underline-offset: 1px;
-    }}
-    .history-node-primary {{
-      color: inherit;
-      font-weight: 600;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-    }}
-    .history-node-secondary {{
-      color: inherit;
-      opacity: 0.74;
-      font-size: 10px;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-    }}
-    .history-message-cell {{
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 0;
-    }}
-    .history-message-pill {{
-      display: inline-flex;
-      align-items: center;
-      align-self: flex-start;
-      border: 1px solid #bdd0dd;
-      background: #eef5f9;
-      color: #35576f;
-      border-radius: 999px;
-      padding: 1px 7px;
-      font-size: 9px;
-      line-height: 1.35;
-      letter-spacing: 0.22px;
-      font-weight: 700;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }}
-    .history-message-pill.history-message-pill-name-change {{
-      border-color: #b8d5c2;
-      background: #edf7ef;
-      color: #2d6143;
-    }}
-    .history-message-body {{
-      min-width: 0;
     }}
     #nodes-table th:nth-child(10) {{
       color: #6a856f;
@@ -4584,7 +1957,7 @@
     }}
     .chat-node-details-splitter:hover::before,
     .chat-node-details-splitter.active::before {{
-      background: var(--accent);
+      background: var(--ui-accent);
     }}
     .chat-left-section.chat-users-section.has-node-details .chat-member-pinned-shell,
     .chat-left-section.chat-users-section.has-node-details .chat-member-list {{
@@ -4648,21 +2021,29 @@
     .chat-node-details-promoted-shell {{
       position: absolute;
       inset: 0;
-      z-index: 28;
+      z-index: 2000;
       display: flex;
       align-items: stretch;
       justify-content: center;
       min-width: 0;
       min-height: 0;
       padding: 8px;
-      background: color-mix(in srgb, #020812 72%, transparent);
+      background: linear-gradient(
+        180deg,
+        var(--theme-background-gradient-start, #eff2f7),
+        var(--theme-background-gradient-end, #eff2f7)
+      );
       box-sizing: border-box;
       pointer-events: none;
+      isolation: isolate;
+      transform: translateZ(0);
     }}
     .chat-node-details-promoted-shell[hidden] {{
       display: none !important;
     }}
     .chat-node-details-promoted-host {{
+      position: relative;
+      z-index: 1;
       pointer-events: auto;
       display: flex;
       flex-direction: column;
@@ -4676,13 +2057,15 @@
       background:
         linear-gradient(
           180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--panel)) 78%, #07121f 22%),
-          color-mix(in srgb, var(--workspace-shell-bg, var(--panel)) 90%, #050b13 10%)
+          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--ui-panel)) 78%, #07121f 22%),
+          color-mix(in srgb, var(--workspace-shell-bg, var(--ui-panel)) 90%, #050b13 10%)
         ),
-        var(--workspace-shell-bg, var(--panel));
+        var(--workspace-shell-bg, var(--ui-panel));
       border-radius: 8px;
+      overflow: hidden;
     }}
     .chat-node-details-promoted-host .chat-node-details-drawer {{
+      position: relative;
       flex: 1 1 auto;
       width: 100%;
       min-height: 0;
@@ -4692,13 +2075,35 @@
       background:
         linear-gradient(
           180deg,
-          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--panel)) 78%, #07121f 22%),
-          color-mix(in srgb, var(--workspace-shell-bg, var(--panel)) 90%, #050b13 10%)
+          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--ui-panel)) 78%, #07121f 22%),
+          color-mix(in srgb, var(--workspace-shell-bg, var(--ui-panel)) 90%, #050b13 10%)
         ),
-        var(--workspace-shell-bg, var(--panel));
+        var(--workspace-shell-bg, var(--ui-panel));
       box-shadow:
         0 18px 48px color-mix(in srgb, var(--shadow-color, #0d1c16) 24%, transparent),
         0 0 0 1px color-mix(in srgb, var(--surface-tint-border-strong) 46%, transparent);
+    }}
+    .chat-node-details-promoted-host .chat-node-details-head {{
+      position: absolute;
+      top: 5px;
+      right: 6px;
+      z-index: 4;
+      display: block;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      overflow: visible;
+    }}
+    .chat-node-details-promoted-host .chat-node-details-head-main,
+    .chat-node-details-promoted-host .chat-node-details-head-actions {{
+      display: none;
+    }}
+    .chat-node-details-promoted-host .chat-node-details-tabs {{
+      padding-right: 38px;
+    }}
+    .chat-node-details-promoted-host .node-details.profiled-node::after,
+    .chat-node-details-promoted-host .node-details.profiled-node .node-details-section:first-child::after {{
+      content: none;
     }}
     .chat-node-details-promoted-host .chat-node-details-content-host,
     .chat-node-details-promoted-host .chat-node-details-location-host,
@@ -4711,9 +2116,9 @@
     .chat-node-details-promoted-host .chat-node-details-tag-host {{
       padding: 9px 10px 10px 10px;
       gap: 8px;
-      background: var(--workspace-shell-bg, var(--panel));
+      background: var(--workspace-shell-bg, var(--ui-panel));
     }}
-    .chat-node-details-promoted-host .chat-node-details-drawer .saved-node-details {{
+    .chat-node-details-promoted-host .chat-node-details-drawer .node-details {{
       padding: 10px;
     }}
     .chat-node-details-promote-btn.active {{
@@ -4983,15 +2388,15 @@
       overflow: auto;
     }}
     .chat-node-details-telemetry-host {{
-      --telemetry-surface-bg: var(--surface-tint-bg-soft, color-mix(in srgb, var(--panel, #ffffff) 84%, var(--bg, var(--surface-tint-bg-soft)) 16%));
-      --telemetry-surface-bg-alt: var(--surface-tint-bg-alt, color-mix(in srgb, var(--panel, #ffffff) 72%, var(--surface-tint-bg-soft) 28%));
-      --telemetry-surface-border: var(--surface-tint-border, color-mix(in srgb, var(--ui-border, var(--surface-tint-border)) 78%, var(--ui-accent, var(--accent)) 22%));
-      --telemetry-surface-border-strong: var(--surface-tint-border-strong, color-mix(in srgb, var(--telemetry-surface-border) 68%, var(--ui-accent, var(--accent)) 32%));
+      --telemetry-surface-bg: var(--surface-tint-bg-soft, color-mix(in srgb, var(--ui-panel, #ffffff) 84%, var(--ui-bg, var(--surface-tint-bg-soft)) 16%));
+      --telemetry-surface-bg-alt: var(--surface-tint-bg-alt, color-mix(in srgb, var(--ui-panel, #ffffff) 72%, var(--surface-tint-bg-soft) 28%));
+      --telemetry-surface-border: var(--surface-tint-border, color-mix(in srgb, var(--ui-border, var(--surface-tint-border)) 78%, var(--ui-accent, var(--ui-accent)) 22%));
+      --telemetry-surface-border-strong: var(--surface-tint-border-strong, color-mix(in srgb, var(--telemetry-surface-border) 68%, var(--ui-accent, var(--ui-accent)) 32%));
       --telemetry-surface-text: var(--surface-tint-text, var(--ui-text, var(--surface-tint-text)));
       --telemetry-surface-text-soft: var(--surface-tint-text-soft, var(--ui-text-soft, var(--surface-tint-text-soft)));
-      --telemetry-success-accent: color-mix(in srgb, var(--ui-accent, var(--accent)) 72%, #7ac99e 28%);
-      --telemetry-running-accent: color-mix(in srgb, var(--ui-accent, var(--accent)) 28%, #5a7fb8 72%);
-      --telemetry-error-accent: color-mix(in srgb, var(--ui-accent, var(--accent)) 24%, #c25656 76%);
+      --telemetry-success-accent: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 72%, #7ac99e 28%);
+      --telemetry-running-accent: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 28%, #5a7fb8 72%);
+      --telemetry-error-accent: color-mix(in srgb, var(--ui-accent, var(--ui-accent)) 24%, #c25656 76%);
     }}
     .chat-node-telemetry-empty {{
       border: 1px dashed var(--telemetry-surface-border);
@@ -5235,7 +2640,7 @@
       padding: 3px 5px;
       word-break: break-word;
     }}
-    .chat-node-details-drawer .saved-node-details {{
+    .chat-node-details-drawer .node-details {{
       display: flex;
       flex: 1 1 auto;
       min-height: 0;
@@ -5245,16 +2650,12 @@
       padding: 8px;
       overflow: hidden;
     }}
-    .chat-node-details-drawer .saved-node-stack {{
+    .chat-node-details-drawer .node-details-stack {{
       flex: 1 1 auto;
       min-height: 0;
     }}
-    .chat-node-details-drawer .saved-node-main-scroll {{
+    .chat-node-details-drawer .node-details-main-scroll {{
       min-height: 0;
-    }}
-    .chat-node-details-drawer .saved-node-history-splitter,
-    .chat-node-details-drawer .saved-node-history-host {{
-      display: none !important;
     }}
     .chat-node-details-history-host #map-data-node {{
       display: flex !important;
@@ -5415,12 +2816,12 @@
     }}
     .chat-member-item.tagged-node {{
       box-shadow:
-        inset 2px 0 0 var(--node-tag-color, var(--accent)),
-        inset 0 0 0 1px color-mix(in srgb, var(--node-tag-color, var(--accent)) 18%, transparent);
+        inset 2px 0 0 var(--node-tag-color, var(--ui-accent)),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-tag-color, var(--ui-accent)) 18%, transparent);
     }}
     .chat-member-item.tagged-node.selected-node {{
       box-shadow:
-        inset 2px 0 0 var(--node-tag-color, var(--accent)),
+        inset 2px 0 0 var(--node-tag-color, var(--ui-accent)),
         inset 0 0 0 1px hsl(var(--chat-member-node-outline-hue) calc(34% * var(--chat-member-node-outline-sat-mult, 1)) calc(63% + var(--chat-member-node-outline-light-shift, 0%)) / 0.26);
     }}
     #chat-room-pinned-shell {{
@@ -5455,7 +2856,7 @@
       font-size: 11px;
       font-weight: 700;
       line-height: 1;
-      color: var(--accent);
+      color: var(--ui-accent);
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -5472,10 +2873,10 @@
       font-weight: 900;
       border: 1.5px solid currentColor;
       border-radius: 3px;
-      background: color-mix(in srgb, var(--chat-member-node-bg, var(--panel)) 88%, transparent);
+      background: color-mix(in srgb, var(--chat-member-node-bg, var(--ui-panel)) 88%, transparent);
       box-sizing: border-box;
       text-shadow:
-        0 0 2px color-mix(in srgb, var(--chat-member-node-bg, var(--panel)) 86%, #000000 14%),
+        0 0 2px color-mix(in srgb, var(--chat-member-node-bg, var(--ui-panel)) 86%, #000000 14%),
         0 0 3px color-mix(in srgb, currentColor 38%, transparent);
       transform: translateY(-0.2px);
     }}
@@ -5502,7 +2903,7 @@
       inset: 0;
       border-radius: 999px;
       border: 1.5px solid currentColor;
-      background: color-mix(in srgb, var(--chat-member-node-bg, var(--panel)) 88%, transparent);
+      background: color-mix(in srgb, var(--chat-member-node-bg, var(--ui-panel)) 88%, transparent);
       box-sizing: border-box;
       opacity: 0.96;
       z-index: 0;
@@ -5606,7 +3007,7 @@
       transition: color 120ms ease, border-color 120ms ease, background 120ms ease, opacity 120ms ease;
     }}
     .favorite-toggle-btn {{
-      --node-tag-color: var(--accent);
+      --node-tag-color: var(--ui-accent);
       --node-tag-vibrance: 0.7;
       padding: 0 4px;
     }}
@@ -5638,7 +3039,7 @@
       height: 8px;
       border-radius: 999px;
       border: 1px solid color-mix(in srgb, var(--surface-tint-text-soft) 36%, transparent);
-      background: var(--node-tag-color, var(--accent));
+      background: var(--node-tag-color, var(--ui-accent));
       filter: saturate(calc(0.4 + (var(--node-tag-vibrance, 0.7) * 1.7)));
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
       display: inline-block;
@@ -5743,12 +3144,6 @@
       color: #8d3a3a;
       opacity: 1;
     }}
-    .favorites-card-star {{
-      min-width: 18px;
-      height: 18px;
-      font-size: 9px;
-      padding: 0 5px;
-    }}
     .node-name-row .favorite-toggle-btn {{
       margin-left: 0;
       justify-self: end;
@@ -5782,11 +3177,11 @@
       display: none;
     }}
     .chat-member-tag-chip {{
-      --node-tag-color: var(--accent);
+      --node-tag-color: var(--ui-accent);
       --node-tag-vibrance: 0.7;
       flex: 0 0 auto;
-      border: 1px solid var(--node-tag-color, var(--accent));
-      color: var(--node-tag-color, var(--accent));
+      border: 1px solid var(--node-tag-color, var(--ui-accent));
+      color: var(--node-tag-color, var(--ui-accent));
       background: color-mix(in srgb, var(--surface-tint-bg-alt) 74%, transparent);
       border-radius: 999px;
       padding: 0 5px;
@@ -6330,59 +3725,6 @@
     .chat-settings-menu .chat-change-scope-select {{
       width: 100%;
     }}
-    .chat-settings-menu .chat-bot-toggle-wrap {{
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 11px;
-      line-height: 1.25;
-      color: #274935;
-      cursor: pointer;
-      user-select: none;
-    }}
-    .chat-settings-menu .chat-bot-toggle-wrap input[type="checkbox"] {{
-      width: 14px;
-      height: 14px;
-      margin: 0;
-      accent-color: var(--accent);
-      cursor: pointer;
-      flex: 0 0 auto;
-    }}
-    .chat-settings-menu .chat-bot-cheatsheet {{
-      border: 1px solid #ccddcf;
-      background: #ffffff;
-      border-radius: 8px;
-      padding: 6px 7px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }}
-    .chat-settings-menu .chat-bot-cheatsheet-title {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
-    }}
-    .chat-settings-menu .chat-bot-cheatsheet-row {{
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 7px;
-      align-items: baseline;
-      font-size: 10px;
-      line-height: 1.25;
-      color: #2f4f3f;
-    }}
-    .chat-settings-menu .chat-bot-cheatsheet-row code {{
-      font-family: "IBM Plex Mono", "Cascadia Mono", "Consolas", monospace;
-      font-size: 10px;
-      color: #1f4e35;
-      background: #edf6ef;
-      border: 1px solid #c9dece;
-      border-radius: 6px;
-      padding: 1px 5px;
-      white-space: nowrap;
-    }}
     .favorite-menu {{
       position: absolute;
       top: calc(100% + 8px);
@@ -6496,7 +3838,7 @@
       gap: 6px;
     }}
     .favorite-menu-tag-chip {{
-      --node-tag-color: var(--accent);
+      --node-tag-color: var(--ui-accent);
       --node-tag-vibrance: 0.7;
       width: 10px;
       height: 10px;
@@ -6512,7 +3854,7 @@
     .favorite-menu-tag-chip.is-tagged {{
       border-style: solid;
       border-color: rgba(62, 104, 81, 0.55);
-      background: var(--node-tag-color, var(--accent));
+      background: var(--node-tag-color, var(--ui-accent));
       filter: saturate(calc(0.4 + (var(--node-tag-vibrance, 0.7) * 1.7)));
     }}
     .favorite-menu-tag-chip.has-emoji {{
@@ -6596,7 +3938,7 @@
       width: 100%;
       min-width: 0;
       margin: 0;
-      accent-color: var(--ui-accent, var(--accent));
+      accent-color: var(--ui-accent, var(--ui-accent));
     }}
     .favorite-menu-tag-vibrance-value {{
       font-size: 10px;
@@ -6694,11 +4036,11 @@
       font-size: 11px;
       line-height: 1.35;
       text-align: center;
-      background: var(--panel);
+      background: var(--ui-panel);
     }}
     .chat-change-item {{
       border: 1px solid #d3e3d6;
-      background: var(--panel);
+      background: var(--ui-panel);
       color: #214836;
       border-radius: 8px;
       padding: 4px 6px;
@@ -6891,7 +4233,7 @@
           rgba(var(--peer-dm-channel-rgb), 0.03) 46%,
           rgba(var(--peer-dm-channel-rgb), 0.01) 100%
         ),
-        var(--panel);
+        var(--ui-panel);
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -7209,9 +4551,9 @@
       --chat-feed-node-outline-dark-light-shift: 4%;
       --chat-feed-node-dark-sat-mult: 0;
       --chat-feed-node-dark-light-shift: 0%;
-      --chat-feed-node-bg: color-mix(in srgb, var(--panel) 94%, var(--bg) 6%);
-      --chat-feed-node-bg-hover: color-mix(in srgb, var(--panel) 84%, var(--bg) 16%);
-      --chat-feed-border-color: color-mix(in srgb, var(--line) 88%, var(--ink) 12%);
+      --chat-feed-node-bg: color-mix(in srgb, var(--ui-panel) 94%, var(--ui-bg) 6%);
+      --chat-feed-node-bg-hover: color-mix(in srgb, var(--ui-panel) 84%, var(--ui-bg) 16%);
+      --chat-feed-border-color: color-mix(in srgb, var(--ui-border) 88%, var(--ui-text) 12%);
       --chat-feed-channel-edge-bg: linear-gradient(90deg, transparent 0, transparent 100%);
       --chat-feed-node-gradient: linear-gradient(90deg, transparent 0, transparent 100%);
       --chat-feed-node-gradient-hover: linear-gradient(90deg, transparent 0, transparent 100%);
@@ -7231,7 +4573,7 @@
       background: var(--chat-feed-channel-edge-bg), var(--chat-feed-node-gradient), var(--chat-feed-node-bg);
       background-origin: border-box;
       background-clip: border-box;
-      color: color-mix(in srgb, var(--ink) 90%, var(--muted) 10%);
+      color: color-mix(in srgb, var(--ui-text) 90%, var(--ui-text-soft) 10%);
     }}
     .chat-feed-item.has-channel-tab {{
       --chat-feed-channel-edge-bg: linear-gradient(
@@ -7308,9 +4650,9 @@
         var(--chat-feed-channel-edge-bg),
         linear-gradient(
           90deg,
-          color-mix(in srgb, var(--accent) 4%, transparent),
-          color-mix(in srgb, var(--accent) 2%, transparent) 28%,
-          color-mix(in srgb, var(--accent) 1%, transparent) 52%
+          color-mix(in srgb, var(--ui-accent) 4%, transparent),
+          color-mix(in srgb, var(--ui-accent) 2%, transparent) 28%,
+          color-mix(in srgb, var(--ui-accent) 1%, transparent) 52%
         ),
         linear-gradient(
           90deg,
@@ -7571,9 +4913,6 @@
       background: var(--mesh-channel-badge-fill);
       border: 1px solid rgba(19, 36, 26, 0.28);
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-    }}
-    .bots-history-channel {{
-      margin-right: 1px;
     }}
     .chat-feed-actions {{
       display: inline-flex;
@@ -7867,15 +5206,13 @@
       display: inline;
       margin: 0;
     }}
-    .chat-feed-text .chat-link,
-    #history-chat-table .chat-link {{
+    .chat-feed-text .chat-link {{
       color: #1b6bc9;
       text-decoration: underline;
       text-underline-offset: 1px;
       word-break: break-all;
     }}
-    .chat-feed-text .chat-link:hover,
-    #history-chat-table .chat-link:hover {{
+    .chat-feed-text .chat-link:hover {{
       color: #144f93;
     }}
     .chat-reply-inline {{
@@ -8304,5 +5641,5 @@
       --chat-send-channel-fill: #0072b2;
       --chat-send-channel-rgb: 0, 114, 178;
       margin-top: 6px;
-      border: 1px solid color-mix(in srgb, var(--line) 88%, var(--ink) 12%);
-      background: color-mix(in srgb, var(--panel) 78%, var(--bg) 22%);
+      border: 1px solid color-mix(in srgb, var(--ui-border) 88%, var(--ui-text) 12%);
+      background: color-mix(in srgb, var(--ui-panel) 78%, var(--ui-bg) 22%);

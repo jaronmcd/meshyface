@@ -41,10 +41,10 @@ def test_prepare_chat_send_input_rejects_local_double_slash_commands() -> None:
         ValueError,
         match=r"Messages starting with // are local commands and cannot be sent",
     ):
-        _prepare("//zork")
+        _prepare("//help")
 
     with pytest.raises(
         ValueError,
         match=r"Messages starting with // are local commands and cannot be sent",
     ):
-        _prepare("   //search zork")
+        _prepare("   //search node")

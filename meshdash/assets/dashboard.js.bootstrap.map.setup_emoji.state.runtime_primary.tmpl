@@ -1,9 +1,7 @@
     let selectedNodeId = null;
     let selfTickerAlternateNodeId = "";
-    let mapDataFocus = "auto";
     let activeMapDataMode = "live";
     let activeHistoryTab = "overview";
-    let activeHistoryChatTab = "activity";
     let activeNetworkSubview = "map";
     let networkGraphRootNodeId = "";
     let networkGraphRootSyncInProgress = false;
@@ -62,19 +60,12 @@
     let splitMidPx = 250;
     let splitLowPx = 240;
     let networkNodesListPct = 52;
-    let savedNodePanePct = 50;
-    let savedNodeMainPct = 56;
-    let historyActivityTopPct = 50;
-    let historyChatMainPct = 72;
-    let botsMainPanePct = 50;
-    let botsCommandListPct = 50;
     let gamesSidebarWidthPx = 220;
     let gamesStatusWidthPx = 176;
     let chatPanelWidthPx = 250;
     let chatPanelCollapsedWidthPx = 160;
     let chatPanelCollapsed = false;
     let chatNodeListPct = 56;
-    let macrosPanelWidthPx = 460;
     let filesTransferListHeightPx = 96;
     let chatFeedSearchQuery = "";
     let consoleAutoscroll = true;
@@ -144,16 +135,6 @@
     let screenWakeLockLastError = "";
     let screenWakeLockEventsBound = false;
     let chatSendInFlight = false;
-    let macrosSendInFlight = false;
-    let macrosPreviewLines = [];
-    let macrosPreviewSourceLabel = "";
-    let macrosRegenSourceLabel = "";
-    let macrosLeftViewMode = "preview";
-    let macrosPreviewUpdatedAtUnix = 0;
-    let macrosImageSourceElement = null;
-    let macrosImageSourceName = "";
-    let macrosImageSourceWidth = 0;
-    let macrosImageSourceHeight = 0;
     let fileTransferSendInFlight = false;
     let fileTransferDestinationId = "";
     let fileTransferAutoAcceptInbound = !!fileTransferAutoAcceptDefault;
@@ -163,12 +144,17 @@
     let peerDmPopoutStatusHideToken = "";
     let fileTransferRows = [];
     const fileTransferBlobByKey = new Map();
+    const fileTransferDecodedBytesByKey = new Map();
+    const fileTransferMaterializedLastUsedAtMsByKey = new Map();
+    const fileTransferMaterializeFailureByKey = new Map();
     const fileTransferDownloadUrlByKey = new Map();
     const fileTransferChunkCacheByKey = new Map();
     const fileTransferOutgoingByToken = new Map();
     const fileTransferInboundDecisionByKey = new Map();
     const fileTransferInboundFlowByKey = new Map();
     const fileTransferInboundDecisionPromptByKey = new Map();
+    const fileTransferMetaAdmissionByPeer = new Map();
+    let fileTransferLastMetaAdmissionAtMs = null;
     let fileTransferInboundDecisionLoaded = false;
     let fileTransferInboundFlowLoaded = false;
     const fileTransferAckSentState = new Map();
@@ -183,38 +169,6 @@
     const fileTransferConsoleLines = [];
     let fileTransferMaintenanceInFlight = false;
     let fileTransferMaintenanceQueued = false;
-    let bbsHostState = {{
-      enabled: false,
-      board_id: "",
-      title: "Packet Exchange",
-      motd: "2400 baud online.",
-      started_unix: 0,
-      channel_index: 0,
-      host_id: "",
-    }};
-    let bbsActiveBoardKey = "";
-    let bbsDiscoveredBoards = [];
-    let bbsForgottenBoardKeys = new Set();
-    const bbsBoardPostsByKey = new Map();
-    let bbsSeenMessageKeys = new Set();
-    let bbsSeenMessageOrder = [];
-    const bbsSnapshotTransferKeysImported = new Set();
-    let bbsHostAnnounceTimer = null;
-    let bbsPostStatusText = "";
-    let bbsPostStatusError = false;
-    let bbsHostSettingsLoadedOnce = false;
-    let bbsHostSettingsFetchInFlight = false;
-    let bbsHostSettingsSaveInFlight = false;
-    let bbsHostSettingsSaveQueued = false;
-    let bbsHostSettingsDirty = false;
-    let bbsHostSettingsSaveTimer = null;
-    let bbsHostSettingsRemoteAvailable = null;
-    let bbsHostRuntimeLoadedOnce = false;
-    let bbsHostRuntimeFetchInFlight = false;
-    let bbsHostRuntimeRemoteAvailable = null;
-    let bbsPendingProfileHostId = "";
-    let bbsPendingProfileRequestToken = "";
-    let bbsPendingProfileRequestTimer = null;
     let settingsApplyInFlight = false;
     let settingsFetchInFlight = false;
     let settingsAutoFetchAttempted = false;
@@ -240,11 +194,7 @@
     let selfRadioMenuOpen = false;
     let activeLayoutView = "chat";
     let consoleHotkeyReturnLayoutView = "chat";
-    let remoteNodeSearchTerm = "";
     let nodeVisibilitySettingsSearchQuery = "";
-    let remoteTargetNodeId = "";
-    let remoteActionStatus = "Select a node to start exploring remote actions.";
-    let remoteActionStatusError = false;
     let activeGameId = "reversi";
     let reversiState = null;
     let reversiLegalMoves = [];

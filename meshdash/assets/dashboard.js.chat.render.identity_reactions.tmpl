@@ -48,9 +48,6 @@
       const activeMeshFilterIndex = (typeof activeMeshChannelFilterIndex === "function")
         ? activeMeshChannelFilterIndex()
         : meshChannelAllIndex;
-      const macrosPreviewRows = Array.isArray(macrosPreviewLines)
-        ? macrosPreviewLines.slice(-120).map((line) => String(line == null ? "" : line))
-        : [];
       const historyCapsRows = Object.entries(historyCapsObj)
         .sort(([leftId], [rightId]) => String(leftId).localeCompare(String(rightId)))
         .map(([rawNodeId, caps]) => {{
@@ -173,10 +170,6 @@
         ),
         noticesAll: normalizeChatPollNoticeRows("all"),
         noticesDirect: normalizeChatPollNoticeRows("direct"),
-        macrosLeftViewMode: String(macrosLeftViewMode || "").trim(),
-        macrosPreviewSourceLabel: String(macrosPreviewSourceLabel || "").trim(),
-        macrosPreviewUpdatedAtUnix: Number(macrosPreviewUpdatedAtUnix || 0) || 0,
-        macrosPreviewRows,
         nodesRows,
         historyCapsRows,
         messageRows,
@@ -671,58 +664,8 @@
       const latestChatTouchByNode = mapLatestChatTouchInfo(traffic.recent_chat || []);
       const freshnessSnapshotCache = new Map();
       const nodeIdentityCache = new Map();
-      const endpointPartsCache = new Map();
-      const buildMacrosPreviewFeedItems = (previewLines) => {{
-        const lines = Array.isArray(previewLines) ? previewLines.slice(0, 120) : [];
-        if (lines.length <= 0) return [];
-        let renderedLines = lines;
-        let sendViewSuffix = " · send view";
-        if (typeof encodeAsciiMacroLineForSend === "function") {{
-          const sendSettings = (typeof macrosAsciiSettingsFromInputs === "function")
-            ? macrosAsciiSettingsFromInputs()
-            : null;
-          const useSpaceReplacement = !!(
-            sendSettings
-            && typeof sendSettings === "object"
-            && sendSettings.useSpaceReplacement
-          );
-          const replacementChar = (
-            sendSettings
-            && typeof sendSettings === "object"
-            && sendSettings.spaceReplacementChar != null
-          )
-            ? String(sendSettings.spaceReplacementChar)
-            : "";
-          renderedLines = lines.map((line) => encodeAsciiMacroLineForSend(line, {{
-            useSpaceReplacement,
-            spaceReplacementChar: replacementChar,
-          }}));
-          if (useSpaceReplacement && replacementChar) {{
-            sendViewSuffix = ` · send view: spaces→${{replacementChar}}`;
-          }}
-        }}
-        const previewUnix = Number.isFinite(macrosPreviewUpdatedAtUnix) && macrosPreviewUpdatedAtUnix > 0
-          ? Math.floor(macrosPreviewUpdatedAtUnix)
-          : nowUnix;
-        const previewRawTime = new Date(previewUnix * 1000).toISOString();
-        const previewTimeText = formatLocalChatTime(previewUnix, previewRawTime, nowUnix);
-        const previewTitle = macrosPreviewSourceLabel
-          ? `ASCII macro preview${{sendViewSuffix}} · ${{macrosPreviewSourceLabel}}`
-          : `ASCII macro preview${{sendViewSuffix}}`;
-        const selfNodeId = resolveLocalNodeId(state);
-        const senderShort = selfRadioProfileShortLabel(selfNodeId || "macr").slice(0, 4) || "macr";
-        const senderShortHtml = escAttr(String(senderShort)).replace(/ /g, "&nbsp;");
-        return renderedLines.map((line, idx) => {{
-          const safeLine = String(line == null ? "" : line);
-          const copyHtml = escAttr(safeLine)
-            .replace(/\t/g, "&nbsp;&nbsp;")
-            .replace(/ /g, "&nbsp;");
-          const title = `${{previewTitle}} · line ${{idx + 1}}`;
-          return `<div class="chat-feed-item chat-feed-item-monitor-exact chat-feed-item-macro-preview" data-macro-line="${{escAttr(idx + 1)}}" title="${{escAttr(title)}}"><span class="chat-entry-msg"><span class="chat-monitor-prefix">[${{escAttr(previewTimeText)}}]</span><span class="chat-monitor-network-tag">[ ][MF]</span><span class="short-name status-online" style="background:#bcef75" title="${{escAttr(previewTitle)}}">${{senderShortHtml}}</span><span class="chat-entry-copy chat-monitor-text">${{copyHtml || "&nbsp;"}}</span></span></div>`;
-        }});
-      }};
-
-      function resolveChatNodeFreshness(nodeId) {{
+     const endpointPartsCache = new Map();
+     function resolveChatNodeFreshness(nodeId) {{
         const clean = normalizeNodeId(nodeId);
         if (!clean || !isSelectableNodeId(clean)) {{
           return {{

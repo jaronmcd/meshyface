@@ -63,16 +63,7 @@
 
       for (const alias of aliases) {{
         if (!alias) continue;
-        fileTransferChunkCacheByKey.delete(alias);
-        fileTransferBlobByKey.delete(alias);
-        const staleUrl = fileTransferDownloadUrlByKey.get(alias);
-        if (staleUrl) {{
-          try {{
-            URL.revokeObjectURL(staleUrl);
-          }} catch (_err) {{
-          }}
-        }}
-        fileTransferDownloadUrlByKey.delete(alias);
+        deleteFileTransferChunkCacheEntry(alias);
         fileTransferAckSentState.delete(alias);
         fileTransferAckObservedChunksByKey.delete(alias);
         fileTransferAckProbeCursorByKey.delete(alias);
@@ -178,7 +169,14 @@
         const receiverId = normalizeNodeId(raw.receiver_id || raw.receiverId || "");
         const transferId = String(raw.transfer_id || raw.transferId || "").trim().toLowerCase();
         if (!isCanonicalNodeId(senderId) || !isCanonicalNodeId(receiverId) || !transferId) continue;
-        const transferKey = String(raw.key || "").trim() || fileTransferKeyOf(senderId, receiverId, transferId);
+        const channelIndex = fileTransferExplicitChannelIndex(raw.channel_index ?? raw.channelIndex);
+        if (channelIndex == null) continue;
+        const transferKey = fileTransferKeyOf(
+          senderId,
+          receiverId,
+          transferId,
+          channelIndex
+        );
         if (!transferKey || isFileTransferDismissedKey(transferKey)) continue;
         const direction = fileTransferDirectionMeta(senderId, receiverId, localNodeId);
         if (direction.className !== "inbound") continue;
@@ -201,7 +199,6 @@
         const originalBytes = Number.isFinite(originalBytesRaw) && originalBytesRaw >= 0
           ? Math.trunc(originalBytesRaw)
           : 0;
-        const channelIndex = fileTransferExplicitChannelIndex(raw.channel_index ?? raw.channelIndex);
         const channelLabel = channelIndex == null
           ? "Unknown"
           : meshChannelLabelForIndex(channelIndex, {{ allowAll: false }});
@@ -210,11 +207,7 @@
           Math.trunc(Number(raw.updated_unix ?? raw.updatedUnix ?? raw.created_unix ?? raw.createdUnix) || 0)
         );
         const existing = rowsByBaseKey.get(transferKey) || null;
-        const existingCanDownload = !!(
-          existing
-          && existing.canDownload
-          && existing.bytes instanceof Uint8Array
-        );
+        const existingCanDownload = !!(existing && existing.canDownload);
         const progressLabel = serverComplete
           ? (existingCanDownload ? "Complete" : "Complete on receiver")
           : `${{progressPercent}}% received (${{receivedChunks}}/${{totalChunks}} chunks)`;
@@ -257,7 +250,7 @@
           serverReceivedChunks: receivedChunks,
           serverTotalChunks: totalChunks,
           canDownload: existingCanDownload,
-          bytes: existingCanDownload ? existing.bytes : null,
+          bytes: null,
         }};
         if (existing) {{
           Object.assign(existing, merged);
@@ -317,54 +310,18 @@
           ? Math.max(0, Math.trunc(Number(transfer.originalFileSize) || 0))
           : wireDeclaredBytes;
         const payloadCodec = normalizeFileTransferCompressionCodec(transfer.codec || fileTransferCompressionCodecRaw);
-        let assembled = null;
         let complete = false;
         let assembleError = "";
         if (contiguous && expectedChunks > 0) {{
-          let totalLen = 0;
-          for (let idx = 0; idx < expectedChunks; idx += 1) {{
-            const part = transfer.chunks.get(idx);
-            totalLen += Number(part && part.length) || 0;
-          }}
-          const merged = new Uint8Array(totalLen);
-          let cursor = 0;
-          for (let idx = 0; idx < expectedChunks; idx += 1) {{
-            const part = transfer.chunks.get(idx);
-            if (!(part instanceof Uint8Array)) {{
-              assembleError = "Missing chunk data";
-              break;
-            }}
-            merged.set(part, cursor);
-            cursor += part.length;
-          }}
-          if (!assembleError) {{
-            let mergedView = merged;
-            if (wireDeclaredBytes != null) {{
-              if (wireDeclaredBytes < merged.length) {{
-                mergedView = merged.slice(0, wireDeclaredBytes);
-              }} else if (wireDeclaredBytes > merged.length) {{
-                assembleError = `Missing ${{wireDeclaredBytes - merged.length}} byte${{wireDeclaredBytes - merged.length === 1 ? "" : "s"}}`;
-              }}
-            }}
-            if (!assembleError) {{
-              const decodedView = decodeFileTransferPayloadBytes(
-                mergedView,
-                payloadCodec,
-                originalDeclaredBytes
-              );
-              if (!(decodedView instanceof Uint8Array)) {{
-                assembleError = payloadCodec === fileTransferCompressionCodecRaw
-                  ? "Decode failed"
-                  : `Decode failed (${{payloadCodec}})`;
-              }} else {{
-                assembled = decodedView;
-                complete = true;
-              }}
-            }}
+          if (wireDeclaredBytes == null) {{
+            assembleError = "Missing declared size";
+          }} else if (wireDeclaredBytes > observedBytes) {{
+            assembleError = `Missing ${{wireDeclaredBytes - observedBytes}} byte${{wireDeclaredBytes - observedBytes === 1 ? "" : "s"}}`;
+          }} else {{
+            complete = true;
           }}
         }}
         if (!inboundAccepted) {{
-          assembled = null;
           complete = false;
           assembleError = "";
         }}
@@ -374,7 +331,16 @@
           Math.min(100, Math.round((receivedChunks / Math.max(expectedChunks, 1)) * 100))
         );
         const outgoing = direction.className === "outbound";
-        const ack = outgoing ? (ackByTransferKey.get(transfer.key) || null) : null;
+        const outgoingSession = outgoing
+          ? findOutgoingFileTransferSession(
+            transfer.transferId,
+            transfer.toId,
+            transfer.channelIndex
+          )
+          : null;
+        const ack = outgoing && outgoingSession
+          ? findAckForOutgoingSession(outgoingSession, ackByTransferKey, localNodeId)
+          : null;
         const ackedChunks = ack
           ? Math.max(
             0,
@@ -388,25 +354,12 @@
           )
           : 0;
         const deliveryPct = Math.max(0, Math.min(100, Math.round((ackedChunks / Math.max(expectedChunks, 1)) * 100)));
-        const outgoingSession = outgoing
-          ? findOutgoingFileTransferSession(transfer.transferId, transfer.toId, transfer.channelIndex)
-          : null;
         let latestFlow = flowByTransferKey.get(transferKey) || null;
-        if (!(latestFlow && typeof latestFlow === "object")) {{
-          let latestFallbackFlow = null;
-          for (const candidate of flowByTransferKey.values()) {{
-            if (!(candidate && typeof candidate === "object")) continue;
-            if (String(candidate.transferId || "").trim().toLowerCase() !== String(transfer.transferId || "").trim().toLowerCase()) {{
-              continue;
-            }}
-            const candidateUnix = Math.max(0, Math.trunc(Number(candidate.latestUnix) || 0));
-            const latestUnix = Math.max(0, Math.trunc(Number(latestFallbackFlow && latestFallbackFlow.latestUnix) || 0));
-            if (!latestFallbackFlow || candidateUnix >= latestUnix) {{
-              latestFallbackFlow = candidate;
-            }}
-          }}
-          latestFlow = latestFallbackFlow;
-        }}
+        if (
+          !(latestFlow && typeof latestFlow === "object")
+          || fileTransferExplicitChannelIndex(latestFlow.channelIndex)
+            !== fileTransferExplicitChannelIndex(transfer.channelIndex)
+        ) latestFlow = null;
         const latestFlowAction = latestFlow
           ? String(latestFlow.action || "").trim().toLowerCase()
           : "";
@@ -726,8 +679,14 @@
           outgoingCanPause,
           outgoingCanResume,
           outgoingCanCancel,
-          canDownload: inboundAccepted && complete && assembled instanceof Uint8Array,
-          bytes: assembled,
+          canDownload: inboundAccepted && complete,
+          bytes: null,
+          wireChunks: transfer.chunks,
+          expectedChunks,
+          wireDeclaredBytes,
+          originalDeclaredBytes,
+          payloadCodec,
+          observedBytes,
         }});
       }}
 

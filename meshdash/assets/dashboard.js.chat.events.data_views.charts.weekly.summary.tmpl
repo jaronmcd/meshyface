@@ -317,10 +317,10 @@
 
     function renderWeeklySummaryForTarget(summaryHistory, options = {{}}) {{
       const opts = (options && typeof options === "object") ? options : {{}};
-      const target = resolveWeeklySummaryRenderTarget(opts.targetKey || "history");
-      const metricKey = normalizeWeeklySummaryMetric(opts.metricKey || weeklySummaryMetric);
+      const target = resolveWeeklySummaryRenderTarget(opts.targetKey || "network-overview");
+      const metricKey = normalizeWeeklySummaryMetric(opts.metricKey || networkOverviewMetric);
       const nodeSeries = normalizeWeeklySummaryNodeSeries(
-        opts.nodeSeries || weeklySummaryNodeSeriesEnabled
+        opts.nodeSeries || networkOverviewNodeSeriesEnabled
       );
       const packetSeries = (opts.packetSeries && typeof opts.packetSeries === "object")
         ? normalizeNetworkOverviewPacketSeries(opts.packetSeries)
@@ -407,12 +407,12 @@
                 ? ` Showing lines: ${{selectedNodeSeriesLabels.join(", ")}}.`
                 : ` Showing ${{selectedNodeSeriesLabels[0] || "Links"}} line.`)
               : ""));
-        caption.textContent = `${{captionPrefix}} ${{metricMeta.label}}. Window: ${{Number.isFinite(windowHours) ? windowHours : weeklySummaryWindowHours}}h, samples: ${{chartRows.length}}.${{compareNote}}`;
+        caption.textContent = `${{captionPrefix}} ${{metricMeta.label}}. Window: ${{Number.isFinite(windowHours) ? windowHours : networkOverviewWindowHours}}h, samples: ${{chartRows.length}}.${{compareNote}}`;
       }}
 
       const items = [
         ["Metric", metricMeta.label],
-        ["Window", `${{Number.isFinite(windowHours) ? Math.round(windowHours) : weeklySummaryWindowHours}}h`],
+        ["Window", `${{Number.isFinite(windowHours) ? Math.round(windowHours) : networkOverviewWindowHours}}h`],
         ["Samples", String(chartRows.length)],
         ["Latest", formatMetricValue(lastValue, metricMeta.decimals)],
         ["Delta", formatMetricValue(delta, metricMeta.decimals)],
@@ -462,26 +462,12 @@
           items.push(["Live Links", formatMetricValue(latestLiveLinks, 0)]);
         }}
       }}
-      if (target && target.key === "network-overview") {{
-        const hiddenOverviewKeys = new Set(["Metric", "Window", "Range"]);
-        overview.innerHTML = items
-          .filter(([key]) => !hiddenOverviewKeys.has(String(key || "").trim()))
-          .map(([k, v]) => (
-            `<div class="overview-item"><div class="k">${{k}}</div><div class="v">${{v}}</div></div>`
-          )).join("");
-        return;
-      }}
-      overview.innerHTML = items.map(([k, v]) => (
-        `<div class="overview-item"><div class="k">${{k}}</div><div class="v">${{v}}</div></div>`
-      )).join("");
-    }}
-
-    function renderWeeklySummary(summaryHistory) {{
-      renderWeeklySummaryForTarget(summaryHistory, {{
-        targetKey: "history",
-        metricKey: weeklySummaryMetric,
-        nodeSeries: weeklySummaryNodeSeriesEnabled,
-      }});
+      const hiddenOverviewKeys = new Set(["Metric", "Window", "Range"]);
+      overview.innerHTML = items
+        .filter(([key]) => !hiddenOverviewKeys.has(String(key || "").trim()))
+        .map(([k, v]) => (
+          `<div class="overview-item"><div class="k">${{k}}</div><div class="v">${{v}}</div></div>`
+        )).join("");
     }}
 
     function renderNetworkOverviewSummary(summaryHistory) {{

@@ -1,13 +1,53 @@
 import gzip
 import json
+import math
 from collections.abc import Mapping
 from typing import Optional
 
 from .http_handler_contracts import DashboardHttpHandler
 
 
+def _sanitize_json_numbers(
+    payload_obj: object,
+    active_containers: set[int] | None = None,
+    depth: int = 0,
+) -> object:
+    if isinstance(payload_obj, float):
+        return payload_obj if math.isfinite(payload_obj) else None
+    if depth >= 64:
+        return None
+    if active_containers is None:
+        active_containers = set()
+    if isinstance(payload_obj, Mapping):
+        marker = id(payload_obj)
+        if marker in active_containers:
+            return None
+        active_containers.add(marker)
+        try:
+            return {
+                key: _sanitize_json_numbers(value, active_containers, depth + 1)
+                for key, value in payload_obj.items()
+            }
+        finally:
+            active_containers.remove(marker)
+    if isinstance(payload_obj, (list, tuple)):
+        marker = id(payload_obj)
+        if marker in active_containers:
+            return None
+        active_containers.add(marker)
+        try:
+            return [
+                _sanitize_json_numbers(value, active_containers, depth + 1)
+                for value in payload_obj
+            ]
+        finally:
+            active_containers.remove(marker)
+    return payload_obj
+
+
 def json_bytes(payload_obj: object) -> bytes:
-    return json.dumps(payload_obj, separators=(",", ":")).encode("utf-8")
+    clean_payload = _sanitize_json_numbers(payload_obj)
+    return json.dumps(clean_payload, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
 def _header_value(headers: Mapping[str, object], name: str) -> str:

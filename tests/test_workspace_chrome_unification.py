@@ -28,16 +28,9 @@ def test_workspace_views_share_map_style_chrome_primitives() -> None:
     assert 'id="layout-view-menu-apps-submenu"' in html
     assert 'class="topbar-view-menu-item topbar-view-menu-item-has-submenu"' in html
     assert 'class="topbar-view-submenu-item is-active"' in html
-    assert 'data-app-view="bots"' in html
-    assert 'class="card bots"' in html
-    assert 'data-app-view="bbs"' in html
-    assert 'class="bbs-config-strip"' in html
-    assert "Host Your Space" not in html
-    assert 'id="bbs-host-title-input"' in html
-    assert 'id="bbs-board-list"' in html
-    assert 'id="bbs-terminal-log"' in html
-    assert html.index('class="bbs-config-strip"') < html.index('id="bbs-terminal-title"')
-    assert html.index('class="bbs-config-strip"') < html.index('class="bbs-panel bbs-directory-panel"')
+    assert 'data-app-view="bots"' not in html
+    assert 'class="card bots"' not in html
+    assert 'data-app-view="bbs"' not in html
     assert 'class="settings-chrome workspace-chrome-bar workspace-stack-head-shell"' in html
     assert 'class="settings-toolbar workspace-chrome-row"' in html
     assert 'class="settings-tabbar workspace-pillbar"' in html
@@ -186,7 +179,6 @@ def test_apps_views_move_app_switching_into_launcher_submenu() -> None:
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
-        bbs_enabled=True,
     )
 
     assert 'data-submenu="apps"' in html
@@ -194,9 +186,9 @@ def test_apps_views_move_app_switching_into_launcher_submenu() -> None:
     assert 'id="layout-view-menu-apps-meta"' in html
     assert 'id="layout-view-menu-apps-submenu"' in html
     assert 'data-app-view="games"' in html
-    assert 'data-app-view="bots"' in html
+    assert 'data-app-view="bots"' not in html
     assert 'data-app-view="files"' in html
-    assert 'data-app-view="bbs"' in html
+    assert 'data-app-view="bbs"' not in html
     assert 'id="apps-tabs-bar"' not in html
 
     assert ".topbar-view-menu-item-has-submenu {" in css
@@ -235,91 +227,6 @@ def test_workspace_main_gap_stays_uniform_and_lets_apps_views_use_full_width() -
     assert "grid-template-rows: minmax(0, 1fr);" in apps_workspace_main_section
     assert '.workspace-shell[data-layout-view="games"] .workspace-main::before,' not in css
     assert "grid-column: 1;" in apps_layout_section
-
-
-def test_bbs_terminal_uses_full_workspace_height(extract_css_block) -> None:
-    css = build_dashboard_css(theme_css="")
-
-    bbs_card_section = extract_css_block(css, ".layout.view-bbs .bbs")
-    bbs_body_section = extract_css_block(css, ".layout.view-bbs .bbs .body")
-    bbs_shell_section = extract_css_block(css, ".bbs-shell")
-    bbs_view_shell_section = extract_css_block(css, ".layout.view-bbs .bbs-shell")
-    bbs_config_section = extract_css_block(css, ".bbs-config-strip")
-    bbs_host_section = extract_css_block(css, ".bbs-panel.bbs-host-panel")
-    bbs_view_config_section = extract_css_block(css, ".layout.view-bbs .bbs-config-strip")
-    bbs_view_directory_section = extract_css_block(css, ".layout.view-bbs .bbs-directory-panel")
-    bbs_view_directory_list_section = extract_css_block(css, ".layout.view-bbs .bbs-directory-panel .bbs-board-list")
-    bbs_main_section = extract_css_block(css, ".layout.view-bbs .bbs-main")
-    bbs_main_status_section = extract_css_block(css, ".layout.view-bbs .bbs-main:has(.bbs-post-status:not(:empty))")
-    bbs_main_overlay_section = extract_css_block(css, ".layout.view-bbs .bbs-main::before")
-    bbs_head_section = extract_css_block(css, ".layout.view-bbs .bbs-terminal-head")
-    bbs_log_section = extract_css_block(css, ".layout.view-bbs .bbs-terminal-log")
-    bbs_compose_section = extract_css_block(css, ".layout.view-bbs .bbs-compose-row")
-    bbs_compose_button_section = extract_css_block(css, ".layout.view-bbs .bbs-compose-row .btn")
-    bbs_input_section = extract_css_block(css, ".layout.view-bbs .bbs-post-input")
-    dark_bbs_card_section = extract_css_block(css, '[data-theme="dark"] .layout.view-bbs .bbs')
-    dark_bbs_log_section = extract_css_block(css, '[data-theme="dark"] .layout.view-bbs .bbs-terminal-log')
-    dark_bbs_compose_section = extract_css_block(css, '[data-theme="dark"] .layout.view-bbs .bbs-compose-row')
-
-    assert "flex-direction: column;" in bbs_card_section
-    assert "height: 100%;" in bbs_card_section
-    assert "overflow: hidden;" in bbs_card_section
-    assert ".layout.view-bbs .bbs > h2 {" in css
-    assert "display: none;" in css.split(".layout.view-bbs .bbs > h2 {", 1)[1].split("}", 1)[0]
-    assert "flex: 1 1 auto;" in bbs_body_section
-    assert "grid-template-columns: minmax(0, 1fr);" in bbs_config_section
-    assert "grid-template-columns: repeat(3, minmax(118px, 1fr)) auto;" in bbs_host_section
-    assert "grid-column: 1 / -1;" in bbs_view_config_section
-    assert "grid-row: 1;" in bbs_view_config_section
-    assert "grid-column: 2;" in bbs_view_directory_section
-    assert "grid-row: 2 / 4;" in bbs_view_directory_section
-    assert "align-self: stretch;" in bbs_view_directory_section
-    assert "justify-self: stretch;" in bbs_view_directory_section
-    assert "min-height: 0;" in bbs_view_directory_list_section
-    assert "max-height: none;" in bbs_view_directory_list_section
-    assert "flex: 1 1 auto;" in bbs_view_directory_list_section
-    assert "grid-template-columns: minmax(0, 1fr);" in bbs_shell_section
-    assert "align-items: stretch;" in bbs_shell_section
-    assert "flex: 1 1 auto;" in bbs_view_shell_section
-    assert "height: 100%;" in bbs_view_shell_section
-    assert "overflow: hidden;" in bbs_view_shell_section
-    assert "display: grid;" in bbs_main_section
-    assert "grid-template-columns: minmax(0, 1fr) clamp(320px, 28vw, 520px);" in bbs_main_section
-    assert "grid-template-rows: auto auto minmax(0, 1fr) auto;" in bbs_main_section
-    assert "grid-template-rows: auto auto minmax(0, 1fr) auto auto;" in bbs_main_status_section
-    assert "align-items: stretch;" in bbs_main_section
-    assert "min-height: 0;" in bbs_main_section
-    assert "height: 100%;" in bbs_main_section
-    assert "overflow: hidden;" in bbs_main_section
-    assert "gap: 8px;" in bbs_main_section
-    assert "border: 0;" in bbs_main_section
-    assert "background: transparent;" in bbs_main_section
-    assert "box-shadow: none;" in bbs_main_section
-    assert "content: none;" in bbs_main_overlay_section
-    assert "grid-column: 1;" in bbs_head_section
-    assert "grid-row: 2;" in bbs_head_section
-    assert "border-radius: 10px;" in bbs_head_section
-    assert "background: color-mix(in srgb, var(--panel) 88%, var(--bg) 12%)" in bbs_head_section
-    assert "grid-column: 1;" in bbs_log_section
-    assert "align-self: stretch;" in bbs_log_section
-    assert "justify-self: stretch;" in bbs_log_section
-    assert "min-height: 0;" in bbs_log_section
-    assert "height: auto;" in bbs_log_section
-    assert "max-height: none;" in bbs_log_section
-    assert "width: 100%;" in bbs_log_section
-    assert "box-sizing: border-box;" in bbs_log_section
-    assert "border-radius: 10px;" in bbs_log_section
-    assert "background: color-mix(in srgb, var(--panel) 92%, var(--bg) 8%)" in bbs_log_section
-    assert "grid-column: 1 / -1;" in bbs_compose_section
-    assert "align-self: end;" in bbs_compose_section
-    assert "border-radius: 10px;" in bbs_compose_section
-    assert "background: color-mix(in srgb, var(--panel) 78%, var(--bg) 22%)" in bbs_compose_section
-    assert "padding: 6px 8px;" in bbs_compose_section
-    assert "height: 28px;" in bbs_compose_button_section
-    assert 'font-family: "IBM Plex Sans", "Segoe UI", sans-serif;' in bbs_input_section
-    assert "background: transparent;" in dark_bbs_card_section
-    assert "background: var(--workspace-shell-bg);" in dark_bbs_log_section
-    assert "background: var(--ui-panel);" in dark_bbs_compose_section
 
 
 def test_network_view_keeps_map_frame_and_removes_body_shell() -> None:
@@ -403,16 +310,16 @@ def test_network_map_controls_follow_theme_tokens() -> None:
     dark_offline_leaflet_section = css.split("[data-theme=\"dark\"] .map-frame.map-basemap-offline .leaflet-container {", 1)[1].split("}", 1)[0]
     dark_leaflet_overlay_section = css.split("[data-theme=\"dark\"] .map-frame:not(.map-basemap-offline) .leaflet-container::before {", 1)[1].split("}", 1)[0]
 
-    assert "accent-color: var(--accent);" in heatmap_input_section
+    assert "accent-color: var(--ui-accent);" in heatmap_input_section
     assert "border: 1px solid transparent;" in heatmap_mode_wrap_section
     assert "border: 1px solid transparent;" in heatmap_mode_section
-    assert "var(--accent)" in reset_section
+    assert "var(--ui-accent)" in reset_section
     assert "border: 0 !important;" in zoom_section
     assert "top: 52px;" in network_zoom_position_section
-    assert "var(--accent)" in tabs_section
-    assert "var(--line)" in overlay_map_controls_section
+    assert "var(--ui-accent)" in tabs_section
+    assert "var(--ui-border)" in overlay_map_controls_section
     assert "box-sizing: border-box;" in overlay_map_controls_section
-    assert "box-shadow: var(--shadow);" in overlay_map_controls_section
+    assert "box-shadow: var(--ui-shadow);" in overlay_map_controls_section
     assert "backdrop-filter: blur(10px);" in overlay_map_controls_section
     assert "width: 34px;" in overlay_zoom_track_section
     assert "min-width: 34px;" in overlay_zoom_track_section
@@ -421,8 +328,8 @@ def test_network_map_controls_follow_theme_tokens() -> None:
     assert "border: 1px solid transparent !important;" in overlay_map_button_section
     assert "width: 24px !important;" in overlay_zoom_button_section
     assert "min-width: 24px;" in overlay_zoom_button_section
-    assert "box-shadow: var(--shadow);" in overlay_fullscreen_section
-    assert "var(--accent)" in overlay_fullscreen_section
+    assert "box-shadow: var(--ui-shadow);" in overlay_fullscreen_section
+    assert "var(--ui-accent)" in overlay_fullscreen_section
     assert "box-shadow: 0 3px 10px rgba(18, 40, 20, 0.12);" in overlay_fullscreen_active_section
     assert "var(--workspace-shell-border)" in dark_heatmap_section
     assert "border-color: transparent;" in dark_heatmap_mode_wrap_section
@@ -559,9 +466,9 @@ def test_network_overview_primary_controls_only_show_on_overview_subview() -> No
     assert 'syncNetworkTopNodesPrimaryControls(activeLayoutView, next);' in js
     assert 'syncNetworkTopNodesPrimaryControls(next, activeNetworkSubview);' in js
     assert 'const networkControlsHost = document.getElementById("network-sensors-primary-controls");' in js
-    assert 'const dockInNetworkSensors = normalizedView === "network" && normalizedSubview === "sensors";' in js
-    assert 'const controlsTarget = dockInNetworkSensors ? networkControlsHost : explorer;' in js
-    assert 'networkControlsHost.hidden = !dockInNetworkSensors;' in js
+    assert 'const sensorsActive = normalizedView === "network" && normalizedSubview === "sensors";' in js
+    assert 'networkControlsHost.hidden = !sensorsActive;' in js
+    assert "syncEnvironmentMetricsDock" not in js
 
 
 def test_history_window_controls_trail_and_stay_right_anchored() -> None:
@@ -585,10 +492,6 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
     )[0]
     network_tabs_section = html.split('<div class="network-map-subview-tabs workspace-pillbar"', 1)[1].split(
         '</div>',
-        1,
-    )[0]
-    weekly_controls_section = html.split('<div class="history-metric-controls">', 1)[1].split(
-        '<div id="weekly-summary-chart-wrap">',
         1,
     )[0]
     env_controls_section = html.split('<div class="env-metrics-controls">', 1)[1].split(
@@ -636,9 +539,6 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
     assert overview_controls_section.index('for="network-overview-metric"') < overview_controls_section.index(
         'for="network-overview-window"'
     )
-    assert weekly_controls_section.index('for="weekly-summary-metric"') < weekly_controls_section.index(
-        'for="weekly-summary-window"'
-    )
     assert env_controls_section.index('for="env-metric-select"') < env_controls_section.index('for="env-window-select"')
     assert 'class="history-metric-wrap history-window-wrap history-select-chip-hide-label" for="network-routes-window"' in routes_toolbar_section
     assert diagnostics_actions_section.index('network-diagnostics-refresh-btn') < diagnostics_actions_section.index(
@@ -660,7 +560,6 @@ def test_history_window_controls_trail_and_stay_right_anchored() -> None:
     assert 'id="network-overview-packet-lines-wrap"' in overview_controls_section
     assert '<option value="links">Links</option>' not in overview_controls_section
     assert '<option value="sensors">Sensors</option>' not in overview_controls_section
-    assert '<option value="links">Links</option>' in weekly_controls_section
     assert 'data-network-subview="sensors"' in network_tabs_section
     assert 'id="network-routes-primary-controls"' in html
     assert 'id="network-top-nodes-primary-controls"' in html
@@ -733,10 +632,10 @@ def test_network_dropdown_chips_match_sidebar_launcher_style() -> None:
 
     assert ".layout.view-network .map-heatmap-mode-wrap {" in css
     assert "height: 27px;" in network_chip_section
-    assert "border: 1px solid color-mix(in srgb, var(--line) 74%, var(--accent));" in network_chip_section
+    assert "border: 1px solid color-mix(in srgb, var(--ui-border) 74%, var(--ui-accent));" in network_chip_section
     assert "linear-gradient(" in network_chip_section
     assert "padding: 0 23px 0 7px;" in network_chip_section
-    assert "border-top: 5px solid color-mix(in srgb, var(--accent-2) 64%, var(--ink));" in network_chip_caret_section
+    assert "border-top: 5px solid color-mix(in srgb, var(--ui-accent-soft) 64%, var(--ui-text));" in network_chip_caret_section
     assert "-webkit-appearance: none;" in network_select_section
     assert "appearance: none;" in network_select_section
     assert "background: transparent;" in network_select_section
@@ -794,7 +693,7 @@ def test_network_sensors_top_level_explorer_reuses_light_shell() -> None:
     assert "gap: 8px;" in explorer_section
 
     assert "border-color: var(--surface-tint-border);" in chart_section
-    assert "linear-gradient(180deg, var(--panel) 0%, var(--surface-tint-bg-soft) 100%)" in chart_section
+    assert "linear-gradient(180deg, var(--ui-panel) 0%, var(--surface-tint-bg-soft) 100%)" in chart_section
     assert "padding: 0;" in chart_section
     assert "rgba(18, 29, 39, 0.98)" not in chart_section
 
@@ -833,7 +732,7 @@ def test_dark_chat_compose_controls_use_workspace_shell_tokens() -> None:
     assert "var(--workspace-shell-border-muted)" in chat_compose_input_section
     assert "var(--workspace-shell-text)" in chat_compose_input_section
     assert "[data-theme=\"dark\"] .settings-textarea," in css
-    assert "[data-theme=\"dark\"] .chat-input," in css
+    assert "[data-theme=\"dark\"] .chat-input {" in css
     assert "var(--ui-panel)" in shared_text_inputs_section
     assert "var(--ui-border)" in shared_text_inputs_section
     assert "var(--ui-text)" in shared_text_inputs_section
@@ -855,7 +754,7 @@ def test_games_boards_follow_runtime_theme_tokens(extract_css_block) -> None:
     dark_reversi_board_section = extract_css_block(css, '[data-theme="dark"] .reversi-board')
     dark_classic_board_section = extract_css_block(css, '[data-theme="dark"] .checkers-board')
 
-    assert "var(--ui-accent-soft, var(--accent))" in board_wrap_section
+    assert "var(--ui-accent-soft, var(--ui-accent))" in board_wrap_section
     assert "var(--games-board-frame)" in board_wrap_section
     assert "var(--surface-tint-bg-soft)" in board_wrap_section
     assert "var(--surface-tint-bg)" in board_wrap_section
@@ -959,9 +858,9 @@ def test_node_details_drawer_follows_workspace_shell_tokens() -> None:
     tab_section = css.split("[data-theme=\"dark\"] .chat-node-details-tab-btn {", 1)[1].split("}", 1)[0]
     active_tab_section = css.split("[data-theme=\"dark\"] .chat-node-details-tab-btn.is-active {", 1)[1].split("}", 1)[0]
     action_section = css.split("[data-theme=\"dark\"] .chat-node-details-action-btn {", 1)[1].split("}", 1)[0]
-    saved_details_section = css.split("[data-theme=\"dark\"] .chat-node-details-drawer .saved-node-details {", 1)[1].split("}", 1)[0]
-    saved_section = css.split("[data-theme=\"dark\"] .saved-node-section {", 1)[1].split("}", 1)[0]
-    saved_stat_section = css.split("[data-theme=\"dark\"] .saved-node-stat {", 1)[1].split("}", 1)[0]
+    saved_details_section = css.split("[data-theme=\"dark\"] .chat-node-details-drawer .node-details {", 1)[1].split("}", 1)[0]
+    saved_section = css.split("[data-theme=\"dark\"] .node-details-section {", 1)[1].split("}", 1)[0]
+    saved_stat_section = css.split("[data-theme=\"dark\"] .node-details-stat {", 1)[1].split("}", 1)[0]
     splitter_section = css.split("[data-theme=\"dark\"] .chat-node-details-splitter {", 1)[1].split("}", 1)[0]
     splitter_handle_section = css.split("[data-theme=\"dark\"] .chat-node-details-splitter::before {", 1)[1].split("}", 1)[0]
 
@@ -1029,7 +928,7 @@ def test_node_navigator_menu_follows_workspace_shell_tokens() -> None:
     assert "var(--workspace-shell-text-soft)" in head_section
     assert "var(--workspace-shell-hover-bg)" in sort_btn_hover_section
     assert "var(--workspace-shell-border-strong)" in sort_btn_hover_section
-    assert "var(--ui-accent, var(--accent))" in checkbox_section
+    assert "var(--ui-accent, var(--ui-accent))" in checkbox_section
     assert "#0d1711" not in menu_section
     assert "#16261f" not in sort_btn_section
 
@@ -1057,7 +956,7 @@ def test_node_navigator_status_marker_geometry_supports_dot_and_emoji_variants(e
     assert "font-weight: 900;" in new_section
     assert "border: 1.5px solid currentColor;" in new_section
     assert "border-radius: 3px;" in new_section
-    assert "background: color-mix(in srgb, var(--chat-member-node-bg, var(--panel)) 88%, transparent);" in new_section
+    assert "background: color-mix(in srgb, var(--chat-member-node-bg, var(--ui-panel)) 88%, transparent);" in new_section
     assert "box-sizing: border-box;" in new_section
     assert "text-shadow:" in new_section
     assert "color: #ffffff;" in new_text_section
@@ -1150,8 +1049,8 @@ def test_dark_row_packet_sparklines_reuse_network_compare_blue() -> None:
 def test_saved_node_notes_and_tag_editor_follow_theme_tokens() -> None:
     css = build_dashboard_css(theme_css="")
 
-    note_section = css.split("[data-theme=\"dark\"] .saved-node-note-input {", 1)[1].split("}", 1)[0]
-    note_focus_section = css.split("[data-theme=\"dark\"] .saved-node-note-input:focus {", 1)[1].split("}", 1)[0]
+    note_section = css.split("[data-theme=\"dark\"] .node-details-note-input {", 1)[1].split("}", 1)[0]
+    note_focus_section = css.split("[data-theme=\"dark\"] .node-details-note-input:focus {", 1)[1].split("}", 1)[0]
     tag_editor_section = css.split("[data-theme=\"dark\"] .favorite-menu-tag-editor {", 1)[1].split("}", 1)[0]
     tag_input_section = css.split("[data-theme=\"dark\"] .favorite-menu-tag-preset-select,", 1)[1].split("}", 1)[0]
     tag_focus_section = css.split("[data-theme=\"dark\"] .favorite-menu-tag-preset-select:focus,", 1)[1].split("}", 1)[0]
@@ -1170,7 +1069,7 @@ def test_saved_node_notes_and_tag_editor_follow_theme_tokens() -> None:
     assert "var(--workspace-shell-border-strong)" in tag_focus_section
     assert "var(--workspace-shell-border-muted)" in tag_action_section
     assert "var(--workspace-shell-text)" in tag_action_section
-    assert "var(--ui-accent, var(--accent))" in slider_section
+    assert "var(--ui-accent, var(--ui-accent))" in slider_section
     assert "#121b24" not in note_section
     assert "#15281f" not in tag_editor_section
 
@@ -1194,7 +1093,7 @@ def test_peer_dm_popout_follows_workspace_shell_tokens() -> None:
     assert "var(--workspace-shell-border-muted)" in composer_section
     assert "var(--workspace-shell-border)" in input_section
     assert "var(--workspace-shell-text)" in input_section
-    assert "var(--ui-accent, var(--accent))" in send_section
+    assert "var(--ui-accent, var(--ui-accent))" in send_section
     assert "black 76%" in send_section
     assert "#152633" not in input_section
 
@@ -1248,15 +1147,15 @@ def test_settings_checkboxes_follow_runtime_accent() -> None:
     assert "appearance: none;" in settings_checkbox_section
     assert "border: 1px solid var(--settings-control-border);" in settings_checkbox_section
     assert "background-color: var(--settings-control-bg);" in settings_checkbox_section
-    assert "accent-color: var(--ui-accent, var(--accent));" in settings_checkbox_section
-    assert "accent-color: var(--ui-accent, var(--accent));" in time_sync_checkbox_section
-    assert "background-color: var(--ui-accent, var(--accent));" in settings_checkbox_checked_section
+    assert "accent-color: var(--ui-accent, var(--ui-accent));" in settings_checkbox_section
+    assert "accent-color: var(--ui-accent, var(--ui-accent));" in time_sync_checkbox_section
+    assert "background-color: var(--ui-accent, var(--ui-accent));" in settings_checkbox_checked_section
     assert "background-image: url(\"data:image/svg+xml" in settings_checkbox_checked_section
     assert "-moz-appearance: textfield;" in settings_number_input_section
     assert "appearance: textfield;" in settings_number_input_section
     assert "-webkit-appearance: none;" in settings_number_spinner_section
     assert "width: 14px;" in settings_checkbox_section
-    assert "color: var(--ink);" not in time_sync_label_section
+    assert "color: var(--ui-text);" not in time_sync_label_section
     assert "#2f855a" not in time_sync_checkbox_section
 
 
@@ -1296,8 +1195,8 @@ def test_topbar_tickers_follow_workspace_shell_and_semantic_states() -> None:
     assert "var(--workspace-shell-bg-alt)" in expanded_hover_section
     assert "var(--workspace-shell-hover-bg)" in expanded_hover_section
     assert "var(--ui-panel)" not in expanded_hover_section
-    assert "var(--panel)" not in expanded_hover_section
-    assert "var(--line)" not in expanded_hover_section
+    assert "var(--ui-panel)" not in expanded_hover_section
+    assert "var(--ui-border)" not in expanded_hover_section
     assert "var(--workspace-shell-text-soft)" in neutral_section
     assert "#cf6f6f" in bad_section
     assert "var(--ticker-card-accent)" in chart_section
@@ -1468,6 +1367,7 @@ def test_games_view_removes_outer_card_shell_but_keeps_inner_panels() -> None:
     css = build_dashboard_css(theme_css="")
     games_section = css.split(".layout.view-games .games {", 1)[1].split("}", 1)[0]
     body_section = css.split(".layout.view-games .games .body {", 1)[1].split("}", 1)[0]
+    dark_games_section = css.rsplit('[data-theme="dark"] .card.workspace-app-shell {', 1)[1].split("}", 1)[0]
 
     assert "background: transparent;" in games_section
     assert "border: 0;" in games_section
@@ -1475,6 +1375,7 @@ def test_games_view_removes_outer_card_shell_but_keeps_inner_panels() -> None:
     assert "overflow: visible;" in games_section
     assert "background: transparent;" in body_section
     assert "padding: 0;" in body_section
+    assert "background: transparent;" in dark_games_section
     assert ".games-toolbar {" in css
     assert ".games-sidebar {" in css
     assert ".games-main {" in css
@@ -1484,6 +1385,7 @@ def test_files_view_removes_outer_card_shell_for_full_app_canvas() -> None:
     css = build_dashboard_css(theme_css="")
     files_section = css.split(".layout.view-files .files {", 1)[1].split("}", 1)[0]
     files_body_section = css.split(".layout.view-files .files .body {", 1)[1].split("}", 1)[0]
+    dark_files_section = css.rsplit('[data-theme="dark"] .card.workspace-app-shell {', 1)[1].split("}", 1)[0]
     files_console_section = css.split(".files-console {", 1)[1].split("}", 1)[0]
     files_console_log_section = css.split(".files-console-log {", 1)[1].split("}", 1)[0]
     files_transfers_section = css.split(".files-transfers-scroll {", 1)[1].split("}", 1)[0]
@@ -1498,6 +1400,7 @@ def test_files_view_removes_outer_card_shell_for_full_app_canvas() -> None:
     assert "flex: 1 1 auto;" in files_body_section
     assert "height: 100%;" in files_body_section
     assert "padding: 0;" in files_body_section
+    assert "background: transparent;" in dark_files_section
     assert "flex: 1 1 auto;" in files_console_section
     assert "overflow: hidden;" in files_console_section
     assert "flex: 1 1 auto;" in files_console_log_section
@@ -1506,6 +1409,107 @@ def test_files_view_removes_outer_card_shell_for_full_app_canvas() -> None:
     assert "height: var(--files-transfer-list-height);" in files_transfers_section
     assert "max-height: none;" in files_transfers_section
     assert "cursor: row-resize;" in files_splitter_section
+
+
+def test_full_app_shells_opt_out_of_global_dark_card_painting() -> None:
+    html = build_html_shell(
+        app_title="Meshyface",
+        app_heading="Meshyface",
+        style_css="",
+        app_js="",
+        revision_title="rev",
+        revision_label="rev",
+        safety_label="safe",
+        packet_limit=100,
+        history_label="history",
+        refresh_ms=1000,
+    )
+    css = build_dashboard_css(theme_css="")
+
+    app_shells = set(
+        re.findall(r'<section class="card ([^" ]+) workspace-app-shell"', html)
+    )
+    assert app_shells == {"chat", "settings", "files", "games"}
+    assert html.count("workspace-app-shell") == len(app_shells)
+    assert 'class="card environment' not in html
+    assert 'id="environment-metrics-home"' not in html
+    assert ".layout.view-environment" not in css
+
+    global_dark_selector = '[data-theme="dark"] .card:not(.workspace-app-shell)'
+    assert global_dark_selector not in css
+    assert '[data-theme="dark"] .card.files {' not in css
+    assert '[data-theme="dark"] .card.games {' not in css
+    assert '[data-theme="dark"] .card.chat .body,' not in css
+
+    app_shell_rule = css.rsplit(
+        '[data-theme="dark"] .card.workspace-app-shell {', 1
+    )[1].split("}", 1)[0]
+    app_body_rule = css.rsplit(
+        '[data-theme="dark"] .card.workspace-app-shell > .body {', 1
+    )[1].split("}", 1)[0]
+    assert "background: transparent;" in app_shell_rule
+    assert "border-color: transparent;" in app_shell_rule
+    assert "box-shadow: none;" in app_shell_rule
+    assert "background: transparent;" in app_body_rule
+    assert "padding: 0;" in app_body_rule
+    base_card_rule = css.split(".card {", 1)[1].split("}", 1)[0]
+    assert "background: var(--ui-panel);" in base_card_rule
+    assert "border: 1px solid var(--ui-border);" in base_card_rule
+    assert "box-shadow: var(--ui-shadow);" in base_card_rule
+
+def test_files_view_shows_live_dynamic_hop_limit_preview() -> None:
+    html = build_html_shell(
+        app_title="Meshyface",
+        app_heading="Meshyface",
+        style_css="",
+        app_js="",
+        revision_title="rev",
+        revision_label="rev",
+        safety_label="safe",
+        packet_limit=100,
+        history_label="history",
+        refresh_ms=1000,
+    )
+    css = build_dashboard_css(theme_css="")
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+        file_transfer_enabled=True,
+    )
+
+    assert 'id="files-hop-limit-preview"' in html
+    assert "Dynamic hops · select destination" in html
+    assert ".files-hop-limit-preview {" in css
+    assert '.files-hop-limit-preview[data-source="detected"] {' in css
+    assert "function fileTransferHopLimitPreview(" in js
+    assert "function renderFileTransferHopLimitPreview(" in js
+    assert "detected + safety" in js
+    assert "configured fallback" in js
+
+
+def test_files_transfer_rows_reuse_peer_profile_theme_surface() -> None:
+    css = build_dashboard_css(theme_css="")
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+        file_transfer_enabled=True,
+    )
+
+    assert "files-transfer-profiled-row" in js
+    assert "effectiveNodeAppearanceForNode(peerNodeId, state)" in js
+    assert "appearanceEntry.profileAppearance" in js
+    assert "nodeAppearanceStyleVars(appearanceEntry)" in js
+    assert "data-peer-node-id=" in js
+    assert "#files-transfer-table tbody tr.files-transfer-profiled-row {" in css
+    assert "background-image: var(--node-profile-theme-surface) !important;" in css
+    profiled_cells_section = css.split(
+        "#files-transfer-table tbody tr.files-transfer-profiled-row td {", 1
+    )[1].split("}", 1)[0]
+    assert "var(--workspace-shell-text" in profiled_cells_section
+    assert "var(--node-profile-theme-contrast" not in profiled_cells_section
+    assert "var(--node-profile-theme-line" in css
 
 
 def test_files_view_uses_persistent_transfer_console_splitter() -> None:
@@ -1554,13 +1558,13 @@ def test_files_view_uses_theme_tokens_in_light_and_dark_modes() -> None:
     light_controls_section = css.split(".files-controls {", 1)[1].split("}", 1)[0]
     light_console_log_section = css.split(".files-console-log {", 1)[1].split("}", 1)[0]
     light_table_head_section = css.split("#files-transfer-table thead th {", 1)[1].split("}", 1)[0]
-    dark_card_section = css.split("[data-theme=\"dark\"] .card.files {", 1)[1].split("}", 1)[0]
+    dark_card_section = css.rsplit('[data-theme="dark"] .card.workspace-app-shell {', 1)[1].split("}", 1)[0]
     dark_caption_section = css.split("[data-theme=\"dark\"] .files-caption,", 1)[1].split("}", 1)[0]
     dark_console_log_section = css.split("[data-theme=\"dark\"] .files-console-log {", 1)[1].split("}", 1)[0]
     dark_table_head_section = css.rsplit("[data-theme=\"dark\"] #files-transfer-table thead th {", 1)[1].split("}", 1)[0]
     dark_secondary_btn_section = css.split("[data-theme=\"dark\"] .files-console .btn.btn-secondary {", 1)[1].split("}", 1)[0]
 
-    assert "var(--panel)" in light_card_section
+    assert "var(--ui-panel)" in light_card_section
     assert "var(--ui-text" in light_card_section
     assert "#f6fbf5" not in light_card_section
     assert "var(--surface-tint-bg-soft" in light_controls_section
@@ -1572,8 +1576,8 @@ def test_files_view_uses_theme_tokens_in_light_and_dark_modes() -> None:
     assert "var(--surface-tint-text" in light_table_head_section
     assert "var(--surface-tint-border" in light_table_head_section
 
-    assert "var(--workspace-shell-bg)" in dark_card_section
-    assert "var(--workspace-shell-text)" in dark_card_section
+    assert "background: transparent;" in dark_card_section
+    assert "border-color: transparent;" in dark_card_section
     assert "#dbece3" not in dark_card_section
     assert "var(--workspace-shell-text-soft)" in dark_caption_section
     assert "#a8c6b7" not in dark_caption_section

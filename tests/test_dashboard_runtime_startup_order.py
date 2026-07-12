@@ -36,7 +36,6 @@ def _args(tmp_path, *, no_history: bool = False):
         http_host="127.0.0.1",
         http_port=0,
         games_enable=False,
-        bbs_enable=False,
         file_transfer_enable=False,
         file_transfer_auto_accept=False,
     )
@@ -46,7 +45,6 @@ def _loaders(**_kwargs: object) -> DashboardRuntimeLoaders:
     return DashboardRuntimeLoaders(
         state_fn=lambda: {},
         node_history_fn=lambda *_args, **_kwargs: {},
-        online_activity_fn=lambda *_args, **_kwargs: {},
         summary_metrics_fn=lambda *_args, **_kwargs: {},
         send_chat_fn=lambda **_kwargs: {"ok": True},
     )
@@ -104,7 +102,6 @@ def test_startup_receive_replay_waits_for_history_local_node_id(tmp_path) -> Non
         build_state_fn=lambda **_kwargs: {},
         build_state_snapshot_loader_fn=lambda *_args, **_kwargs: lambda: {},
         build_node_history_loader_fn=lambda *_args, **_kwargs: lambda **_kw: {},
-        build_online_activity_loader_fn=lambda *_args, **_kwargs: lambda **_kw: {},
         build_summary_metrics_loader_fn=lambda *_args, **_kwargs: lambda **_kw: {},
         build_send_chat_loader_fn=lambda *_args, **_kwargs: lambda **_kw: {},
         default_chat_max_bytes=200,
@@ -150,3 +147,19 @@ def test_startup_receive_buffer_preserves_order_during_activation() -> None:
         "live:start",
         "live:done",
     ]
+
+
+def test_startup_receive_buffer_is_bounded_and_keeps_latest_packets() -> None:
+    receive_buffer = StartupReceiveBuffer(max_packets=2)
+    iface = object()
+    delivered: list[int] = []
+
+    receive_buffer.on_receive({"id": 1}, iface)
+    receive_buffer.on_receive({"id": 2}, iface)
+    receive_buffer.on_receive({"id": 3}, iface)
+    receive_buffer.activate(
+        lambda packet, _interface: delivered.append(int(packet["id"]))
+    )
+
+    assert delivered == [2, 3]
+    assert receive_buffer.dropped_packets == 1

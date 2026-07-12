@@ -53,7 +53,6 @@
       if (changed) {{
         persistChatChangeNotices();
         syncDocumentUnreadTitle(chatUnreadCount);
-        renderHistoryNotificationLog();
         setChatRailUnread(chatUnreadCount);
       }}
       return changed;
@@ -75,9 +74,6 @@
         }}
         if (changed && latestState && isChatWorkspaceLayoutView(activeLayoutView)) {{
           renderChat(latestState);
-          if (activeLayoutView === "chatlabs") {{
-            renderChatLabsView(latestState);
-          }}
         }}
       }}, chatChangeAutoDismissFadeMs);
     }}
@@ -158,14 +154,12 @@
         clearAllChatChangeAutoDismissTimers();
         persistChatChangeNotices();
         syncDocumentUnreadTitle(chatUnreadCount);
-        renderHistoryNotificationLog();
         return;
       }}
       clearOne(channelKey);
       clearAllChatChangeAutoDismissTimers();
       persistChatChangeNotices();
       syncDocumentUnreadTitle(chatUnreadCount);
-      renderHistoryNotificationLog();
     }}
 
     function chatChangeNoticesForChannel(channelKey) {{

@@ -1,26 +1,3 @@
-      const savedChip = document.getElementById("updated-freshness");
-      if (savedChip instanceof HTMLElement) {{
-        const savedNodeId = activeLayoutView === "saved"
-          ? resolveSavedViewNodeId(latestState)
-          : "";
-        if (activeLayoutView === "saved" && isSelectableNodeId(savedNodeId)) {{
-          const node = nodesById.get(savedNodeId);
-          const caps = capsById.get(savedNodeId);
-          const chatTouch = latestChatTouchByNode.get(savedNodeId) || null;
-          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
-          const status = freshnessStatus(lastSeenUnix, nowUnix);
-          const key = normalizeFreshnessKey(status);
-          savedChip.textContent = key === "online"
-            ? "Fresh"
-            : (key === "warn" ? "Aging" : (key === "stale" ? "Stale" : "Unknown"));
-          applyFreshnessClass(savedChip, key);
-          savedChip.hidden = false;
-        }} else {{
-          savedChip.textContent = "";
-          savedChip.hidden = true;
-          applyFreshnessClass(savedChip, "unknown");
-        }}
-      }}
     }}
 
 
@@ -71,7 +48,7 @@
 
     function buildResponseTelemetryMetaHtml(sentMsRaw, responseMsRaw, hopsRaw) {{
       const telemetry = buildResponseTelemetry(sentMsRaw, responseMsRaw, hopsRaw);
-      return `<div class="bots-history-meta"><span>RTT ${{telemetry.rttMs == null ? "n/a" : `${{telemetry.rttMs}} ms`}}</span><span>${{escAttr(telemetry.hopLabel)}}</span></div>`;
+      return `<div class="response-telemetry-meta"><span>RTT ${{telemetry.rttMs == null ? "n/a" : `${{telemetry.rttMs}} ms`}}</span><span>${{escAttr(telemetry.hopLabel)}}</span></div>`;
     }}
 
     function buildDeliveredAckDetail(msg, ackMeta = null) {{
@@ -107,28 +84,6 @@
         parts.push(`rssi ${{formatMetricValue(rxRssiRaw, 0)}} dBm`);
       }}
       return parts.join(" | ");
-    }}
-
-    function indexMeshBotRequestsByMessageId(botRequestsRaw) {{
-      const requestByMessageId = new Map();
-      const responseByMessageId = new Map();
-      const rows = Array.isArray(botRequestsRaw) ? botRequestsRaw : [];
-      for (const rawRow of rows) {{
-        if (!rawRow || typeof rawRow !== "object") continue;
-        const source = String(rawRow.source || "").trim().toLowerCase();
-        if (source !== "mesh") continue;
-        const requestMessageId = parsePositiveMessageId(rawRow.message_id ?? rawRow.messageId);
-        const responseMessageId = parsePositiveMessageId(
-          rawRow.response_message_id ?? rawRow.responseMessageId
-        );
-        if (requestMessageId) {{
-          requestByMessageId.set(String(requestMessageId), rawRow);
-        }}
-        if (responseMessageId) {{
-          responseByMessageId.set(String(responseMessageId), rawRow);
-        }}
-      }}
-      return {{ requestByMessageId, responseByMessageId }};
     }}
 
     function buildPacketSummaryAndRoutingAckMaps(rawPackets) {{
@@ -400,14 +355,14 @@
       return offlineAtlasCityRowsPromise;
     }}
 
-    async function nearestOfflineCityHintFromCoords(latRaw, lonRaw, maxDistanceKm = botCityHintMaxDistanceKm) {{
+    async function nearestOfflineCityHintFromCoords(latRaw, lonRaw, maxDistanceKm = offlineCityHintMaxDistanceKm) {{
       const lat = Number(latRaw);
       const lon = Number(lonRaw);
       if (!isValidLatLonRange(lat, lon)) return "";
       const rows = await loadOfflineAtlasCityRows();
       if (!Array.isArray(rows) || rows.length === 0) return "";
       const limitKm = Number(maxDistanceKm);
-      const maxDistance = Number.isFinite(limitKm) && limitKm > 0 ? limitKm : botCityHintMaxDistanceKm;
+      const maxDistance = Number.isFinite(limitKm) && limitKm > 0 ? limitKm : offlineCityHintMaxDistanceKm;
       let best = null;
       let bestDistanceKm = null;
       for (const row of rows) {{

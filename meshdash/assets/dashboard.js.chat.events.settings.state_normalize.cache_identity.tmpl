@@ -105,25 +105,14 @@
         renderSelfRadioPill(safeState);
         if (isChatWorkspaceLayoutView(activeLayoutView)) {{
           renderChat(safeState);
-          if (activeLayoutView === "chatlabs") {{
-            renderChatLabsView(safeState);
-          }}
         }} else if (activeLayoutView === "files") {{
           renderFilesView(safeState);
-        }} else if (activeLayoutView === "history") {{
-          renderHistoryChat((safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}});
         }} else if (isChannelsViewActive()) {{
           renderChannelsView(safeState);
         }} else if (activeLayoutView === "network") {{
           renderNodes(Array.isArray(safeState.nodes) ? safeState.nodes : []);
-        }} else if (activeLayoutView === "saved") {{
-          renderFavorites(safeState);
-        }} else if (activeLayoutView === "bots") {{
-          renderBotsView(safeState);
         }} else if (activeLayoutView === "games") {{
           renderGamesView(safeState);
-        }} else if (activeLayoutView === "remote") {{
-          renderRemoteView(safeState);
         }}
       }}
 

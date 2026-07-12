@@ -116,12 +116,6 @@ def test_initialize_history_store_runtime_uses_legacy_open_and_preloads_settings
             "offset": 0.0,
         }
     ]
-    assert store._bbs_host_settings["title"] == "Packet Exchange"
-    assert store._bot_runtime_settings == {
-        "zork_enabled": False,
-        "ping_enabled": False,
-        "ping_message_only": False,
-    }
 
 
 def test_initialize_history_store_runtime_uses_policy_open_when_injected() -> None:
@@ -241,20 +235,12 @@ def test_history_store_maintenance_close_prune_maybe_and_reset_paths() -> None:
         _read_conn=read_conn,
         _read_lock=_Lock(),
         _last_local_telemetry_sample_unix=99,
-        _bbs_host_settings={"title": "old"},
         _custom_telemetry_rules=[{"metric_key": "old"}],
-        _bot_runtime_settings={"zork_enabled": True},
     )
 
     assert reset_history_store(reset_store) == 1
     assert reset_store._last_local_telemetry_sample_unix == 0
     assert reset_store._custom_telemetry_rules == []
-    assert reset_store._bbs_host_settings["title"] == "Packet Exchange"
-    assert reset_store._bot_runtime_settings == {
-        "zork_enabled": False,
-        "ping_enabled": False,
-        "ping_message_only": False,
-    }
     assert any("wal_checkpoint" in sql for sql in read_conn.executed)
 
 
@@ -287,7 +273,6 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     monkeypatch.setattr(runtime_impl, "_load_connections_helper", lambda store: _record("connections"))
     monkeypatch.setattr(runtime_impl, "_load_link_edges_helper", lambda store, **kwargs: _record("links", kwargs))
     monkeypatch.setattr(runtime_impl, "_load_node_history_helper", lambda store, node_id, hours, points: _record("node_history", (node_id, hours, points)))
-    monkeypatch.setattr(runtime_impl, "_load_online_activity_helper", lambda store, hours: _record("online", hours))
     monkeypatch.setattr(runtime_impl, "_load_node_saved_counts_helper", lambda store: _record("saved_counts"))
     monkeypatch.setattr(runtime_impl, "_load_node_position_counts_helper", lambda store: _record("position_counts"))
     monkeypatch.setattr(runtime_impl, "_load_node_capabilities_helper", lambda store: _record("capabilities"))
@@ -302,22 +287,16 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     monkeypatch.setattr(runtime_impl, "_save_summary_metrics_helper", lambda store, summary: _record("save_summary", summary))
     monkeypatch.setattr(runtime_impl, "_load_custom_telemetry_settings_helper", lambda store: _record("get_custom"))
     monkeypatch.setattr(runtime_impl, "_save_custom_telemetry_settings_helper", lambda store, *, rules: _record("set_custom", rules))
-    monkeypatch.setattr(runtime_impl, "_load_bbs_settings_helper", lambda store: _record("get_bbs"))
-    monkeypatch.setattr(runtime_impl, "_load_bot_runtime_settings_helper", lambda store: _record("get_bot"))
     monkeypatch.setattr(
         runtime_impl,
         "_load_meshyface_profile_processing_settings_helper",
         lambda store: _record("get_profile_processing"),
     )
-    monkeypatch.setattr(runtime_impl, "_load_bbs_posts_helper", lambda store: _record("get_posts"))
-    monkeypatch.setattr(runtime_impl, "_save_bbs_settings_helper", lambda store, *, settings: _record("set_bbs", settings))
-    monkeypatch.setattr(runtime_impl, "_save_bot_runtime_settings_helper", lambda store, *, settings: _record("set_bot", settings))
     monkeypatch.setattr(
         runtime_impl,
         "_save_meshyface_profile_processing_settings_helper",
         lambda store, *, enabled: _record("set_profile_processing", enabled),
     )
-    monkeypatch.setattr(runtime_impl, "_append_bbs_post_helper", lambda store, *, post: _record("append_post", post))
     monkeypatch.setattr(runtime_impl, "_load_raw_packet_stats_helper", lambda store: _record("raw_stats"))
     monkeypatch.setattr(runtime_impl, "_save_raw_packet_settings_helper", lambda store, *, settings: _record("raw_settings", settings))
     monkeypatch.setattr(runtime_impl, "_save_raw_packet_capture_helper", lambda store, packet: _record("raw_packet", packet))
@@ -347,7 +326,6 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     assert store.load_connections()["helper"] == "connections"
     assert store.load_link_edges(window="1d", limit=10)["helper"] == "links"
     assert store.load_node_history("!node", 24, 100)["helper"] == "node_history"
-    assert store.load_online_activity(24)["helper"] == "online"
     assert store.load_node_saved_counts()["helper"] == "saved_counts"
     assert store.load_node_position_counts()["helper"] == "position_counts"
     assert store.load_node_capabilities()["helper"] == "capabilities"
@@ -372,14 +350,8 @@ def test_history_store_facade_methods_delegate_to_runtime_helpers(monkeypatch) -
     store.save_summary_metrics({"node_count": 1})
     assert store.get_custom_telemetry_settings()["helper"] == "get_custom"
     assert store.set_custom_telemetry_settings([{"metric_key": "temp"}])["helper"] == "set_custom"
-    assert store.get_bbs_settings()["helper"] == "get_bbs"
-    assert store.get_bot_runtime_settings()["helper"] == "get_bot"
     assert store.get_meshyface_profile_processing_settings()["helper"] == "get_profile_processing"
-    assert store.get_bbs_posts()["helper"] == "get_posts"
-    assert store.set_bbs_settings({"title": "bbs"})["helper"] == "set_bbs"
-    assert store.set_bot_runtime_settings({"ping_enabled": True})["helper"] == "set_bot"
     assert store.set_meshyface_profile_processing_settings(True)["helper"] == "set_profile_processing"
-    assert store.append_bbs_post({"title": "post"})["helper"] == "append_post"
 
     assert calls[0][0] == "init"
     assert ("maybe_prune", True) in calls

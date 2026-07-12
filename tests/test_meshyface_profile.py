@@ -565,6 +565,13 @@ def test_parse_requires_sender_and_rejects_mismatched_sender() -> None:
     )
 
 
+def test_parse_prefers_numeric_transport_sender_over_display_alias() -> None:
+    packet = _profile_packet(sender_id="!335d8354")
+    packet["from"] = 0x11111111
+
+    assert parse_meshyface_profile_packet(packet) is None
+
+
 def test_profile_validation_requires_theme_and_rejects_far_future_timestamp() -> None:
     with pytest.raises(ValueError, match="complete valid Meshyface theme recipe"):
         build_meshyface_profile_payload(
@@ -1796,8 +1803,10 @@ def test_dashboard_js_invalidates_spatial_and_inspector_surfaces_when_profiles_c
     rerender_start = js.index("function rerenderMeshyfaceProfileAppearance() {")
     rerender_end = js.index("function setMeshyfaceThemeSharingEnabled", rerender_start)
     rerender_block = js[rerender_start:rerender_end]
+    assert 'activeLayoutView === "files"' in rerender_block
+    assert "renderFilesView(latestState);" in rerender_block
     assert "const networkMapVisible = activeLayoutView === \"network\"" in rerender_block
-    assert "const mapVisible = activeLayoutView === \"saved\" || networkMapVisible;" in rerender_block
+    assert "const mapVisible = networkMapVisible;" in rerender_block
     assert "renderMap(" in rerender_block
     assert "bypassNodeFade: true" in rerender_block
     assert "syncChatNodeDetailsDrawer(latestState, { fetchHistory: false });" in rerender_block

@@ -156,7 +156,7 @@
         const targetChatChannel = escAttr(normalizeChatChannel(notice && notice.targetChatChannel ? notice.targetChatChannel : notice && notice.channel ? notice.channel : "all"));
         const peerNodeId = escAttr(normalizeNodeId(notice && notice.peerNodeId ? notice.peerNodeId : ""));
         const when = notice && Number.isFinite(Number(notice.unix))
-          ? savedDetailAge(Number(notice.unix), nowUnix)
+          ? nodeDetailsAge(Number(notice.unix), nowUnix)
           : "just now";
         return `<button type="button" class="chat-change-item" data-change-focus-key="${{focusKey}}" data-change-target-view="${{targetView}}" data-change-chat-channel="${{targetChatChannel}}" data-change-peer-node-id="${{peerNodeId}}" title="Open this update">
           <span class="chat-change-item-main">
@@ -254,25 +254,14 @@
             }}
           }}
           if (!focusChatNoticeByMessageKey(focusKey)) {{
-            // Older notices may no longer exist in the live chat feed buffer.
-            // Fall back to History so click always lands somewhere meaningful.
             setChatSendStatus(
-              "Change is older than the visible chat window. Opened History notifications.",
+              "Change is older than the visible chat window.",
               true
             );
-            applyLayoutView("history", true);
-            if (typeof setHistoryChatTab === "function") {{
-              setHistoryChatTab("activity");
-            }}
-            if (typeof renderHistoryNotificationLog === "function") {{
-              window.requestAnimationFrame(() => {{
-                renderHistoryNotificationLog();
-              }});
-            }}
           }}
           return;
         }}
-        if ((targetView === "saved" || targetView === "network") && isSelectableNodeId(focusKey)) {{
+        if (targetView === "network" && isSelectableNodeId(focusKey)) {{
           selectNode(focusKey, true, false);
         }}
       }};

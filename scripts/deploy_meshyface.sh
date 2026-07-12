@@ -44,10 +44,8 @@ Options:
   --dash-port <port>       Dashboard bind port (default: 8877).
   --refresh-ms <ms>        Poll interval in ms (default: 3000).
   --history-db <path>      History DB path on target host.
-  --bbs-enable             Enable BBS/profile workspace in dashboard.env (requires disclaimer).
-  --no-bbs-enable          Disable BBS/profile workspace in dashboard.env.
-  --games-enable           Enable playable game bots and console support in dashboard.env.
-  --no-games-enable        Disable playable game bots and console support in dashboard.env.
+  --games-enable           Enable local games and standalone console support in dashboard.env.
+  --no-games-enable        Disable local games and standalone console support in dashboard.env.
   --file-transfer-enable   Enable file transfer in dashboard.env (requires disclaimer).
   --no-file-transfer-enable Disable file transfer in dashboard.env.
   --file-transfer-auto-accept
@@ -57,7 +55,7 @@ Options:
   --file-transfer-max-bytes <bytes>
                            Max file transfer size written to dashboard.env.
   --accept-file-transfer-traffic-disclaimer
-                           Acknowledge mesh airtime/congestion risk when enabling BBS/files.
+                           Acknowledge mesh airtime/congestion risk when enabling files.
   --no-accept-file-transfer-traffic-disclaimer
                            Clear disclaimer acceptance in dashboard.env.
   --pr-number <number>     Associate this build with a pull request.
@@ -95,7 +93,6 @@ Env overrides:
   MESH_DASH_DEPLOY_REFRESH_MS
   MESH_DASH_DEPLOY_HISTORY_DB
   MESH_DASH_DEPLOY_PYTHON_UNBUFFERED
-  MESH_DASH_DEPLOY_BBS_ENABLE
   MESH_DASH_DEPLOY_GAMES_ENABLE
   MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE
   MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT
@@ -146,7 +143,6 @@ DASH_PORT="${MESH_DASH_DEPLOY_DASH_PORT:-8877}"
 REFRESH_MS="${MESH_DASH_DEPLOY_REFRESH_MS:-3000}"
 HISTORY_DB="${MESH_DASH_DEPLOY_HISTORY_DB:-}"
 PYTHON_UNBUFFERED="${MESH_DASH_DEPLOY_PYTHON_UNBUFFERED:-1}"
-BBS_ENABLE="${MESH_DASH_DEPLOY_BBS_ENABLE:-0}"
 GAMES_ENABLE="${MESH_DASH_DEPLOY_GAMES_ENABLE:-0}"
 FILE_TRANSFER_ENABLE="${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE:-0}"
 FILE_TRANSFER_AUTO_ACCEPT="${MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT:-0}"
@@ -156,15 +152,11 @@ DEPLOY_GIT_COMMIT="${MESH_DASH_DEPLOY_GIT_COMMIT:-${MESH_DASH_GIT_COMMIT:-}}"
 DEPLOY_PR_NUMBER="${MESH_DASH_DEPLOY_PR_NUMBER:-${MESH_DASH_PR_NUMBER:-}}"
 MAP_PACK_ZIP="${MESH_DASH_DEPLOY_MAP_PACK_ZIP:-}"
 MAP_PACKS_DIR=""
-BBS_ENABLE_SET=0
 GAMES_ENABLE_SET=0
 FILE_TRANSFER_ENABLE_SET=0
 FILE_TRANSFER_AUTO_ACCEPT_SET=0
 FILE_TRANSFER_MAX_BYTES_SET=0
 ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET=0
-if [[ -n "${MESH_DASH_DEPLOY_BBS_ENABLE+x}" ]]; then
-  BBS_ENABLE_SET=1
-fi
 if [[ -n "${MESH_DASH_DEPLOY_GAMES_ENABLE+x}" ]]; then
   GAMES_ENABLE_SET=1
 fi
@@ -523,16 +515,6 @@ while [[ $# -gt 0 ]]; do
       HISTORY_DB="$2"
       shift 2
       ;;
-    --bbs-enable)
-      BBS_ENABLE=1
-      BBS_ENABLE_SET=1
-      shift
-      ;;
-    --no-bbs-enable)
-      BBS_ENABLE=0
-      BBS_ENABLE_SET=1
-      shift
-      ;;
     --games-enable)
       GAMES_ENABLE=1
       GAMES_ENABLE_SET=1
@@ -790,13 +772,6 @@ if [[ "${FILE_TRANSFER_ENABLE_SET}" -eq 0 ]]; then
   fi
 fi
 
-if [[ "${BBS_ENABLE_SET}" -eq 0 ]]; then
-  existing_bbs_enable="$(read_existing_dashboard_env_value "MESH_DASH_BBS_ENABLE")"
-  if [[ -n "${existing_bbs_enable}" ]]; then
-    BBS_ENABLE="${existing_bbs_enable}"
-  fi
-fi
-
 if [[ "${GAMES_ENABLE_SET}" -eq 0 ]]; then
   existing_games_enable="$(read_existing_dashboard_env_value "MESH_DASH_GAMES_ENABLE")"
   if [[ -n "${existing_games_enable}" ]]; then
@@ -830,8 +805,8 @@ if ! [[ "${FILE_TRANSFER_MAX_BYTES}" =~ ^[0-9]+$ ]]; then
   exit 2
 fi
 
-if { is_truthy "${FILE_TRANSFER_ENABLE}" || is_truthy "${BBS_ENABLE}"; } && ! is_truthy "${ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER}"; then
-  echo "BBS/file-transfer enablement requires disclaimer acceptance." >&2
+if is_truthy "${FILE_TRANSFER_ENABLE}" && ! is_truthy "${ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER}"; then
+  echo "File-transfer enablement requires disclaimer acceptance." >&2
   echo "Re-run with --accept-file-transfer-traffic-disclaimer or set" >&2
   echo "MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER=1." >&2
   exit 2
@@ -847,7 +822,6 @@ fi
 if [[ -n "${SERIAL_PATH}" ]]; then
   echo "[deploy] mesh_serial_path=${SERIAL_PATH} dash=${DASH_HOST}:${DASH_PORT} refresh_ms=${REFRESH_MS}"
 fi
-echo "[deploy] bbs_enable=${BBS_ENABLE}"
 echo "[deploy] games_enable=${GAMES_ENABLE}"
 echo "[deploy] file_transfer_enable=${FILE_TRANSFER_ENABLE} file_transfer_auto_accept=${FILE_TRANSFER_AUTO_ACCEPT} file_transfer_max_bytes=${FILE_TRANSFER_MAX_BYTES}"
 if [[ -n "${DEPLOY_PR_NUMBER}" ]]; then
@@ -989,7 +963,6 @@ DASH_PORT=${DASH_PORT}
 REFRESH_MS=${REFRESH_MS}
 MESH_DASH_HISTORY_DB=${HISTORY_DB}
 MESH_DASHBOARD_MAP_PACKS_DIR=${MAP_PACKS_DIR}
-MESH_DASH_BBS_ENABLE=${BBS_ENABLE}
 MESH_DASH_GAMES_ENABLE=${GAMES_ENABLE}
 MESH_DASH_FILE_TRANSFER_ENABLE=${FILE_TRANSFER_ENABLE}
 MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=${FILE_TRANSFER_AUTO_ACCEPT}

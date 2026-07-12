@@ -27,6 +27,7 @@ python mesh_dashboard.py \
 ```
 
 Replace `192.168.1.42` with the Wi-Fi IP address of your radio.
+Keep the radio and dashboard on the same trusted LAN.
 
 Run with USB serial radio:
 

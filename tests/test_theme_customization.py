@@ -136,8 +136,17 @@ def _contrast_ratio(foreground: str, background: str) -> float:
 
 def test_load_theme_presets_merges_valid_external_presets_and_ignores_invalid_data() -> None:
     defaults = default_theme_presets()
-    custom_light = {**defaults["default"]["light"], "--theme-base-color": "#123456"}
-    custom_dark = {**defaults["default"]["dark"], "--theme-base-color": "#abcdef"}
+    deprecated_panel = "--" + "panel"
+    custom_light = {
+        **defaults["default"]["light"],
+        "--theme-base-color": "#123456",
+        deprecated_panel: "#ffffff",
+    }
+    custom_dark = {
+        **defaults["default"]["dark"],
+        "--theme-base-color": "#abcdef",
+        deprecated_panel: "#000000",
+    }
 
     loaded = load_theme_presets(
         "themes.json",
@@ -152,6 +161,8 @@ def test_load_theme_presets_merges_valid_external_presets_and_ignores_invalid_da
 
     assert loaded["sunrise"]["light"]["--theme-base-color"] == "#123456"
     assert loaded["sunrise"]["dark"]["--theme-base-color"] == "#abcdef"
+    assert deprecated_panel not in loaded["sunrise"]["light"]
+    assert deprecated_panel not in loaded["sunrise"]["dark"]
     assert "missing-dark" not in loaded
     assert "bad" not in loaded
     assert select_theme_preset(loaded, "sunrise") is loaded["sunrise"]
@@ -1007,9 +1018,9 @@ def test_custom_theme_text_color_seed_is_ignored_for_readable_auto_text() -> Non
     )
 
     assert preset == alternate_text_seed
-    assert _contrast_ratio(preset["light"]["--theme-text-color"], preset["light"]["--panel"]) >= 7
+    assert _contrast_ratio(preset["light"]["--theme-text-color"], preset["light"]["--ui-panel"]) >= 7
     assert _contrast_ratio(preset["dark"]["--theme-text-color"], preset["dark"]["--workspace-shell-bg"]) >= 7
-    assert _contrast_ratio(preset["light"]["--theme-text-color-muted"], preset["light"]["--panel"]) >= 4.5
+    assert _contrast_ratio(preset["light"]["--theme-text-color-muted"], preset["light"]["--ui-panel"]) >= 4.5
     assert _contrast_ratio(preset["dark"]["--theme-text-color-muted"], preset["dark"]["--workspace-shell-bg"]) >= 4.5
     assert preset["light"]["--theme-text-color"] != "#ff146e"
     assert preset["dark"]["--theme-text-color"] != "#ff146e"
@@ -1034,12 +1045,12 @@ def test_custom_light_theme_gradient_is_auto_lightened_and_text_stays_dark() -> 
     light = preset["light"]
     dark = preset["dark"]
 
-    assert light["--panel"].startswith("rgba(")
-    assert light["--bg"].startswith("rgba(")
+    assert light["--ui-panel"].startswith("rgba(")
+    assert light["--ui-bg"].startswith("rgba(")
     assert light["--theme-text-color"] != "#0a0a0a"
     assert light["--theme-background-gradient"] != dark["--theme-background-gradient"]
-    assert _relative_luminance(light["--ink"]) <= 0.05
-    assert _relative_luminance(light["--muted"]) <= 0.3
+    assert _relative_luminance(light["--ui-text"]) <= 0.05
+    assert _relative_luminance(light["--ui-text-soft"]) <= 0.3
     assert _relative_luminance(light["--theme-text-color-muted"]) <= 0.3
     assert _relative_luminance(light["--surface-tint-text"]) <= 0.05
     assert _relative_luminance(light["--surface-tint-text-soft"]) <= 0.3

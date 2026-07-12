@@ -13,7 +13,6 @@ except Exception:
     _package_version = "0.0.0"
 from meshdash.config import (
     DEFAULT_APP_VERSION_FALLBACK,
-    DEFAULT_BBS_ENABLED,
     DEFAULT_CHAT_MAX_BYTES,
     DEFAULT_FILE_TRANSFER_AUTO_ACCEPT,
     DEFAULT_FILE_TRANSFER_ENABLED,
@@ -59,7 +58,6 @@ from meshdash.state_service import (
 )
 from meshdash.history_views import (
     build_node_history_loader as _build_node_history_loader,
-    build_online_activity_loader as _build_online_activity_loader,
     build_summary_metrics_loader as _build_summary_metrics_loader,
 )
 from meshdash.services_chat import send_chat_message as _send_chat_message_helper
@@ -137,15 +135,12 @@ def _validate_sideband_traffic_startup_args(
     *,
     parser: argparse.ArgumentParser,
 ) -> None:
-    bbs_enabled = bool(getattr(args, "bbs_enable", False))
     file_transfer_enabled = bool(getattr(args, "file_transfer_enable", False))
     normalized_max_bytes = _normalize_file_transfer_max_bytes(
         getattr(args, "file_transfer_max_bytes", DEFAULT_FILE_TRANSFER_MAX_BYTES)
     )
     setattr(args, "file_transfer_max_bytes", normalized_max_bytes)
     enabled_features = []
-    if bbs_enabled:
-        enabled_features.append("BBS")
     if file_transfer_enabled:
         enabled_features.append("file transfer")
     if not enabled_features:
@@ -485,7 +480,6 @@ def _build_render_html_fn_with_theme(
     theme_preset_settings: _ThemePresetSettings | None = None,
 ):
     settings = theme_preset_settings or _build_theme_preset_settings(args)
-    bbs_enabled = bool(getattr(args, "bbs_enable", False))
     file_transfer_enabled = bool(getattr(args, "file_transfer_enable", False))
     file_transfer_auto_accept = bool(getattr(args, "file_transfer_auto_accept", False))
     games_enabled = bool(getattr(args, "games_enable", False))
@@ -511,7 +505,6 @@ def _build_render_html_fn_with_theme(
             initial_background_settings=(
                 initial_background_settings if isinstance(initial_background_settings, dict) else None
             ),
-            bbs_enabled=bbs_enabled,
             file_transfer_enabled=file_transfer_enabled,
             file_transfer_auto_accept=file_transfer_auto_accept,
             games_enabled=games_enabled,
@@ -525,6 +518,7 @@ def _build_make_http_handler_with_theme_settings(
     theme_settings: _ThemePresetSettings,
     *,
     api_token: object = None,
+    allow_tokenless_raw_packet_download: bool = True,
     private_mode: bool = False,
 ):
     clean_api_token = str(api_token or "").strip() or None
@@ -533,7 +527,6 @@ def _build_make_http_handler_with_theme_settings(
         html_text: str,
         state_fn,
         node_history_fn=None,
-        online_activity_fn=None,
         summary_metrics_fn=None,
         send_chat_fn=None,
         default_node_history_hours: int = 72,
@@ -543,12 +536,14 @@ def _build_make_http_handler_with_theme_settings(
             html_text=html_text,
             state_fn=state_fn,
             node_history_fn=node_history_fn,
-            online_activity_fn=online_activity_fn,
             summary_metrics_fn=summary_metrics_fn,
             send_chat_fn=send_chat_fn,
             get_theme_settings_fn=theme_settings.get_settings_payload,
             set_theme_preset_fn=theme_settings.apply_settings,
             api_token=clean_api_token,
+            allow_tokenless_raw_packet_download=bool(
+                allow_tokenless_raw_packet_download
+            ),
             private_mode=bool(private_mode),
             default_node_history_hours=default_node_history_hours,
             to_int_fn=to_int_fn,
@@ -634,7 +629,6 @@ def run_dashboard(args: argparse.Namespace) -> None:
         build_state_lite_console_fn=_build_state_lite_console_helper,
         sensitive_field_names=SENSITIVE_FIELD_NAMES,
         build_node_history_loader_fn=_build_node_history_loader,
-        build_online_activity_loader_fn=_build_online_activity_loader,
         build_summary_metrics_loader_fn=_build_summary_metrics_loader,
         send_chat_message_fn=_send_chat_message_helper,
         send_reaction_packet_fn=_send_reaction_packet,
@@ -649,6 +643,9 @@ def run_dashboard(args: argparse.Namespace) -> None:
         make_http_handler_fn=_build_make_http_handler_with_theme_settings(
             theme_preset_settings,
             api_token=getattr(args, "api_token", None),
+            allow_tokenless_raw_packet_download=bool(
+                getattr(args, "allow_tokenless_raw_packet_download", True)
+            ),
             private_mode=bool(getattr(args, "private_mode", False)),
         ),
         default_node_history_hours=DEFAULT_NODE_HISTORY_HOURS,
@@ -666,7 +663,6 @@ def run_dashboard(args: argparse.Namespace) -> None:
         revision_info_fn=runtime_dependencies.revision_info_fn,
         build_state_fn=runtime_dependencies.build_state_fn,
         build_node_history_loader_fn=runtime_dependencies.build_node_history_loader_fn,
-        build_online_activity_loader_fn=runtime_dependencies.build_online_activity_loader_fn,
         build_summary_metrics_loader_fn=runtime_dependencies.build_summary_metrics_loader_fn,
         send_chat_message_fn=runtime_dependencies.send_chat_message_fn,
         send_reaction_packet_fn=runtime_dependencies.send_reaction_packet_fn,
@@ -708,8 +704,6 @@ def main() -> None:
         env_theme_settings_file=os.environ.get("MESH_DASH_THEME_SETTINGS_FILE"),
         env_private_mode=os.environ.get("MESH_DASH_PRIVATE_MODE"),
         env_api_token=os.environ.get("MESH_DASH_API_TOKEN"),
-        default_bbs_enable=DEFAULT_BBS_ENABLED,
-        env_bbs_enable=os.environ.get("MESH_DASH_BBS_ENABLE"),
         default_file_transfer_enable=DEFAULT_FILE_TRANSFER_ENABLED,
         default_file_transfer_auto_accept=DEFAULT_FILE_TRANSFER_AUTO_ACCEPT,
         default_games_enable=DEFAULT_GAMES_ENABLED,

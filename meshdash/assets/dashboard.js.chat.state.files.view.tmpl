@@ -34,49 +34,116 @@
         const key = String(row && row.key ? row.key : "").trim();
         if (!key) continue;
         activeKeys.add(key);
-        const bytes = row && row.canDownload ? row.bytes : null;
-        if (!(bytes instanceof Uint8Array) || bytes.length <= 0) {{
-          fileTransferBlobByKey.delete(key);
-          const staleUrl = fileTransferDownloadUrlByKey.get(key);
-          if (staleUrl) {{
-            try {{
-              URL.revokeObjectURL(staleUrl);
-            }} catch (_err) {{
-            }}
-            fileTransferDownloadUrlByKey.delete(key);
-          }}
-          continue;
-        }}
-        const existingBlob = fileTransferBlobByKey.get(key);
-        const needsBlob = !(existingBlob instanceof Blob) || Number(existingBlob.size) !== bytes.length;
-        if (needsBlob) {{
-          fileTransferBlobByKey.set(key, new Blob([bytes], {{ type: "application/octet-stream" }}));
-          const staleUrl = fileTransferDownloadUrlByKey.get(key);
-          if (staleUrl) {{
-            try {{
-              URL.revokeObjectURL(staleUrl);
-            }} catch (_err) {{
-            }}
-            fileTransferDownloadUrlByKey.delete(key);
-          }}
+        if (!(row && row.canDownload)) {{
+          clearFileTransferMaterializedStateForKey(key);
         }}
       }}
 
-      for (const key of Array.from(fileTransferBlobByKey.keys())) {{
+      const materializedKeys = new Set([
+        ...fileTransferBlobByKey.keys(),
+        ...fileTransferDecodedBytesByKey.keys(),
+      ]);
+      for (const key of materializedKeys) {{
         if (activeKeys.has(key)) continue;
-        fileTransferBlobByKey.delete(key);
+        clearFileTransferMaterializedStateForKey(key);
       }}
-      for (const key of Array.from(fileTransferDownloadUrlByKey.keys())) {{
-        if (activeKeys.has(key)) continue;
-        const staleUrl = fileTransferDownloadUrlByKey.get(key);
-        if (staleUrl) {{
-          try {{
-            URL.revokeObjectURL(staleUrl);
-          }} catch (_err) {{
-          }}
+      enforceFileTransferMaterializedCacheLimits();
+    }}
+
+    function fileTransferRowMaterializeSignature(row) {{
+      if (!(row && typeof row === "object")) return "";
+      return [
+        String(row.key || "").trim(),
+        Math.max(0, Math.trunc(Number(row.expectedChunks) || 0)),
+        Math.max(0, Math.trunc(Number(row.wireDeclaredBytes) || 0)),
+        Math.max(0, Math.trunc(Number(row.originalDeclaredBytes) || 0)),
+        normalizeFileTransferCompressionCodec(row.payloadCodec || fileTransferCompressionCodecRaw),
+        Math.max(0, Math.trunc(Number(row.observedBytes) || 0)),
+      ].join("|");
+    }}
+
+    function materializeFileTransferRowBytes(row) {{
+      if (!(row && typeof row === "object") || !row.canDownload) return null;
+      const key = String(row.key || "").trim();
+      if (!key) return null;
+      const signature = fileTransferRowMaterializeSignature(row);
+      const priorFailure = fileTransferMaterializeFailureByKey.get(key);
+      if (priorFailure && String(priorFailure.signature || "") === signature) return null;
+      const cached = fileTransferDecodedBytesByKey.get(key);
+      const expectedDecodedBytes = Math.max(
+        0,
+        Math.trunc(Number(row.originalDeclaredBytes) || 0)
+      );
+      if (
+        cached instanceof Uint8Array
+        && cached.length > 0
+        && cached.length === expectedDecodedBytes
+      ) {{
+        touchFileTransferMaterializedState(key);
+        return cached;
+      }}
+      clearFileTransferMaterializedStateForKey(key);
+      const chunks = row.wireChunks instanceof Map ? row.wireChunks : null;
+      const expectedChunks = Math.max(0, Math.trunc(Number(row.expectedChunks) || 0));
+      const wireDeclaredBytes = Math.max(0, Math.trunc(Number(row.wireDeclaredBytes) || 0));
+      if (!chunks || expectedChunks <= 0 || wireDeclaredBytes <= 0 || expectedDecodedBytes <= 0) {{
+        setBoundedFileTransferMapEntry(
+          fileTransferMaterializeFailureByKey,
+          key,
+          {{ signature, failedAtMs: Date.now() }},
+          fileTransferMaterializeFailureMaxEntries
+        );
+        return null;
+      }}
+      let mergedLength = 0;
+      for (let idx = 0; idx < expectedChunks; idx += 1) {{
+        const part = chunks.get(idx);
+        if (!(part instanceof Uint8Array)) {{
+          mergedLength = -1;
+          break;
         }}
-        fileTransferDownloadUrlByKey.delete(key);
+        mergedLength += part.length;
+        if (mergedLength > fileTransferMaxFileBytes + fileTransferChunkBytes) {{
+          mergedLength = -1;
+          break;
+        }}
       }}
+      if (mergedLength < wireDeclaredBytes || mergedLength <= 0) {{
+        setBoundedFileTransferMapEntry(
+          fileTransferMaterializeFailureByKey,
+          key,
+          {{ signature, failedAtMs: Date.now() }},
+          fileTransferMaterializeFailureMaxEntries
+        );
+        return null;
+      }}
+      const merged = new Uint8Array(mergedLength);
+      let cursor = 0;
+      for (let idx = 0; idx < expectedChunks; idx += 1) {{
+        const part = chunks.get(idx);
+        merged.set(part, cursor);
+        cursor += part.length;
+      }}
+      const decoded = decodeFileTransferPayloadBytes(
+        merged.subarray(0, wireDeclaredBytes),
+        row.payloadCodec,
+        expectedDecodedBytes
+      );
+      if (!(decoded instanceof Uint8Array) || decoded.length !== expectedDecodedBytes) {{
+        setBoundedFileTransferMapEntry(
+          fileTransferMaterializeFailureByKey,
+          key,
+          {{ signature, failedAtMs: Date.now() }},
+          fileTransferMaterializeFailureMaxEntries
+        );
+        return null;
+      }}
+      fileTransferDecodedBytesByKey.delete(key);
+      fileTransferDecodedBytesByKey.set(key, decoded);
+      fileTransferMaterializeFailureByKey.delete(key);
+      touchFileTransferMaterializedState(key);
+      enforceFileTransferMaterializedCacheLimits(key);
+      return decoded;
     }}
 
     function fileTransferDownloadUrlForKey(transferKey) {{
@@ -107,6 +174,26 @@
         appendFileTransferConsole("Download blocked: transfer is not complete yet.", {{ level: "warn" }});
         return;
       }}
+      const bytes = materializeFileTransferRowBytes(row);
+      if (!(bytes instanceof Uint8Array) || bytes.length <= 0) {{
+        setFileTransferStatus("Could not validate or decode this transfer.", true);
+        appendFileTransferConsole("Download blocked: transfer payload failed validation.", {{ level: "error" }});
+        return;
+      }}
+      const priorBlob = fileTransferBlobByKey.get(key);
+      if (!(priorBlob instanceof Blob) || Number(priorBlob.size) !== bytes.length) {{
+        fileTransferBlobByKey.set(key, new Blob([bytes], {{ type: "application/octet-stream" }}));
+        const staleUrl = fileTransferDownloadUrlByKey.get(key);
+        if (staleUrl) {{
+          try {{
+            URL.revokeObjectURL(staleUrl);
+          }} catch (_err) {{
+          }}
+          fileTransferDownloadUrlByKey.delete(key);
+        }}
+      }}
+      touchFileTransferMaterializedState(key);
+      enforceFileTransferMaterializedCacheLimits(key);
       const url = fileTransferDownloadUrlForKey(key);
       if (!url) {{
         setFileTransferStatus("Could not prepare file download.", true);
@@ -136,15 +223,7 @@
     function clearFileTransferBlobStateForKey(transferKey) {{
       const key = String(transferKey || "").trim();
       if (!key) return;
-      fileTransferBlobByKey.delete(key);
-      const staleUrl = fileTransferDownloadUrlByKey.get(key);
-      if (staleUrl) {{
-        try {{
-          URL.revokeObjectURL(staleUrl);
-        }} catch (_err) {{
-        }}
-      }}
-      fileTransferDownloadUrlByKey.delete(key);
+      clearFileTransferMaterializedStateForKey(key);
     }}
 
     function setFileTransferInboundDecisionAction(transferKey, decisionRaw, options = null) {{
@@ -368,6 +447,102 @@
       void poll();
     }}
 
+    function cancelAllFileTransfersAction() {{
+      const activeOutgoing = Array.from(fileTransferOutgoingByToken.values()).filter((session) => (
+        session && typeof session === "object" && !session.delivered && !session.failed && !session.canceled
+      ));
+      const activeInbound = (Array.isArray(fileTransferRows) ? fileTransferRows : []).filter((row) => (
+        row
+        && typeof row === "object"
+        && String(row.directionClass || "").trim().toLowerCase() === "inbound"
+        && !row.delivered
+        && !row.inboundDeclined
+        && !row.inboundCanceled
+      ));
+      const total = activeOutgoing.length + activeInbound.length;
+      if (total <= 0) {{
+        setFileTransferStatus("No active file transfers to cancel.");
+        return 0;
+      }}
+      const confirmText = `Cancel all ${{total}} active file transfer${{total === 1 ? "" : "s"}}?\n\nThis stops retries, declines inbound transfers, and queues cancel signals to peers.`;
+      if (typeof window.confirm === "function" && !window.confirm(confirmText)) return 0;
+      let canceled = 0;
+      for (const session of activeOutgoing) {{
+        if (cancelOutgoingFileTransferSession(session, {{ clearAckState: false }})) canceled += 1;
+      }}
+      for (const row of activeInbound) {{
+        const key = String(row.key || "").trim();
+        if (!key) continue;
+        setFileTransferInboundDecisionByKey(key, "declined", {{
+          transferId: row.transferId,
+          senderId: row.fromId,
+          receiverId: row.toId,
+          fileName: row.fileName,
+        }});
+        setFileTransferInboundFlowStateByKey(key, "canceled-by-receiver", {{
+          transferId: row.transferId,
+          senderId: row.fromId,
+          receiverId: row.toId,
+        }});
+        deleteFileTransferChunkCacheEntry(key);
+        clearFileTransferBlobStateForKey(key);
+        fileTransferAckSentState.delete(key);
+        fileTransferAckObservedChunksByKey.delete(key);
+        fileTransferAckProbeCursorByKey.delete(key);
+        fileTransferAckProbeStateByKey.delete(key);
+        fileTransferAckMissingChannelWarnByKey.delete(key);
+        fileTransferFlowSignalSentByKey.delete(key);
+        canceled += 1;
+      }}
+      const suffix = canceled === 1 ? "" : "s";
+      setFileTransferStatus(`Canceled ${{canceled}} active file transfer${{suffix}}.`);
+      appendFileTransferConsole(
+        `Canceled all ${{canceled}} active file transfer${{suffix}}. Cancel signals queued for peers.`,
+        {{ level: "warn" }}
+      );
+      renderFilesView(latestState);
+      scheduleFileTransferMaintenance(latestState);
+      requestImmediatePoll(40);
+      void poll();
+      return canceled;
+    }}
+
+    function clearAllFileTransferRowsAction() {{
+      const activeOutgoing = Array.from(fileTransferOutgoingByToken.values()).some((session) => (
+        session && typeof session === "object" && !session.delivered && !session.failed && !session.canceled
+      ));
+      const activeInbound = (Array.isArray(fileTransferRows) ? fileTransferRows : []).some((row) => (
+        row
+        && typeof row === "object"
+        && String(row.directionClass || "").trim().toLowerCase() === "inbound"
+        && !row.delivered
+        && !row.inboundDeclined
+        && !row.inboundCanceled
+      ));
+      if (activeOutgoing || activeInbound) {{
+        setFileTransferStatus("Cancel active transfers before clearing the list.", true);
+        return 0;
+      }}
+      const keys = (Array.isArray(fileTransferRows) ? fileTransferRows : [])
+        .map((row) => String(row && row.key || "").trim())
+        .filter((key, index, list) => !!key && list.indexOf(key) === index);
+      if (!keys.length) {{
+        setFileTransferStatus("The transfer list is already empty.");
+        return 0;
+      }}
+      const confirmText = `Clear all ${{keys.length}} transfer row${{keys.length === 1 ? "" : "s"}} and cached received files from this browser?`;
+      if (typeof window.confirm === "function" && !window.confirm(confirmText)) return 0;
+      let cleared = 0;
+      for (const key of keys) {{
+        if (dismissFileTransferRowByKey(key)) cleared += 1;
+      }}
+      renderFilesView(latestState);
+      const suffix = cleared === 1 ? "" : "s";
+      setFileTransferStatus(`Cleared ${{cleared}} transfer row${{suffix}}.`);
+      appendFileTransferConsole(`Cleared the Files list (${{cleared}} row${{suffix}}).`);
+      return cleared;
+    }}
+
     function restartOutgoingFileTransferAction(transferKey) {{
       const key = String(transferKey || "").trim();
       if (!key) return;
@@ -491,6 +666,7 @@
 
     function renderFilesView(state = latestState) {{
       const selectedSeed = syncFileTransferDestinationFromSelectedNode(state, {{ persist: true }});
+      renderFileTransferHopLimitPreview(state);
 
       const useSelectedBtn = document.getElementById("files-use-selected-btn");
       if (useSelectedBtn instanceof HTMLButtonElement) {{
@@ -799,7 +975,56 @@
               >${{escAttr(actionLabel)}}</button>`;
           }}
         }}
-        return `<tr>
+        const rowDirection = String(row && row.directionClass || "").trim().toLowerCase();
+        const activeInboundRow = !!(
+          rowDirection === "inbound"
+          && !row.delivered
+          && !row.inboundDeclined
+          && !row.inboundCanceled
+        );
+        const activeOutboundRow = !!(
+          rowDirection === "outbound"
+          && !row.delivered
+          && !row.outgoingFailed
+          && !row.outgoingCanceled
+          && !row.outgoingSessionMissing
+        );
+        const closeAction = activeInboundRow
+          ? "cancel-inbound"
+          : (activeOutboundRow ? "cancel" : "clear");
+        const closeTitle = activeInboundRow
+          ? "Cancel this inbound transfer and stop receiving."
+          : (
+            activeOutboundRow
+              ? "Cancel this outbound transfer and stop retries."
+              : "Remove this transfer row and cached file data."
+          );
+        const closeButton = `<button
+            type="button"
+            class="files-transfer-action decline files-transfer-row-close"
+            data-action="${{escAttr(closeAction)}}"
+            data-transfer-key="${{escAttr(row.key || "")}}"
+            title="${{escAttr(closeTitle)}}"
+            aria-label="${{escAttr(closeTitle)}}"
+          >&times;</button>`;
+        actionHtml = `<span class="files-transfer-action-group files-transfer-row-actions">${{actionHtml}}${{closeButton}}</span>`;
+        const peerNodeId = normalizeNodeId(row && row.peerId || "");
+        const appearanceEntry = peerNodeId && typeof effectiveNodeAppearanceForNode === "function"
+          ? effectiveNodeAppearanceForNode(peerNodeId, state)
+          : null;
+        const hasProfileTheme = !!(
+          appearanceEntry
+          && appearanceEntry.profileAppearance
+          && appearanceEntry.preset
+        );
+        const appearanceStyleVars = hasProfileTheme && typeof nodeAppearanceStyleVars === "function"
+          ? nodeAppearanceStyleVars(appearanceEntry)
+          : "";
+        const appearanceStyleAttr = appearanceStyleVars
+          ? ` style="${{escAttr(appearanceStyleVars)}}"`
+          : "";
+        const appearanceClass = hasProfileTheme ? " profiled-node files-transfer-profiled-row" : "";
+        return `<tr class="files-transfer-row${{appearanceClass}}" data-peer-node-id="${{escAttr(peerNodeId)}}"${{appearanceStyleAttr}}>
           <td data-sort="${{escAttr(unix)}}">${{escAttr(when)}}</td>
           <td data-sort="${{escAttr(directionLabel)}}"><span class="files-transfer-dir ${{escAttr(directionClass)}}">${{escAttr(directionLabel)}}</span></td>
           <td data-sort="${{escAttr(peerText)}}" title="${{escAttr(peerTitle)}}">${{escAttr(peerText)}}</td>

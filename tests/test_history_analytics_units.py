@@ -1,56 +1,8 @@
 import sqlite3
 
 from meshdash.history_node_positions import build_position_history_points
-from meshdash.history_online_analytics import build_online_activity_payload
 from meshdash.history_positions import insert_node_position_if_changed
 from meshdash.history_summary_analytics import build_summary_metrics_payload
-
-
-def test_build_online_activity_payload_summarizes_points_and_hourly_profile() -> None:
-    payload = build_online_activity_payload(
-        window_hours=0,
-        hour_rows=[
-            ("bad", 9),
-            (1000, 3),
-            (4600, 3),
-            (8200, -2),
-        ],
-        distinct_nodes=4,
-        timezone_label="Test TZ",
-    )
-
-    assert payload["window_hours"] == 1
-    assert payload["timezone_label"] == "Test TZ"
-    assert len(payload["points"]) == 3
-    assert payload["summary"]["sample_hours"] == 3  # type: ignore[index]
-    assert payload["summary"]["distinct_nodes"] == 4  # type: ignore[index]
-    assert payload["summary"]["max_online_nodes"] == 3  # type: ignore[index]
-    assert payload["summary"]["avg_online_nodes"] == 2.0  # type: ignore[index]
-    assert payload["summary"]["window_start"] is not None  # type: ignore[index]
-    assert payload["summary"]["window_end"] is not None  # type: ignore[index]
-    assert len(payload["hourly_profile"]) == 24
-    assert any(hour["sample_hours"] > 0 for hour in payload["hourly_profile"])  # type: ignore[union-attr]
-
-
-def test_build_online_activity_payload_handles_empty_rows() -> None:
-    payload = build_online_activity_payload(
-        window_hours=24,
-        hour_rows=[],
-        distinct_nodes=0,
-        timezone_label="UTC",
-    )
-
-    assert payload["summary"] == {
-        "sample_hours": 0,
-        "distinct_nodes": 0,
-        "max_online_nodes": 0,
-        "avg_online_nodes": None,
-        "best_hour": None,
-        "best_hour_label": None,
-        "best_hour_avg_online_nodes": None,
-        "window_start": None,
-        "window_end": None,
-    }
 
 
 def test_build_position_history_points_filters_invalid_rows_and_tracks_trail() -> None:

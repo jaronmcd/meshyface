@@ -1173,7 +1173,7 @@
         endUnix
       );
       const packetSeries = built.packetSeriesMetric ? nodePacketSeriesEnabled : null;
-      const metricMeta = resolveWeeklySummaryMetricMeta("packets", weeklySummaryNodeSeriesEnabled, packetSeries);
+      const metricMeta = resolveWeeklySummaryMetricMeta("packets", networkOverviewNodeSeriesEnabled, packetSeries);
       const emptyMessage = built.packetSeriesMetric
         ? "No packet activity yet in this window."
         : "No packet-rate history yet for this node.";
@@ -1185,13 +1185,7 @@
       );
     }}
 
-    function rerenderOnlineActivityChartFromCache() {{
-      const chartState = historyTrendCharts.online;
-      const points = chartState && Array.isArray(chartState.points) ? chartState.points : [];
-      renderOnlineActivityChart(points);
-    }}
-
-    function rerenderWeeklySummaryChartFromCache(targetKey = "history") {{
+    function rerenderWeeklySummaryChartFromCache(targetKey = "network-overview") {{
       const target = resolveWeeklySummaryRenderTarget(targetKey);
       const chartState = target && target.chartState;
       const rows = chartState && Array.isArray(chartState.points) ? chartState.points : [];
@@ -1199,7 +1193,7 @@
         const packetSeries = rows.some((row) => row && row.series && typeof row.series === "object")
           ? nodePacketSeriesEnabled
           : null;
-        const metricMeta = resolveWeeklySummaryMetricMeta("packets", weeklySummaryNodeSeriesEnabled, packetSeries);
+        const metricMeta = resolveWeeklySummaryMetricMeta("packets", networkOverviewNodeSeriesEnabled, packetSeries);
         const emptyMessage = packetSeries
           ? "No packet activity yet in this window."
           : "No packet-rate history yet for this node.";
@@ -1216,15 +1210,9 @@
         );
         return;
       }}
-      const metricKey = target && target.key === "network-overview"
-        ? normalizeNetworkOverviewMetric(networkOverviewMetric)
-        : normalizeWeeklySummaryMetric(weeklySummaryMetric);
-      const nodeSeries = target && target.key === "network-overview"
-        ? networkOverviewNodeSeriesEnabled
-        : weeklySummaryNodeSeriesEnabled;
-      const packetSeries = target && target.key === "network-overview"
-        ? networkOverviewPacketSeriesEnabled
-        : null;
+      const metricKey = normalizeNetworkOverviewMetric(networkOverviewMetric);
+      const nodeSeries = networkOverviewNodeSeriesEnabled;
+      const packetSeries = networkOverviewPacketSeriesEnabled;
       const metricMeta = resolveWeeklySummaryMetricMeta(metricKey, nodeSeries, packetSeries);
       const emptyMessage = metricKey === "packets" && packetSeries
         ? "No packet activity yet in this window."
@@ -1232,220 +1220,4 @@
           ? "Need at least two saved samples to estimate packets/min."
           : "No weekly summary history yet.");
       renderWeeklySummaryChartRows(rows, metricMeta, emptyMessage, {{ targetKey: target.key }});
-    }}
-
-    function renderOnlineActivityLoading() {{
-      setMapDataMode("activity");
-      historyTrendCharts.online.points = [];
-      historyTrendCharts.online.pointerDrag = null;
-      const caption = document.getElementById("online-activity-caption");
-      if (caption) {{
-        caption.textContent = "Loading online-node activity history...";
-      }}
-      const overview = document.getElementById("online-activity-overview");
-      if (overview) {{
-        overview.innerHTML = "";
-      }}
-      const svg = document.getElementById("online-activity-chart");
-      if (svg instanceof SVGElement) {{
-        svg.innerHTML = "";
-        svg.classList.remove("zoomed", "chart-dragging");
-      }}
-      const empty = document.getElementById("online-activity-empty");
-      if (empty) {{
-        empty.hidden = false;
-        empty.textContent = "Loading historical online activity...";
-      }}
-      setTimelineMessage("online-activity-timeline", "Loading timeline...");
-    }}
-
-    function renderOnlineActivityError(message) {{
-      setMapDataMode("activity");
-      historyTrendCharts.online.points = [];
-      resetHistoryTrendZoom(historyTrendCharts.online);
-      const caption = document.getElementById("online-activity-caption");
-      if (caption) {{
-        caption.textContent = `Online activity error: ${{message || "unknown error"}}`;
-      }}
-      const overview = document.getElementById("online-activity-overview");
-      if (overview) {{
-        overview.innerHTML = "";
-      }}
-      const svg = document.getElementById("online-activity-chart");
-      if (svg instanceof SVGElement) {{
-        svg.innerHTML = "";
-        svg.classList.remove("zoomed", "chart-dragging");
-      }}
-      const empty = document.getElementById("online-activity-empty");
-      if (empty) {{
-        empty.hidden = false;
-        empty.textContent = "Unable to load online-activity history.";
-      }}
-      setTimelineMessage("online-activity-timeline", "Timeline unavailable due to online-activity error.");
-    }}
-
-    function renderOnlineActivityChart(points) {{
-      const svg = document.getElementById("online-activity-chart");
-      const empty = document.getElementById("online-activity-empty");
-      if (!(svg instanceof SVGElement) || !(empty instanceof HTMLElement)) return;
-
-      const chartState = historyTrendCharts.online;
-      bindHistoryTrendChartZoom(
-        chartState,
-        () => rerenderOnlineActivityChartFromCache(),
-        "Online activity chart"
-      );
-
-      const rows = Array.isArray(points) ? points : [];
-      chartState.points = rows;
-      const visible = getVisibleHistoryTrendRows(chartState, rows);
-      const plotRows = visible.rows;
-      setHistoryTrendChartTitle(svg, "Online activity chart", visible.zoomed);
-
-      const values = plotRows.map((p) => Number(p.online_nodes)).filter((v) => Number.isFinite(v));
-      if (values.length === 0) {{
-        svg.innerHTML = "";
-        empty.hidden = false;
-        empty.textContent = "No historical online-activity points yet.";
-        renderTimeline(
-          chartState.timelineId,
-          plotRows,
-          historyTrendChartLayout.padLeft,
-          historyTrendChartLayout.padRight,
-          historyTrendChartLayout.width,
-          (row) => timelinePointUnix(row, "bucket_unix", ["bucket_local", "bucket_time"])
-        );
-        return;
-      }}
-      empty.hidden = true;
-
-      const width = historyTrendChartLayout.width;
-      const height = historyTrendChartLayout.height;
-      const padLeft = historyTrendChartLayout.padLeft;
-      const padRight = historyTrendChartLayout.padRight;
-      const padTop = historyTrendChartLayout.padTop;
-      const padBottom = historyTrendChartLayout.padBottom;
-      const plotW = width - padLeft - padRight;
-      const plotH = height - padTop - padBottom;
-
-      let minVal = Math.min(0, ...values);
-      let maxVal = Math.max(...values);
-      if ((maxVal - minVal) < 1) {{
-        maxVal = minVal + 1;
-      }}
-
-      const xAt = (idx, total) => (
-        padLeft + ((Math.max(0, idx) / Math.max(1, total - 1)) * plotW)
-      );
-      const yFrom = (value, minValue, maxValue) => (
-        padTop + ((maxValue - value) / (maxValue - minValue)) * plotH
-      );
-
-      const n = plotRows.length;
-      const pointsXY = [];
-      for (let i = 0; i < n; i += 1) {{
-        const raw = Number(plotRows[i].online_nodes);
-        if (!Number.isFinite(raw)) continue;
-        pointsXY.push({{
-          x: xAt(i, n),
-          y: yFrom(raw, minVal, maxVal),
-        }});
-      }}
-      if (!pointsXY.length) {{
-        svg.innerHTML = "";
-        empty.hidden = false;
-        empty.textContent = "No historical online-activity points yet.";
-        renderTimeline(
-          chartState.timelineId,
-          plotRows,
-          padLeft,
-          padRight,
-          width,
-          (row) => timelinePointUnix(row, "bucket_unix", ["bucket_local", "bucket_time"])
-        );
-        return;
-      }}
-
-      const path = pointsXY.map((pt, idx) => (
-        `${{idx === 0 ? "M" : "L"}} ${{pt.x.toFixed(2)}} ${{pt.y.toFixed(2)}}`
-      )).join(" ");
-
-      const chartPalette = historyChartPalette();
-
-      const axisTicks = buildLinearAxisTicks(minVal, maxVal, 5);
-      const axisLines = axisTicks.map((tick) => {{
-        const y = padTop + (tick.ratio * plotH);
-        return `<line x1="${{padLeft}}" y1="${{y.toFixed(2)}}" x2="${{width - padRight}}" y2="${{y.toFixed(2)}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>`;
-      }}).join("");
-      const axisLabels = axisTicks.map((tick) => {{
-        const y = padTop + (tick.ratio * plotH);
-        return `<text x="${{padLeft - 4}}" y="${{(y + 4).toFixed(2)}}" font-size="10" text-anchor="end" fill="${{chartPalette.label}}">${{formatMetricValue(tick.value, 0)}}</text>`;
-      }}).join("");
-
-      svg.setAttribute("viewBox", `0 0 ${{width}} ${{height}}`);
-      svg.innerHTML = `
-        <rect x="0" y="0" width="${{width}}" height="${{height}}" fill="none"></rect>
-        <line x1="${{padLeft}}" y1="${{padTop}}" x2="${{padLeft}}" y2="${{height - padBottom}}" stroke="${{chartPalette.grid}}" stroke-width="1"></line>
-        ${{axisLines}}
-        <path d="${{path}}" fill="none" stroke="${{chartPalette.line}}" stroke-width="2.3"></path>
-        ${{axisLabels}}
-      `;
-      renderTimeline(
-        chartState.timelineId,
-        plotRows,
-        padLeft,
-        padRight,
-        width,
-        (row) => timelinePointUnix(row, "bucket_unix", ["bucket_local", "bucket_time"])
-      );
-    }}
-
-    function renderOnlineActivityOverview(activity) {{
-      const summary = activity.summary || {{}};
-      const target = document.getElementById("online-activity-overview");
-      if (!target) return;
-      const profile = Array.isArray(activity.hourly_profile) ? activity.hourly_profile : [];
-      const topHours = profile
-        .filter((row) => Number.isFinite(Number(row.avg_online_nodes)))
-        .sort((a, b) => Number(b.avg_online_nodes) - Number(a.avg_online_nodes))
-        .slice(0, 3);
-      const topHoursText = topHours.length
-        ? topHours.map((row) => `${{row.label}} (${{formatMetricValue(row.avg_online_nodes, 1)}})`).join(", ")
-        : "n/a";
-      const bestHourLabel = summary.best_hour_label || "n/a";
-      const bestHourAvgText = Number.isFinite(Number(summary.best_hour_avg_online_nodes))
-        ? ` (${{formatMetricValue(summary.best_hour_avg_online_nodes, 1)}} avg)`
-        : "";
-      const items = [
-        ["Window", `${{activity.window_hours ?? nodeHistoryHours}}h (${{activity.timezone_label || "local"}})`],
-        ["Samples", `${{summary.sample_hours ?? (activity.points || []).length ?? 0}}`],
-        ["Distinct Nodes", `${{summary.distinct_nodes ?? 0}}`],
-        ["Peak Online", `${{summary.max_online_nodes ?? 0}}`],
-        ["Average Online", `${{formatMetricValue(summary.avg_online_nodes, 1)}}`],
-        ["Best Hour", `${{bestHourLabel}}${{bestHourAvgText}}`],
-        ["Top Hours", `${{topHoursText}}`],
-        ["Range", `${{summary.window_start || "n/a"}} to ${{summary.window_end || "n/a"}}`],
-      ];
-      target.innerHTML = items.map(([k, v]) => (
-        `<div class="overview-item"><div class="k">${{k}}</div><div class="v">${{v}}</div></div>`
-      )).join("");
-    }}
-
-    function renderOnlineActivity(activity) {{
-      setMapDataMode("activity");
-      const summary = activity.summary || {{}};
-      const bestHourLabel = summary.best_hour_label || null;
-      const bestHourAvgText = Number.isFinite(Number(summary.best_hour_avg_online_nodes))
-        ? `${{formatMetricValue(summary.best_hour_avg_online_nodes, 1)}} avg nodes`
-        : "n/a avg nodes";
-      const caption = document.getElementById("online-activity-caption");
-      if (caption) {{
-        if (bestHourLabel) {{
-          caption.textContent = `Last ${{activity.window_hours || nodeHistoryHours}}h. Most common online time: ${{bestHourLabel}} (${{activity.timezone_label || "local"}}), ${{bestHourAvgText}}.`;
-        }} else {{
-          caption.textContent = `Last ${{activity.window_hours || nodeHistoryHours}}h. No saved online-activity history yet.`;
-        }}
-      }}
-      renderOnlineActivityChart(activity.points || []);
-      renderOnlineActivityOverview(activity);
     }}

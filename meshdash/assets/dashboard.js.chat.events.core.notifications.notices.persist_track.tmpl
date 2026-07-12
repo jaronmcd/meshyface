@@ -79,7 +79,6 @@
       }};
       hydrateChannel("all");
       hydrateChannel("direct");
-      renderHistoryNotificationLog();
     }}
 
     function trackChatChangeNotice(entry) {{
@@ -106,8 +105,5 @@
         }}
       }}
       persistChatChangeNotices();
-      // The chat rail/title count only unread chat messages now, but notification
-      // history still needs an immediate rerender when new missed updates arrive.
       syncDocumentUnreadTitle(chatUnreadCount);
-      renderHistoryNotificationLog();
     }}

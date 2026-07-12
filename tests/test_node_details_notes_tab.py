@@ -330,6 +330,23 @@ def test_dashboard_js_promotes_node_details_without_duplicate_drawer_state() -> 
     assert 'title="${escAttr(memberTitle)}"' not in js
 
 
+def test_drawer_returns_shared_history_panel_before_teardown() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    close_start = js.index(
+        'const detailsHost = document.getElementById("chat-node-details-content-host");'
+    )
+    close_end = js.index("drawer.remove();", close_start)
+    close_block = js[close_start:close_end]
+
+    assert close_block.index("syncNodeHistoryDock();") < close_block.index(
+        'setDrawerElementHtmlIfChanged(historyHost, "", "history");'
+    )
+
+
 def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     css = build_dashboard_css(theme_css="")
 
@@ -337,17 +354,33 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     assert "position: absolute;" in css
     assert "padding: 8px;" in css
     assert "justify-content: center;" in css
-    assert "background: color-mix(in srgb, #020812 72%, transparent);" in css
+    promoted_shell_section = css.split(".chat-node-details-promoted-shell {", 1)[1].split("}", 1)[0]
+    assert "z-index: 2000;" in promoted_shell_section
+    assert "var(--theme-background-gradient-start, #eff2f7)" in promoted_shell_section
+    assert "var(--theme-background-gradient-end, #eff2f7)" in promoted_shell_section
+    assert "isolation: isolate;" in promoted_shell_section
+    assert "transform: translateZ(0);" in promoted_shell_section
+    assert ".workspace-shell.has-promoted-node-details .workspace-main > .layout {" in css
+    assert "pointer-events: none;" in css
     assert ".chat-node-details-promoted-host {" in css
     promoted_host_section = css.split(".chat-node-details-promoted-host {", 1)[1].split("}", 1)[0]
     assert "width: 100%;" in promoted_host_section
     assert "max-width: none;" in promoted_host_section
     assert "min-width: 0;" in promoted_host_section
-    assert "var(--workspace-shell-bg, var(--panel))" in promoted_host_section
+    assert "position: relative;" in promoted_host_section
+    assert "z-index: 1;" in promoted_host_section
+    assert "overflow: hidden;" in promoted_host_section
+    assert ".chat-node-details-promoted-host .chat-node-details-head-main," in css
+    assert ".chat-node-details-promoted-host .chat-node-details-head-actions {" in css
+    assert ".chat-node-details-promoted-host .chat-node-details-tabs {" in css
+    assert "padding-right: 38px;" in css
+    assert ".chat-node-details-promoted-host .node-details.profiled-node::after," in css
+    assert "content: none;" in css
+    assert "var(--workspace-shell-bg, var(--ui-panel))" in promoted_host_section
     assert ".chat-node-details-promoted-host .chat-node-details-drawer {" in css
     assert "height: 100%;" in css
     assert ".chat-node-details-head {" in css
-    head_section = css.split(".chat-node-details-head {", 1)[1].split("}", 1)[0]
+    head_section = css.split("\n    .chat-node-details-head {", 1)[1].split("}", 1)[0]
     assert "grid-template-columns: minmax(0, 1fr) auto auto;" in head_section
     assert ".chat-node-details-head-main {" in css
     head_main_section = css.split(".chat-node-details-head-main {", 1)[1].split("}", 1)[0]
@@ -398,7 +431,7 @@ def test_dashboard_js_places_messages_tab_first_in_node_drawer() -> None:
     assert js.index('id="chat-node-details-tab-messages"') < js.index('id="chat-node-details-tab-details"')
 
 
-def test_dashboard_js_avoids_rebuilding_saved_node_details_on_unchanged_polls() -> None:
+def test_dashboard_js_avoids_rebuilding_node_details_on_unchanged_polls() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
@@ -406,8 +439,8 @@ def test_dashboard_js_avoids_rebuilding_saved_node_details_on_unchanged_polls() 
     )
 
     assert 'noteInput.dataset.noteEditorBound === "1"' in js
-    assert 'detailsMarkupChanged = setElementHtmlIfChanged(host, nextDetailsShellHtml, "saved-node-details-shell");' in js
-    assert 'detailsMarkupChanged = setElementHtmlIfChanged(sectionsHost, nextSectionsHtml, "saved-node-sections") || detailsMarkupChanged;' in js
+    assert 'detailsMarkupChanged = setElementHtmlIfChanged(host, nextDetailsShellHtml, "node-details-shell");' in js
+    assert 'detailsMarkupChanged = setElementHtmlIfChanged(sectionsHost, nextSectionsHtml, "node-details-sections") || detailsMarkupChanged;' in js
     assert 'const notesMarkupChanged = setElementHtmlIfChanged(notesHost, nextNotesHtml, "chat-node-details-notes");' in js
     assert 'if (detailsMarkupChanged || notesMarkupChanged) {' in js
     assert 'if ((detailsMarkupChanged || notesMarkupChanged) && previousNodeId === nodeId) {' in js
@@ -493,21 +526,21 @@ def test_dashboard_js_renders_top_peer_as_clickable_node_link() -> None:
     )
     css = build_dashboard_css(theme_css="")
 
-    assert 'function savedDetailHtmlValue(html, text = "", fallback = "n/a") {' in js
-    assert 'function savedDetailValueMarkup(value, fallback = "n/a") {' in js
-    assert 'function savedDetailMapCoordLink(nodeId, lat, lon, title = "Focus GPS position on map") {' in js
-    assert 'class="saved-node-inline-link saved-node-coordinate-link"' in js
-    assert 'function focusSavedNodeCoordinateOnMap(nodeId, latRaw, lonRaw) {' in js
-    assert 'bindSavedNodeCoordinateLinks(locationHost);' in js
+    assert 'function nodeDetailsHtmlValue(html, text = "", fallback = "n/a") {' in js
+    assert 'function nodeDetailsValueMarkup(value, fallback = "n/a") {' in js
+    assert 'function nodeDetailsMapCoordLink(nodeId, lat, lon, title = "Focus GPS position on map") {' in js
+    assert 'class="node-details-inline-link node-details-coordinate-link"' in js
+    assert 'function focusNodeDetailsCoordinateOnMap(nodeId, latRaw, lonRaw) {' in js
+    assert 'bindNodeDetailsCoordinateLinks(locationHost);' in js
     assert 'const topPeerId = normalizeNodeId((linkStats && linkStats.topPeer) || "");' in js
-    assert 'const topPeerLabel = savedDetailText(topPeerName || topPeerId, topPeerId || "n/a");' in js
-    assert 'class="saved-node-inline-link"' in js
-    assert 'bindSavedNodeDetailLinkButtons(host);' in js
-    assert 'bindSavedNodeDetailLinkButtons(linksHost);' in js
+    assert 'const topPeerLabel = nodeDetailsText(topPeerName || topPeerId, topPeerId || "n/a");' in js
+    assert 'class="node-details-inline-link"' in js
+    assert 'bindNodeDetailsLinkButtons(host);' in js
+    assert 'bindNodeDetailsLinkButtons(linksHost);' in js
     assert 'selectNode(nodeId, true, false);' in js
-    assert ".saved-node-inline-link {" in css
-    assert ".saved-node-inline-link:hover {" in css
-    assert "[data-theme=\"dark\"] .saved-node-inline-link:hover {" in css
+    assert ".node-details-inline-link {" in css
+    assert ".node-details-inline-link:hover {" in css
+    assert "[data-theme=\"dark\"] .node-details-inline-link:hover {" in css
 
 
 def test_selected_node_inspector_uses_effective_profile_appearance() -> None:
@@ -529,5 +562,5 @@ def test_selected_node_inspector_uses_effective_profile_appearance() -> None:
     assert 'drawer.classList.remove("has-node-appearance", "profiled-node");' in js
     assert ".chat-node-details-drawer.has-node-appearance .chat-node-details-head {" in css
     assert ".chat-node-details-drawer.has-node-appearance .chat-node-details-icon-btn {" in css
-    assert ".saved-node-details.has-node-appearance {" in css
-    assert ".saved-node-details.has-node-appearance .saved-node-section:first-child {" in css
+    assert ".node-details.has-node-appearance {" in css
+    assert ".node-details.has-node-appearance .node-details-section:first-child {" in css

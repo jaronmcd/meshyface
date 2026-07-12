@@ -231,16 +231,10 @@
         selectors = [".card.map"];
         if (subview === "sensors") selectors.push("#network-sensors-host");
         if (subview === "graph") selectors.push("#network-graph-svg");
-      }} else if (view === "history") {{
-        selectors = [".card.history-chat"];
       }} else if (view === "settings") {{
         selectors = [".card.settings"];
       }} else if (view === "console") {{
         selectors = [".card.console"];
-      }} else if (view === "environment") {{
-        selectors = [".card.environment"];
-      }} else if (view === "saved") {{
-        selectors = [".card.summary", ".card.favorites", ".card.map"];
       }} else {{
         selectors = [`.card.${{view}}`];
       }}
@@ -650,7 +644,6 @@
 
     function meshGuiBenchmarkViewUsesEnvironmentMetrics(viewName, subviewName = "") {{
       const view = normalizeLayoutView(viewName || activeLayoutView);
-      if (view === "environment") return true;
       if (view !== "network") return false;
       return normalizeNetworkSubview(subviewName || activeNetworkSubview) === "sensors";
     }}
@@ -677,7 +670,7 @@
       }}
       if (view === "settings") return "status";
       if (view === "console") return "status";
-      if (isChatWorkspaceLayoutView(view) || view === "bbs") return "chat";
+      if (isChatWorkspaceLayoutView(view)) return "chat";
       return "default";
     }}
 

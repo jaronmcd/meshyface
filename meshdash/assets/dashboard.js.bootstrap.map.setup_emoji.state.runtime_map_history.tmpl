@@ -155,12 +155,10 @@
       Math.min(180000, Math.trunc(Number(refreshMs) || 3000) * 40)
     );
     let chatMessageEntriesCache = null;
-    let chatLabsRenderCache = null;
     const nodeHistoryCache = new Map();
     let nodeHistoryFetchSeq = 0;
     let nodeHistoryFetchAbort = null;
     let nodeHistoryFetchNodeId = "";
-    const onlineActivityCache = new Map();
     const summaryMetricsCache = new Map();
     const malformedTextHistoryCache = new Map();
     let summaryMetricsHydrated = false;
@@ -185,7 +183,6 @@
     const nodeNoteDraftById = new Map();
     const manualDirectPeerIds = new Set();
     let resolvedLocalNodeId = "";
-    let favoritesSearchQuery = "";
     const signalChartLayout = {{
       width: 900,
       height: 220,
@@ -210,24 +207,6 @@
     }};
     const historyTrendZoomMinPoints = 10;
     const historyTrendCharts = {{
-      online: {{
-        key: "online",
-        svgId: "online-activity-chart",
-        timelineId: "online-activity-timeline",
-        points: [],
-        zoomStart: 0,
-        zoomEnd: 1,
-        pointerDrag: null,
-      }},
-      weekly: {{
-        key: "weekly",
-        svgId: "weekly-summary-chart",
-        timelineId: "weekly-summary-timeline",
-        points: [],
-        zoomStart: 0,
-        zoomEnd: 1,
-        pointerDrag: null,
-      }},
       weeklyNetworkOverview: {{
         key: "weekly-network-overview",
         svgId: "network-overview-chart",

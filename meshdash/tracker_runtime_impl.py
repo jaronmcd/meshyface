@@ -18,6 +18,7 @@ from .nodes import (
     parse_utc_text_to_unix as _parse_utc_text_to_unix,
     utc_now as _utc_now,
 )
+from .packet_replay_guard import PacketReplayGuard
 from .tracker_runtime_receive_bindings import (
     record_tracker_receive_unlocked_for_tracker as _record_tracker_receive_unlocked_for_tracker_helper,
 )
@@ -105,231 +106,11 @@ class DashboardTracker:
         )
         self.meshyface_profiles_by_node_id: dict[str, dict[str, object]] = {}
         self._restore_meshyface_profiles_from_history_unlocked()
-        self._zork_bot_service = None
-        self._ping_bot_service = None
-        self._ping_public_start_enabled = True
+        self._packet_replay_guard = PacketReplayGuard()
+        self.dropped_replay_packet_count = 0
 
     def _bump_state_revision_unlocked(self) -> None:
         self.state_revision = int(getattr(self, "state_revision", 0) or 0) + 1
-
-    def enable_zork_bot(
-        self,
-        *,
-        send_lock: object | None = None,
-        reply_segment_delay_seconds: float | None = None,
-        reply_ack_wait_seconds: float | None = None,
-        reply_ack_poll_seconds: float | None = None,
-        reply_retry_limit: int | None = None,
-        reply_async: bool | None = None,
-        sleep_fn: object | None = None,
-    ) -> bool:
-        try:
-            from .services_zork_bot import build_zork_bot_service
-        except Exception:
-            return False
-        kwargs = {"send_lock": send_lock, "get_delivery_state_fn": self.get_delivery_state}
-        if reply_segment_delay_seconds is not None:
-            kwargs["reply_segment_delay_seconds"] = reply_segment_delay_seconds
-        if reply_ack_wait_seconds is not None:
-            kwargs["reply_ack_wait_seconds"] = reply_ack_wait_seconds
-        if reply_ack_poll_seconds is not None:
-            kwargs["reply_ack_poll_seconds"] = reply_ack_poll_seconds
-        if reply_retry_limit is not None:
-            kwargs["reply_retry_limit"] = reply_retry_limit
-        if reply_async is not None:
-            kwargs["reply_async"] = reply_async
-        if callable(sleep_fn):
-            kwargs["sleep_fn"] = sleep_fn
-        zork_service = build_zork_bot_service(**kwargs)
-        with self._lock:
-            self._zork_bot_service = zork_service
-            self._bump_state_revision_unlocked()
-        return True
-
-    def disable_zork_bot(self) -> bool:
-        with self._lock:
-            if self._zork_bot_service is None:
-                return True
-            self._zork_bot_service = None
-            self._bump_state_revision_unlocked()
-        return True
-
-    def enable_ping_bot(
-        self,
-        *,
-        send_lock: object | None = None,
-    ) -> bool:
-        try:
-            from .services_ping_bot import build_ping_bot_service
-        except Exception:
-            return False
-        with self._lock:
-            public_start_enabled = bool(self._ping_public_start_enabled)
-        ping_service = build_ping_bot_service(
-            send_lock=send_lock,
-            public_start_enabled=public_start_enabled,
-            get_delivery_state_fn=self.get_delivery_state,
-        )
-        with self._lock:
-            self._ping_bot_service = ping_service
-            self._bump_state_revision_unlocked()
-        return True
-
-    def disable_ping_bot(self) -> bool:
-        with self._lock:
-            if self._ping_bot_service is None:
-                return True
-            self._ping_bot_service = None
-            self._bump_state_revision_unlocked()
-        return True
-
-    def set_zork_bot_enabled(
-        self,
-        enabled: object,
-        *,
-        send_lock: object | None = None,
-    ) -> dict[str, object]:
-        if bool(enabled):
-            with self._lock:
-                already_enabled = self._zork_bot_service is not None
-            zork_ok = True if already_enabled else self.enable_zork_bot(send_lock=send_lock)
-            ok = bool(zork_ok)
-        else:
-            zork_ok = self.disable_zork_bot()
-            ok = bool(zork_ok)
-        runtime = self.get_zork_bot_runtime()
-        runtime["ok"] = bool(ok)
-        return runtime
-
-    def set_ping_bot_enabled(
-        self,
-        enabled: object,
-        *,
-        send_lock: object | None = None,
-    ) -> dict[str, object]:
-        if bool(enabled):
-            with self._lock:
-                already_enabled = self._ping_bot_service is not None
-            ping_ok = True if already_enabled else self.enable_ping_bot(send_lock=send_lock)
-            ok = bool(ping_ok)
-        else:
-            ping_ok = self.disable_ping_bot()
-            ok = bool(ping_ok)
-        runtime = self.get_zork_bot_runtime()
-        runtime["ok"] = bool(ok)
-        return runtime
-
-    def set_ping_bot_message_only(self, message_only: object) -> dict[str, object]:
-        # "message only" means direct peer-to-peer chats only (no public ^all replies).
-        public_start_enabled = not bool(message_only)
-        changed = False
-        with self._lock:
-            if self._ping_public_start_enabled != public_start_enabled:
-                self._ping_public_start_enabled = public_start_enabled
-                changed = True
-            service = self._ping_bot_service
-        if service is not None:
-            set_public_start_enabled = getattr(service, "set_public_start_enabled", None)
-            if callable(set_public_start_enabled):
-                try:
-                    changed = bool(set_public_start_enabled(public_start_enabled)) or changed
-                except Exception:
-                    pass
-        if changed:
-            with self._lock:
-                self._bump_state_revision_unlocked()
-        runtime = self.get_zork_bot_runtime()
-        runtime["ok"] = True
-        runtime["changed"] = changed
-        return runtime
-
-    def get_zork_bot_runtime(self) -> dict[str, object]:
-        with self._lock:
-            zork_service = self._zork_bot_service
-            ping_service = self._ping_bot_service
-        active_session_count = 0
-        sessions: list[dict[str, object]] = []
-        if zork_service is not None:
-            active_session_count_fn = getattr(zork_service, "active_session_count", None)
-            if callable(active_session_count_fn):
-                try:
-                    active_session_count = max(0, int(active_session_count_fn()))
-                except Exception:
-                    active_session_count = 0
-            session_summaries_fn = getattr(zork_service, "session_summaries", None)
-            if callable(session_summaries_fn):
-                try:
-                    session_summaries = session_summaries_fn()
-                    if isinstance(session_summaries, list):
-                        sessions = [
-                            dict(row)
-                            for row in session_summaries
-                            if isinstance(row, dict)
-                        ]
-                except Exception:
-                    sessions = []
-        zork_enabled = zork_service is not None
-        ping_enabled = ping_service is not None
-        ping_public_start_enabled = bool(self._ping_public_start_enabled)
-        if ping_service is not None:
-            public_start_enabled_fn = getattr(ping_service, "public_start_enabled", None)
-            if callable(public_start_enabled_fn):
-                try:
-                    ping_public_start_enabled = bool(public_start_enabled_fn())
-                except Exception:
-                    pass
-        return {
-            "available": True,
-            "zork": {
-                "enabled": zork_enabled,
-                "active_session_count": active_session_count,
-                "sessions": sessions,
-                "public_start_enabled": zork_enabled,
-                "direct_message_enabled": zork_enabled,
-            },
-            "ping": {
-                "enabled": ping_enabled,
-                "active_session_count": 0,
-                "sessions": [],
-                "public_start_enabled": ping_public_start_enabled,
-                "direct_message_enabled": ping_enabled,
-                "message_only": not ping_public_start_enabled,
-            },
-        }
-
-    def manage_zork_bot(self, action: object, *, peer_id: object = None) -> dict[str, object]:
-        clean_action = str(action or "").strip().lower().replace("-", "_")
-        with self._lock:
-            service = self._zork_bot_service
-        if service is None:
-            runtime = self.get_zork_bot_runtime()
-            runtime.update({"ok": False, "error": "Zork bot is disabled"})
-            return runtime
-
-        changed = False
-        if clean_action == "end_session":
-            end_session_fn = getattr(service, "end_session", None)
-            if not callable(end_session_fn):
-                runtime = self.get_zork_bot_runtime()
-                runtime.update({"ok": False, "error": "Zork session management is unavailable"})
-                return runtime
-            changed = bool(end_session_fn(peer_id))
-        elif clean_action == "clear_sessions":
-            clear_sessions_fn = getattr(service, "clear_sessions", None)
-            if not callable(clear_sessions_fn):
-                runtime = self.get_zork_bot_runtime()
-                runtime.update({"ok": False, "error": "Zork session management is unavailable"})
-                return runtime
-            changed = bool(clear_sessions_fn())
-        else:
-            raise ValueError("Unsupported Zork bot action")
-
-        if changed:
-            with self._lock:
-                self._bump_state_revision_unlocked()
-        runtime = self.get_zork_bot_runtime()
-        runtime.update({"ok": True, "changed": changed})
-        return runtime
 
     def get_delivery_state(self, message_id: object) -> Optional[dict[str, object]]:
         clean_message_id = _to_int(message_id)
@@ -359,9 +140,11 @@ class DashboardTracker:
         return None
 
     def on_receive(self, packet: dict[str, object], interface: object) -> None:
-        bot_services: list[object] = []
         with self._lock:
             if not self._accept_packets:
+                return
+            if not self._packet_replay_guard.accept(packet):
+                self.dropped_replay_packet_count += 1
                 return
             self.live_packet_count += 1
             history_store = getattr(self, "_history_store", None)
@@ -374,22 +157,6 @@ class DashboardTracker:
             self._record_meshyface_profile_unlocked(packet)
             self._record_packet_unlocked(packet, interface, include_live_count=True)
             self._bump_state_revision_unlocked()
-            bot_services = [
-                service
-                for service in (self._ping_bot_service, self._zork_bot_service)
-                if service is not None
-            ]
-        for bot_service in bot_services:
-            try:
-                handled = bot_service.handle_packet(
-                    packet,
-                    interface,
-                    record_local_chat_fn=self.record_local_chat,
-                )
-                if handled:
-                    break
-            except Exception:
-                pass
 
     def stop_receiving(self) -> None:
         with self._lock:
@@ -440,10 +207,7 @@ class DashboardTracker:
         is_reaction: bool = False,
         ack_requested: bool = False,
         retry_of: Optional[int] = None,
-        bot_command: Optional[str] = None,
     ) -> None:
-        bot_services: list[object] = []
-        should_offer_to_zork = False
         with self._lock:
             changed = _record_tracker_local_chat_for_tracker_helper(
                 self,
@@ -458,40 +222,10 @@ class DashboardTracker:
                 is_reaction=is_reaction,
                 ack_requested=ack_requested,
                 retry_of=retry_of,
-                bot_command=bot_command,
                 now_unix_fn=time.time,
             )
             if changed:
                 self._bump_state_revision_unlocked()
-                bot_services = [
-                    service
-                    for service in (self._ping_bot_service, self._zork_bot_service)
-                    if service is not None
-                ]
-                should_offer_to_zork = not bool(is_reaction)
-        if should_offer_to_zork and bot_services:
-            local_node_id = ""
-            from_text = str(from_id or "").strip()
-            to_text = str(to_id or "").strip()
-            if from_text.startswith("!"):
-                local_node_id = from_text
-            elif to_text.startswith("!"):
-                local_node_id = to_text
-            for bot_service in bot_services:
-                try:
-                    handled = bot_service.handle_local_chat(
-                        text=text,
-                        from_id=from_id,
-                        to_id=to_id,
-                        local_node_id=local_node_id,
-                        channel_index=channel_index,
-                        reply_id=message_id,
-                        record_local_chat_fn=self.record_local_chat,
-                    )
-                    if handled:
-                        break
-                except Exception:
-                    pass
 
     def seed_packet(self, packet: dict[str, object], interface: object) -> None:
         with self._lock:

@@ -14,6 +14,20 @@ class _ApiTokenAction(argparse.Action):
         setattr(namespace, "api_token_supplied_via_cli", True)
 
 
+class _IgnoredCompatibilityFlag(argparse.Action):
+    def __init__(self, option_strings: list[str], dest: str, **kwargs: object) -> None:
+        super().__init__(option_strings, dest, nargs=0, **kwargs)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        del parser, namespace, values, option_string
+
+
 def add_http_runtime_args(
     parser: argparse.ArgumentParser,
     *,
@@ -24,7 +38,6 @@ def add_http_runtime_args(
     default_reset_ticker_scale_on_restart: bool = True,
     default_private_mode: bool = False,
     default_api_token: str | None = None,
-    default_bbs_enable: bool = False,
     default_file_transfer_enable: bool = False,
     default_file_transfer_auto_accept: bool = False,
     default_games_enable: bool = False,
@@ -98,13 +111,22 @@ def add_http_runtime_args(
         ),
     )
     parser.add_argument(
-        "--bbs-enable",
+        "--allow-tokenless-raw-packet-download",
         action=argparse.BooleanOptionalAction,
-        default=default_bbs_enable,
+        default=True,
         help=(
-            "Enable the Meshyface BBS/profile workspace for MOTDs and shared spaces "
-            f"(default: {default_bbs_enable})"
+            "Allow the sensitive raw-packet database download without an API token "
+            "for loopback and private-LAN clients (default: True)."
         ),
+    )
+    # Keep existing service definitions restartable after BBS removal. These
+    # switches intentionally create no Namespace value and enable nothing.
+    parser.add_argument(
+        "--bbs-enable",
+        "--no-bbs-enable",
+        action=_IgnoredCompatibilityFlag,
+        default=argparse.SUPPRESS,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--file-transfer-enable",
@@ -130,7 +152,7 @@ def add_http_runtime_args(
         action=argparse.BooleanOptionalAction,
         default=default_games_enable,
         help=(
-            "Enable the playable Zork bot plus standalone console endpoints "
+            "Enable local games and standalone Zork console endpoints "
             f"(default: {default_games_enable})"
         ),
     )
@@ -148,7 +170,7 @@ def add_http_runtime_args(
         action=argparse.BooleanOptionalAction,
         default=default_accept_file_transfer_traffic_disclaimer,
         help=(
-            "Acknowledge that enabling BBS or file transfer can significantly "
+            "Acknowledge that enabling file transfer can significantly "
             "increase mesh airtime and congestion. "
             f"(default: {default_accept_file_transfer_traffic_disclaimer})"
         ),

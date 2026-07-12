@@ -3,18 +3,15 @@
 Meshyface is a chat-first Meshtastic dashboard that runs as a single Python
 service and serves a single-page web UI over HTTP.
 
-
-
 ## Current App Surface
 
 The current UI exposes:
 
 - Chat plus direct-peer conversations
-- Network workspace for map, topology, Top 10 rankings, node details, and
-  on-demand history views
+- Network workspace for map, overview, links, routes, sensors, Top 10 rankings,
+  node details, and on-demand history
 - Console workspace for live packet/log output
-- Apps workspace with Games, plus BBS and Files tabs when those features are
-  enabled
+- Apps workspace with Games and a Files tab when file transfer is enabled
 - Settings workspace with radio, device, connectivity, location, channels,
   tickers, lists, appearance, and about panes
 - SQLite-backed history, search, rollups, theme persistence, and custom
@@ -123,7 +120,7 @@ flowchart LR
   Server["ThreadingHTTPServer<br/>HTML shell + JSON API"]
   Assets["Python template assembly<br/>meshdash/html* + meshdash/assets/*"]
   State["State loaders<br/>live snapshot + history readers"]
-  Services["Write services<br/>chat, settings, tools, games, optional BBS/files"]
+  Services["Write services<br/>chat, settings, tools, games, optional files"]
   Tracker["DashboardTracker<br/>live receive path + in-memory buffers"]
   History["HistoryStore / SQLite (WAL)<br/>chat, packets, rollups, settings"]
   Radio["Meshtastic interface<br/>serial or TCP"]
@@ -188,8 +185,6 @@ contributes to the same persisted packet, chat, node, and rollup history.
   `mesh_dashboard_theme_settings.json` by default, or the file supplied via
   `--theme-settings-file`.
 - Custom telemetry rules are stored in the history SQLite database.
-- BBS host settings and local BBS posts are stored in the history SQLite
-  database when BBS is enabled.
 
 ### Maintenance commands
 
@@ -249,16 +244,16 @@ Related environment variables:
   `Authorization: Bearer <token>` or `X-API-Token`; prefer
   `MESH_DASH_API_TOKEN` on shared hosts because command-line tokens may appear
   in process listings and shell history
-- `--bbs-enable` / `--no-bbs-enable`: expose or hide the BBS/profile workspace
-  when `--accept-file-transfer-traffic-disclaimer` is also set
-- `--games-enable` / `--no-games-enable`: enable playable Zork console
-  endpoints plus mesh bot replies
+- `--allow-tokenless-raw-packet-download` /
+  `--no-allow-tokenless-raw-packet-download`: permit raw-packet DB downloads
+  without a token for loopback/private-LAN clients; enabled by default
+- `--games-enable` / `--no-games-enable`: enable playable standalone Zork
+  console endpoints
 
 Related environment variables:
 
 - `MESH_DASH_PRIVATE_MODE`
 - `MESH_DASH_API_TOKEN`
-- `MESH_DASH_BBS_ENABLE`
 - `MESH_DASH_GAMES_ENABLE`
 - `MESH_DASH_VERSION`
 - `MESH_DASH_GIT_COMMIT`
@@ -276,6 +271,28 @@ remain available as structured fields. `/api/version` remains as a legacy
 endpoint, and its `version` field retains release/package metadata.
 `MESH_DASH_VERSION` is likewise reserved for explicit release packaging and is
 not shown in the dashboard.
+
+### File transfer
+
+- `--file-transfer-enable`: enable the Files app; requires
+  `--accept-file-transfer-traffic-disclaimer`
+- `--file-transfer-auto-accept`: accept direct inbound transfers without a
+  browser confirmation
+- `--file-transfer-max-bytes <bytes>`: per-file limit, default `65536` and
+  constrained to `1024`-`524288`
+
+Transfers use the beta `MF_FILE_V2` protocol on private port `258` and are not
+compatible with the former text-message transport. When a destination has a
+usable detected hop count, Meshyface uses that count plus one, capped by the
+configured radio hop limit. Hop data older than one hour falls back to the
+configured limit. The Files app displays the selected limit and its source.
+
+Related environment variables:
+
+- `MESH_DASH_FILE_TRANSFER_ENABLE`
+- `MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT`
+- `MESH_DASH_FILE_TRANSFER_MAX_BYTES`
+- `MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER`
 
 ### History and analytics
 
@@ -335,8 +352,11 @@ Related environment variables:
   not use that public channel for private traffic.
 - `--show-secrets` exposes sensitive values in raw JSON panels; do not enable
   it casually on shared displays.
-- BBS and file transfer can consume significant mesh airtime. Keep them
-  disabled unless you have explicitly accepted that tradeoff.
+- Raw-packet database downloads can expose message and telemetry contents. On
+  shared hosts, require an API token and use
+  `--no-allow-tokenless-raw-packet-download`.
+- File transfer can consume significant mesh airtime. Keep it disabled unless
+  you have explicitly accepted that tradeoff.
 
 
 ## Testing And Coverage
@@ -376,6 +396,6 @@ scripts/run_gui_responsiveness_local.sh
 ```
 
 Coverage intentionally excludes the ported Zork engine package from scoring,
-but Zork bot and routing tests still run. GitHub Actions publishes the same
-coverage report as an advisory PR comment and artifact, and fails below 80%.
+but standalone Zork and routing tests still run. GitHub Actions publishes the
+same coverage report as an advisory PR comment and artifact. CI fails below 80%.
 The local gate stays 5 percentage points higher than CI.

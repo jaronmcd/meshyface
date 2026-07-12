@@ -2,6 +2,7 @@ import base64
 from typing import Optional
 
 from .chat_scope import chat_scope_for_destination
+from .file_transfer_protocol import decode_file_transfer_packet, file_transfer_frame_text
 from .runtime_types import FormatEpochFn, ToIntFn, UtcNowFn
 
 
@@ -10,6 +11,23 @@ _STORE_FORWARD_TEXT_RR_BY_VALUE = {
     9: "ROUTER_TEXT_BROADCAST",
 }
 _STORE_FORWARD_TEXT_RR_NAMES = frozenset(_STORE_FORWARD_TEXT_RR_BY_VALUE.values())
+
+
+def _packet_channel_index(packet: dict[str, object]) -> int | None:
+    if "channel" in packet:
+        raw_value = packet.get("channel")
+    elif "channelIndex" in packet:
+        raw_value = packet.get("channelIndex")
+    else:
+        # Protobuf JSON omits the scalar default; on wire that means primary.
+        return 0
+    if isinstance(raw_value, bool):
+        return None
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return parsed if 0 <= parsed <= 255 else None
 
 
 def _decode_store_forward_text(value: object) -> str:
@@ -115,6 +133,8 @@ def build_packet_summary(
     to_int_fn: ToIntFn,
 ) -> dict[str, object]:
     portnum = decoded.get("portnum") if isinstance(decoded, dict) else None
+    file_frame = decode_file_transfer_packet(packet)
+    file_frame_text = file_transfer_frame_text(file_frame) if file_frame is not None else ""
     summary = {
         "captured_at": utc_now_fn(),
         "live": True,
@@ -133,8 +153,12 @@ def build_packet_summary(
         "hops": hops,
         "want_ack": packet.get("wantAck"),
         "priority": packet.get("priority"),
-        "channel": packet.get("channel"),
-        "decoded_text": decoded.get("text") if isinstance(decoded, dict) else None,
+        "channel": _packet_channel_index(packet),
+        "decoded_text": (
+            file_frame_text
+            if file_frame_text
+            else decoded.get("text") if isinstance(decoded, dict) else None
+        ),
         "reply_id": reply_id,
         "emoji": emoji_glyph,
         "emoji_codepoint": emoji_codepoint,
@@ -162,7 +186,9 @@ def build_chat_entry_from_packet(
     utc_now_fn: UtcNowFn,
     format_epoch_fn: FormatEpochFn,
 ) -> Optional[dict[str, object]]:
-    decoded_text = decoded.get("text") if isinstance(decoded, dict) else None
+    file_frame = decode_file_transfer_packet(packet)
+    file_frame_text = file_transfer_frame_text(file_frame) if file_frame is not None else ""
+    decoded_text = file_frame_text or (decoded.get("text") if isinstance(decoded, dict) else None)
     store_forward_text, store_forward_rr = _extract_store_forward_text_from_decoded_payload(decoded)
     store_forward_recovered = False
     if not (isinstance(decoded_text, str) and decoded_text.strip()):
@@ -186,7 +212,7 @@ def build_chat_entry_from_packet(
         "to": chat_to_id,
         "scope": chat_scope_for_destination(chat_to_id),
         "portnum": chat_portnum,
-        "channel": packet.get("channel"),
+        "channel": _packet_channel_index(packet),
         "rx_time": format_epoch_fn(packet.get("rxTime")),
         "rx_snr": packet.get("rxSnr"),
         "rx_rssi": packet.get("rxRssi"),

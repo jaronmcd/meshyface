@@ -114,10 +114,6 @@ def test_dashboard_runtime_loaders_wire_history_and_send_chat_dependencies() -> 
         calls.append(("node_history", kwargs))
         return lambda node_id, hours_override=None, points_override=None: {"node_id": node_id}
 
-    def build_online_activity_loader_fn(**kwargs):
-        calls.append(("online", kwargs))
-        return lambda hours_override=None: {"hours": hours_override}
-
     def build_summary_metrics_loader_fn(**kwargs):
         calls.append(("summary", kwargs))
         return lambda hours_override=None: {"summary_hours": hours_override}
@@ -153,7 +149,6 @@ def test_dashboard_runtime_loaders_wire_history_and_send_chat_dependencies() -> 
         build_state_fn=lambda **kwargs: {"built": kwargs},
         build_state_snapshot_loader_fn=build_state_snapshot_loader_fn,
         build_node_history_loader_fn=build_node_history_loader_fn,
-        build_online_activity_loader_fn=build_online_activity_loader_fn,
         build_summary_metrics_loader_fn=build_summary_metrics_loader_fn,
         build_send_chat_loader_fn=build_send_chat_loader_fn,
     )
@@ -164,10 +159,9 @@ def test_dashboard_runtime_loaders_wire_history_and_send_chat_dependencies() -> 
     assert loaders.state_fn.link_edges_fn() == ["links"]  # type: ignore[attr-defined]
     assert loaders.state_fn.chat_history_fn() == ["chat"]  # type: ignore[attr-defined]
     assert loaders.node_history_fn("!node") == {"node_id": "!node"}
-    assert loaders.online_activity_fn(12) == {"hours": 12}
     assert loaders.summary_metrics_fn(6) == {"summary_hours": 6}
     assert loaders.send_chat_fn("hello", channel_index=1) == {"text": "hello", "channel_index": 1}
-    assert [name for name, _kwargs in calls] == ["state", "node_history", "online", "summary", "send_chat"]
+    assert [name for name, _kwargs in calls] == ["state", "node_history", "summary", "send_chat"]
     assert calls[0][1]["storage_probe_path"] == "/tmp/history.sqlite3"
     assert calls[-1][1]["chat_max_bytes"] == 256
 
@@ -183,12 +177,6 @@ def test_state_snapshot_loader_caches_variants_and_exposes_raw_debug_getters(mon
         "_collect_local_state",
         lambda iface: {"token": "local-secret", "state": "ok"},
     )
-    monkeypatch.setattr(
-        runtime_state_loader,
-        "_collect_nodes_typed",
-        lambda iface: SimpleNamespace(full=[{"id": "!node", "token": "node-secret"}]),
-    )
-
     def build_state_fn(**kwargs):
         calls.append("full")
         return {"variant": "full", "target": kwargs["target"]}
@@ -261,4 +249,3 @@ def test_state_snapshot_loader_caches_variants_and_exposes_raw_debug_getters(mon
     assert state_fn.raw_my_info()["token"] == "<redacted>"  # type: ignore[attr-defined]
     assert state_fn.raw_metadata()["token"] == "<redacted>"  # type: ignore[attr-defined]
     assert state_fn.raw_local_state()["token"] == "<redacted>"  # type: ignore[attr-defined]
-    assert state_fn.raw_nodes_full()[0]["token"] == "<redacted>"  # type: ignore[attr-defined]

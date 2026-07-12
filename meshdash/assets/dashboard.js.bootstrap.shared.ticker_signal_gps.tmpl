@@ -225,7 +225,7 @@
         telemetry && telemetry.lastSeenUnix
       );
       const seenText = Number.isFinite(fixUnix)
-        ? savedDetailAge(fixUnix, Math.floor(Date.now() / 1000))
+        ? nodeDetailsAge(fixUnix, Math.floor(Date.now() / 1000))
         : telemetry.lastSeenText;
 
       const rows = [

@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from meshdash.api_input_history import parse_node_history_request, parse_online_activity_request
+from meshdash.api_input_history import parse_history_window_request, parse_node_history_request
 from meshdash.helpers import to_int
 from meshdash.http_routes_get import handle_dashboard_get
 
@@ -63,14 +63,12 @@ def _make_deps(**overrides: object) -> SimpleNamespace:
         html_text="<html>dashboard</html>",
         state_fn=_StateFn(state_payload),
         node_history_fn=None,
-        online_activity_fn=None,
         summary_metrics_fn=None,
         default_node_history_hours=24,
         to_int_fn=to_int,
         parse_node_history_request_fn=parse_node_history_request,
-        parse_online_activity_request_fn=parse_online_activity_request,
+        parse_history_window_request_fn=parse_history_window_request,
         empty_node_history_fn=lambda node_id: {"ok": False, "node_id": node_id, "points": []},
-        empty_online_activity_fn=lambda hours: {"ok": False, "hours": hours, "items": []},
         empty_summary_metrics_fn=lambda hours: {"ok": False, "hours": hours, "points": []},
         write_html_response_fn=lambda handler, *, html_text, no_store=False, **kwargs: recorder.html.append(
             (html_text, no_store)
@@ -82,8 +80,6 @@ def _make_deps(**overrides: object) -> SimpleNamespace:
             (status_code, text, extra_headers or {})
         ),
         get_theme_settings_fn=lambda: {"ok": True, "theme": "dark"},
-        get_bbs_settings_fn=lambda: {"ok": True, "enabled": False},
-        get_bbs_host_runtime_fn=lambda: {"ok": True, "running": False},
         get_custom_telemetry_settings_fn=lambda: {"ok": True, "rules": []},
         private_mode=False,
         api_metrics=_Metrics(),
@@ -216,7 +212,6 @@ def test_dashboard_get_serves_raw_payloads_from_helpers_and_snapshot() -> None:
             "my_info": {"id": "!fallback"},
             "metadata": {"firmware": "x"},
             "local_state": {"foo": "bar"},
-            "nodes_full": [{"id": "!node"}],
         }
     )
     state_fn.raw_my_info = lambda: {"id": "!raw"}  # type: ignore[attr-defined]
@@ -231,33 +226,30 @@ def test_dashboard_get_serves_raw_payloads_from_helpers_and_snapshot() -> None:
         (200, {"id": "!raw"}, True),
         (200, {"firmware": "x"}, True),
         (200, {"foo": "bar"}, True),
-        (200, [{"id": "!node"}], True),
     ]
+    assert deps.recorder.text[-1][:2] == (404, "Not Found")
 
 
 def test_dashboard_get_dispatches_history_summary_routes() -> None:
     node_calls: list[tuple[str, object, object]] = []
-    online_calls: list[object] = []
     summary_calls: list[object] = []
     deps = _make_deps(
         node_history_fn=lambda node_id, hours_override, points_override: node_calls.append(
             (node_id, hours_override, points_override)
         )
         or {"ok": True, "node_id": node_id, "points": []},
-        online_activity_fn=lambda hours_override: online_calls.append(hours_override)
-        or {"ok": True, "hours": hours_override, "items": []},
         summary_metrics_fn=lambda hours_override: summary_calls.append(hours_override)
         or {"ok": True, "hours": hours_override, "points": []},
     )
 
     handle_dashboard_get(object(), path="/api/history/node", query="node_id=!abc&hours=12&points=5", deps=deps)
-    handle_dashboard_get(object(), path="/api/history/online", query="hours=6", deps=deps)
     handle_dashboard_get(object(), path="/api/history/summary", query="hours=3", deps=deps)
+    handle_dashboard_get(object(), path="/api/history/online", query="hours=6", deps=deps)
 
     assert node_calls == [("!abc", 12, 5)]
-    assert online_calls == [6]
     assert summary_calls == [3]
-    assert [row[1]["ok"] for row in deps.recorder.json] == [True, True, True]
+    assert [row[1]["ok"] for row in deps.recorder.json] == [True, True]
+    assert deps.recorder.text[-1][:2] == (404, "Not Found")
 
 
 def test_dashboard_get_dispatches_top_nodes_links_environment_and_malformed_history() -> None:

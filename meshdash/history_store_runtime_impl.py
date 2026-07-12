@@ -30,7 +30,6 @@ from .history_store_nodes import (
     load_node_history as _load_node_history_helper,
     load_node_position_counts as _load_node_position_counts_helper,
     load_node_saved_counts as _load_node_saved_counts_helper,
-    load_online_activity as _load_online_activity_helper,
 )
 from .history_node_packet_trends import (
     load_node_packet_trends as _load_node_packet_trends_helper,
@@ -58,14 +57,8 @@ from .history_top_nodes import (
     load_top_nodes as _load_top_nodes_helper,
 )
 from .history_store_settings import (
-    append_bbs_post as _append_bbs_post_helper,
-    load_bbs_posts as _load_bbs_posts_helper,
-    load_bbs_settings as _load_bbs_settings_helper,
-    load_bot_runtime_settings as _load_bot_runtime_settings_helper,
     load_custom_telemetry_settings as _load_custom_telemetry_settings_helper,
     load_meshyface_profile_processing_settings as _load_meshyface_profile_processing_settings_helper,
-    save_bbs_settings as _save_bbs_settings_helper,
-    save_bot_runtime_settings as _save_bot_runtime_settings_helper,
     save_custom_telemetry_settings as _save_custom_telemetry_settings_helper,
     save_meshyface_profile_processing_settings as _save_meshyface_profile_processing_settings_helper,
 )
@@ -232,9 +225,6 @@ class HistoryStore:
     def load_node_history(self, node_id: str, window_hours: int, max_points: int) -> dict[str, object]:
         return _load_node_history_helper(self, node_id, window_hours, max_points)
 
-    def load_online_activity(self, window_hours: int) -> dict[str, object]:
-        return _load_online_activity_helper(self, window_hours)
-
     def load_node_saved_counts(self) -> dict[str, dict[str, object]]:
         return _load_node_saved_counts_helper(self)
 
@@ -340,26 +330,8 @@ class HistoryStore:
     def set_custom_telemetry_settings(self, rules: object) -> dict[str, object]:
         return _save_custom_telemetry_settings_helper(self, rules=rules)
 
-    def get_bbs_settings(self) -> dict[str, object]:
-        return _load_bbs_settings_helper(self)
-
-    def get_bot_runtime_settings(self) -> dict[str, object]:
-        return _load_bot_runtime_settings_helper(self)
-
     def get_meshyface_profile_processing_settings(self) -> dict[str, object]:
         return _load_meshyface_profile_processing_settings_helper(self)
 
-    def get_bbs_posts(self) -> dict[str, object]:
-        return _load_bbs_posts_helper(self)
-
-    def set_bbs_settings(self, settings: object) -> dict[str, object]:
-        return _save_bbs_settings_helper(self, settings=settings)
-
-    def set_bot_runtime_settings(self, settings: object) -> dict[str, object]:
-        return _save_bot_runtime_settings_helper(self, settings=settings)
-
     def set_meshyface_profile_processing_settings(self, enabled: object) -> dict[str, object]:
         return _save_meshyface_profile_processing_settings_helper(self, enabled=enabled)
-
-    def append_bbs_post(self, post: object) -> dict[str, object]:
-        return _append_bbs_post_helper(self, post=post)

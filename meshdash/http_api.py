@@ -6,7 +6,6 @@ from .helpers import to_int
 from .http_route_contracts import (
     GetThemeSettingsFn,
     NodeHistoryFn,
-    OnlineActivityFn,
     SummaryMetricsHistoryFn,
     SendChatFn,
     SendMeshyfaceProfileFn,
@@ -21,7 +20,6 @@ def make_http_handler(
     html_text: str,
     state_fn: StateFn,
     node_history_fn: NodeHistoryFn | None = None,
-    online_activity_fn: OnlineActivityFn | None = None,
     summary_metrics_fn: SummaryMetricsHistoryFn | None = None,
     send_chat_fn: SendChatFn | None = None,
     send_meshyface_profile_fn: SendMeshyfaceProfileFn | None = None,
@@ -31,6 +29,7 @@ def make_http_handler(
     get_theme_settings_fn: GetThemeSettingsFn | None = None,
     set_theme_preset_fn: SetThemePresetFn | None = None,
     api_token: str | None = None,
+    allow_tokenless_raw_packet_download: bool = True,
     private_mode: bool = False,
     default_node_history_hours: int = 72,
     to_int_fn: ToIntFn = to_int,
@@ -44,16 +43,6 @@ def make_http_handler(
         "set_meshyface_profile_processing_enabled_fn",
         None,
     )
-    get_bbs_settings_fn = getattr(state_fn, "get_bbs_settings_fn", None)
-    get_bbs_host_runtime_fn = getattr(state_fn, "get_bbs_host_runtime_fn", None)
-    set_bbs_settings_fn = getattr(state_fn, "set_bbs_settings_fn", None)
-    set_zork_bot_enabled_fn = getattr(state_fn, "set_zork_bot_enabled_fn", None)
-    set_ping_bot_enabled_fn = getattr(state_fn, "set_ping_bot_enabled_fn", None)
-    set_ping_bot_message_only_fn = getattr(state_fn, "set_ping_bot_message_only_fn", None)
-    manage_zork_bot_fn = getattr(state_fn, "manage_zork_bot_fn", None)
-    start_bbs_host_fn = getattr(state_fn, "start_bbs_host_fn", None)
-    stop_bbs_host_fn = getattr(state_fn, "stop_bbs_host_fn", None)
-    append_bbs_host_post_fn = getattr(state_fn, "append_bbs_host_post_fn", None)
     get_custom_telemetry_settings_fn = getattr(state_fn, "get_custom_telemetry_settings_fn", None)
     set_custom_telemetry_settings_fn = getattr(state_fn, "set_custom_telemetry_settings_fn", None)
     set_raw_packet_capture_settings_fn = getattr(state_fn, "set_raw_packet_capture_settings_fn", None)
@@ -65,12 +54,11 @@ def make_http_handler(
         html_text=html_text,
         state_fn=state_fn,
         node_history_fn=node_history_fn,
-        online_activity_fn=online_activity_fn,
         summary_metrics_fn=summary_metrics_fn,
         get_theme_settings_fn=get_theme_settings_fn,
-        get_bbs_settings_fn=get_bbs_settings_fn,
-        get_bbs_host_runtime_fn=get_bbs_host_runtime_fn,
         get_custom_telemetry_settings_fn=get_custom_telemetry_settings_fn,
+        api_token=clean_api_token,
+        allow_tokenless_raw_packet_download=bool(allow_tokenless_raw_packet_download),
         private_mode=bool(private_mode),
         api_metrics=api_metrics,
         default_node_history_hours=default_node_history_hours,
@@ -97,14 +85,6 @@ def make_http_handler(
             )
         ),
         set_theme_preset_fn=set_theme_preset_fn,
-        set_bbs_settings_fn=set_bbs_settings_fn,
-        set_zork_bot_enabled_fn=set_zork_bot_enabled_fn,
-        set_ping_bot_enabled_fn=set_ping_bot_enabled_fn,
-        set_ping_bot_message_only_fn=set_ping_bot_message_only_fn,
-        manage_zork_bot_fn=manage_zork_bot_fn,
-        start_bbs_host_fn=start_bbs_host_fn,
-        stop_bbs_host_fn=stop_bbs_host_fn,
-        append_bbs_host_post_fn=append_bbs_host_post_fn,
         apply_radio_settings_fn=apply_radio_settings_fn,
         apply_channel_settings_fn=apply_channel_settings_fn,
         set_custom_telemetry_settings_fn=set_custom_telemetry_settings_fn,

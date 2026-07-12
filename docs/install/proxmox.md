@@ -11,4 +11,4 @@ You have two common deployment models:
 If your radio is on Wi-Fi/Ethernet and exposes TCP (usually `4403`), run the
 dashboard in a VM or container and connect over network. Use the
 [recommended systemd service](systemd.md) or [Docker install](docker.md) inside
-that VM/container.
+that VM/container. Keep the radio and dashboard on the same trusted LAN.

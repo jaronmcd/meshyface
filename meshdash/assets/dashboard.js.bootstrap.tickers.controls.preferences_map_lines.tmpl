@@ -6,58 +6,6 @@
       return Math.max(1, Math.min(24 * 365, Math.trunc(parsed)));
     }}
 
-    function bindWeeklySummaryWindowControl() {{
-      const select = document.getElementById("weekly-summary-window");
-      if (!(select instanceof HTMLSelectElement)) return;
-      if (select.dataset.bound === "1") return;
-      select.dataset.bound = "1";
-      select.value = String(normalizeSummaryWindowHours(weeklySummaryWindowHours));
-      select.addEventListener("change", () => {{
-        applyWeeklySummaryWindow(select.value || defaultSummaryWindowHours, true);
-        if (activeLayoutView === "history") {{
-          void refreshHistoryPanels(false);
-        }}
-      }});
-    }}
-
-    function bindWeeklySummaryMetricControl() {{
-      const select = document.getElementById("weekly-summary-metric");
-      if (!(select instanceof HTMLSelectElement)) return;
-      if (select.dataset.bound === "1") return;
-      select.dataset.bound = "1";
-      select.value = normalizeWeeklySummaryMetric(weeklySummaryMetric);
-      updateWeeklySummaryNodeSeriesControls(weeklySummaryMetric);
-      select.addEventListener("change", () => {{
-        applyWeeklySummaryMetric(select.value || "packets", true);
-        if (activeLayoutView === "history") {{
-          void refreshHistoryPanels(false);
-        }}
-      }});
-    }}
-
-    function bindWeeklySummaryNodeSeriesControls() {{
-      for (const key of weeklySummaryNodeSeriesOrder) {{
-        const toggleId = weeklySummaryNodeSeriesControlIds[key];
-        const toggle = document.getElementById(toggleId);
-        if (!(toggle instanceof HTMLInputElement)) continue;
-        if (toggle.dataset.bound === "1") continue;
-        toggle.dataset.bound = "1";
-        toggle.checked = !!weeklySummaryNodeSeriesEnabled[key];
-        toggle.addEventListener("change", () => {{
-          const nextSeries = {{}};
-          for (const innerKey of weeklySummaryNodeSeriesOrder) {{
-            const innerToggleId = weeklySummaryNodeSeriesControlIds[innerKey];
-            const innerToggle = document.getElementById(innerToggleId);
-            if (innerToggle instanceof HTMLInputElement) {{
-              nextSeries[innerKey] = innerToggle.checked;
-            }}
-          }}
-          applyWeeklySummaryNodeSeries(nextSeries, true);
-        }});
-      }}
-      updateWeeklySummaryNodeSeriesControls(weeklySummaryMetric);
-    }}
-
     function bindNetworkOverviewWindowControl() {{
       const select = document.getElementById("network-overview-window");
       if (!(select instanceof HTMLSelectElement)) return;
@@ -189,62 +137,6 @@
       }} catch (_err) {{
       }}
       applyTickerDensity(stored, false);
-    }}
-
-    function loadWeeklySummaryMetricPreference() {{
-      let stored = "packets";
-      try {{
-        stored = window.localStorage.getItem(weeklySummaryMetricStorageKey) || "packets";
-      }} catch (_err) {{
-      }}
-      applyWeeklySummaryMetric(stored, false);
-    }}
-
-    function loadWeeklySummaryWindowPreference() {{
-      let stored = String(defaultSummaryWindowHours);
-      try {{
-        stored = window.localStorage.getItem(weeklySummaryWindowStorageKey) || String(defaultSummaryWindowHours);
-      }} catch (_err) {{
-      }}
-      applyWeeklySummaryWindow(stored, false);
-    }}
-
-    function loadWeeklySummaryNodeSeriesPreference() {{
-      let storedJson = "";
-      try {{
-        storedJson = window.localStorage.getItem(weeklySummaryNodeSeriesStorageKey) || "";
-      }} catch (_err) {{
-      }}
-      if (storedJson) {{
-        try {{
-          const parsed = JSON.parse(storedJson);
-          applyWeeklySummaryNodeSeries(parsed, false);
-          return;
-        }} catch (_err) {{
-        }}
-      }}
-      let legacyCompare = "0";
-      try {{
-        legacyCompare = window.localStorage.getItem(weeklySummaryNodesCompareLegacyStorageKey) || "0";
-      }} catch (_err) {{
-      }}
-      if (normalizeWeeklySummaryNodesCompare(legacyCompare)) {{
-        applyWeeklySummaryNodeSeries({{
-          online_nodes: true,
-          new_nodes: true,
-          known_nodes: true,
-          saved_nodes: true,
-          position_nodes: true,
-        }}, false);
-      }} else {{
-        applyWeeklySummaryNodeSeries({{
-          online_nodes: true,
-          new_nodes: false,
-          known_nodes: false,
-          saved_nodes: false,
-          position_nodes: false,
-        }}, false);
-      }}
     }}
 
     function loadNetworkOverviewMetricPreference() {{

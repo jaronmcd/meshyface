@@ -99,37 +99,6 @@
     let chatWhoisQuickActionEnabled = true;
     let chatWhoisQuickActionPrefix = "whois";
     let chatWhoisQuickActionThreadReply = true;
-    let chatBotCommandsEnabled = true;
-    let chatBotHistoryEnabled = true;
-    let botRequestHistory = [];
-    let backendBotRequestHistory = [];
-    let packetBotRequestHistory = [];
-    let packetBotRequestHistoryFetchedAtMs = 0;
-    let packetBotRequestHistoryInFlight = null;
-    let activeBotsReviewTab = "history";
-    let activeBotCommandSettingsId = "";
-    let botTrafficSnifferCommandHeads = [...defaultBotTrafficSnifferCommandHeads];
-    let serverBotSettings = {{
-      available: false,
-      enabled: true,
-      log_enabled: true,
-      game_enabled: false,
-      game_public_start_enabled: false,
-      hard_disabled_incoming_commands: [],
-      ping_triggers: [],
-      ping_response_template: "",
-      pull_reel_symbols: [],
-      pull_response_template: "",
-      joke_triggers: [],
-      zork_triggers: [],
-      joke_lines: [],
-      joke_near_guess_lines: [],
-      joke_delay_punchline_enabled: false,
-      active_game_sessions: 0,
-      commands: [],
-      disabled_commands: [],
-    }};
-    let botSettingsSaveInFlight = false;
     let queuedComposerSend = false;
     let queuedComposerFocus = false;
     let meshChannelSendMenuOpen = false;
@@ -177,9 +146,6 @@
     let chatReactionQuickSuppressClickUntilMs = 0;
     let chatImmediatePollTimer = null;
     let nodesSearchQuery = "";
-    let savedNodeSearchQuery = "";
-    let savedNodeSearchOpen = false;
-    let savedNodeSearchBlurTimer = null;
     let favoriteMenuNodeSearchQuery = "";
     let favoriteMenuNodeSearchOpen = false;
     let favoriteMenuNodeSearchBlurTimer = null;
@@ -234,9 +200,6 @@
     let dashboardBackgroundActiveType = "";
     let dashboardParticlesBackgroundLoadSerial = 0;
     let dashboardImageBackgroundLoadSerial = 0;
-    let weeklySummaryMetric = "packets";
-    let weeklySummaryWindowHours = defaultSummaryWindowHours;
-    let weeklySummaryNodeSeriesEnabled = {{ ...weeklySummaryNodeSeriesDefaults }};
     let networkOverviewMetric = "nodes";
     let networkOverviewWindowHours = defaultSummaryWindowHours;
     let networkOverviewLinkMode = "history";

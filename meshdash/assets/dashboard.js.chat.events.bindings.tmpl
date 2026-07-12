@@ -92,7 +92,7 @@
         if (chatHopReplyLocationIsValid(lat, lon)) {{
           try {{
             cityText = String(
-              await nearestOfflineCityHintFromCoords(lat, lon, botCityHintMaxDistanceKm)
+              await nearestOfflineCityHintFromCoords(lat, lon, offlineCityHintMaxDistanceKm)
             ).trim();
             const key = chatHopReplyCityCacheKey(location);
             if (key && nodeCityHintCache instanceof Map) {{
@@ -300,10 +300,6 @@
         if (whoisBtn) {{
           ev.preventDefault();
           ev.stopPropagation();
-          if (!chatBotCommandsEnabled) {{
-            setChatSendStatus("Whois quick action is unavailable.", true);
-            return;
-          }}
           const whoisTargetId = normalizeNodeId(
             whoisBtn instanceof HTMLElement
               ? (whoisBtn.dataset.whoisTargetId || item.dataset.fromNodeId || "")
@@ -613,7 +609,6 @@
       }};
 
       bindFeedReactionDelegates("chat-feed");
-      bindFeedReactionDelegates("chat-labs-feed");
     }}
 
     function bindChatRetryControls() {{
@@ -745,32 +740,7 @@
           renderNetworkTopNodes(safeState);
         }}
       }}
-      if (activeLayoutView === "saved") {{
-        renderFavorites(safeState);
-      }}
-      if (activeLayoutView === "remote") {{
-        renderRemoteView(safeState);
-      }}
-      renderSavedNodeSearchDropdown(safeState);
       renderFavoriteMenuNodeSearchDropdown(safeState);
-    }}
-
-    function bindFavoritesControls() {{
-      bindSearchTextInput("favorites-search-input", {{
-        value: globalNodeSearchQuery(),
-        clearable: true,
-        clearLabel: "Clear tagged node search",
-        normalize: normalizeSearchQuery,
-        onInput: (query) => {{
-          const changed = setGlobalNodeSearchQuery(query, {{
-            sourceInputId: "favorites-search-input",
-            skipSourceInput: true,
-          }});
-          if (changed && latestState) {{
-            rerenderNodeSearchDependents(latestState);
-          }}
-        }},
-      }});
     }}
 
     function bindFavoriteMenuNodeSearchControls() {{
@@ -866,102 +836,6 @@
         }});
       }}
       renderFavoriteMenuNodeSearchDropdown(latestState);
-    }}
-
-    function bindSavedNodeSearchControls() {{
-      const input = document.getElementById("saved-node-search-input");
-      const dropdown = document.getElementById("saved-node-search-dropdown");
-      if (!(input instanceof HTMLInputElement) || !(dropdown instanceof HTMLElement)) return;
-
-      if (input.dataset.bound !== "1") {{
-        input.dataset.bound = "1";
-        const openSavedNodeSearch = () => {{
-          if (savedNodeSearchBlurTimer !== null) {{
-            clearTimeout(savedNodeSearchBlurTimer);
-            savedNodeSearchBlurTimer = null;
-          }}
-          setGlobalNodeSearchQuery(input.value, {{
-            sourceInputId: "saved-node-search-input",
-            skipSourceInput: true,
-          }});
-          savedNodeSearchOpen = true;
-          renderSavedNodeSearchDropdown(latestState);
-        }};
-        input.addEventListener("focus", openSavedNodeSearch);
-        // Clicking an already-focused input does not fire "focus" again.
-        // Reopen on click so the list pops every time the user clicks it.
-        input.addEventListener("click", openSavedNodeSearch);
-        input.addEventListener("input", () => {{
-          const changed = setGlobalNodeSearchQuery(input.value, {{
-            sourceInputId: "saved-node-search-input",
-            skipSourceInput: true,
-          }});
-          savedNodeSearchOpen = true;
-          if (changed && latestState) {{
-            rerenderNodeSearchDependents(latestState);
-          }}
-          renderSavedNodeSearchDropdown(latestState);
-        }});
-        input.addEventListener("keydown", (ev) => {{
-          if (ev.key === "Escape") {{
-            ev.preventDefault();
-            closeSavedNodeSearchDropdown();
-          }}
-        }});
-        input.addEventListener("blur", () => {{
-          if (savedNodeSearchBlurTimer !== null) {{
-            clearTimeout(savedNodeSearchBlurTimer);
-          }}
-          savedNodeSearchBlurTimer = window.setTimeout(() => {{
-            savedNodeSearchBlurTimer = null;
-            closeSavedNodeSearchDropdown();
-          }}, 120);
-        }});
-      }}
-      if (typeof ensureSearchTextInputClearButton === "function") {{
-        ensureSearchTextInputClearButton(input, {{
-          clearLabel: "Clear saved node search",
-        }});
-      }}
-      input.value = globalNodeSearchQuery();
-      if (typeof syncSearchTextInputClearButton === "function") {{
-        syncSearchTextInputClearButton(input);
-      }}
-
-      if (dropdown.dataset.bound !== "1") {{
-        dropdown.dataset.bound = "1";
-        dropdown.addEventListener("mousedown", (ev) => {{
-          ev.preventDefault();
-          if (savedNodeSearchBlurTimer !== null) {{
-            clearTimeout(savedNodeSearchBlurTimer);
-            savedNodeSearchBlurTimer = null;
-          }}
-        }});
-        dropdown.addEventListener("click", (ev) => {{
-          const target = ev.target;
-          if (!(target instanceof Element)) return;
-          const item = target.closest(".node-search-item");
-          if (!(item instanceof HTMLButtonElement)) return;
-          const nodeId = normalizeNodeId(item.dataset.nodeId || "");
-          if (!isSelectableNodeId(nodeId)) return;
-          selectNode(nodeId, true, false);
-          closeSavedNodeSearchDropdown();
-        }});
-      }}
-
-      if (document.body.dataset.savedNodeSearchOutsideBound !== "1") {{
-        document.body.dataset.savedNodeSearchOutsideBound = "1";
-        document.addEventListener("pointerdown", (ev) => {{
-          const inputEl = document.getElementById("saved-node-search-input");
-          const dropdownEl = document.getElementById("saved-node-search-dropdown");
-          if (!(inputEl instanceof HTMLInputElement) || !(dropdownEl instanceof HTMLElement)) return;
-          const target = ev.target;
-          if (!(target instanceof Node)) return;
-          if (inputEl.contains(target) || dropdownEl.contains(target)) return;
-          closeSavedNodeSearchDropdown();
-        }});
-      }}
-      renderSavedNodeSearchDropdown(latestState);
     }}
 
     function bindNodeListSearchControls() {{

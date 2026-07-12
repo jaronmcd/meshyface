@@ -16,6 +16,7 @@ from meshdash.http_routes_get import handle_dashboard_get
 class _DownloadHandler:
     def __init__(self) -> None:
         self.headers: dict[str, object] = {}
+        self.client_address = ("127.0.0.1", 12345)
         self.sent_status: int | None = None
         self.sent_headers: list[tuple[str, str]] = []
         self.wfile = io.BytesIO()
@@ -95,6 +96,7 @@ def test_database_stats_route_uses_attached_state_helper() -> None:
     written: list[tuple[int, dict[str, object], bool]] = []
     deps = SimpleNamespace(
         state_fn=state_fn,
+        allow_tokenless_raw_packet_download=True,
         write_json_response_fn=lambda _handler, *, status_code, payload_obj, no_store=False, **_kwargs: written.append(
             (status_code, payload_obj, no_store)
         ),
@@ -114,6 +116,7 @@ def test_database_stats_route_reports_unavailable_without_helper() -> None:
     written: list[tuple[int, dict[str, object], bool]] = []
     deps = SimpleNamespace(
         state_fn=lambda: {},
+        allow_tokenless_raw_packet_download=True,
         write_json_response_fn=lambda _handler, *, status_code, payload_obj, no_store=False, **_kwargs: written.append(
             (status_code, payload_obj, no_store)
         ),
@@ -158,6 +161,7 @@ def test_raw_packet_database_download_route_streams_sqlite_bytes() -> None:
     written: list[tuple[int, dict[str, object], bool]] = []
     deps = SimpleNamespace(
         state_fn=state_fn,
+        allow_tokenless_raw_packet_download=True,
         write_json_response_fn=lambda _handler, *, status_code, payload_obj, no_store=False, **_kwargs: written.append(
             (status_code, payload_obj, no_store)
         ),
@@ -181,10 +185,59 @@ def test_raw_packet_database_download_route_streams_sqlite_bytes() -> None:
     assert handler.wfile.getvalue() == payload
 
 
+def test_raw_packet_database_download_route_streams_file_and_cleans_up(
+    tmp_path: Path,
+) -> None:
+    payload = b"SQLite format 3\x00streamed"
+    download_path = tmp_path / "raw-download.sqlite3"
+    download_path.write_bytes(payload)
+    cleaned = False
+
+    def state_fn() -> dict[str, object]:
+        return {}
+
+    def _cleanup() -> None:
+        nonlocal cleaned
+        cleaned = True
+        download_path.unlink(missing_ok=True)
+
+    setattr(
+        state_fn,
+        "raw_packet_database_download_fn",
+        lambda: {
+            "ok": True,
+            "filename": "raw.sqlite3",
+            "content_type": "application/vnd.sqlite3",
+            "path": str(download_path),
+            "size_bytes": len(payload),
+            "cleanup_fn": _cleanup,
+        },
+    )
+    deps = SimpleNamespace(
+        state_fn=state_fn,
+        allow_tokenless_raw_packet_download=True,
+        write_json_response_fn=lambda *_args, **_kwargs: None,
+    )
+    handler = _DownloadHandler()
+
+    handle_dashboard_get(
+        handler,
+        path="/api/system/database/raw_packets/download",
+        query="",
+        deps=deps,
+    )
+
+    assert handler.sent_status == 200
+    assert handler.wfile.getvalue() == payload
+    assert cleaned is True
+    assert download_path.exists() is False
+
+
 def test_raw_packet_database_download_route_reports_unavailable_without_helper() -> None:
     written: list[tuple[int, dict[str, object], bool]] = []
     deps = SimpleNamespace(
         state_fn=lambda: {},
+        allow_tokenless_raw_packet_download=True,
         write_json_response_fn=lambda _handler, *, status_code, payload_obj, no_store=False, **_kwargs: written.append(
             (status_code, payload_obj, no_store)
         ),
@@ -207,3 +260,157 @@ def test_raw_packet_database_download_route_reports_unavailable_without_helper()
             True,
         )
     ]
+
+
+def test_raw_packet_database_download_requires_configured_api_token() -> None:
+    called = False
+
+    def state_fn() -> dict[str, object]:
+        return {}
+
+    def _download() -> dict[str, object]:
+        nonlocal called
+        called = True
+        return {"ok": True, "bytes": b"SQLite format 3\x00"}
+
+    setattr(state_fn, "raw_packet_database_download_fn", _download)
+    written: list[tuple[int, dict[str, object], bool, dict[str, str]]] = []
+    deps = SimpleNamespace(
+        state_fn=state_fn,
+        api_token="secret-token",
+        write_json_response_fn=lambda _handler, *, status_code, payload_obj, no_store=False, extra_headers=None, **_kwargs: written.append(
+            (status_code, payload_obj, no_store, dict(extra_headers or {}))
+        ),
+    )
+    handler = _DownloadHandler()
+
+    handle_dashboard_get(
+        handler,
+        path="/api/system/database/raw_packets/download",
+        query="",
+        deps=deps,
+    )
+
+    assert called is False
+    assert written == [
+        (
+            401,
+            {"ok": False, "error": "API token required for raw packet download"},
+            True,
+            {"WWW-Authenticate": "Bearer"},
+        )
+    ]
+
+    handler.headers["Authorization"] = "Bearer secret-token"
+    handle_dashboard_get(
+        handler,
+        path="/api/system/database/raw_packets/download",
+        query="",
+        deps=deps,
+    )
+    assert called is True
+    assert handler.sent_status == 200
+
+
+def test_raw_packet_database_download_without_token_allows_private_lan() -> None:
+    called = False
+
+    def state_fn() -> dict[str, object]:
+        return {}
+
+    def _download() -> dict[str, object]:
+        nonlocal called
+        called = True
+        return {"ok": True, "bytes": b"SQLite format 3\x00"}
+
+    setattr(state_fn, "raw_packet_database_download_fn", _download)
+    written: list[tuple[int, dict[str, object]]] = []
+    deps = SimpleNamespace(
+        state_fn=state_fn,
+        api_token=None,
+        allow_tokenless_raw_packet_download=True,
+        write_json_response_fn=lambda _handler, *, status_code, payload_obj, **_kwargs: written.append(
+            (status_code, payload_obj)
+        ),
+    )
+    handler = _DownloadHandler()
+    handler.client_address = ("192.168.1.110", 12345)
+
+    handle_dashboard_get(
+        handler,
+        path="/api/system/database/raw_packets/download",
+        query="",
+        deps=deps,
+    )
+
+    assert called is True
+    assert handler.sent_status == 200
+    assert written == []
+
+
+def test_raw_packet_database_download_without_token_rejects_public_client() -> None:
+    called = False
+
+    def state_fn() -> dict[str, object]:
+        return {}
+
+    def _download() -> dict[str, object]:
+        nonlocal called
+        called = True
+        return {"ok": True, "bytes": b"SQLite format 3\x00"}
+
+    setattr(state_fn, "raw_packet_database_download_fn", _download)
+    written: list[int] = []
+    deps = SimpleNamespace(
+        state_fn=state_fn,
+        api_token=None,
+        allow_tokenless_raw_packet_download=True,
+        write_json_response_fn=lambda _handler, *, status_code, **_kwargs: written.append(
+            status_code
+        ),
+    )
+    handler = _DownloadHandler()
+    handler.client_address = ("8.8.8.8", 12345)
+
+    handle_dashboard_get(
+        handler,
+        path="/api/system/database/raw_packets/download",
+        query="",
+        deps=deps,
+    )
+
+    assert called is False
+    assert written == [401]
+
+
+def test_raw_packet_database_download_tokenless_mode_can_be_disabled() -> None:
+    called = False
+
+    def state_fn() -> dict[str, object]:
+        return {}
+
+    def _download() -> dict[str, object]:
+        nonlocal called
+        called = True
+        return {"ok": True, "bytes": b"SQLite format 3\x00"}
+
+    setattr(state_fn, "raw_packet_database_download_fn", _download)
+    written: list[int] = []
+    deps = SimpleNamespace(
+        state_fn=state_fn,
+        api_token=None,
+        allow_tokenless_raw_packet_download=False,
+        write_json_response_fn=lambda _handler, *, status_code, **_kwargs: written.append(
+            status_code
+        ),
+    )
+
+    handle_dashboard_get(
+        _DownloadHandler(),
+        path="/api/system/database/raw_packets/download",
+        query="",
+        deps=deps,
+    )
+
+    assert called is False
+    assert written == [401]

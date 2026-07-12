@@ -1,26 +1,23 @@
 from typing import Callable, Protocol
 from urllib.parse import urlparse
 
-from .api_input_history import parse_node_history_request, parse_online_activity_request
+from .api_input_history import parse_history_window_request, parse_node_history_request
 from .helpers import to_int
 from .html_external_assets import externalize_dashboard_assets
 from .http_handler_contracts import DashboardHttpHandler
 from .http_responses import write_html_response, write_json_response, write_text_response
 from .http_route_contracts import (
     ApiMetricsRecorder,
-    GetBbsHostRuntimeFn,
-    GetBbsSettingsFn,
     DashboardGetRouteDependencies,
     GetCustomTelemetrySettingsFn,
     GetThemeSettingsFn,
     NodeHistoryFn,
-    OnlineActivityFn,
     SummaryMetricsHistoryFn,
     StateFn,
     ToIntFn,
 )
 from .http_routes import handle_dashboard_get
-from .history_views import empty_node_history, empty_online_activity, empty_summary_metrics
+from .history_views import empty_node_history, empty_summary_metrics
 
 
 class ParsedUrl(Protocol):
@@ -33,13 +30,12 @@ def build_get_route_dependencies(
     html_text: str,
     state_fn: StateFn,
     node_history_fn: NodeHistoryFn | None,
-    online_activity_fn: OnlineActivityFn | None,
     default_node_history_hours: int,
     summary_metrics_fn: SummaryMetricsHistoryFn | None = None,
     get_theme_settings_fn: GetThemeSettingsFn | None = None,
-    get_bbs_settings_fn: GetBbsSettingsFn | None = None,
-    get_bbs_host_runtime_fn: GetBbsHostRuntimeFn | None = None,
     get_custom_telemetry_settings_fn: GetCustomTelemetrySettingsFn | None = None,
+    api_token: str | None = None,
+    allow_tokenless_raw_packet_download: bool = True,
     private_mode: bool = False,
     api_metrics: ApiMetricsRecorder | None = None,
     to_int_fn: ToIntFn = to_int,
@@ -49,22 +45,20 @@ def build_get_route_dependencies(
         html_text=externalized_assets.html_text,
         state_fn=state_fn,
         node_history_fn=node_history_fn,
-        online_activity_fn=online_activity_fn,
         summary_metrics_fn=summary_metrics_fn,
         default_node_history_hours=default_node_history_hours,
         to_int_fn=to_int_fn,
         parse_node_history_request_fn=parse_node_history_request,
-        parse_online_activity_request_fn=parse_online_activity_request,
+        parse_history_window_request_fn=parse_history_window_request,
         empty_node_history_fn=empty_node_history,
-        empty_online_activity_fn=empty_online_activity,
         empty_summary_metrics_fn=empty_summary_metrics,
         write_html_response_fn=write_html_response,
         write_json_response_fn=write_json_response,
         write_text_response_fn=write_text_response,
         get_theme_settings_fn=get_theme_settings_fn,
-        get_bbs_settings_fn=get_bbs_settings_fn,
-        get_bbs_host_runtime_fn=get_bbs_host_runtime_fn,
         get_custom_telemetry_settings_fn=get_custom_telemetry_settings_fn,
+        api_token=str(api_token or "").strip() or None,
+        allow_tokenless_raw_packet_download=bool(allow_tokenless_raw_packet_download),
         private_mode=bool(private_mode),
         api_metrics=api_metrics,
         dashboard_asset_map=externalized_assets.assets,

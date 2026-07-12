@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -5,15 +6,16 @@ from typing import Optional
 def to_int(value: object) -> Optional[int]:
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 
 def to_float(value: object) -> Optional[float]:
     try:
-        return float(value)
-    except (TypeError, ValueError):
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
         return None
+    return parsed if math.isfinite(parsed) else None
 
 
 def format_epoch(epoch_value: object) -> Optional[str]:

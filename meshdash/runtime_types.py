@@ -50,7 +50,6 @@ class RenderHtmlFn(Protocol):
         debug_mode: bool = False,
         light_theme_vars: dict | None = None,
         dark_theme_vars: dict | None = None,
-        bbs_enabled: bool = False,
         file_transfer_enabled: bool = False,
         games_enabled: bool = False,
         file_transfer_max_bytes: int = 64 * 1024,
@@ -70,11 +69,6 @@ class NodeHistoryFn(Protocol):
         hours_override: Optional[int] = None,
         points_override: Optional[int] = None,
     ) -> dict[str, object]:
-        ...
-
-
-class OnlineActivityFn(Protocol):
-    def __call__(self, hours_override: Optional[int] = None) -> dict[str, object]:
         ...
 
 
@@ -107,7 +101,6 @@ class MakeHttpHandlerFn(Protocol):
         html_text: str,
         state_fn: StateFn,
         node_history_fn: NodeHistoryFn | None = None,
-        online_activity_fn: OnlineActivityFn | None = None,
         summary_metrics_fn: SummaryMetricsHistoryFn | None = None,
         send_chat_fn: SendChatFn | None = None,
         api_token: str | None = None,
@@ -149,7 +142,6 @@ class RecordLocalChatFn(Protocol):
         is_reaction: bool = False,
         ack_requested: bool = False,
         retry_of: Optional[int] = None,
-        bot_command: Optional[str] = None,
     ) -> None:
         ...
 
@@ -253,16 +245,6 @@ class BuildNodeHistoryLoaderFn(Protocol):
         default_hours: int,
         default_points: int,
     ) -> NodeHistoryFn:
-        ...
-
-
-class BuildOnlineActivityLoaderFn(Protocol):
-    def __call__(
-        self,
-        history_store: object | None,
-        *,
-        default_hours: int,
-    ) -> OnlineActivityFn:
         ...
 
 

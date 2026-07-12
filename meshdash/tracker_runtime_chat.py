@@ -41,7 +41,6 @@ def record_tracker_local_chat(
     is_reaction: bool,
     ack_requested: bool,
     retry_of: Optional[int],
-    bot_command: Optional[str],
     recent_chat: RecentChatBuffer,
     history_store: LocalChatHistoryWriter | None,
     build_tracker_local_entry_fn: BuildTrackerLocalEntryFn,
@@ -64,7 +63,6 @@ def record_tracker_local_chat(
         is_reaction=is_reaction,
         ack_requested=ack_requested,
         retry_of=retry_of,
-        bot_command=bot_command,
         build_local_chat_entry_fn=build_local_chat_entry_fn,
         utc_now_fn=utc_now_fn,
         now_unix_fn=now_unix_fn,
@@ -94,7 +92,6 @@ def record_tracker_local_chat_for_tracker(
     is_reaction: bool,
     ack_requested: bool,
     retry_of: Optional[int],
-    bot_command: Optional[str] = None,
     now_unix_fn: NowUnixFn = time.time,
 ) -> bool:
     return record_tracker_local_chat(
@@ -109,7 +106,6 @@ def record_tracker_local_chat_for_tracker(
         is_reaction=is_reaction,
         ack_requested=ack_requested,
         retry_of=retry_of,
-        bot_command=bot_command,
         recent_chat=tracker.recent_chat,
         history_store=tracker._history_store,
         build_tracker_local_entry_fn=_build_tracker_local_entry_helper,

@@ -12,8 +12,12 @@ def get_node_id_from_num(
     broadcast_num: Optional[int],
     to_int_fn: ToIntFn = _to_int,
 ) -> Optional[str]:
+    if isinstance(node_num, bool) or (
+        isinstance(node_num, float) and not node_num.is_integer()
+    ):
+        return None
     numeric = to_int_fn(node_num)
-    if numeric is None:
+    if numeric is None or numeric < 0 or numeric > 0xFFFFFFFF:
         return None
     if broadcast_num is not None and numeric == broadcast_num:
         return "^all"
@@ -36,15 +40,27 @@ def get_local_node_num(
     my_info = to_jsonable_fn(getattr(iface, "myInfo", None))
     if isinstance(my_info, dict):
         for key in ("my_node_num", "myNodeNum", "node_num", "nodeNum", "num"):
-            value = to_int_fn(my_info.get(key))
-            if value is not None:
+            raw_value = my_info.get(key)
+            value = (
+                None
+                if isinstance(raw_value, bool)
+                or (isinstance(raw_value, float) and not raw_value.is_integer())
+                else to_int_fn(raw_value)
+            )
+            if value is not None and 0 <= value <= 0xFFFFFFFF:
                 return value
 
     local = getattr(iface, "localNode", None)
     if local is not None:
         for key in ("nodeNum", "node_num", "num"):
-            value = to_int_fn(getattr(local, key, None))
-            if value is not None:
+            raw_value = getattr(local, key, None)
+            value = (
+                None
+                if isinstance(raw_value, bool)
+                or (isinstance(raw_value, float) and not raw_value.is_integer())
+                else to_int_fn(raw_value)
+            )
+            if value is not None and 0 <= value <= 0xFFFFFFFF:
                 return value
     return None
 
@@ -59,12 +75,8 @@ def get_local_node_id(
     node_num = get_local_node_num(iface, to_jsonable_fn=to_jsonable_fn, to_int_fn=to_int_fn)
     if node_num is None:
         return "local"
-    node_id = get_node_id_from_num(
-        iface,
-        node_num,
-        broadcast_num=broadcast_num,
-        to_int_fn=to_int_fn,
-    )
-    if node_id:
-        return node_id
+    if broadcast_num is not None and node_num == broadcast_num:
+        return "^all"
+    # Local security identity comes from the numeric radio identity, not the
+    # mutable NodeDB user record for that number.
     return f"!{node_num:08x}"

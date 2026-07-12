@@ -155,10 +155,6 @@
             <svg class="metric-ticker-chart" id="ticker-chart-links" viewBox="0 0 72 16" preserveAspectRatio="none" aria-hidden="true"></svg>
           </div>
         </div>
-        <div class="summary-ticker-item summary-ticker-item-bots" id="summary-ticker-bots" data-ticker-id="bots">
-          <div class="label" data-ticker-label>Bots</div>
-          <div class="value node-ticker-value bot-ticker-value" id="m-bots-ticker">n/a</div>
-        </div>
         <div class="summary-ticker-item" id="summary-ticker-chat-channels" data-ticker-id="chat_channels">
           <div class="label" data-ticker-label>Chat Channels</div>
           <div class="value node-ticker-value" id="m-chat-channels">n/a</div>
@@ -315,44 +311,6 @@
                   </button>
                   <button
                     class="topbar-view-submenu-item"
-                    data-view="bots"
-                    data-app-view="bots"
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked="false"
-                    title="Bots workspace"
-                    {bots_app_tab_hidden_attrs}
-                  >
-                    <span class="topbar-view-submenu-item-icon" aria-hidden="true">BT</span>
-                    <span class="topbar-view-submenu-item-copy">
-                      <span class="topbar-view-submenu-item-label-row">
-                        <span class="topbar-view-submenu-item-label">Bots</span>
-                        <span class="topbar-view-submenu-item-beta">BETA</span>
-                      </span>
-                      <span class="topbar-view-submenu-item-meta">Automation and commands</span>
-                    </span>
-                  </button>
-                  <button
-                    class="topbar-view-submenu-item"
-                    data-view="bbs"
-                    data-app-view="bbs"
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked="false"
-                    title="BBS workspace"
-                    {bbs_app_tab_hidden_attrs}
-                  >
-                    <span class="topbar-view-submenu-item-icon" aria-hidden="true">BB</span>
-                    <span class="topbar-view-submenu-item-copy">
-                      <span class="topbar-view-submenu-item-label-row">
-                        <span class="topbar-view-submenu-item-label">BBS</span>
-                        <span class="topbar-view-submenu-item-beta">BETA</span>
-                      </span>
-                      <span class="topbar-view-submenu-item-meta">Profiles and MOTDs</span>
-                    </span>
-                  </button>
-                  <button
-                    class="topbar-view-submenu-item"
                     data-view="files"
                     data-app-view="files"
                     type="button"
@@ -489,7 +447,7 @@
         <div id="chat-node-details-promoted-host" class="chat-node-details-promoted-host"></div>
       </div>
       <div id="dashboard-layout" class="layout view-chat">
-    <section class="card settings" aria-label="Settings">
+    <section class="card settings workspace-app-shell" aria-label="Settings">
       <div class="body">
         <div class="settings-chrome workspace-chrome-bar workspace-stack-head-shell">
           <div class="settings-toolbar workspace-chrome-row">
@@ -2734,7 +2692,7 @@
       </div>
     </section>
 
-    <section class="card chat">
+    <section class="card chat workspace-app-shell">
       <div class="chat-card-head workspace-chrome-bar workspace-stack-head-shell">
         <div class="chat-card-head-controls workspace-chrome-row">
           <div class="chat-card-head-actions">
@@ -2799,7 +2757,7 @@
                     class="list-search-input"
                     type="search"
                     maxlength="{chat_max_bytes}"
-                    placeholder="Message the room (^all)... (/search, /macros, /help)"
+                    placeholder="Message the room (^all)... (/search, /help)"
                     autocomplete="off"
                   />
                   <span id="chat-input-inline-ghost" class="chat-input-inline-ghost" hidden aria-hidden="true">
@@ -2809,7 +2767,6 @@
                   <button id="chat-unicode-btn" type="button" title="Unicode text styles" aria-label="Unicode text styles" aria-haspopup="dialog" aria-expanded="false">Aa</button>
                   <button id="chat-emoji-btn" type="button" title="Insert emoji" aria-label="Insert emoji" aria-expanded="false">🙂</button>
                 </div>
-                <div id="chat-macro-preview" class="chat-macro-preview" hidden aria-live="polite"></div>
                 <div id="chat-emoji-panel" class="chat-emoji-panel" hidden></div>
                 <div id="chat-unicode-panel" class="chat-unicode-panel" hidden></div>
               </div>
@@ -2817,159 +2774,10 @@
             <div id="chat-reaction-popover" class="chat-reaction-popover" hidden></div>
           </div>
         </div>
-        <div
-          id="macros-panel-splitter"
-          class="macros-panel-splitter"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize macros log panel"
-        ></div>
-        <div id="macros-right-pane" class="macros-right-pane" aria-label="Macros controls workspace">
-          <div class="macros-right-pane-inner">
-            <div class="macros-studio-head">
-              <h3>MACROS Studio</h3>
-              <p>Build tiny ASCII macros from images or text. Left panel can show emulated send preview or live chat.</p>
-              <div class="macros-left-view-toggle" role="group" aria-label="Macros left panel mode">
-                <button id="macros-left-view-preview-btn" class="btn btn-secondary is-active" type="button">Macro Preview</button>
-                <button id="macros-left-view-live-btn" class="btn btn-secondary" type="button">Live Chat</button>
-              </div>
-              <div class="macros-send-strip">
-                <button id="macros-send-lines-btn" class="btn btn-danger macros-send-primary" type="button">Send Macro</button>
-                <span class="macros-send-strip-note">Transmits current ASCII output to mesh as multiple lines.</span>
-              </div>
-              <div class="macros-mini-meta">Switch the left panel between macro preview and live channel chat.</div>
-            </div>
-            <div class="macros-studio-grid">
-              <section class="macros-tool-card" aria-label="ASCII settings">
-                <h4>ASCII Settings</h4>
-                <div class="macros-tool-row">
-                  <label class="macros-tool-field">
-                    <span>Width</span>
-                    <input id="macros-ascii-width" type="number" min="8" max="96" step="1" value="16" />
-                  </label>
-                  <label class="macros-tool-field">
-                    <span>Height</span>
-                    <input id="macros-ascii-height" type="number" min="8" max="96" step="1" value="16" />
-                  </label>
-                </div>
-                <label class="macros-tool-field">
-                  <span>Palette Preset</span>
-                  <select id="macros-ascii-palette" aria-label="ASCII palette preset"></select>
-                </label>
-                <label class="macros-tool-field">
-                  <span>Ramp (dark to light)</span>
-                  <input id="macros-ascii-ramp" type="text" value="@%#*+=-:. " maxlength="128" autocomplete="off" spellcheck="false" />
-                </label>
-                <div id="macros-ascii-palette-note" class="macros-mini-meta">Classic 10-level ramp (dark -> light), used widely since the 1990s.</div>
-                <label class="macros-tool-check">
-                  <input id="macros-ascii-invert" type="checkbox" />
-                  <span>Invert luminance</span>
-                </label>
-                <label class="macros-tool-check">
-                  <input id="macros-ascii-crop-whitespace" type="checkbox" checked />
-                  <span>Crop blank margins (top/bottom/left/right)</span>
-                </label>
-                <label class="macros-tool-check">
-                  <input id="macros-ascii-space-replace-enabled" type="checkbox" />
-                  <span>MSP-safe: replace spaces on send</span>
-                </label>
-                <label class="macros-tool-field">
-                  <span>Replacement char</span>
-                  <input id="macros-ascii-space-replace-char" type="text" value="·" maxlength="8" autocomplete="off" spellcheck="false" />
-                </label>
-                <div class="macros-mini-meta">When enabled, spaces are sent as this visible character.</div>
-              </section>
-
-              <section class="macros-tool-card" aria-label="Image to ASCII">
-                <h4>Image to ASCII</h4>
-                <label class="macros-tool-field">
-                  <span>Import image</span>
-                  <input id="macros-image-input" type="file" accept="image/*" />
-                </label>
-                <div id="macros-image-meta" class="macros-mini-meta">No image loaded.</div>
-                <button id="macros-image-generate-btn" class="btn" type="button">Generate From Image</button>
-              </section>
-
-              <section class="macros-tool-card" aria-label="Text to ASCII">
-                <h4>Text to ASCII</h4>
-                <label class="macros-tool-field">
-                  <span>Text</span>
-                  <input id="macros-text-input" type="text" maxlength="120" placeholder="TYPE SOMETHING" autocomplete="off" />
-                </label>
-                <div class="macros-tool-row">
-                  <label class="macros-tool-field">
-                    <span>Font</span>
-                    <select id="macros-text-font">
-                      <option value="monospace">Monospace</option>
-                      <option value="sans-serif">Sans Serif</option>
-                      <option value="serif">Serif</option>
-                      <option value="fantasy">Fantasy</option>
-                    </select>
-                  </label>
-                  <label class="macros-tool-field">
-                    <span>Weight</span>
-                    <select id="macros-text-weight">
-                      <option value="700">Bold</option>
-                      <option value="600">Semi</option>
-                      <option value="500">Medium</option>
-                      <option value="400">Normal</option>
-                    </select>
-                  </label>
-                </div>
-                <div class="macros-tool-actions">
-                  <button id="macros-text-generate-btn" class="btn" type="button">Generate From Text</button>
-                </div>
-              </section>
-            </div>
-
-            <section class="macros-output-card" aria-label="ASCII output">
-              <div class="macros-output-head">
-                <h4>ASCII Output</h4>
-                <span id="macros-line-count" class="macros-mini-meta">0 lines</span>
-              </div>
-              <textarea
-                id="macros-ascii-output"
-                class="macros-ascii-output"
-                rows="10"
-                placeholder="ASCII output appears here..."
-                spellcheck="false"
-              ></textarea>
-              <div class="macros-output-actions">
-                <button id="macros-preview-apply-btn" class="btn btn-secondary" type="button">Refresh Preview</button>
-                <button id="macros-copy-btn" class="btn btn-secondary" type="button">Copy</button>
-                <button id="macros-clear-btn" class="btn btn-secondary" type="button">Clear</button>
-              </div>
-              <div id="macros-status" class="macros-status" aria-live="polite"></div>
-            </section>
-          </div>
-        </div>
       </div>
     </section>
 
-    <section class="card chatlabs" aria-label="Experimental console-style chat">
-      <div class="chatlabs-head">
-        <h2>Labs</h2>
-        <div class="chatlabs-caption">
-          Experimental console-rendered chat stream.
-          <span id="chat-labs-count" class="chatlabs-count">0 lines</span>
-        </div>
-        <div class="chatlabs-filter-row">
-          <div
-            id="chat-labs-channel-pill-strip"
-            class="mesh-channel-pill-strip chatlabs-channel-pill-strip"
-            role="tablist"
-            aria-label="Labs channel filter"
-          ></div>
-        </div>
-      </div>
-      <div class="body">
-        <div id="chat-labs-terminal" class="chatlabs-terminal">
-          <div id="chat-labs-feed" class="chatlabs-feed"></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card files" aria-label="Peer-to-peer file transfer"{file_transfer_section_hidden_attrs}>
+    <section class="card files workspace-app-shell" aria-label="Peer-to-peer file transfer"{file_transfer_section_hidden_attrs}>
       <div class="body">
         <div class="files-shell">
           <div class="files-controls">
@@ -2992,7 +2800,15 @@
               </div>
             </label>
             <label class="files-field">
-              <span class="files-label">Destination Node</span>
+              <span class="files-field-head">
+                <span class="files-label">Destination Node</span>
+                <span
+                  id="files-hop-limit-preview"
+                  class="files-hop-limit-preview"
+                  data-source="none"
+                  aria-live="polite"
+                >Dynamic hops · select destination</span>
+              </span>
               <div class="files-row">
                 <input
                   id="files-destination-input"
@@ -3040,8 +2856,10 @@
             <div class="files-console-head">
               <span class="files-console-title">Transfer Console</span>
               <div class="files-console-actions">
+                <button id="files-transfers-cancel-all-btn" class="btn btn-secondary files-console-clear-btn" type="button">Cancel all</button>
+                <button id="files-transfers-clear-all-btn" class="btn btn-secondary files-console-clear-btn" type="button">Clear list</button>
                 <button id="files-console-copy-btn" class="btn btn-secondary files-console-copy-btn" type="button">Copy</button>
-                <button id="files-console-clear-btn" class="btn btn-secondary files-console-clear-btn" type="button">Clear</button>
+                <button id="files-console-clear-btn" class="btn btn-secondary files-console-clear-btn" type="button">Clear console</button>
                 <button id="files-transfers-clear-finished-btn" class="btn btn-secondary files-console-clear-btn" type="button">Clear stale</button>
               </div>
             </div>
@@ -3051,228 +2869,7 @@
       </div>
     </section>
 
-    <section class="card bbs" aria-label="BBS"{bbs_section_hidden_attrs}>
-      <h2>BBS</h2>
-      <div class="body">
-        <div class="bbs-shell">
-          <section class="bbs-main" aria-label="BBS terminal">
-            <div class="bbs-config-strip" aria-label="BBS space controls">
-              <section class="bbs-panel bbs-host-panel" aria-label="Host your space">
-                <label class="bbs-field" for="bbs-host-title-input">
-                  <span class="bbs-label">Space Title</span>
-                  <input
-                    id="bbs-host-title-input"
-                    class="bbs-input"
-                    type="text"
-                    maxlength="42"
-                    placeholder="Packet Exchange"
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
-                </label>
-                <label class="bbs-field" for="bbs-host-id-input">
-                  <span class="bbs-label">Space ID</span>
-                  <input
-                    id="bbs-host-id-input"
-                    class="bbs-input"
-                    type="text"
-                    maxlength="24"
-                    placeholder="packet-exchange"
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
-                </label>
-                <label class="bbs-field" for="bbs-host-motd-input">
-                  <span class="bbs-label">Greeting / MOTD</span>
-                  <input
-                    id="bbs-host-motd-input"
-                    class="bbs-input"
-                    type="text"
-                    maxlength="120"
-                    placeholder="2400 baud online."
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
-                </label>
-                <div class="bbs-actions">
-                  <button id="bbs-host-start-btn" class="btn" type="button">Host Space</button>
-                  <button id="bbs-host-stop-btn" class="btn btn-secondary" type="button">Go Offline</button>
-                </div>
-                <div id="bbs-host-status" class="bbs-host-status" aria-live="polite"></div>
-              </section>
-            </div>
-            <section class="bbs-panel bbs-directory-panel" aria-label="Loaded spaces">
-              <div class="bbs-actions">
-                <div class="bbs-directory-heading">
-                  <div class="bbs-panel-title">Loaded Spaces</div>
-                  <div id="bbs-directory-target" class="bbs-directory-target">Request target: no node selected</div>
-                </div>
-                <button id="bbs-refresh-directory-btn" class="btn btn-secondary" type="button">Open Node</button>
-                <button id="bbs-forget-directory-btn" class="btn btn-secondary" type="button" disabled>Forget Selected</button>
-              </div>
-              <div id="bbs-board-list" class="bbs-board-list" role="listbox" aria-label="Discovered boards"></div>
-            </section>
-            <div class="bbs-terminal-head">
-              <div id="bbs-terminal-title" class="bbs-terminal-title">No board selected</div>
-              <div id="bbs-terminal-meta" class="bbs-terminal-meta">Select a node and request its space.</div>
-            </div>
-            <pre id="bbs-terminal-log" class="bbs-terminal-log" aria-live="polite">*** CONNECT 2400 ***
-Ready.
-</pre>
-            <div class="bbs-compose-row">
-              <input
-                id="bbs-post-input"
-                class="bbs-post-input"
-                type="text"
-                placeholder="Select a board before posting..."
-                autocomplete="off"
-                spellcheck="false"
-                disabled
-              />
-              <button id="bbs-post-send-btn" class="btn" type="button" disabled>Post</button>
-            </div>
-            <div id="bbs-post-status" class="bbs-post-status" aria-live="polite"></div>
-          </section>
-        </div>
-      </div>
-    </section>
-
-    <section class="card bots" aria-label="Bots"{bots_section_hidden_attrs}>
-      <div class="body">
-        <div class="bots-grid">
-          <div class="bots-sidebar-stack">
-            <div class="bots-panel bots-commands-panel">
-              <h3>Bot Catalog</h3>
-              <div class="bots-setting-note">Available bot apps are shown here. Runtime replies only run while a bot is enabled.</div>
-              <div class="bots-command-list" role="listbox" aria-label="Bot catalog">
-                <button id="bots-zork-command-item" class="bots-command-item is-active {bots_zork_state_class}" type="button" role="option" aria-selected="true" data-bot-command="zork">
-                  <span class="bots-command-item-order">01</span>
-                  <span class="bots-command-copy">
-                    <span class="bots-command-heading">
-                      <span class="bots-command-usage">zork</span>
-                      <span class="bots-command-kind">game</span>
-                    </span>
-                    <span class="bots-command-description">Playable direct-message Zork bot.</span>
-                  </span>
-                  <span id="bots-zork-list-state" class="bots-command-state {bots_zork_state_class}">{bots_zork_state_label}</span>
-                </button>
-                <button id="bots-ping-command-item" class="bots-command-item {bots_ping_state_class}" type="button" role="option" aria-selected="false" data-bot-command="ping">
-                  <span class="bots-command-item-order">02</span>
-                  <span class="bots-command-copy">
-                    <span class="bots-command-heading">
-                      <span class="bots-command-usage">ping</span>
-                      <span class="bots-command-kind">utility</span>
-                    </span>
-                    <span class="bots-command-description">Mesh ping/test auto-reply with hop count.</span>
-                  </span>
-                  <span id="bots-ping-list-state" class="bots-command-state {bots_ping_state_class}">{bots_ping_state_label}</span>
-                </button>
-              </div>
-            </div>
-            <div class="bots-panel bots-assistant-panel">
-              <h3>Expansion</h3>
-              <div class="bots-setting-note">New internal or plugin bot apps can join this catalog without becoming top-level app tabs.</div>
-            </div>
-          </div>
-          <div id="bots-main-splitter" class="bots-main-splitter" title="Drag to resize bot list and bot details"></div>
-          <div class="bots-panel bots-history-panel">
-            <div class="bots-history-head">
-              <div class="bots-review-head-copy">
-                <h3 id="bots-detail-title">Zork</h3>
-                <div id="bots-detail-command-note" class="bots-setting-note">Command: <code>zork</code></div>
-              </div>
-            </div>
-            <div class="bots-command-config">
-              <div class="bots-command-config-head">
-                <div class="bots-command-config-title-row">
-                  <span id="bots-detail-usage" class="bots-command-config-usage">zork</span>
-                  <span class="bots-command-kind">game</span>
-                  <span id="bots-zork-detail-state" class="bots-command-state {bots_zork_state_class}">{bots_zork_state_label}</span>
-                </div>
-                <div id="bots-detail-name" class="bots-command-config-name">Playable Zork Bot</div>
-                <div id="bots-zork-description" class="bots-command-config-description">{bots_zork_hint}</div>
-              </div>
-              <div id="bots-zork-routing-note" class="bots-setting-note">Public chat <code>zork</code> starts a private session. Gameplay commands stay in direct messages.</div>
-              <div class="bots-command-config-actions bots-zork-actions">
-                <button id="bots-zork-enable-btn" class="btn btn-secondary" type="button">Enable</button>
-                <button id="bots-zork-disable-btn" class="btn btn-secondary" type="button">Disable</button>
-                <span id="bots-zork-toggle-status" class="bots-setting-note" aria-live="polite"></span>
-              </div>
-              <div id="bots-ping-mode-row" class="bots-setting-note" hidden>
-                <label class="chat-bot-toggle-wrap">
-                  <input id="bots-ping-message-only-checkbox" type="checkbox" />
-                  <span>Message only (direct chats)</span>
-                </label>
-              </div>
-              <div class="bots-command-config-section bots-zork-sessions-section">
-                <div class="bots-command-config-title-row">
-                  <div class="bots-command-config-label">Sessions</div>
-                  <button id="bots-zork-clear-sessions-btn" class="btn btn-secondary bots-sniffer-btn" type="button">Clear All</button>
-                </div>
-                <div id="bots-zork-session-list" class="bots-session-list" aria-live="polite">
-                  <div class="bots-history-empty">No active Zork sessions.</div>
-                </div>
-              </div>
-              <div class="bots-command-config-section bots-zork-activity-section">
-                <div class="bots-command-config-title-row">
-                  <div class="bots-command-config-label">Activity</div>
-                  <button id="bots-zork-reset-activity-btn" class="btn btn-secondary bots-sniffer-btn" type="button">Reset</button>
-                </div>
-                <div id="bots-zork-activity-stats" class="bots-history-stats"></div>
-                <div id="bots-zork-activity-list" class="bots-history-list" aria-live="polite">
-                  <div class="bots-history-empty">No Zork activity in the current chat window yet.</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card remote" aria-label="Remote node operations">
-      <h2>Remote</h2>
-      <div class="body">
-        <div class="remote-shell">
-          <aside class="remote-sidebar">
-            <label class="remote-field" for="remote-node-search-input">Search nodes</label>
-            <input
-              id="remote-node-search-input"
-              class="remote-search-input"
-              type="search"
-              placeholder="Search name, ID, role, hardware, notes"
-              autocomplete="off"
-            />
-            <div id="remote-node-list-caption" class="remote-list-caption">Scanning remote nodes...</div>
-            <div id="remote-node-list" class="remote-node-list" role="listbox" aria-label="Remote nodes"></div>
-          </aside>
-          <div class="remote-main">
-            <div class="remote-panel remote-summary-panel">
-              <div class="remote-panel-head">
-                <h3 id="remote-target-title">Select a node</h3>
-                <button id="remote-refresh-btn" class="btn btn-secondary remote-refresh-btn" type="button">Refresh</button>
-              </div>
-              <div id="remote-target-meta" class="remote-target-meta">Choose a node to inspect potential remote operations.</div>
-            </div>
-            <div class="remote-panel">
-              <h3>Capability Probe</h3>
-              <div id="remote-capability-list" class="remote-capability-list"></div>
-            </div>
-            <div class="remote-panel">
-              <h3>Quick Actions</h3>
-              <div class="remote-action-row">
-                <button id="remote-open-node-btn" class="btn btn-secondary" type="button">Open Node Details</button>
-                <button id="remote-open-direct-chat-btn" class="btn btn-secondary" type="button">Open Message Popup</button>
-                <button id="remote-stage-ping-btn" class="btn" type="button">Stage Ping</button>
-                <button id="remote-stage-whois-btn" class="btn btn-secondary" type="button">Stage Whois</button>
-              </div>
-              <div id="remote-action-status" class="remote-action-status">Select a node to start exploring remote actions.</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card games" aria-label="Games">
+    <section class="card games workspace-app-shell" aria-label="Games">
       <div class="body">
         <div id="games-shell-root" class="games-shell">
           <aside class="games-sidebar">
@@ -3582,18 +3179,8 @@ Ready.
     <section class="card map">
       <div class="map-card-head">
         <h2 id="map-card-title" class="pane-head-title">
-          <button
-            id="map-card-title-favorite-btn"
-            class="favorite-toggle-btn map-title-favorite-btn"
-            type="button"
-            title="Tag node"
-            aria-label="Tag node"
-            aria-pressed="false"
-            hidden
-          ><span class="favorite-toggle-icon node-tag-dot"></span></button>
           <span id="map-card-title-text">Network Map</span>
         </h2>
-        <div id="saved-map-splitter-head" class="saved-map-splitter-head" title="Drag to resize node details and map"></div>
         <div id="map-card-actions-host" class="map-card-actions pane-head-actions">
           <div id="map-controls-dock" class="map-controls-dock">
             <button id="map-reset-view-btn" class="map-reset-view-btn" type="button" title="Reset map view">Reset view</button>
@@ -3601,20 +3188,6 @@ Ready.
         </div>
       </div>
       <div class="body">
-        <div class="saved-node-pane">
-          <div class="saved-node-search-wrap">
-            <input
-              id="saved-node-search-input"
-              class="list-search-input"
-              type="search"
-              placeholder="Search by ID, name, or notes"
-              autocomplete="off"
-            />
-            <div id="saved-node-search-dropdown" class="node-search-dropdown" hidden></div>
-          </div>
-          <div id="saved-node-details" class="saved-node-details" aria-live="polite"></div>
-        </div>
-        <div id="saved-map-splitter" class="saved-map-splitter" title="Drag to resize node details and map"></div>
         <div class="map-frame">
           <div id="network-map-subviews" class="network-map-subviews" data-active-subview="map">
             <div id="network-map-chrome" class="network-map-chrome" aria-hidden="true">
@@ -3844,7 +3417,28 @@ Ready.
                 class="history-metric-controls network-sensors-primary-controls"
                 aria-hidden="true"
                 hidden
-              ></div>
+              >
+                <div class="env-metrics-controls">
+                  <div class="history-metric-wrap env-metrics-control-group history-select-chip-hide-label">
+                    <label for="env-metric-select">Metric</label>
+                    <select id="env-metric-select" class="env-metric-select" aria-label="Sensor metric selector">
+                      <option value="">No environment metrics</option>
+                    </select>
+                  </div>
+                  <div id="env-window-wrap" class="history-metric-wrap history-window-wrap env-metrics-control-group history-select-chip-hide-label">
+                    <label for="env-window-select">Window</label>
+                    <select id="env-window-select" class="env-metric-select" aria-label="Sensor history window">
+                      <option value="6">6h</option>
+                      <option value="12">12h</option>
+                      <option value="24">24h</option>
+                      <option value="72" selected>72h</option>
+                      <option value="168">7d</option>
+                      <option value="336">14d</option>
+                      <option value="720">30d</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
               <div
                 id="network-routes-primary-controls"
                 class="history-metric-controls network-routes-primary-controls"
@@ -4000,7 +3594,18 @@ Ready.
               hidden
             >
               <div class="network-overview-panel network-sensors-panel">
-                <div id="network-sensors-host" class="network-sensors-host"></div>
+                <div id="network-sensors-host" class="network-sensors-host">
+                  <section class="env-metrics-explorer" aria-label="Sensor metrics explorer">
+                    <div class="env-metrics-grid">
+                      <div id="env-metrics-chart-wrap">
+                        <svg id="env-metrics-chart" viewBox="0 0 900 320" preserveAspectRatio="none" aria-label="Sensor metrics over time chart"></svg>
+                        <div id="env-metrics-empty" class="signal-empty">No historical sensor metrics found yet.</div>
+                      </div>
+                    </div>
+                    <div id="env-metrics-timeline" class="signal-timeline" aria-label="Sensor metrics timeline"></div>
+                    <div id="env-metrics-available" class="env-metrics-available"></div>
+                  </section>
+                </div>
               </div>
             </div>
             <div
@@ -4101,7 +3706,7 @@ Ready.
       <h2 id="nodes-card-title">Nodes</h2>
       <div class="body nodes-body">
         <div class="network-node-stack">
-          <div class="saved-node-search-wrap">
+          <div class="node-list-search-wrap">
             <input
               id="nodes-search-input"
               class="list-search-input"
@@ -4144,19 +3749,6 @@ Ready.
           <div id="network-node-splitter" class="network-node-splitter" title="Drag to resize node list and history panel"></div>
           <div id="network-node-history-host" class="network-node-history-host" hidden></div>
         </div>
-      </div>
-    </section>
-
-    <section class="card favorites">
-      <h2>Tagged Nodes</h2>
-      <div class="body favorites-body">
-        <div class="favorites-toolbar">
-          <div class="favorites-search-wrap">
-            <input id="favorites-search-input" class="list-search-input" type="search" placeholder="Search tagged by ID or name" autocomplete="off" />
-          </div>
-        </div>
-        <div id="favorites-caption" class="favorites-caption">No tagged nodes yet.</div>
-        <div id="favorites-list" class="scroll favorites-list"></div>
       </div>
     </section>
 
@@ -4334,270 +3926,12 @@ Ready.
             <div id="node-name-history-host" class="node-name-history-host" aria-label="Node name history"></div>
           </div>
         </div>
-        <div id="map-data-activity" class="map-data-activity" hidden>
-          <div class="history-activity-stack">
-            <div class="history-chat-tabbar history-activity-tabbar" role="tablist" aria-label="History trend panels">
-              <button
-                class="history-chat-tab-btn is-active"
-                type="button"
-                role="tab"
-                aria-selected="true"
-                aria-controls="history-activity-panel-activity"
-                data-history-chat-tab="activity"
-              >Activity</button>
-              <button
-                class="history-chat-tab-btn"
-                type="button"
-                role="tab"
-                aria-selected="false"
-                aria-controls="history-activity-panel-encrypted"
-                data-history-chat-tab="encrypted"
-              >Encrypted</button>
-            </div>
-            <div id="history-activity-panel-activity" class="history-activity-panel" role="tabpanel" aria-label="History activity trends">
-              <div class="history-activity-weekly-panel">
-                <div id="weekly-summary-caption" class="history-caption">Minute-level trend by saved snapshots.</div>
-                <div class="history-metric-controls">
-                  <div class="history-metric-wrap history-select-chip-hide-label">
-                    <label for="weekly-summary-metric" class="history-metric-label">Metric</label>
-                    <select id="weekly-summary-metric" class="history-metric-select" aria-label="Weekly summary metric">
-                      <option value="packets">Packets</option>
-                      <option value="nodes">Nodes</option>
-                      <option value="links">Links</option>
-                    </select>
-                  </div>
-                  <div id="weekly-summary-node-lines-wrap" class="history-metric-wrap history-metric-wrap-lines" hidden>
-                    <span class="history-metric-label">Node Lines</span>
-                    <label class="history-metric-inline" for="weekly-summary-node-line-online">
-                      <input
-                        id="weekly-summary-node-line-online"
-                        class="history-metric-toggle"
-                        type="checkbox"
-                        aria-label="Show online nodes line"
-                      />
-                      <span>Online</span>
-                    </label>
-                    <label class="history-metric-inline" for="weekly-summary-node-line-new">
-                      <input
-                        id="weekly-summary-node-line-new"
-                        class="history-metric-toggle"
-                        type="checkbox"
-                        aria-label="Show new nodes (24h) line"
-                      />
-                      <span>New</span>
-                    </label>
-                    <label class="history-metric-inline" for="weekly-summary-node-line-known">
-                      <input
-                        id="weekly-summary-node-line-known"
-                        class="history-metric-toggle"
-                        type="checkbox"
-                        aria-label="Show known nodes radio line"
-                      />
-                      <span>Known</span>
-                    </label>
-                    <label class="history-metric-inline" for="weekly-summary-node-line-saved">
-                      <input
-                        id="weekly-summary-node-line-saved"
-                        class="history-metric-toggle"
-                        type="checkbox"
-                        aria-label="Show saved nodes database line"
-                      />
-                      <span>Saved</span>
-                    </label>
-                    <label class="history-metric-inline" for="weekly-summary-node-line-position">
-                      <input
-                        id="weekly-summary-node-line-position"
-                        class="history-metric-toggle"
-                        type="checkbox"
-                        aria-label="Show nodes with position line"
-                      />
-                      <span>Position</span>
-                    </label>
-                  </div>
-                  <div class="history-metric-wrap history-window-wrap history-select-chip-hide-label">
-                    <label for="weekly-summary-window" class="history-metric-label">Window</label>
-                    <select id="weekly-summary-window" class="history-metric-select" aria-label="Weekly summary window">
-                      <option value="6">6h</option>
-                      <option value="12">12h</option>
-                      <option value="24">24h</option>
-                      <option value="72">72h</option>
-                      <option value="168" selected>7d</option>
-                      <option value="336">14d</option>
-                      <option value="720">30d</option>
-                    </select>
-                  </div>
-                </div>
-                <div id="weekly-summary-chart-wrap">
-                  <svg id="weekly-summary-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Weekly metric trend"></svg>
-                  <div id="weekly-summary-empty" class="signal-empty" hidden>No weekly summary history yet.</div>
-                </div>
-                <div id="weekly-summary-timeline" class="signal-timeline" aria-label="Weekly trend timeline"></div>
-                <div id="weekly-summary-overview" class="overview-grid"></div>
-              </div>
-              <section class="history-activity-chat-trend">
-                <div class="history-caption">Chat message trend from recent saved activity.</div>
-                <div id="history-chat-trend-chart-wrap">
-                  <svg id="history-chat-trend-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Chat activity trend"></svg>
-                  <div id="history-chat-trend-empty" class="signal-empty">No chat timestamps in recent history.</div>
-                </div>
-              </section>
-            </div>
-            <div
-              id="history-activity-panel-encrypted"
-              class="history-activity-panel"
-              role="tabpanel"
-              aria-label="Encrypted traffic trends"
-              hidden
-            >
-              <section class="history-activity-encryption-trend">
-                <div class="history-caption">Encrypted packet trend from the recent packet buffer.</div>
-                <div id="encription-trend-chart-wrap">
-                  <svg id="encription-trend-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Encrypted traffic over time"></svg>
-                  <div id="encription-trend-empty" class="signal-empty">No encrypted packet timestamps in recent buffer.</div>
-                </div>
-              </section>
-              <section class="history-activity-encryption-routes">
-                <div class="history-caption">Top encrypted routes in the recent packet buffer.</div>
-                <div id="encription-route-chart-wrap">
-                  <svg id="encription-route-chart" viewBox="0 0 900 220" preserveAspectRatio="none" aria-label="Encrypted route distribution"></svg>
-                  <div id="encription-route-empty" class="signal-empty">No encrypted routes in recent buffer.</div>
-                </div>
-              </section>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card history-chat">
-      <h2>Chat History</h2>
-      <div class="body">
-        <div class="history-chat-tabbar" role="tablist" aria-label="History chat panels">
-          <button
-            id="history-chat-tab-activity-btn"
-            class="history-chat-tab-btn is-active"
-            type="button"
-            role="tab"
-            aria-selected="true"
-            aria-controls="history-chat-panel-activity"
-            data-history-chat-tab="activity"
-          >Activity</button>
-          <button
-            id="history-chat-tab-encrypted-btn"
-            class="history-chat-tab-btn"
-            type="button"
-            role="tab"
-            aria-selected="false"
-            aria-controls="history-chat-panel-encrypted"
-            data-history-chat-tab="encrypted"
-          >Encrypted</button>
-        </div>
-        <div id="history-chat-panel-activity" class="history-chat-panel" role="tabpanel" aria-labelledby="history-chat-tab-activity-btn">
-          <div id="history-chat-caption" class="history-caption">Recent saved chat and derived status activity.</div>
-          <div class="history-chat-stack">
-            <div class="scroll history-chat-main-scroll">
-              <table id="history-chat-table">
-                <thead>
-                  <tr>
-                    <th>Captured</th><th>From</th><th>To</th><th>Message</th>
-                  </tr>
-                </thead>
-                <tbody></tbody>
-              </table>
-            </div>
-            <div id="history-chat-splitter" class="history-chat-splitter" title="Drag to resize chat and notification history panels"></div>
-            <div class="history-notification-section">
-              <div class="history-notification-head">
-                <div id="history-notification-caption" class="history-caption">Recent inbound system notification history from this browser.</div>
-                <button id="history-notification-clear-btn" class="history-notification-clear-btn" type="button" title="Clear saved system notification history">Clear</button>
-              </div>
-              <div id="history-notification-list" class="history-notification-list" aria-live="polite"></div>
-            </div>
-          </div>
-        </div>
-        <div
-          id="history-chat-panel-encrypted"
-          class="history-chat-panel"
-          role="tabpanel"
-          aria-labelledby="history-chat-tab-encrypted-btn"
-          hidden
-        >
-          <section class="history-encription-section">
-            <div id="encription-caption" class="history-caption">Packets that could not be decoded by this node.</div>
-            <div class="history-encription-panels">
-              <section class="history-encription-panel">
-                <h3>Encrypted packets</h3>
-                <div class="scroll">
-                  <table id="encription-packets-table">
-                    <thead>
-                      <tr>
-                        <th>Captured</th><th>From</th><th>To</th><th>Hops</th><th>RSSI</th><th>SNR</th><th>Payload</th><th>Reason</th>
-                      </tr>
-                    </thead>
-                    <tbody></tbody>
-                  </table>
-                </div>
-              </section>
-              <section class="history-encription-panel">
-                <h3>Encrypted route activity</h3>
-                <div class="scroll">
-                  <table id="encription-traffic-table">
-                    <thead>
-                      <tr>
-                        <th>From</th><th>To</th><th>Packets</th><th>Avg hops</th><th>Latest</th>
-                      </tr>
-                    </thead>
-                    <tbody></tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
-          </section>
-        </div>
       </div>
     </section>
 
     <div class="hsplitter" data-target="mid" title="Drag to resize middle and lower panels"></div>
 
     <div class="splitter" data-row="8" title="Drag to resize side panels"></div>
-
-    <section class="card environment">
-      <h2>Sensors</h2>
-      <div class="body">
-        <div id="environment-metrics-home" class="environment-metrics-home">
-          <section class="env-metrics-explorer" aria-label="Sensor metrics explorer">
-            <div class="env-metrics-controls">
-              <div class="history-metric-wrap env-metrics-control-group history-select-chip-hide-label">
-                <label for="env-metric-select">Metric</label>
-                <select id="env-metric-select" class="env-metric-select" aria-label="Sensor metric selector">
-                  <option value="">No environment metrics</option>
-                </select>
-              </div>
-              <div id="env-window-wrap" class="history-metric-wrap history-window-wrap env-metrics-control-group history-select-chip-hide-label">
-                <label for="env-window-select">Window</label>
-                <select id="env-window-select" class="env-metric-select" aria-label="Sensor history window">
-                  <option value="6">6h</option>
-                  <option value="12">12h</option>
-                  <option value="24">24h</option>
-                  <option value="72" selected>72h</option>
-                  <option value="168">7d</option>
-                  <option value="336">14d</option>
-                  <option value="720">30d</option>
-                </select>
-              </div>
-            </div>
-            <div class="env-metrics-grid">
-              <div id="env-metrics-chart-wrap">
-                <svg id="env-metrics-chart" viewBox="0 0 900 320" preserveAspectRatio="none" aria-label="Sensor metrics over time chart"></svg>
-                <div id="env-metrics-empty" class="signal-empty">No historical sensor metrics found yet.</div>
-              </div>
-            </div>
-            <div id="env-metrics-timeline" class="signal-timeline" aria-label="Sensor metrics timeline"></div>
-            <div id="env-metrics-available" class="env-metrics-available"></div>
-          </section>
-        </div>
-      </div>
-    </section>
 
     <div class="hsplitter" data-target="low" title="Drag to resize lower panels and console"></div>
 

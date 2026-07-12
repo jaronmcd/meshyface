@@ -1,6 +1,97 @@
     const chatUnicodeAsciiUpper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     const chatUnicodeAsciiLower = "abcdefghijklmnopqrstuvwxyz";
     const chatUnicodeAsciiDigits = "0123456789";
+    const chatUnicodeLeetMap = Object.freeze({{
+      a: "4", b: "8", e: "3", g: "6", i: "1", l: "1",
+      o: "0", s: "5", t: "7", z: "2",
+    }});
+    const chatUnicodeUpsideDownMap = Object.freeze({{
+      a: "ɐ", b: "q", c: "ɔ", d: "p", e: "ǝ", f: "ɟ", g: "ƃ",
+      h: "ɥ", i: "ᴉ", j: "ɾ", k: "ʞ", l: "l", m: "ɯ", n: "u",
+      o: "o", p: "d", q: "b", r: "ɹ", s: "s", t: "ʇ", u: "n",
+      v: "ʌ", w: "ʍ", x: "x", y: "ʎ", z: "z", A: "∀", B: "ꓭ",
+      C: "Ɔ", D: "◖", E: "Ǝ", F: "Ⅎ", G: "⅁", J: "ſ", L: "˥",
+      M: "W", P: "Ԁ", R: "ᴚ", T: "┴", U: "∩", V: "Ʌ", Y: "⅄",
+      1: "Ɩ", 2: "ᄅ", 3: "Ɛ", 4: "ㄣ", 5: "ϛ", 6: "9", 7: "ㄥ",
+      8: "8", 9: "6", ".": "˙", ",": "'", "'": ",", "\"": "„",
+      "!": "¡", "?": "¿", "(": ")", ")": "(", "[": "]", "]": "[",
+      "{{": "}}", "}}": "{{", "<": ">", ">": "<", "_": "‾",
+    }});
+    const chatUnicodeGlyphMap = Object.freeze({{
+      a: "ą", b: "ɓ", c: "ƈ", d: "đ", e: "ę", f: "ƒ", g: "ɠ",
+      h: "ħ", i: "į", j: "ʝ", k: "ƙ", l: "ŀ", m: "ɱ", n: "ŋ",
+      o: "ǿ", p: "þ", q: "ɋ", r: "ř", s: "ş", t: "ŧ", u: "ʉ",
+      v: "ⱱ", w: "ŵ", x: "ẋ", y: "ɏ", z: "ž", A: "Ą", B: "Ƀ",
+      C: "Ƈ", D: "Đ", E: "Ę", F: "Ƒ", G: "Ɠ", H: "Ħ", I: "Į",
+      J: "Ɉ", K: "Ƙ", L: "Ŀ", M: "Ṁ", N: "Ŋ", O: "Ǿ", P: "Þ",
+      Q: "Ɋ", R: "Ř", S: "Ş", T: "Ŧ", U: "Ʉ", V: "Ʋ", W: "Ŵ",
+      X: "Ẋ", Y: "Ɏ", Z: "Ž",
+    }});
+
+    function toLeetSpeak(rawText) {{
+      return Array.from(String(rawText == null ? "" : rawText))
+        .map((ch) => chatUnicodeLeetMap[ch.toLowerCase()] || ch)
+        .join("");
+    }}
+
+    function toBackwards(rawText) {{
+      return Array.from(String(rawText == null ? "" : rawText)).reverse().join("");
+    }}
+
+    function chatUnicodeHashText(rawText) {{
+      let hash = 2166136261 >>> 0;
+      for (const ch of String(rawText == null ? "" : rawText)) {{
+        hash ^= Number(ch.codePointAt(0) || 0);
+        hash = Math.imul(hash, 16777619);
+      }}
+      return hash >>> 0;
+    }}
+
+    function chatUnicodeShuffleChars(rawChars, rawSeed = 1) {{
+      const chars = Array.isArray(rawChars) ? rawChars.slice() : [];
+      let seed = Number(rawSeed) >>> 0;
+      if (seed === 0) seed = 1;
+      for (let index = chars.length - 1; index > 0; index -= 1) {{
+        seed ^= seed << 13;
+        seed ^= seed >>> 17;
+        seed ^= seed << 5;
+        seed >>>= 0;
+        const swapIndex = seed % (index + 1);
+        [chars[index], chars[swapIndex]] = [chars[swapIndex], chars[index]];
+      }}
+      return chars;
+    }}
+
+    function toScrambled(rawText) {{
+      let wordIndex = 0;
+      return String(rawText == null ? "" : rawText).replace(/[A-Za-z]{{4,}}/g, (word) => {{
+        const letters = Array.from(word);
+        const middle = letters.slice(1, -1);
+        const shuffled = chatUnicodeShuffleChars(middle, chatUnicodeHashText(`${{word}}:${{wordIndex}}`));
+        wordIndex += 1;
+        if (shuffled.length > 1 && shuffled.join("") === middle.join("")) {{
+          shuffled.push(shuffled.shift());
+        }}
+        return `${{letters[0]}}${{shuffled.join("")}}${{letters[letters.length - 1]}}`;
+      }});
+    }}
+
+    function toUpsideDown(rawText) {{
+      return Array.from(String(rawText == null ? "" : rawText))
+        .reverse()
+        .map((ch) => chatUnicodeUpsideDownMap[ch] || chatUnicodeUpsideDownMap[ch.toLowerCase()] || ch)
+        .join("");
+    }}
+
+    function toDisemvowel(rawText) {{
+      return String(rawText == null ? "" : rawText).replace(/[aeiou]/gi, "");
+    }}
+
+    function toSpecialChars(rawText) {{
+      return Array.from(String(rawText == null ? "" : rawText))
+        .map((ch) => chatUnicodeGlyphMap[ch] || ch)
+        .join("");
+    }}
     const chatUnicodeFrakturUpperCodepoints = Object.freeze([
       0x1D504, 0x1D505, 0x212D, 0x1D507, 0x1D508, 0x1D509, 0x1D50A,
       0x210C, 0x2111, 0x1D50D, 0x1D50E, 0x1D50F, 0x1D510, 0x1D511,
@@ -528,9 +619,6 @@
       input.focus({{ preventScroll: true }});
       input.setSelectionRange(cursor, cursor);
       input.dispatchEvent(new Event("input", {{ bubbles: true }}));
-      if (typeof renderChatTextMacroPreview === "function") {{
-        renderChatTextMacroPreview(input.value);
-      }}
       if (typeof setChatSendStatus === "function") {{
         setChatSendStatus(`${{style.label}} text applied.`, false);
       }}
@@ -626,9 +714,6 @@
           if (typeof renderChatHopReplyLocationGhost === "function") {{
             renderChatHopReplyLocationGhost(input);
           }}
-          if (typeof renderChatTextMacroPreview === "function") {{
-            renderChatTextMacroPreview(input.value);
-          }}
         }});
         input.addEventListener("focus", () => {{
           if (typeof renderChatHopReplyLocationGhost === "function") {{
@@ -658,9 +743,6 @@
             sendChatMessage({{ preserveFocus: true }});
           }}
         }});
-        if (typeof renderChatTextMacroPreview === "function") {{
-          renderChatTextMacroPreview(input.value);
-        }}
         if (typeof renderChatHopReplyLocationGhost === "function") {{
           renderChatHopReplyLocationGhost(input);
         }}
@@ -674,30 +756,6 @@
           }}
         }});
       }}
-      const macroPreview = document.getElementById("chat-macro-preview");
-      if (macroPreview instanceof HTMLElement && macroPreview.dataset.bound !== "1") {{
-        macroPreview.dataset.bound = "1";
-        macroPreview.addEventListener("click", (ev) => {{
-          const target = ev.target;
-          if (!(target instanceof Element)) return;
-          const btn = target.closest(".chat-macro-help-btn");
-          if (!(btn instanceof HTMLButtonElement)) return;
-          const command = String(btn.dataset.macroCommand || "").trim();
-          if (!command) return;
-          if (!(input instanceof HTMLInputElement)) return;
-          if (input.disabled) return;
-          const needsArg = String(btn.dataset.macroNeedsArg || "") === "1";
-          const nextValue = needsArg ? `${{command}} ` : command;
-          input.value = nextValue;
-          input.focus({{ preventScroll: true }});
-          const tail = input.value.length;
-          input.setSelectionRange(tail, tail);
-          if (typeof renderChatTextMacroPreview === "function") {{
-            renderChatTextMacroPreview(input.value);
-          }}
-        }});
-      }}
-
       const replyClearBtn = document.getElementById("chat-reply-clear-btn");
       if (replyClearBtn instanceof HTMLButtonElement && replyClearBtn.dataset.bound !== "1") {{
         replyClearBtn.dataset.bound = "1";
@@ -709,7 +767,6 @@
       renderChatReplyContext();
       bindChatUnicodeGenerator();
       bindEmojiPicker();
-      bindMacrosStudioControls();
     }}
 
     function nodeLabel(node) {{
@@ -838,19 +895,7 @@
       return isCanonicalNodeId(resolvedLocalNodeId) ? resolvedLocalNodeId : "";
     }}
 
-    function resolveSavedViewNodeId(state = latestState) {{
-      const explicitId = normalizeNodeId(selectedNodeId || "");
-      if (isSelectableNodeId(explicitId)) {{
-        return explicitId;
-      }}
-      const localId = normalizeNodeId(resolveLocalNodeId(state) || "");
-      if (isSelectableNodeId(localId)) {{
-        return localId;
-      }}
-      return "";
-    }}
-
-    function resolveSavedViewNodeName(state = latestState, nodeId = resolveSavedViewNodeId(state)) {{
+    function resolveNodeDisplayName(state = latestState, nodeId = selectedNodeId) {{
       const clean = normalizeNodeId(nodeId || "");
       if (!isSelectableNodeId(clean)) {{
         return "";
@@ -878,19 +923,6 @@
         }}
       }}
       return nodeNameCache.get(clean) || clean;
-    }}
-
-    function savedViewNodeFrom(nodes, state = latestState) {{
-      const nodeId = resolveSavedViewNodeId(state);
-      if (!isSelectableNodeId(nodeId)) {{
-        return null;
-      }}
-      for (const node of (nodes || [])) {{
-        if (normalizeNodeId(node && node.id) === nodeId) {{
-          return node;
-        }}
-      }}
-      return null;
     }}
 
     function isSelfNodeId(nodeId, state = latestState) {{
@@ -1002,7 +1034,7 @@
       const status = normalizeFreshnessKey(freshnessStatus(lastSeenUnix, nowUnix));
       setProfileFullId(selfId);
       const statusDetail = Number.isFinite(lastSeenUnix)
-        ? `${{freshnessLabel(status)}} (seen ${{savedDetailAge(lastSeenUnix, nowUnix)}})`
+        ? `${{freshnessLabel(status)}} (seen ${{nodeDetailsAge(lastSeenUnix, nowUnix)}})`
         : freshnessLabel(status);
       const selfName = preferredNodeName(selfNode) || nodeNameCache.get(selfId) || "";
       const profileLabel = selfName || selfId;

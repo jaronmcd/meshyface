@@ -24,14 +24,14 @@
       const statusText = hasUnsavedDraft
         ? "Unsaved draft. Save Note to persist."
         : (noteText
-        ? (updatedUnix > 0 ? `Saved ${{savedDetailAge(updatedUnix)}}` : "Saved locally")
+        ? (updatedUnix > 0 ? `Saved ${{nodeDetailsAge(updatedUnix)}}` : "Saved locally")
         : "No note saved for this node yet.");
-      return `<section class="saved-node-section">
-        <h3 class="saved-node-section-title">Notes + Tags</h3>
-        <label class="saved-node-note-label" for="saved-node-note-input">Personal notes for ${{escAttr(normalizedNodeId)}} (saved only in this browser).</label>
+      return `<section class="node-details-section">
+        <h3 class="node-details-section-title">Notes + Tags</h3>
+        <label class="node-details-note-label" for="node-details-note-input">Personal notes for ${{escAttr(normalizedNodeId)}} (saved only in this browser).</label>
         <textarea
-          id="saved-node-note-input"
-          class="saved-node-note-input"
+          id="node-details-note-input"
+          class="node-details-note-input"
           rows="4"
           maxlength="1200"
           placeholder="Add tags, context, or reminders for this node..."
@@ -40,21 +40,21 @@
           data-saved-updated-unix="${{escAttr(updatedUnix)}}"
           data-updated-unix="${{escAttr(updatedUnix)}}"
         >${{escAttr(displayNoteText)}}</textarea>
-        <div class="saved-node-note-actions">
-          <button id="saved-node-note-save-btn" class="btn btn-secondary" type="button">Save Note</button>
-          <button id="saved-node-note-clear-btn" class="btn btn-secondary" type="button">Clear</button>
+        <div class="node-details-note-actions">
+          <button id="node-details-note-save-btn" class="btn btn-secondary" type="button">Save Note</button>
+          <button id="node-details-note-clear-btn" class="btn btn-secondary" type="button">Clear</button>
         </div>
-        <div id="saved-node-note-status" class="saved-node-note">${{escAttr(statusText)}}</div>
+        <div id="node-details-note-status" class="node-details-note">${{escAttr(statusText)}}</div>
       </section>`;
     }}
 
-    function bindSavedNodeNotesEditor(nodeId) {{
+    function bindNodeDetailsNotesEditor(nodeId) {{
       const cleanNodeId = normalizeNodeId(nodeId || "");
       if (!isSelectableNodeId(cleanNodeId)) return;
-      const noteInput = document.getElementById("saved-node-note-input");
-      const saveBtn = document.getElementById("saved-node-note-save-btn");
-      const clearBtn = document.getElementById("saved-node-note-clear-btn");
-      const statusEl = document.getElementById("saved-node-note-status");
+      const noteInput = document.getElementById("node-details-note-input");
+      const saveBtn = document.getElementById("node-details-note-save-btn");
+      const clearBtn = document.getElementById("node-details-note-clear-btn");
+      const statusEl = document.getElementById("node-details-note-status");
       if (!(noteInput instanceof HTMLTextAreaElement)) return;
       if (!(saveBtn instanceof HTMLButtonElement)) return;
       if (!(clearBtn instanceof HTMLButtonElement)) return;
@@ -80,7 +80,7 @@
         }}
         if (currentText) {{
           statusEl.textContent = baselineUpdatedUnix > 0
-            ? `Saved ${{savedDetailAge(baselineUpdatedUnix)}}`
+            ? `Saved ${{nodeDetailsAge(baselineUpdatedUnix)}}`
             : "Saved locally";
           return;
         }}
@@ -132,9 +132,9 @@
       applyEditorState();
     }}
 
-    function bindSavedNodeDetailLinkButtons(root = null) {{
+    function bindNodeDetailsLinkButtons(root = null) {{
       if (!(root instanceof HTMLElement)) return;
-      for (const btn of root.querySelectorAll(".saved-node-inline-link[data-node-id]")) {{
+      for (const btn of root.querySelectorAll(".node-details-inline-link[data-node-id]")) {{
         if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") continue;
         btn.dataset.bound = "1";
         btn.addEventListener("click", (ev) => {{
@@ -147,7 +147,7 @@
       }}
     }}
 
-    function focusSavedNodeCoordinateOnMap(nodeId, latRaw, lonRaw) {{
+    function focusNodeDetailsCoordinateOnMap(nodeId, latRaw, lonRaw) {{
       const cleanNodeId = normalizeNodeId(nodeId || "");
       const lat = Number(latRaw);
       const lon = Number(lonRaw);
@@ -166,7 +166,7 @@
         if (typeof setActiveNetworkSubview === "function") {{
           setActiveNetworkSubview("map", {{ persist: true }});
         }}
-      }} else if (activeLayoutView !== "saved" && activeLayoutView !== "network") {{
+      }} else if (activeLayoutView !== "network") {{
         if (typeof applyLayoutView === "function") {{
           applyLayoutView("network", true);
         }}
@@ -232,9 +232,9 @@
       return true;
     }}
 
-    function bindSavedNodeCoordinateLinks(root = null) {{
+    function bindNodeDetailsCoordinateLinks(root = null) {{
       if (!(root instanceof HTMLElement)) return;
-      for (const link of root.querySelectorAll(".saved-node-coordinate-link[data-map-node-id]")) {{
+      for (const link of root.querySelectorAll(".node-details-coordinate-link[data-map-node-id]")) {{
         if (!(link instanceof HTMLAnchorElement) || link.dataset.bound === "1") continue;
         link.dataset.bound = "1";
         link.addEventListener("click", (ev) => {{
@@ -244,28 +244,13 @@
           if (!isSelectableNodeId(nodeId) || !isValidMapCoord(lat, lon)) return;
           ev.preventDefault();
           ev.stopPropagation();
-          focusSavedNodeCoordinateOnMap(nodeId, lat, lon);
+          focusNodeDetailsCoordinateOnMap(nodeId, lat, lon);
         }});
       }}
     }}
 
-    function bindSavedNodeBbsButtons(root = null) {{
-      if (!(root instanceof HTMLElement)) return;
-      for (const btn of root.querySelectorAll(".saved-node-inline-link[data-bbs-node-id]")) {{
-        if (!(btn instanceof HTMLButtonElement) || btn.dataset.bound === "1") continue;
-        btn.dataset.bound = "1";
-        btn.addEventListener("click", (ev) => {{
-          ev.preventDefault();
-          ev.stopPropagation();
-          const nodeId = normalizeNodeId(btn.dataset.bbsNodeId || "");
-          if (!isSelectableNodeId(nodeId)) return;
-          void openBbsBoardForHost(nodeId);
-        }});
-      }}
-    }}
-
-    function renderSavedNodeDetails(state, nodeHistory = null, loadingNodeId = "") {{
-      const host = document.getElementById("saved-node-details");
+    function renderNodeDetails(state, nodeHistory = null, loadingNodeId = "") {{
+      const host = document.getElementById("node-details");
       if (!(host instanceof HTMLElement)) return;
       const setElementHtmlIfChanged = (element, markup, cacheKey = "default") => {{
         if (!(element instanceof HTMLElement)) return false;
@@ -277,23 +262,12 @@
         element[propName] = nextMarkup;
         return true;
       }};
-      const detachDockedHistoryPanel = () => {{
-        const dockedHistoryPanel = document.getElementById("map-data-node");
-        const mapDataBody = document.getElementById("map-data-body");
-        if (
-          dockedHistoryPanel instanceof HTMLElement
-          && mapDataBody instanceof HTMLElement
-          && host.contains(dockedHistoryPanel)
-        ) {{
-          mapDataBody.appendChild(dockedHistoryPanel);
-        }}
-      }};
-      const previousMainScroll = host.querySelector(".saved-node-main-scroll");
+      const previousMainScroll = host.querySelector(".node-details-main-scroll");
       const locationHost = document.getElementById("chat-node-details-location-host");
       const chatHost = document.getElementById("chat-node-details-chat-host");
       const linksHost = document.getElementById("chat-node-details-links-host");
       const notesHost = document.getElementById("chat-node-details-notes-host");
-      const previousNoteInput = document.getElementById("saved-node-note-input");
+      const previousNoteInput = document.getElementById("node-details-note-input");
       const previousNoteFocused = (
         previousNoteInput instanceof HTMLTextAreaElement
         && document.activeElement === previousNoteInput
@@ -321,7 +295,7 @@
       ) ? previousMainScroll.clientHeight : 0;
 
       const safeState = (state && typeof state === "object") ? state : {{}};
-      const nodeId = resolveSavedViewNodeId(safeState);
+      const nodeId = normalizeNodeId(selectedNodeId || "");
       const loadingId = normalizeNodeId(loadingNodeId || "");
       const drawerExpanded = (
         typeof isChatNodeDetailsDrawerExpanded === "function"
@@ -359,10 +333,10 @@
         }}
         const visibleFavoriteCount = visibleFavoriteNodeIds().length;
         const emptyDetailsHtml = visibleFavoriteCount === 0
-          ? '<div class="saved-node-details-empty">Select any node to view history and summary here. Tag nodes to build your tagged subsection.</div>'
-          : '<div class="saved-node-details-empty">Select any node to view history and summary, or pick one from tagged nodes.</div>';
+          ? '<div class="node-details-empty">Select any node to view history and summary here. Tag nodes to build your tagged subsection.</div>'
+          : '<div class="node-details-empty">Select any node to view history and summary, or pick one from tagged nodes.</div>';
         detachDockedHistoryPanel();
-        setElementHtmlIfChanged(host, emptyDetailsHtml, "saved-node-details");
+        setElementHtmlIfChanged(host, emptyDetailsHtml, "node-details");
         setElementHtmlIfChanged(locationHost, "", "chat-node-details-location");
         setElementHtmlIfChanged(chatHost, "", "chat-node-details-chat");
         setElementHtmlIfChanged(linksHost, "", "chat-node-details-links");
@@ -460,7 +434,7 @@
         && Number.isFinite(Number(node.lat))
         && Number.isFinite(Number(node.lon))
       )
-        ? savedDetailMapCoordLink(nodeId, node.lat, node.lon, "Focus live GPS position on map")
+        ? nodeDetailsMapCoordLink(nodeId, node.lat, node.lon, "Focus live GPS position on map")
         : "n/a";
       const voltageValue = (
         node
@@ -491,7 +465,7 @@
         && Number.isFinite(Number(latestTrail.sats_in_view))
       ) ? Number(latestTrail.sats_in_view) : null;
       const latestTrailPos = latestTrail
-        ? savedDetailMapCoordLink(nodeId, latestTrail.lat, latestTrail.lon, "Focus latest trail position on map")
+        ? nodeDetailsMapCoordLink(nodeId, latestTrail.lat, latestTrail.lon, "Focus latest trail position on map")
         : "n/a";
       const livePositionAvailable = livePosText !== "n/a";
       const historyPositionAvailable = latestTrailPos !== "n/a";
@@ -509,13 +483,13 @@
         ? (Number.isFinite(capsPosUnix) ? capsPosUnix : trailPosUnix)
         : trailPosUnix;
       const latestPosTimeText = livePositionAvailable
-        ? savedDetailText(
+        ? nodeDetailsText(
             Number.isFinite(capsPosUnix)
               ? formatLocalChatTime(capsPosUnix, (latestTrail && latestTrail.time) || "n/a", nowUnix)
               : ((latestTrail && latestTrail.time) || "n/a")
           )
-        : savedDetailText(latestTrail && latestTrail.time);
-      const latestPosAgeText = savedDetailAge(latestPosTimeUnix, nowUnix);
+        : nodeDetailsText(latestTrail && latestTrail.time);
+      const latestPosAgeText = nodeDetailsAge(latestPosTimeUnix, nowUnix);
       const positionSource = livePositionAvailable
         ? ((Number.isFinite(capsPosUnix) && (nowUnix - capsPosUnix) <= 300)
           ? "Live (recent)"
@@ -530,30 +504,18 @@
         : "n/a";
       const topPeerId = normalizeNodeId((linkStats && linkStats.topPeer) || "");
       const topPeerName = topPeerId
-        ? resolveSavedViewNodeName(safeState, topPeerId)
+        ? resolveNodeDisplayName(safeState, topPeerId)
         : "";
-      const topPeerLabel = savedDetailText(topPeerName || topPeerId, topPeerId || "n/a");
+      const topPeerLabel = nodeDetailsText(topPeerName || topPeerId, topPeerId || "n/a");
       const topPeerValue = isSelectableNodeId(topPeerId)
-        ? savedDetailHtmlValue(
-            `<button type="button" class="saved-node-inline-link" data-node-id="${{escAttr(topPeerId)}}" title="${{escAttr(`Open node details for ${{topPeerLabel}} (${{topPeerId}})` )}}" aria-label="${{escAttr(`Open node details for ${{topPeerLabel}} (${{topPeerId}})` )}}">${{escAttr(topPeerLabel)}}</button>`,
+        ? nodeDetailsHtmlValue(
+            `<button type="button" class="node-details-inline-link" data-node-id="${{escAttr(topPeerId)}}" title="${{escAttr(`Open node details for ${{topPeerLabel}} (${{topPeerId}})` )}}" aria-label="${{escAttr(`Open node details for ${{topPeerLabel}} (${{topPeerId}})` )}}">${{escAttr(topPeerLabel)}}</button>`,
             topPeerLabel,
           )
         : "n/a";
       const nodeDisplayName = node
         ? nodeLabel(node)
         : (nodeNameCache.get(nodeId) || nodeId || "n/a");
-      const bbsBoard = bbsFeatureEnabled ? bbsDirectoryRowForHost(nodeId) : null;
-      const bbsTitle = bbsBoard
-        ? (sanitizeBbsWireField(bbsBoard.title, bbsMaxTitleChars)
-          || sanitizeBbsWireField(bbsBoard.board_id, 24)
-          || "Space")
-        : "";
-      const bbsBoardId = bbsBoard ? sanitizeBbsWireField(bbsBoard.board_id, 24) : "";
-      const bbsLabel = bbsBoardId ? `${{bbsTitle}} (${{bbsBoardId}})` : bbsTitle;
-      const bbsButtonTitle = bbsBoard
-        ? `Open BBS space for ${{nodeDisplayName}}`
-        : `Request BBS space from ${{nodeDisplayName}} via direct message`;
-      const bbsButtonLabel = bbsBoard ? bbsTitle : "Request via PM";
       const nodeSectionRows = [
         ["Display Name", nodeDisplayName],
         ["Node ID", nodeId],
@@ -564,20 +526,12 @@
         ["Battery", batteryText],
         ["Hops Away", hopsText],
         ["Voltage", Number.isFinite(voltageValue) ? `${{voltageValue.toFixed(2)}}V` : "n/a"],
-        ["Channel Util", Number.isFinite(channelUtilValue) ? savedDetailPercent(channelUtilValue) : "n/a"],
-        ["Air Util TX", Number.isFinite(airUtilTxValue) ? savedDetailPercent(airUtilTxValue) : "n/a"],
+        ["Channel Util", Number.isFinite(channelUtilValue) ? nodeDetailsPercent(channelUtilValue) : "n/a"],
+        ["Air Util TX", Number.isFinite(airUtilTxValue) ? nodeDetailsPercent(airUtilTxValue) : "n/a"],
         ["GPS Capable", positionCapable],
-        ["Last Position Ping", savedDetailText(latestPosTimeText)],
+        ["Last Position Ping", nodeDetailsText(latestPosTimeText)],
       ];
-      if (bbsFeatureEnabled) {{
-        const bbsValue = savedDetailHtmlValue(
-          `<button type="button" class="saved-node-inline-link" data-bbs-node-id="${{escAttr(nodeId)}}" title="${{escAttr(bbsButtonTitle)}}" aria-label="${{escAttr(bbsButtonTitle)}}">${{escAttr(bbsButtonLabel)}}</button>`,
-          bbsBoard ? bbsLabel : "Request via PM",
-        );
-        nodeSectionRows.push(["BBS Space", bbsValue]);
-      }}
-
-      const nodeSection = savedDetailSectionHtml("Node", nodeSectionRows);
+      const nodeSection = nodeDetailsSectionHtml("Node", nodeSectionRows);
       const noteDraft = needsNotesSection && nodeNoteDraftById.has(nodeId)
         ? String(nodeNoteDraftById.get(nodeId) || "")
         : null;
@@ -586,15 +540,15 @@
         : "";
 
       const locationSection = needsLocationSection
-        ? savedDetailSectionHtml("Location", [
+        ? nodeDetailsSectionHtml("Location", [
             ["Last Broadcast Position", latestPosText],
             ["Position Source", positionSource],
             ["Position Age", latestPosAgeText],
             ["Latest Position Time", latestPosTimeText],
             ["Altitude", Number.isFinite(latestTrailAltitude) ? `${{formatMetricValue(latestTrailAltitude, 0)}} m` : "n/a"],
             ["Satellites", Number.isFinite(latestTrailSats) ? String(Math.round(latestTrailSats)) : "n/a"],
-            ["Trail Start", savedDetailText(historySummary.trail_start)],
-            ["Trail End", savedDetailText(historySummary.trail_end)],
+            ["Trail Start", nodeDetailsText(historySummary.trail_start)],
+            ["Trail End", nodeDetailsText(historySummary.trail_end)],
           ], "Radio screens can show a newer local GPS fix before that fix is broadcast to this dashboard.")
         : "";
 
@@ -608,12 +562,12 @@
           ["Direct Sent", String(chatStats.directSent)],
           ["Reactions Sent", String(chatStats.reactionsSent)],
           ["Active Peers", String(chatStats.peers.size)],
-          ["Last Chat", savedDetailText(chatStats.lastChatText)],
+          ["Last Chat", nodeDetailsText(chatStats.lastChatText)],
         ];
         if (malformedTextCount > 0) {{
           const malformedTextLatestText = (
             Number.isFinite(malformedTextLatestUnix) && malformedTextLatestUnix > 0
-              ? `${{formatLocalChatTime(malformedTextLatestUnix, "n/a", nowUnix)}} (${{savedDetailAge(malformedTextLatestUnix, nowUnix)}})`
+              ? `${{formatLocalChatTime(malformedTextLatestUnix, "n/a", nowUnix)}} (${{nodeDetailsAge(malformedTextLatestUnix, nowUnix)}})`
               : "n/a"
           );
           chatSectionRows.push(
@@ -625,17 +579,17 @@
         const chatSectionNote = malformedTextCount > 0
           ? `Based on current in-memory packet/chat buffers. Warning: this node recently sent non-UTF-8 bytes on TEXT_MESSAGE_APP, which usually means a buggy or experimental sender rather than normal chat traffic.`
           : `Based on current in-memory chat buffer (${{chatMessages.length}} messages).`;
-        chatSection = savedDetailSectionHtml("Chat (Recent Buffer)", chatSectionRows, chatSectionNote);
+        chatSection = nodeDetailsSectionHtml("Chat (Recent Buffer)", chatSectionRows, chatSectionNote);
       }}
 
       const linksSection = needsLinksSection && linkStats
-        ? savedDetailSectionHtml("Links", [
+        ? nodeDetailsSectionHtml("Links", [
             ["Directed Links", String(linkStats.links)],
             ["Linked Peers", String(linkStats.peers.size)],
             ["Lifetime Packets", String(Math.round(linkStats.lifetimePackets))],
             ["Session Packets", String(Math.round(linkStats.sessionPackets))],
             ["Avg Link Hops", linkAvgHops],
-            ["Last Link Activity", savedDetailText(linkStats.lastSeenText)],
+            ["Last Link Activity", nodeDetailsText(linkStats.lastSeenText)],
             ["Top Peer", topPeerValue],
             ["Top Peer Packets", linkStats.topPeer ? String(Math.round(linkStats.topPeerPackets)) : "n/a"],
             ["Seen Ports", linkStats.ports.size > 0 ? Array.from(linkStats.ports).slice(0, 10).join(", ") : "n/a"],
@@ -649,24 +603,21 @@
         ${{renderChatInDrawer ? "" : chatSection}}
         ${{renderLinksInDrawer ? "" : linksSection}}
       `;
-      let sectionsHost = host.querySelector(".saved-node-sections");
+      let sectionsHost = host.querySelector(".node-details-sections");
       let detailsMarkupChanged = false;
       if (!(sectionsHost instanceof HTMLElement)) {{
-        detachDockedHistoryPanel();
         const nextDetailsShellHtml = `
-          <div class="saved-node-stack">
-            <div class="saved-node-main-scroll">
-              <div class="saved-node-sections"></div>
+          <div class="node-details-stack">
+            <div class="node-details-main-scroll">
+              <div class="node-details-sections"></div>
             </div>
-            <div id="saved-node-history-splitter" class="saved-node-history-splitter" title="Drag to resize node info and history panels"></div>
-            <div id="saved-node-history-host" class="saved-node-history-host"></div>
           </div>
         `;
-        detailsMarkupChanged = setElementHtmlIfChanged(host, nextDetailsShellHtml, "saved-node-details-shell");
-        sectionsHost = host.querySelector(".saved-node-sections");
+        detailsMarkupChanged = setElementHtmlIfChanged(host, nextDetailsShellHtml, "node-details-shell");
+        sectionsHost = host.querySelector(".node-details-sections");
       }}
       if (sectionsHost instanceof HTMLElement) {{
-        detailsMarkupChanged = setElementHtmlIfChanged(sectionsHost, nextSectionsHtml, "saved-node-sections") || detailsMarkupChanged;
+        detailsMarkupChanged = setElementHtmlIfChanged(sectionsHost, nextSectionsHtml, "node-details-sections") || detailsMarkupChanged;
       }}
       host.dataset.nodeId = nodeId;
       const nextLocationHtml = renderLocationInDrawer ? locationSection : "";
@@ -677,21 +628,18 @@
       setElementHtmlIfChanged(chatHost, nextChatHtml, "chat-node-details-chat");
       setElementHtmlIfChanged(linksHost, nextLinksHtml, "chat-node-details-links");
       const notesMarkupChanged = setElementHtmlIfChanged(notesHost, nextNotesHtml, "chat-node-details-notes");
-      bindSavedNodeDetailLinkButtons(host);
-      bindSavedNodeDetailLinkButtons(linksHost);
-      bindSavedNodeCoordinateLinks(host);
-      bindSavedNodeCoordinateLinks(locationHost);
-      bindSavedNodeBbsButtons(host);
-      bindSavedNodeBbsButtons(linksHost);
+      bindNodeDetailsLinkButtons(host);
+      bindNodeDetailsLinkButtons(linksHost);
+      bindNodeDetailsCoordinateLinks(host);
+      bindNodeDetailsCoordinateLinks(locationHost);
       if (detailsMarkupChanged || notesMarkupChanged) {{
-        bindSavedNodeNotesEditor(nodeId);
+        bindNodeDetailsNotesEditor(nodeId);
       }}
-      bindSavedNodeHistorySplitter();
       syncNodeHistoryDock();
       if ((detailsMarkupChanged || notesMarkupChanged) && previousNodeId === nodeId) {{
         const restoreNoteFocus = () => {{
           if (!previousNoteFocused) return;
-          const nextNoteInput = document.getElementById("saved-node-note-input");
+          const nextNoteInput = document.getElementById("node-details-note-input");
           if (!(nextNoteInput instanceof HTMLTextAreaElement)) return;
           if (normalizeNodeId(nextNoteInput.dataset.nodeId || "") !== nodeId) return;
           if (nextNoteInput.closest("[hidden]")) return;
@@ -712,7 +660,7 @@
           }}
         }};
         const restoreMainScroll = () => {{
-          const nextMainScroll = host.querySelector(".saved-node-main-scroll");
+          const nextMainScroll = host.querySelector(".node-details-main-scroll");
           if (!(nextMainScroll instanceof HTMLElement)) return;
           const prevMax = Math.max(0, previousScrollHeight - previousClientHeight);
           const nextMax = Math.max(0, nextMainScroll.scrollHeight - nextMainScroll.clientHeight);
@@ -747,128 +695,4 @@
           restoreNoteFocus();
         }});
       }}
-    }}
-
-    function renderFavorites(state, nodeHistory = null, loadingNodeId = "") {{
-      const safeState = (state && typeof state === "object") ? state : {{}};
-      renderSavedNodeDetails(safeState, nodeHistory, loadingNodeId);
-      renderSavedNodeSearchDropdown(safeState);
-      renderStarredNodeSelect(safeState);
-      const list = document.getElementById("favorites-list");
-      const caption = document.getElementById("favorites-caption");
-      if (!(list instanceof HTMLElement)) return;
-      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
-      const nodesById = new Map(nodes.map((node) => [normalizeNodeId(node.id || ""), node]));
-      const historyCapsById = new Map(
-        Object.entries((safeState.history_caps && typeof safeState.history_caps === "object") ? safeState.history_caps : {{}})
-          .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
-          .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
-      );
-      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
-      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
-      const latestChatTouchByNode = mapLatestChatTouchInfo(chatMessages);
-
-      const nowUnix = Math.floor(Date.now() / 1000);
-      const entries = visibleFavoriteNodeIds()
-        .map((nodeId) => {{
-          const node = nodesById.get(nodeId);
-          const caps = historyCapsById.get(nodeId);
-          const tagEntry = nodeTagEntryForNode(nodeId);
-          const tagName = tagEntry && tagEntry.preset
-            ? normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged")
-            : "Tagged";
-          const name = preferredNodeName(node) || nodeNameCache.get(nodeId) || `Node ${{nodeId}}`;
-          const freshness = resolveNodeFreshness(node, caps, null, latestChatTouchByNode.get(nodeId) || null);
-          const status = freshnessStatus(freshness.unix, nowUnix);
-          const lastSeenText = savedDetailText(freshness.text);
-          const batteryRaw = Number(
-            (node && node.battery_level != null)
-              ? node.battery_level
-              : (caps && caps.battery_level)
-          );
-          const battery = Number.isFinite(batteryRaw) ? `${{Math.max(0, Math.min(100, Math.round(batteryRaw)))}}%` : "n/a";
-          const hopsRaw = Number(
-            (node && node.hops_away != null)
-              ? node.hops_away
-              : (caps && caps.last_hops)
-          );
-          const hops = Number.isFinite(hopsRaw) && hopsRaw >= 0 ? String(Math.trunc(hopsRaw)) : "n/a";
-          const pos = (
-            node
-            && typeof node.lat === "number"
-            && Number.isFinite(node.lat)
-            && typeof node.lon === "number"
-            && Number.isFinite(node.lon)
-          )
-            ? `${{node.lat.toFixed(5)}}, ${{node.lon.toFixed(5)}}`
-            : ((caps && caps.has_position === true) ? "history" : "n/a");
-          const searchable = nodeSearchKeywordText(nodeId, name, {{ node }});
-          return {{
-            id: nodeId,
-            name,
-            status,
-            lastSeenText,
-            battery,
-            hops,
-            pos,
-            tagName,
-            searchable,
-          }};
-        }})
-        .sort((a, b) => {{
-          const rankDiff = statusRank(a.status) - statusRank(b.status);
-          if (rankDiff !== 0) return rankDiff;
-          return String(a.name || a.id).localeCompare(String(b.name || b.id));
-        }});
-
-      const query = globalNodeSearchQuery();
-      const filtered = query
-        ? entries.filter((entry) => entry.searchable.includes(query))
-        : entries;
-      const onlineCount = entries.filter((entry) => entry.status === "online").length;
-      const warnCount = entries.filter((entry) => entry.status === "warn").length;
-      const staleCount = entries.filter((entry) => entry.status === "stale").length;
-      if (caption) {{
-        caption.textContent = `Tagged subsection: ${{entries.length}} total (${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale)`;
-      }}
-
-      if (entries.length === 0) {{
-        list.innerHTML = '<div class="favorites-empty">No tagged nodes yet. Click a tag chip next to a node name to add it here.</div>';
-        return;
-      }}
-      if (filtered.length === 0) {{
-        list.innerHTML = '<div class="favorites-empty">No tagged nodes match this search.</div>';
-        return;
-      }}
-
-      list.innerHTML = filtered.map((entry) => (
-        `<div class="favorite-node-item status-${{entry.status}}${{selectedNodeId === entry.id ? " selected-node" : ""}}" data-node-id="${{escAttr(entry.id)}}" title="${{escAttr(`${{entry.name}} (${{entry.id}})` )}}">
-          <div class="favorite-node-main">
-            <div class="favorite-node-name-row">
-              <span class="favorite-node-name">${{escAttr(entry.name)}}</span>
-              <span class="favorite-node-id">${{escAttr(entry.id)}}</span>
-            </div>
-            <div class="favorite-node-meta">
-              <span>Tag: ${{escAttr(entry.tagName)}}</span>
-              <span>Last: ${{escAttr(entry.lastSeenText)}}</span>
-              <span>Batt: ${{escAttr(entry.battery)}}</span>
-              <span>Hops: ${{escAttr(entry.hops)}}</span>
-              <span>Pos: ${{escAttr(entry.pos)}}</span>
-            </div>
-          </div>
-          ${{favoriteToggleButtonHtml(entry.id, "favorites-card-star")}}
-        </div>`
-      )).join("");
-
-      for (const item of list.querySelectorAll(".favorite-node-item")) {{
-        if (!(item instanceof HTMLElement)) continue;
-        item.addEventListener("click", (ev) => {{
-          const target = ev.target;
-          if (target instanceof Element && target.closest(".favorite-toggle-btn")) {{
-            return;
-          }}
-          selectNode(item.dataset.nodeId || "", true, false);
-        }});
-      }}
-      refreshFavoriteToggleButtons();
     }}
