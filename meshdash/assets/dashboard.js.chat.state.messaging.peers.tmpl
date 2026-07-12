@@ -1494,6 +1494,19 @@
       return matches;
     }}
 
+    function touchChatNodeNavigatorRetainedNodes(touchNodeById) {{
+      if (typeof touchNodeById !== "function") return;
+      if (favoriteNodeIds && typeof favoriteNodeIds.forEach === "function") {{
+        favoriteNodeIds.forEach((nodeId) => touchNodeById(nodeId));
+      }}
+      if (pinnedNodeIds && typeof pinnedNodeIds.forEach === "function") {{
+        pinnedNodeIds.forEach((nodeId) => touchNodeById(nodeId));
+      }}
+      if (nodeNotesById && typeof nodeNotesById.forEach === "function") {{
+        nodeNotesById.forEach((_entry, nodeId) => touchNodeById(nodeId));
+      }}
+    }}
+
     function buildChatNodeNavigatorDefaultRoster(
       state,
       nodesById,
@@ -1612,27 +1625,11 @@
           }});
         }}
       }}
-      if (favoriteNodeIds && typeof favoriteNodeIds.forEach === "function") {{
-        favoriteNodeIds.forEach((nodeId) => {{
-          touchNodeById(nodeId, {{
-            p2pPinned: manualDirectPeerIds.has(normalizeNodeId(nodeId)),
-          }});
+      touchChatNodeNavigatorRetainedNodes((nodeId) => {{
+        touchNodeById(nodeId, {{
+          p2pPinned: manualDirectPeerIds.has(normalizeNodeId(nodeId)),
         }});
-      }}
-      if (pinnedNodeIds && typeof pinnedNodeIds.forEach === "function") {{
-        pinnedNodeIds.forEach((nodeId) => {{
-          touchNodeById(nodeId, {{
-            p2pPinned: manualDirectPeerIds.has(normalizeNodeId(nodeId)),
-          }});
-        }});
-      }}
-      if (nodeNotesById && typeof nodeNotesById.forEach === "function") {{
-        nodeNotesById.forEach((_entry, nodeId) => {{
-          touchNodeById(nodeId, {{
-            p2pPinned: manualDirectPeerIds.has(normalizeNodeId(nodeId)),
-          }});
-        }});
-      }}
+      }});
 
       const rows = Array.from(participants.values());
       if (typeof sortChatNodeNavigatorParticipants === "function") {{

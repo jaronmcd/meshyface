@@ -2021,21 +2021,29 @@
     .chat-node-details-promoted-shell {{
       position: absolute;
       inset: 0;
-      z-index: 28;
+      z-index: 2000;
       display: flex;
       align-items: stretch;
       justify-content: center;
       min-width: 0;
       min-height: 0;
       padding: 8px;
-      background: color-mix(in srgb, #020812 72%, transparent);
+      background: linear-gradient(
+        180deg,
+        var(--theme-background-gradient-start, #eff2f7),
+        var(--theme-background-gradient-end, #eff2f7)
+      );
       box-sizing: border-box;
       pointer-events: none;
+      isolation: isolate;
+      transform: translateZ(0);
     }}
     .chat-node-details-promoted-shell[hidden] {{
       display: none !important;
     }}
     .chat-node-details-promoted-host {{
+      position: relative;
+      z-index: 1;
       pointer-events: auto;
       display: flex;
       flex-direction: column;
@@ -2054,6 +2062,7 @@
         ),
         var(--workspace-shell-bg, var(--ui-panel));
       border-radius: 8px;
+      overflow: hidden;
     }}
     .chat-node-details-promoted-host .chat-node-details-drawer {{
       position: relative;

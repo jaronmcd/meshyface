@@ -43,16 +43,7 @@
           touchNodeById(nodeId);
         }}
       }}
-      if (favoriteNodeIds && typeof favoriteNodeIds.forEach === "function") {{
-        favoriteNodeIds.forEach((nodeId) => {{
-          touchNodeById(nodeId);
-        }});
-      }}
-      if (nodeNotesById && typeof nodeNotesById.forEach === "function") {{
-        nodeNotesById.forEach((_entry, nodeId) => {{
-          touchNodeById(nodeId);
-        }});
-      }}
+      touchChatNodeNavigatorRetainedNodes(touchNodeById);
       const setElementHtmlIfChanged = (element, markup, cacheKey = "default") => {{
         if (!(element instanceof HTMLElement)) return false;
         const nextMarkup = String(markup == null ? "" : markup);

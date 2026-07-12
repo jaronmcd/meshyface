@@ -330,6 +330,23 @@ def test_dashboard_js_promotes_node_details_without_duplicate_drawer_state() -> 
     assert 'title="${escAttr(memberTitle)}"' not in js
 
 
+def test_drawer_returns_shared_history_panel_before_teardown() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    close_start = js.index(
+        'const detailsHost = document.getElementById("chat-node-details-content-host");'
+    )
+    close_end = js.index("drawer.remove();", close_start)
+    close_block = js[close_start:close_end]
+
+    assert close_block.index("syncNodeHistoryDock();") < close_block.index(
+        'setDrawerElementHtmlIfChanged(historyHost, "", "history");'
+    )
+
+
 def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     css = build_dashboard_css(theme_css="")
 
@@ -337,12 +354,22 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     assert "position: absolute;" in css
     assert "padding: 8px;" in css
     assert "justify-content: center;" in css
-    assert "background: color-mix(in srgb, #020812 72%, transparent);" in css
+    promoted_shell_section = css.split(".chat-node-details-promoted-shell {", 1)[1].split("}", 1)[0]
+    assert "z-index: 2000;" in promoted_shell_section
+    assert "var(--theme-background-gradient-start, #eff2f7)" in promoted_shell_section
+    assert "var(--theme-background-gradient-end, #eff2f7)" in promoted_shell_section
+    assert "isolation: isolate;" in promoted_shell_section
+    assert "transform: translateZ(0);" in promoted_shell_section
+    assert ".workspace-shell.has-promoted-node-details .workspace-main > .layout {" in css
+    assert "pointer-events: none;" in css
     assert ".chat-node-details-promoted-host {" in css
     promoted_host_section = css.split(".chat-node-details-promoted-host {", 1)[1].split("}", 1)[0]
     assert "width: 100%;" in promoted_host_section
     assert "max-width: none;" in promoted_host_section
     assert "min-width: 0;" in promoted_host_section
+    assert "position: relative;" in promoted_host_section
+    assert "z-index: 1;" in promoted_host_section
+    assert "overflow: hidden;" in promoted_host_section
     assert ".chat-node-details-promoted-host .chat-node-details-head-main," in css
     assert ".chat-node-details-promoted-host .chat-node-details-head-actions {" in css
     assert ".chat-node-details-promoted-host .chat-node-details-tabs {" in css

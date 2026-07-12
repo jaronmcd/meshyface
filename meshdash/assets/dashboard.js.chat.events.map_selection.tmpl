@@ -1179,9 +1179,12 @@
 
     function resolveDirectionalNodeEntries() {{
       const selectedId = normalizeNodeId(selectedNodeId || "");
+      const visibleRosterEntries = chatRosterDirectionalEntries({{ requireVisible: true }});
+      if (visibleRosterEntries.some((entry) => entry.id === selectedId)) {{
+        return visibleRosterEntries;
+      }}
       if (
-        isChatWorkspaceLayoutView(activeLayoutView)
-        && typeof isChatNodeDetailsDrawerExpanded === "function"
+        typeof isChatNodeDetailsDrawerExpanded === "function"
         && isChatNodeDetailsDrawerExpanded()
         && !(
           typeof isChatNodeDetailsPromotedActive === "function"
@@ -1195,21 +1198,11 @@
       }}
       const defs = isChatWorkspaceLayoutView(activeLayoutView)
         ? [
-            ["#chat-room-list", ".chat-member-item[data-node-id]"],
-            ["#favorites-list", ".favorite-node-item[data-node-id]"],
             ["#nodes-table", "tbody tr.node-selectable[data-node-id]"],
           ]
-        : (activeLayoutView === "saved"
-          ? [
-              ["#favorites-list", ".favorite-node-item[data-node-id]"],
+        : [
               ["#nodes-table", "tbody tr.node-selectable[data-node-id]"],
-              ["#chat-room-list", ".chat-member-item[data-node-id]"],
-            ]
-          : [
-              ["#nodes-table", "tbody tr.node-selectable[data-node-id]"],
-              ["#favorites-list", ".favorite-node-item[data-node-id]"],
-              ["#chat-room-list", ".chat-member-item[data-node-id]"],
-            ]);
+            ];
       let fallback = [];
       for (const [containerSelector, itemSelector] of defs) {{
         const entries = visibleNodeDirectionalEntriesFrom(containerSelector, itemSelector);

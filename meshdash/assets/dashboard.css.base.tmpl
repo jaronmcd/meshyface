@@ -2328,6 +2328,7 @@
       grid-row: 2;
       background: transparent;
       position: relative;
+      isolation: isolate;
     }}
     .workspace-shell.chat-panel-open .workspace-main {{
       grid-column: 3;
@@ -2349,6 +2350,11 @@
     .workspace-main > .layout {{
       min-height: 0;
       height: 100%;
+      position: relative;
+      z-index: 0;
+    }}
+    .workspace-shell.has-promoted-node-details .workspace-main > .layout {{
+      pointer-events: none;
     }}
     @media (max-width: 1180px) {{
       .workspace-shell[data-layout-view="games"] .workspace-main,
