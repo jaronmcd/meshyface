@@ -120,6 +120,29 @@ def test_dashboard_omits_history_workspace_but_keeps_live_node_history_consumers
     assert 'id="map-data-activity"' not in html
     assert 'class="card history-chat"' not in html
     assert ".layout.view-history" not in css
+    for removed_id in (
+        "weekly-summary-chart",
+        "weekly-summary-overview",
+        "weekly-summary-metric",
+        "online-activity-chart",
+        "online-activity-overview",
+    ):
+        assert f'id="{removed_id}"' not in html
+        assert f'#{removed_id}' not in css
+    for removed_runtime_name in (
+        "weeklySummaryMetricStorageKey",
+        "weeklySummaryWindowStorageKey",
+        "weeklySummaryNodeSeriesStorageKey",
+        "historySummaryNeedsPacketSeries",
+        "fetchOnlineActivity",
+        "renderOnlineActivity",
+        'setMapDataMode("activity")',
+    ):
+        assert removed_runtime_name not in js
+
+    assert 'id="network-overview-chart"' in html
+    assert "function renderNetworkOverviewSummary" in js
+    assert "function networkOverviewSummaryNeedsPacketSeries" in js
 
     for element_id in (
         "network-node-history-host",

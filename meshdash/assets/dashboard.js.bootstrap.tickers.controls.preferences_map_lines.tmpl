@@ -139,62 +139,6 @@
       applyTickerDensity(stored, false);
     }}
 
-    function loadWeeklySummaryMetricPreference() {{
-      let stored = "packets";
-      try {{
-        stored = window.localStorage.getItem(weeklySummaryMetricStorageKey) || "packets";
-      }} catch (_err) {{
-      }}
-      applyWeeklySummaryMetric(stored, false);
-    }}
-
-    function loadWeeklySummaryWindowPreference() {{
-      let stored = String(defaultSummaryWindowHours);
-      try {{
-        stored = window.localStorage.getItem(weeklySummaryWindowStorageKey) || String(defaultSummaryWindowHours);
-      }} catch (_err) {{
-      }}
-      applyWeeklySummaryWindow(stored, false);
-    }}
-
-    function loadWeeklySummaryNodeSeriesPreference() {{
-      let storedJson = "";
-      try {{
-        storedJson = window.localStorage.getItem(weeklySummaryNodeSeriesStorageKey) || "";
-      }} catch (_err) {{
-      }}
-      if (storedJson) {{
-        try {{
-          const parsed = JSON.parse(storedJson);
-          applyWeeklySummaryNodeSeries(parsed, false);
-          return;
-        }} catch (_err) {{
-        }}
-      }}
-      let legacyCompare = "0";
-      try {{
-        legacyCompare = window.localStorage.getItem(weeklySummaryNodesCompareLegacyStorageKey) || "0";
-      }} catch (_err) {{
-      }}
-      if (normalizeWeeklySummaryNodesCompare(legacyCompare)) {{
-        applyWeeklySummaryNodeSeries({{
-          online_nodes: true,
-          new_nodes: true,
-          known_nodes: true,
-          saved_nodes: true,
-          position_nodes: true,
-        }}, false);
-      }} else {{
-        applyWeeklySummaryNodeSeries({{
-          online_nodes: true,
-          new_nodes: false,
-          known_nodes: false,
-          saved_nodes: false,
-          position_nodes: false,
-        }}, false);
-      }}
-    }}
-
     function loadNetworkOverviewMetricPreference() {{
       let stored = "nodes";
       try {{

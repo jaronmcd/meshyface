@@ -1,4 +1,4 @@
-    function resolveWeeklySummaryRenderTarget(targetKey = "history") {{
+    function resolveWeeklySummaryRenderTarget(targetKey = "network-overview") {{
       const clean = String(targetKey || "").trim().toLowerCase();
       if (clean === "node-packets") {{
         return {{
@@ -32,39 +32,23 @@
           errorEmpty: "Unable to load node link-quality trends.",
         }};
       }}
-      if (clean === "network-overview") {{
-        return {{
-          key: "network-overview",
-          chartState: historyTrendCharts.weeklyNetworkOverview,
-          captionId: "network-overview-caption",
-          overviewId: "network-overview-overview",
-          svgId: "network-overview-chart",
-          emptyId: "network-overview-empty",
-          timelineId: "network-overview-timeline",
-          captionPrefix: "Network trend for",
-          loadingCaption: "Loading network overview trends...",
-          loadingEmpty: "Loading network overview trends...",
-          errorPrefix: "Network overview trend error",
-          errorEmpty: "Unable to load network overview trends.",
-        }};
-      }}
       return {{
-        key: "history",
-        chartState: historyTrendCharts.weekly,
-        captionId: "weekly-summary-caption",
-        overviewId: "weekly-summary-overview",
-        svgId: "weekly-summary-chart",
-        emptyId: "weekly-summary-empty",
-        timelineId: "weekly-summary-timeline",
-        captionPrefix: "Weekly trend for",
-        loadingCaption: "Loading weekly summary metrics...",
-        loadingEmpty: "Loading weekly summary metrics...",
-        errorPrefix: "Weekly summary error",
-        errorEmpty: "Unable to load weekly summary metrics.",
+        key: "network-overview",
+        chartState: historyTrendCharts.weeklyNetworkOverview,
+        captionId: "network-overview-caption",
+        overviewId: "network-overview-overview",
+        svgId: "network-overview-chart",
+        emptyId: "network-overview-empty",
+        timelineId: "network-overview-timeline",
+        captionPrefix: "Network trend for",
+        loadingCaption: "Loading network overview trends...",
+        loadingEmpty: "Loading network overview trends...",
+        errorPrefix: "Network overview trend error",
+        errorEmpty: "Unable to load network overview trends.",
       }};
     }}
 
-    function clearWeeklySummaryRenderTarget(targetKey = "history", options = {{}}) {{
+    function clearWeeklySummaryRenderTarget(targetKey = "network-overview", options = {{}}) {{
       const opts = (options && typeof options === "object") ? options : {{}};
       const target = resolveWeeklySummaryRenderTarget(targetKey);
       const chartState = target && target.chartState;
@@ -99,24 +83,16 @@
       );
     }}
 
-    function renderWeeklySummaryLoading(targetKey = "history") {{
-      clearWeeklySummaryRenderTarget(targetKey);
-    }}
-
     function renderNetworkOverviewSummaryLoading() {{
-      renderWeeklySummaryLoading("network-overview");
-    }}
-
-    function renderWeeklySummaryError(message, targetKey = "history") {{
-      const target = resolveWeeklySummaryRenderTarget(targetKey);
-      clearWeeklySummaryRenderTarget(target.key, {{
-        resetZoom: true,
-        captionText: `${{target.errorPrefix || "Weekly summary error"}}: ${{message || "unknown error"}}`,
-        emptyText: target.errorEmpty || "Unable to load weekly summary metrics.",
-        timelineText: "Timeline unavailable due to weekly summary error.",
-      }});
+      clearWeeklySummaryRenderTarget("network-overview");
     }}
 
     function renderNetworkOverviewSummaryError(message) {{
-      renderWeeklySummaryError(message, "network-overview");
+      const target = resolveWeeklySummaryRenderTarget("network-overview");
+      clearWeeklySummaryRenderTarget(target.key, {{
+        resetZoom: true,
+        captionText: `${{target.errorPrefix}}: ${{message || "unknown error"}}`,
+        emptyText: target.errorEmpty,
+        timelineText: "Timeline unavailable due to network overview error.",
+      }});
     }}
