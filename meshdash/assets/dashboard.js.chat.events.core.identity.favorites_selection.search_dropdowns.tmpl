@@ -14,8 +14,6 @@
       const inputIds = [
         "chat-user-search-input",
         "nodes-search-input",
-        "favorites-search-input",
-        "saved-node-search-input",
         "favorite-menu-node-search-input",
       ];
       for (const inputId of inputIds) {{
@@ -38,8 +36,6 @@
       const changed = query !== globalNodeSearchQuery();
       chatUserSearchQuery = query;
       nodesSearchQuery = query;
-      favoritesSearchQuery = query;
-      savedNodeSearchQuery = query;
       favoriteMenuNodeSearchQuery = query;
       if (opts.syncInputs !== false) {{
         syncGlobalNodeSearchInputs(query, opts);
@@ -103,18 +99,6 @@
     function matchesIdOrNameQuery(nodeId, nodeName, query, options = null) {{
       if (!query) return true;
       return nodeSearchKeywordText(nodeId, nodeName, options).includes(query);
-    }}
-
-    function closeSavedNodeSearchDropdown() {{
-      if (savedNodeSearchBlurTimer !== null) {{
-        clearTimeout(savedNodeSearchBlurTimer);
-        savedNodeSearchBlurTimer = null;
-      }}
-      savedNodeSearchOpen = false;
-      const dropdown = document.getElementById("saved-node-search-dropdown");
-      if (dropdown instanceof HTMLElement) {{
-        dropdown.hidden = true;
-      }}
     }}
 
     function closeFavoriteMenuNodeSearchDropdown() {{
@@ -214,38 +198,6 @@
         if (results.length >= maxRows) break;
       }}
       return results;
-    }}
-
-    function renderSavedNodeSearchDropdown(state = latestState) {{
-      const input = document.getElementById("saved-node-search-input");
-      const dropdown = document.getElementById("saved-node-search-dropdown");
-      if (!(input instanceof HTMLInputElement) || !(dropdown instanceof HTMLElement)) return;
-
-      if (activeLayoutView !== "saved") {{
-        dropdown.hidden = true;
-        return;
-      }}
-
-      const hasFocus = document.activeElement === input || dropdown.contains(document.activeElement);
-      if (!savedNodeSearchOpen || !hasFocus) {{
-        dropdown.hidden = true;
-        return;
-      }}
-
-      const query = globalNodeSearchQuery();
-      const rows = buildNodeSearchResults(state, query, 250);
-      if (!rows.length) {{
-        dropdown.innerHTML = '<div class="node-search-empty">No nodes match this search.</div>';
-        dropdown.hidden = false;
-        return;
-      }}
-
-      const selectedId = normalizeNodeId(selectedNodeId || "");
-      dropdown.innerHTML = rows.map((row) => {{
-        const selectedClass = row.nodeId === selectedId ? " selected-node" : "";
-        return `<button type="button" class="node-search-item${{selectedClass}}" data-node-id="${{escAttr(row.nodeId)}}" role="option" aria-selected="${{row.nodeId === selectedId ? "true" : "false"}}"><span class="node-search-name">${{escAttr(row.name)}}</span><span class="node-search-id">${{escAttr(row.nodeId)}}</span></button>`;
-      }}).join("");
-      dropdown.hidden = false;
     }}
 
     function renderFavoriteMenuNodeSearchDropdown(state = latestState) {{

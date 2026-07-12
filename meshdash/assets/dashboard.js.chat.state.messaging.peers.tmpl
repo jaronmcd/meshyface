@@ -3574,7 +3574,7 @@
         '<button id="chat-node-details-tab-links" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="links">Links</button>',
         '<button id="chat-node-details-tab-notes" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="notes">Notes</button>',
         '</div>',
-        '<div id="chat-node-details-panel-details" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-details"><div id="chat-node-details-content-host" class="chat-node-details-content-host"></div></div>',
+        '<div id="chat-node-details-panel-details" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-details"><div id="chat-node-details-content-host" class="chat-node-details-content-host"><div id="saved-node-details" class="saved-node-details" aria-live="polite"></div></div></div>',
         '<div id="chat-node-details-panel-notes" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-notes" hidden><div id="chat-node-details-notes-host" class="chat-node-details-notes-host"></div></div>',
         '<div id="chat-node-details-panel-messages" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-messages" hidden><div id="chat-node-details-messages-host" class="chat-node-details-messages-host"></div></div>',
         '<div id="chat-node-details-panel-history" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-history" hidden><div id="chat-node-details-history-host" class="chat-node-details-history-host"></div></div>',
@@ -3627,21 +3627,6 @@
         workspaceShell.classList.toggle("has-promoted-node-details", usePromoted);
       }}
       return usePromoted;
-    }}
-
-    function syncSavedNodeDetailsDock(forceToSaved = false) {{
-      const detailsHost = document.getElementById("saved-node-details");
-      if (!(detailsHost instanceof HTMLElement)) return;
-      const savedPane = document.querySelector(".saved-node-pane");
-      const drawerHost = document.getElementById("chat-node-details-content-host");
-      const useDrawerHost = !forceToSaved
-        && isChatNodeDetailsDrawerExpanded()
-        && (drawerHost instanceof HTMLElement);
-      const target = useDrawerHost ? drawerHost : savedPane;
-      if (!(target instanceof HTMLElement)) return;
-      if (detailsHost.parentElement !== target) {{
-        target.appendChild(detailsHost);
-      }}
     }}
 
     function setDrawerElementTextIfChanged(element, nextText) {{
@@ -3847,6 +3832,9 @@
         }}
         const detailsHost = document.getElementById("chat-node-details-content-host");
         const historyHost = document.getElementById("chat-node-details-history-host");
+        // The history panel is shared with the map-data workspace. Return it before
+        // clearing or removing the drawer so its tabs and charts stay in the DOM.
+        syncNodeHistoryDock();
         setDrawerElementHtmlIfChanged(detailsHost, "", "details");
         setDrawerElementHtmlIfChanged(historyHost, "", "history");
         setDrawerElementHtmlIfChanged(locationHost, "", "location");
@@ -3856,8 +3844,6 @@
         setDrawerElementHtmlIfChanged(notesHost, "", "notes");
         setDrawerElementHtmlIfChanged(messagesHost, "", "messages");
         setDrawerElementHtmlIfChanged(tagHost, "", "tag");
-        syncSavedNodeDetailsDock(true);
-        syncNodeHistoryDock();
         const inlineHost = document.getElementById("chat-node-details-inline-host");
         if (inlineHost instanceof HTMLElement) {{
           resetChatNodeDetailsInlineHost(inlineHost);
@@ -3994,7 +3980,7 @@
             }}
             refreshFavoriteToggleButtons();
             if (latestState) {{
-              renderFavorites(latestState);
+              renderNodeDetails(latestState);
             }} else {{
               renderStarredNodeSelect({{}});
             }}
@@ -4045,7 +4031,7 @@
             syncChatNodeDetailsDrawer(latestState, {{ fetchHistory: false }});
             refreshFavoriteToggleButtons();
             if (latestState) {{
-              renderFavorites(latestState);
+              renderNodeDetails(latestState);
             }}
           }};
           iconInput.addEventListener("input", saveIconOverride);
@@ -4094,8 +4080,8 @@
         bindFavoriteMenuTagEditorControls(selectedId);
       }}
 
-      const resolvedName = (typeof resolveSavedViewNodeName === "function")
-        ? resolveSavedViewNodeName(safeState, selectedId)
+      const resolvedName = (typeof resolveNodeDisplayName === "function")
+        ? resolveNodeDisplayName(safeState, selectedId)
         : "";
       const fallbackName = nodeNameCache.get(selectedId) || selectedId;
       const titleName = String(resolvedName || fallbackName || selectedId);
@@ -4186,9 +4172,8 @@
         );
       }}
 
-      syncSavedNodeDetailsDock(false);
       const cachedHistory = cachedNodeHistory(selectedId);
-      renderSavedNodeDetails(safeState, cachedHistory);
+      renderNodeDetails(safeState, cachedHistory);
       if (notesHost instanceof HTMLElement && !notesHost.querySelector("#saved-node-note-input")) {{
         notesHost.innerHTML = "";
       }}
@@ -4198,8 +4183,7 @@
       const shouldPrefetchNodeHistory = !!(
         opts.fetchHistory !== false
         && (
-          activeLayoutView === "saved"
-          || (
+          (
             activeLayoutView === "network"
             && (
               typeof networkSubviewUsesMap === "function"

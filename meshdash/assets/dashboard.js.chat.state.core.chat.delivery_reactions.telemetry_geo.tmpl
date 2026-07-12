@@ -1,26 +1,3 @@
-      const savedChip = document.getElementById("updated-freshness");
-      if (savedChip instanceof HTMLElement) {{
-        const savedNodeId = activeLayoutView === "saved"
-          ? resolveSavedViewNodeId(latestState)
-          : "";
-        if (activeLayoutView === "saved" && isSelectableNodeId(savedNodeId)) {{
-          const node = nodesById.get(savedNodeId);
-          const caps = capsById.get(savedNodeId);
-          const chatTouch = latestChatTouchByNode.get(savedNodeId) || null;
-          const lastSeenUnix = computeNodeFreshnessUnix(node, caps, chatTouch);
-          const status = freshnessStatus(lastSeenUnix, nowUnix);
-          const key = normalizeFreshnessKey(status);
-          savedChip.textContent = key === "online"
-            ? "Fresh"
-            : (key === "warn" ? "Aging" : (key === "stale" ? "Stale" : "Unknown"));
-          applyFreshnessClass(savedChip, key);
-          savedChip.hidden = false;
-        }} else {{
-          savedChip.textContent = "";
-          savedChip.hidden = true;
-          applyFreshnessClass(savedChip, "unknown");
-        }}
-      }}
     }}
 
 

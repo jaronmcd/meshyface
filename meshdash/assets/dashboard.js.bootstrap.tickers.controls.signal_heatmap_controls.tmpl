@@ -55,9 +55,9 @@
           modeSelect.value = signalHeatmapMode;
           persistSignalHeatmapModePreference();
           const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
-          syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
+          syncSignalHeatmapLayer(nodes, false);
         }});
       }}
       const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
-      syncSignalHeatmapLayer(nodes, activeLayoutView === "saved");
+      syncSignalHeatmapLayer(nodes, false);
     }}

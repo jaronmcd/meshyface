@@ -107,7 +107,6 @@
       const isWheelPassthroughEnabled = () => (
         activeLayoutView !== "chat"
         && activeLayoutView !== "network"
-        && activeLayoutView !== "saved"
         && activeLayoutView !== "settings"
       );
 
@@ -326,7 +325,7 @@
       }});
       map.on("zoomend", () => {{
         const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
-        syncSignalHeatmapLayer(nodes, activeLayoutView === "saved", {{ bypassFade: true }});
+        syncSignalHeatmapLayer(nodes, false, {{ bypassFade: true }});
         if (mapOfflineFallbackActive || mapBasemapMode === "offline") {{
           syncOfflineCityVisibility();
           syncMapPackLayers();
@@ -336,7 +335,7 @@
       map.on("moveend", () => {{
         const nodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
         if (signalHeatDevKnobs.geoRadiusLock >= 0.5) {{
-          syncSignalHeatmapLayer(nodes, activeLayoutView === "saved", {{ bypassFade: true }});
+          syncSignalHeatmapLayer(nodes, false, {{ bypassFade: true }});
         }}
         if (mapOfflineFallbackActive || mapBasemapMode === "offline") {{
           syncOfflineCityVisibility();

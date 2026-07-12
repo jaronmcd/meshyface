@@ -523,7 +523,7 @@ def test_network_tool_post_requests_are_serialized() -> None:
     assert 'const networkOverviewActive304 = activeLayoutView === "network" && activeNetworkSubview === "overview";' in js
     assert 'const networkRoutesActive304 = activeLayoutView === "network" && activeNetworkSubview === "routes";' in js
     assert 'const networkNodesTableActive304 = activeLayoutView === "network" && (networkMapActive304 || networkOverviewActive304);' in js
-    assert 'const historyRelevant304 = (activeLayoutView === "saved" || networkMapActive304 || drawerHistoryVisible304)' in js
+    assert 'const historyRelevant304 = (networkMapActive304 || drawerHistoryVisible304)' in js
     assert 'if (networkNodesTableActive304) {' in js
     assert 'clearHiddenNodesTable();' in js
     assert 'return "network-graph";' in js
@@ -533,8 +533,8 @@ def test_network_tool_post_requests_are_serialized() -> None:
     assert 'const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";' in js
     assert 'const networkMapSubviewActive = next === "network" && networkSubviewUsesMap(activeNetworkSubview);' in js
     assert 'const networkNodesTableActive = next === "network" && (networkMapSubviewActive || activeNetworkSubview === "overview");' in js
-    assert 'const historyRelevant = (activeLayoutView === "saved" || networkMapActive || drawerHistoryVisible)' in js
-    assert 'if (next === "saved" || networkMapSubviewActive) {' in js
+    assert 'const historyRelevant = (networkMapActive || drawerHistoryVisible)' in js
+    assert 'if (networkMapSubviewActive) {' in js
     assert 'if (networkNodesTableActive) {' in js
     assert 'const shouldRefreshSelectedNodeHistoryForView = !!(' in js
     assert 'if (shouldRefreshSelectedNodeHistoryForView) {' in js

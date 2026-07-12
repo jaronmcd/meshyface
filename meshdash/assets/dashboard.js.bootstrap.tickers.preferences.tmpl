@@ -1110,9 +1110,7 @@
       if (typeof rerenderMeshyfaceProfileAppearance === "function") {{
         rerenderMeshyfaceProfileAppearance();
       }}
-      const historyNodeId = activeLayoutView === "saved"
-        ? resolveSavedViewNodeId(latestState)
-        : normalizeNodeId(selectedNodeId || "");
+      const historyNodeId = normalizeNodeId(selectedNodeId || "");
       if (isSelectableNodeId(historyNodeId)) {{
         const cached = nodeHistoryCache.get(historyNodeId);
         if (cached && cached.data && Array.isArray(cached.data.points)) {{

@@ -29,19 +29,6 @@
         return false;
       }}
 
-      const savedNodeId = activeLayoutView === "saved"
-        ? resolveSavedViewNodeId(latestState)
-        : "";
-      const showNodeHistory = activeLayoutView === "saved" && isSelectableNodeId(savedNodeId);
-      if (showNodeHistory) {{
-        if (nodeHistory && normalizeNodeId(nodeHistory.node_id) === savedNodeId) {{
-          return renderNodeHistory(nodeHistory, nodes);
-        }} else {{
-          renderNodeHistoryLoading(savedNodeId);
-        }}
-        return false;
-      }}
-
       setMapDataMode("live");
       const portsSortState = tableSortState["ports-table"] || {{ index: 1, dir: "desc" }};
       let portsHash = 2166136261;

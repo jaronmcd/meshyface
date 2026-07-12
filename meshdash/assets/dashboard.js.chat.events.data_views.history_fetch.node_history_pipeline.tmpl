@@ -119,8 +119,7 @@
     function renderNodeHistory(history, nodes) {{
       setMapDataMode("node");
       const historyNodeId = normalizeNodeId(history.node_id || "");
-      const node = (nodes || []).find((entry) => normalizeNodeId(entry && entry.id) === historyNodeId)
-        || savedViewNodeFrom(nodes, latestState);
+      const node = (nodes || []).find((entry) => normalizeNodeId(entry && entry.id) === historyNodeId) || null;
       const signalSource = String(history && history.signal_source ? history.signal_source : "").trim().toLowerCase();
       const signalPoints = Array.isArray(history && history.signal_points)
         ? history.signal_points
@@ -130,8 +129,7 @@
         : [];
       const caption = document.getElementById("node-history-caption");
       if (caption) {{
-        const fallbackNodeId = resolveSavedViewNodeId(latestState);
-        const name = node ? nodeLabel(node) : (historyNodeId || fallbackNodeId || "node");
+        const name = node ? nodeLabel(node) : (historyNodeId || "node");
         const span = history.summary || {{}};
         const trailPoints = Number.isFinite(Number(span.trail_points))
           ? Number(span.trail_points)
@@ -142,7 +140,7 @@
         const signalNote = signalSource === "local-radio"
           ? " Signal plot uses packets heard by this radio."
           : "";
-        caption.textContent = `${{name}} (${{historyNodeId || fallbackNodeId || "n/a"}}). ${{loc}} History window: ${{history.window_hours || nodeHistoryHours}}h, packets: ${{span.total_packets ?? 0}}, trail points: ${{trailPoints}}.${{signalNote}}`;
+        caption.textContent = `${{name}} (${{historyNodeId || "n/a"}}). ${{loc}} History window: ${{history.window_hours || nodeHistoryHours}}h, packets: ${{span.total_packets ?? 0}}, trail points: ${{trailPoints}}.${{signalNote}}`;
       }}
       const signalRendered = runHistoryViewRenderStep("signal chart", () => {{
         renderSignalChart(signalPoints);
@@ -289,10 +287,10 @@
         typeof isChatNodeDetailsHistoryActive === "function"
         && isChatNodeDetailsHistoryActive()
       );
-      const shouldShowNodeHistoryPanel = activeLayoutView === "saved" || drawerHistoryActive;
+      const shouldShowNodeHistoryPanel = drawerHistoryActive;
       let historyPanelRendered = false;
 
-      if (activeLayoutView === "saved" || networkMapVisible) {{
+      if (networkMapVisible) {{
         runHistoryViewRenderStep("map render", () => {{
           renderMap(nodes, edges, nodeHistory);
         }});
@@ -310,7 +308,7 @@
       }}
 
       // The signal plot lives in the map-data panel, rendered by renderTraffic.
-      if (activeLayoutView === "saved" || networkMapVisible) {{
+      if (networkMapVisible) {{
         const trafficRender = runHistoryViewRenderStep("map data panel", () => (
           renderTraffic(traffic, nodes, nodeHistory)
         ));
@@ -319,9 +317,9 @@
         }}
       }}
 
-      if (activeLayoutView === "saved" || drawerExpanded) {{
+      if (drawerExpanded) {{
         runHistoryViewRenderStep("saved node details", () => {{
-          renderSavedNodeDetails(state, nodeHistory);
+          renderNodeDetails(state, nodeHistory);
         }});
       }}
 
@@ -347,9 +345,7 @@
       const perfStartMs = perfToken > 0 && typeof nodeSelectionPerfNow === "function"
         ? nodeSelectionPerfNow()
         : 0;
-      const nodeId = activeLayoutView === "saved"
-        ? resolveSavedViewNodeId(latestState)
-        : normalizeNodeId(selectedNodeId || "");
+      const nodeId = normalizeNodeId(selectedNodeId || "");
       const drawerExpanded = (
         typeof isChatNodeDetailsDrawerExpanded === "function"
         && isChatNodeDetailsDrawerExpanded()
@@ -368,7 +364,7 @@
         }}
         return null;
       }}
-      if (!(activeLayoutView === "saved" || activeLayoutView === "network" || drawerExpanded)) {{
+      if (!(activeLayoutView === "network" || drawerExpanded)) {{
         // No need to load node history unless the map views that can use it are visible.
         abortNodeHistoryFetch();
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
@@ -415,22 +411,20 @@
       nodeHistoryFetchAbort = new AbortController();
       const signal = nodeHistoryFetchAbort.signal;
 
-      if (!cachedData && (activeLayoutView === "saved" || drawerHistoryActive)) {{
+      if (!cachedData && drawerHistoryActive) {{
         renderNodeHistoryLoading(nodeId);
       }}
 
       try {{
         const data = await fetchNodeHistory(nodeId, {{ force: true, signal }});
         if (seq !== nodeHistoryFetchSeq) return null;
-        const activeNodeId = activeLayoutView === "saved"
-          ? resolveSavedViewNodeId(latestState)
-          : normalizeNodeId(selectedNodeId || "");
+        const activeNodeId = normalizeNodeId(selectedNodeId || "");
         if (activeNodeId !== nodeId) return null;
         const drawerExpandedNow = (
           typeof isChatNodeDetailsDrawerExpanded === "function"
           && isChatNodeDetailsDrawerExpanded()
         );
-        if (!(activeLayoutView === "saved" || activeLayoutView === "network" || drawerExpandedNow)) return null;
+        if (!(activeLayoutView === "network" || drawerExpandedNow)) return null;
         applyNodeHistoryToView(data);
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
           markNodeSelectionPerf(perfToken, "selection.history_refresh", perfStartMs, {{
@@ -445,7 +439,7 @@
         if (seq !== nodeHistoryFetchSeq) return null;
         const msg = err instanceof Error ? err.message : String(err || "unknown error");
         const caption = document.getElementById("node-history-caption");
-        if (caption && (activeLayoutView === "saved" || drawerHistoryActive)) {{
+        if (caption && drawerHistoryActive) {{
           caption.textContent = `History error for ${{nodeId}}: ${{msg}}`;
         }}
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{

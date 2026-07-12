@@ -3139,24 +3139,6 @@
       line-height: 1.3;
       margin: 2px 4px 0 4px;
     }}
-    .favorites-search-wrap {{
-      flex: 1 1 auto;
-      min-width: 0;
-    }}
-    .favorites-clear-btn {{
-      border: 1px solid var(--surface-tint-border);
-      background: var(--surface-tint-bg-soft);
-      color: #214434;
-      border-radius: 7px;
-      padding: 5px 9px;
-      font-size: 11px;
-      line-height: 1.2;
-      cursor: pointer;
-      white-space: nowrap;
-    }}
-    .favorites-clear-btn:hover {{
-      background: #e7f3eb;
-    }}
     .layout {{
       --split-left-pct: 64%;
       --splitter-size: 8px;
@@ -3164,8 +3146,6 @@
       --split-mid-px: 250px;
       --split-low-px: 240px;
       --network-nodes-list-pct: 52%;
-      --saved-node-pane-pct: 50%;
-      --saved-node-main-pct: 56%;
       display: grid;
       gap: 8px;
       padding: 0;
@@ -7644,19 +7624,6 @@
       padding: 8px;
       overflow: hidden;
     }}
-    .saved-node-pane {{
-      display: none;
-      flex: 1 1 auto;
-      min-height: 0;
-      flex-direction: column;
-      gap: 8px;
-    }}
-    .saved-node-search-wrap {{
-      display: none;
-      position: relative;
-      flex: 0 0 auto;
-      padding: 0 0 2px 0;
-    }}
     .node-search-dropdown {{
       position: absolute;
       top: calc(100% + 4px);
@@ -7725,55 +7692,6 @@
       font-size: 11px;
       line-height: 1.25;
     }}
-    .saved-map-splitter {{
-      display: none;
-      position: relative;
-      border-radius: 8px;
-      border: 1px solid var(--surface-tint-border);
-      background: linear-gradient(180deg, var(--surface-tint-bg-soft), var(--surface-tint-bg-alt));
-      cursor: col-resize;
-      touch-action: none;
-      user-select: none;
-      min-width: 6px;
-    }}
-    .saved-map-splitter::before {{
-      content: "";
-      position: absolute;
-      top: 8px;
-      bottom: 8px;
-      left: 50%;
-      width: 2px;
-      transform: translateX(-50%);
-      background: var(--surface-tint-border-strong);
-      border-radius: 1px;
-    }}
-    .saved-map-splitter:hover::before,
-    .saved-map-splitter.active::before {{
-      background: var(--ui-accent);
-    }}
-    .saved-map-splitter-head {{
-      display: none;
-      position: relative;
-      cursor: col-resize;
-      pointer-events: auto;
-      touch-action: none;
-      user-select: none;
-    }}
-    .saved-map-splitter-head::before {{
-      content: "";
-      position: absolute;
-      left: 50%;
-      top: 8px;
-      bottom: 8px;
-      width: 2px;
-      transform: translateX(-50%);
-      background: var(--surface-tint-border-strong);
-      border-radius: 1px;
-    }}
-    .saved-map-splitter-head:hover::before,
-    .saved-map-splitter-head.active::before {{
-      background: var(--ui-accent);
-    }}
     .saved-node-details-empty {{
       border: 1px dashed var(--surface-tint-border);
       border-radius: 8px;
@@ -7801,45 +7719,6 @@
       min-height: 0;
       overflow: auto;
       padding-right: 2px;
-    }}
-    .saved-node-history-splitter {{
-      display: none;
-      position: relative;
-      border-radius: 8px;
-      border: 1px solid var(--surface-tint-border);
-      background: linear-gradient(90deg, var(--surface-tint-bg-soft), var(--surface-tint-bg-alt));
-      cursor: row-resize;
-      touch-action: none;
-      user-select: none;
-      min-height: 6px;
-      flex: 0 0 var(--splitter-size);
-      margin: 8px 0;
-    }}
-    .saved-node-history-splitter::before {{
-      content: "";
-      position: absolute;
-      left: 8px;
-      right: 8px;
-      top: 50%;
-      height: 2px;
-      transform: translateY(-50%);
-      background: var(--surface-tint-border-strong);
-      border-radius: 1px;
-    }}
-    .saved-node-history-splitter:hover::before,
-    .saved-node-history-splitter.active::before {{
-      background: var(--ui-accent);
-    }}
-    .saved-node-history-host {{
-      display: none;
-      flex-direction: column;
-      gap: 8px;
-      min-height: 0;
-      overflow: hidden;
-    }}
-    .saved-node-history-host:not(:empty) {{
-      display: flex;
-      flex: 1 1 auto;
     }}
     .saved-node-section {{
       border: 1px solid var(--surface-tint-border);

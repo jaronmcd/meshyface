@@ -4319,42 +4319,6 @@
       border-color: var(--ui-border);
       background: linear-gradient(90deg, #1a2430, #16202c);
     }}
-    [data-theme="dark"] .saved-node-history-host {{
-      border-top: none;
-    }}
-    [data-theme="dark"] .saved-node-history-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(90deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .saved-node-history-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .saved-node-history-splitter:hover::before,
-    [data-theme="dark"] .saved-node-history-splitter.active::before {{
-      background: #79c0ff;
-    }}
-    [data-theme="dark"] .saved-map-splitter {{
-      border-color: var(--ui-border);
-      background: linear-gradient(180deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .saved-map-splitter::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .saved-map-splitter:hover::before,
-    [data-theme="dark"] .saved-map-splitter.active::before {{
-      background: #79c0ff;
-    }}
-    [data-theme="dark"] .saved-map-splitter-head {{
-      border-color: var(--ui-border);
-      background: linear-gradient(180deg, #1a2430, #16202c);
-    }}
-    [data-theme="dark"] .saved-map-splitter-head::before {{
-      background: #44566a;
-    }}
-    [data-theme="dark"] .saved-map-splitter-head:hover::before,
-    [data-theme="dark"] .saved-map-splitter-head.active::before {{
-      background: #79c0ff;
-    }}
     [data-theme="dark"] .network-node-splitter::before {{
       background: #44566a;
     }}
@@ -4776,55 +4740,6 @@
       border-color: var(--workspace-shell-border-strong);
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .favorites-clear-btn {{
-      border-color: var(--surface-tint-border);
-      background: var(--workspace-shell-bg-alt);
-      color: var(--surface-tint-text);
-    }}
-    [data-theme="dark"] .favorites-clear-btn:hover {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 76%, transparent);
-      border-color: var(--surface-tint-border-strong);
-    }}
-    [data-theme="dark"] .favorites-empty {{
-      border-color: var(--surface-tint-border);
-      background: color-mix(in srgb, var(--surface-tint-bg-soft) 76%, transparent);
-      color: var(--surface-tint-text-soft);
-    }}
-    [data-theme="dark"] .favorite-node-item {{
-      border-color: var(--surface-tint-border);
-      background: color-mix(in srgb, var(--surface-tint-bg-alt) 82%, transparent);
-      color: var(--surface-tint-text);
-    }}
-    [data-theme="dark"] .favorite-node-item:hover {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, transparent);
-      border-color: var(--surface-tint-border-strong);
-    }}
-    [data-theme="dark"] .favorite-node-item.status-warn {{
-      background: #40351f;
-      color: #ffe4a0;
-      border-color: #725f2e;
-    }}
-    [data-theme="dark"] .favorite-node-item.status-stale {{
-      background: #412323;
-      color: #ffc5c5;
-      border-color: #744040;
-    }}
-    [data-theme="dark"] .favorite-node-item.status-unknown {{
-      background: color-mix(in srgb, var(--surface-tint-bg-soft) 72%, transparent);
-      color: var(--surface-tint-text-soft);
-      border-color: color-mix(in srgb, var(--surface-tint-border) 76%, transparent);
-    }}
-    [data-theme="dark"] .favorite-node-item.selected-node {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, var(--surface-tint-border-strong) 14%) !important;
-      border-color: var(--surface-tint-border-strong) !important;
-      color: var(--surface-tint-text) !important;
-      box-shadow: inset 2px 0 0 var(--surface-tint-border-strong);
-    }}
-    [data-theme="dark"] .favorite-node-id,
-    [data-theme="dark"] .favorite-node-meta,
-    [data-theme="dark"] .favorites-caption {{
-      color: var(--surface-tint-text-soft);
-    }}
     [data-theme="dark"] .favorite-toggle-btn,
     [data-theme="dark"] .mute-toggle-btn {{
       border-color: color-mix(in srgb, var(--surface-tint-border) 70%, transparent);
@@ -4929,22 +4844,6 @@
       border: 0;
       background: transparent;
       padding: 0;
-    }}
-    [data-theme="dark"] .layout.view-saved .map-card-head {{
-      background: transparent;
-      border-bottom-color: transparent;
-    }}
-    [data-theme="dark"] .layout.view-saved .map-card-head .pane-head-actions {{
-      border-color: var(--saved-pane-head-border);
-      background: var(--saved-pane-head-bg);
-    }}
-    [data-theme="dark"] .layout.view-saved .map-card-head .pane-head-title {{
-      color: var(--ui-text-soft) !important;
-      border: 1px solid var(--saved-pane-head-border);
-      border-bottom: 1px solid var(--saved-pane-head-border);
-      border-radius: 8px 8px 0 0;
-      background: var(--saved-pane-head-bg);
-      padding: 8px 10px 7px 10px;
     }}
     [data-theme="dark"] .map-heatmap-wrap {{
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 78%, var(--ui-bg-elev) 22%);
@@ -7033,40 +6932,6 @@
         height: auto;
         min-height: 0;
       }}
-      .layout.view-saved {{
-        height: auto;
-        min-height: 0;
-      }}
-      .layout.view-saved .map-card-head {{
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        border-bottom: 1px solid var(--surface-tint-border);
-        background: var(--surface-tint-bg-alt);
-        padding: 8px 10px 7px 10px;
-      }}
-      .layout.view-saved .map-card-head .pane-head-title,
-      .layout.view-saved .map-card-head .pane-head-actions {{
-        border: 0;
-        border-radius: 0;
-        background: transparent;
-        min-height: 0;
-        padding: 0;
-      }}
-      [data-theme="dark"] .layout.view-saved .map-card-head {{
-        background: var(--workspace-shell-bg-alt);
-        border-bottom-color: var(--workspace-shell-border-muted);
-      }}
-      .layout.view-saved .map .body {{
-        display: flex;
-        flex-direction: column;
-      }}
-      .layout.view-saved .map-frame,
-      .layout.view-saved .saved-node-details {{
-        border-top: 1px solid var(--saved-pane-head-border);
-        border-radius: 8px;
-      }}
       .network-map-chrome {{
         top: 8px;
         left: 8px;
@@ -7098,16 +6963,6 @@
       .network-map-placeholder {{
         padding: 108px 18px 22px;
       }}
-      .saved-map-splitter,
-      .saved-map-splitter-head {{
-        display: none !important;
-      }}
-      .saved-node-history-splitter {{
-        display: none !important;
-      }}
-      .layout.view-saved .saved-node-main-scroll {{
-        flex: 1 1 auto;
-      }}
       .layout.view-console {{
         height: auto;
         min-height: 0;
@@ -7129,7 +6984,7 @@
         display: none !important;
       }}
       .splitter, .hsplitter {{ display: none; }}
-      .summary, .map, .map-data, .nodes, .favorites, .chat, .games, .console {{ grid-column: 1; grid-row: auto; }}
+      .summary, .map, .map-data, .nodes, .chat, .games, .console {{ grid-column: 1; grid-row: auto; }}
       .map-frame {{ max-width: none; }}
       .nodes .scroll {{ max-height: 360px; }}
     }}

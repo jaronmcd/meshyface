@@ -159,12 +159,12 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "--network-pane-head-border: var(--workspace-shell-border);" not in css
     assert "--saved-pane-head-border: var(--workspace-shell-border);" not in css
     assert "--network-pane-head-border: var(--surface-tint-border);" in css
-    assert "--saved-pane-head-border: var(--surface-tint-border);" in css
+    assert "--saved-pane-head-border:" not in css
     assert "--network-pane-head-bg: transparent;" in css
     assert "--network-pane-body-bg: transparent;" in css
     assert "--network-pane-divider-bg: transparent;" in css
-    assert "--saved-pane-head-bg: var(--surface-tint-vignette), var(--surface-tint-bg-alt);" in css
-    assert "--saved-pane-body-bg: var(--surface-tint-vignette), var(--surface-tint-bg);" in css
+    assert "--saved-pane-head-bg:" not in css
+    assert "--saved-pane-body-bg:" not in css
     assert ".settings-help-note {" in css
     assert "background: var(--surface-tint-bg-soft);" in css
     help_note_link = _css_rule(css, ".settings-help-note a")

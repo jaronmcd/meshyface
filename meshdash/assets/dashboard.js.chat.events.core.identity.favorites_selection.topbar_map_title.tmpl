@@ -198,18 +198,6 @@
       }}
     }}
 
-    function formatSavedViewMapTitle(state = latestState) {{
-      const nodeId = resolveSavedViewNodeId(state);
-      if (!isSelectableNodeId(nodeId)) {{
-        return "Select a node";
-      }}
-      const nodeName = resolveSavedViewNodeName(state, nodeId);
-      if (nodeName) {{
-        return `${{nodeName}} (${{nodeId}})`;
-      }}
-      return nodeId;
-    }}
-
     function setMapCardTitle(text) {{
       const nextTitle = String(text || "");
       const titleText = document.getElementById("map-card-title-text");
@@ -223,62 +211,10 @@
       }}
     }}
 
-    function syncMapTitleFavoriteToggle() {{
-      const btn = document.getElementById("map-card-title-favorite-btn");
-      if (!(btn instanceof HTMLButtonElement)) return;
-      const nodeId = activeLayoutView === "saved"
-        ? resolveSavedViewNodeId(latestState)
-        : "";
-      const canToggle = activeLayoutView === "saved" && isSelectableNodeId(nodeId);
-      btn.hidden = !canToggle;
-      if (!canToggle) {{
-        btn.dataset.nodeId = "";
-        btn.classList.remove("active");
-        btn.setAttribute("aria-pressed", "false");
-        btn.removeAttribute("style");
-        const icon = btn.querySelector(".favorite-toggle-icon");
-        if (icon instanceof HTMLElement) {{
-          icon.textContent = "";
-        }}
-        btn.title = "Tag node";
-        btn.setAttribute("aria-label", "Tag node");
-        return;
-      }}
-
-      const tagEntry = typeof manualNodeTagEntryForNode === "function"
-        ? manualNodeTagEntryForNode(nodeId)
-        : nodeTagEntryForNode(nodeId);
-      const active = !!tagEntry;
-      btn.dataset.nodeId = nodeId;
-      btn.classList.toggle("active", active);
-      btn.setAttribute("aria-pressed", active ? "true" : "false");
-      if (active) {{
-        btn.setAttribute("style", nodeTagStyleVars(tagEntry));
-      }} else {{
-        btn.removeAttribute("style");
-      }}
-      const activePreset = nodeTagPresetForId(activeNodeTagPresetId) || nodeTagPresetForId("tag-default");
-      const activePresetLabel = activePreset
-        ? normalizeNodeTagPresetName(activePreset.name, "Tagged")
-        : "tag";
-      const title = active
-        ? `Clear tag (${{normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged")}})`
-        : `Tag node with ${{activePresetLabel}}`;
-      btn.title = title;
-      btn.setAttribute("aria-label", title);
-      const icon = btn.querySelector(".favorite-toggle-icon");
-      if (icon instanceof HTMLElement) {{
-        icon.textContent = "";
-      }}
-    }}
-
     function refreshMapCardTitle() {{
-      if (activeLayoutView === "saved") {{
-        setMapCardTitle(formatSavedViewMapTitle());
-      }} else if (activeLayoutView === "network") {{
+      if (activeLayoutView === "network") {{
         setMapCardTitle("");
       }} else {{
         setMapCardTitle(isSelectableNodeId(selectedNodeId) ? "Selected Node Map" : "Network Map");
       }}
-      syncMapTitleFavoriteToggle();
     }}

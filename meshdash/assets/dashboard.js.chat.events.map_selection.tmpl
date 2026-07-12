@@ -138,7 +138,6 @@
         '#chat-room-meshtastic-list .chat-member-item[data-node-id="%ID%"]',
         '#chat-room-pinned-list .chat-member-item[data-node-id="%ID%"]',
         '#chat-room-list .chat-member-item[data-node-id="%ID%"]',
-        '#favorites-list .favorite-node-item[data-node-id="%ID%"]',
       ];
       const applyNodeIdSelection = (nodeId, isSelected) => {{
         const cleanNodeId = normalizeNodeId(nodeId || "");
@@ -182,7 +181,7 @@
       nodeSelectionUiState.pendingShouldFocus = false;
 
       let cachedHistory = null;
-      if (latestState && (activeLayoutView === "saved" || activeLayoutView === "network")) {{
+      if (latestState && activeLayoutView === "network") {{
         cachedHistory = cachedNodeHistory(activeSelectedId);
       }}
       const activeNetworkSubviewName = (typeof normalizeNetworkSubview === "function")
@@ -195,20 +194,7 @@
       );
       const networkGraphVisible = activeLayoutView === "network" && activeNetworkSubviewName === "graph" && !networkSubviewUsesMap(activeNetworkSubviewName);
 
-      if (activeLayoutView === "saved") {{
-        const phaseStartMs = perfToken > 0 ? nodeSelectionPerfNow() : 0;
-        if (cachedHistory) {{
-          renderTraffic((latestState && latestState.traffic) || {{}}, (latestState && latestState.nodes) || [], cachedHistory);
-          renderSavedNodeDetails(latestState || {{}}, cachedHistory);
-        }} else {{
-          renderNodeHistoryLoading(activeSelectedId);
-        }}
-        if (perfToken > 0) {{
-          markNodeSelectionPerf(perfToken, "selection.saved_view", phaseStartMs, {{
-            cachedHistory: !!cachedHistory,
-          }});
-        }}
-      }} else if (activeLayoutView === "network") {{
+      if (activeLayoutView === "network") {{
         const phaseStartMs = perfToken > 0 ? nodeSelectionPerfNow() : 0;
         if (networkMapVisible) {{
           renderTraffic((latestState && latestState.traffic) || {{}}, (latestState && latestState.nodes) || [], cachedHistory);
@@ -247,7 +233,6 @@
 
       const focusSelection = (
         shouldFocus
-        && activeLayoutView !== "saved"
         && (
           activeLayoutView !== "network"
           || networkMapVisible
@@ -429,31 +414,6 @@
           }}
           didScroll = true;
           break;
-        }}
-      }}
-
-      const favoritesList = document.getElementById("favorites-list");
-      if (isVisibleForSelectionScroll(favoritesList)) {{
-        let favoriteItem = null;
-        for (const row of favoritesList.querySelectorAll(".favorite-node-item")) {{
-          if (normalizeNodeId(row.dataset.nodeId || "") === selectedNodeId) {{
-            favoriteItem = row;
-            break;
-          }}
-        }}
-        if (favoriteItem instanceof HTMLElement) {{
-          const listRect = favoritesList.getBoundingClientRect();
-          const rowRect = favoriteItem.getBoundingClientRect();
-          const topSafe = listRect.top + 3;
-          const bottomSafe = listRect.bottom - 3;
-          if (rowRect.top < topSafe) {{
-            const delta = rowRect.top - topSafe;
-            favoritesList.scrollTo({{ top: favoritesList.scrollTop + delta, behavior: "smooth" }});
-          }} else if (rowRect.bottom > bottomSafe) {{
-            const delta = rowRect.bottom - bottomSafe;
-            favoritesList.scrollTo({{ top: favoritesList.scrollTop + delta, behavior: "smooth" }});
-          }}
-          didScroll = true;
         }}
       }}
 
@@ -913,7 +873,7 @@
         loading: true,
         defaultWindowHours: nodeHistoryHours,
       }});
-      renderSavedNodeDetails(latestState || {{}}, null, nodeId);
+      renderNodeDetails(latestState || {{}}, null, nodeId);
     }}
 
     function selectNode(nodeId, shouldFocus = true, toggleIfSelected = true) {{
@@ -965,7 +925,6 @@
       pendingSelectionScroll = true;
       persistSelection();
       renderSelectionStatus();
-      renderSavedNodeSearchDropdown(latestState);
       highlightNodeSelection(previousSelectedId, normalized);
       if (latestState) {{
         renderSummary(latestState);
@@ -1034,7 +993,6 @@
       }}
       const focusSelection = (
         shouldFocus
-        && activeLayoutView !== "saved"
         && (
           activeLayoutView !== "network"
           || (
@@ -1072,7 +1030,6 @@
       pendingSelectionScroll = false;
       persistSelection();
       renderSelectionStatus();
-      renderSavedNodeSearchDropdown(latestState);
       if (latestState) {{
         renderSummary(latestState);
       }}
@@ -1116,16 +1073,16 @@
       const shouldRenderSelectionMap = (
         typeof isMapVisibleLayoutView === "function"
           ? isMapVisibleLayoutView(activeLayoutView)
-          : (activeLayoutView === "saved" || activeLayoutView === "network")
+          : activeLayoutView === "network"
       );
       if (latestState) {{
         if (shouldRenderSelectionMap) {{
           renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], null);
         }}
         renderTraffic(latestState.traffic || {{}}, latestState.nodes || [], null);
-        renderSavedNodeDetails(latestState, null);
+        renderNodeDetails(latestState, null);
       }} else {{
-        renderSavedNodeDetails({{}}, null);
+        renderNodeDetails({{}}, null);
       }}
       if (
         activeLayoutView === "network"

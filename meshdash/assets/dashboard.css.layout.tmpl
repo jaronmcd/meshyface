@@ -519,120 +519,6 @@
       flex-direction: column;
       min-height: 0;
     }}
-    .favorites {{
-      grid-column: 1 / span 3;
-      grid-row: 4;
-      display: none;
-      flex-direction: column;
-      min-height: 0;
-    }}
-    .favorites .body {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .favorites-toolbar {{
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }}
-    .favorites-caption {{
-      font-size: 11px;
-      color: var(--surface-tint-text-soft);
-      line-height: 1.25;
-    }}
-    .favorites-list {{
-      flex: 1 1 auto;
-      min-height: 200px;
-      max-height: none;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }}
-    .favorites-empty {{
-      border: 1px dashed var(--surface-tint-border);
-      border-radius: 8px;
-      padding: 10px;
-      font-size: 11px;
-      color: var(--surface-tint-text-soft);
-      background: color-mix(in srgb, var(--surface-tint-bg-soft) 76%, transparent);
-      line-height: 1.3;
-    }}
-    .favorite-node-item {{
-      border: 1px solid var(--surface-tint-border);
-      background: color-mix(in srgb, var(--surface-tint-bg-alt) 82%, transparent);
-      color: var(--surface-tint-text);
-      border-radius: 8px;
-      padding: 6px 7px;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 7px;
-      align-items: start;
-      cursor: pointer;
-    }}
-    .favorite-node-item:hover {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, transparent);
-      border-color: var(--surface-tint-border-strong);
-    }}
-    .favorite-node-item.status-warn {{
-      background: #fff9e7;
-      color: #5d4a1b;
-      border-color: #ecd89c;
-    }}
-    .favorite-node-item.status-stale {{
-      background: #fff0f0;
-      color: #6a3333;
-      border-color: #e6b5b5;
-    }}
-    .favorite-node-item.status-unknown {{
-      background: color-mix(in srgb, var(--surface-tint-bg-soft) 72%, transparent);
-      color: var(--surface-tint-text-soft);
-      border-color: color-mix(in srgb, var(--surface-tint-border) 76%, transparent);
-    }}
-    .favorite-node-item.selected-node {{
-      background: color-mix(in srgb, var(--surface-tint-bg-hover) 86%, var(--surface-tint-border-strong) 14%);
-      border-color: var(--surface-tint-border-strong);
-      color: var(--surface-tint-text);
-      box-shadow: inset 2px 0 0 var(--surface-tint-border-strong);
-    }}
-    .favorite-node-main {{
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }}
-    .favorite-node-name-row {{
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      min-width: 0;
-    }}
-    .favorite-node-name {{
-      font-size: 12px;
-      font-weight: 600;
-      color: inherit;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      min-width: 0;
-    }}
-    .favorite-node-id {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      opacity: 0.95;
-      white-space: nowrap;
-      flex: 0 0 auto;
-    }}
-    .favorite-node-meta {{
-      font-size: 10px;
-      color: var(--surface-tint-text-soft);
-      line-height: 1.25;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }}
     .nodes .body {{
       display: flex;
       flex-direction: column;
@@ -1457,7 +1343,6 @@
     .layout.view-files .nodes,
     .layout.view-files .map,
     .layout.view-files .map-data,
-    .layout.view-files .favorites,
     .layout.view-files .console,
     .layout.view-files .summary,
     .layout.view-files .splitter,
@@ -1819,7 +1704,6 @@
     .layout.view-settings .nodes,
     .layout.view-settings .map,
     .layout.view-settings .map-data,
-    .layout.view-settings .favorites,
     .layout.view-settings .splitter,
     .layout.view-settings .hsplitter[data-target="top"],
     .layout.view-settings .hsplitter[data-target="mid"],
@@ -1860,7 +1744,6 @@
     .layout.view-games .nodes,
     .layout.view-games .map,
     .layout.view-games .map-data,
-    .layout.view-games .favorites,
     .layout.view-games .console,
     .layout.view-games .summary,
     .layout.view-games .splitter,
@@ -1870,241 +1753,6 @@
       display: none !important;
     }}
 
-    .layout.view-saved {{
-      height: 100%;
-      min-height: 0;
-      grid-template-columns: minmax(350px, var(--split-left-pct)) var(--splitter-size) minmax(320px, 1fr);
-      grid-template-rows: auto minmax(0, 1fr);
-    }}
-    .layout.view-saved .summary {{
-      display: block;
-      grid-column: 1 / span 3;
-      grid-row: 1;
-    }}
-    .layout.view-saved .favorites {{
-      display: none !important;
-    }}
-    .layout.view-saved .map {{
-      --saved-pane-head-bg: var(--surface-tint-vignette), var(--surface-tint-bg-alt);
-      --saved-pane-body-bg: var(--surface-tint-vignette), var(--surface-tint-bg);
-      --saved-pane-head-border: var(--surface-tint-border);
-      --saved-pane-divider-bg: var(--surface-tint-divider-bg);
-      --saved-pane-divider-border: var(--surface-tint-border);
-      --saved-pane-divider-line: var(--surface-tint-divider-line, var(--surface-tint-border-strong));
-      --saved-pane-divider-line-active: var(--ui-accent);
-      display: flex;
-      grid-column: 1 / span 3;
-      grid-row: 2;
-      min-height: 0;
-      border: 0;
-      background: transparent;
-      box-shadow: none;
-      overflow: visible;
-    }}
-    .layout.view-saved .map-card-head {{
-      position: relative;
-      display: grid;
-      grid-template-columns: minmax(320px, var(--saved-node-pane-pct)) var(--splitter-size) minmax(320px, 1fr);
-      align-items: stretch;
-      gap: 8px;
-      border-bottom: 0;
-      background: transparent;
-      padding: 0 10px 0 10px;
-    }}
-    .layout.view-saved .map-card-head::before {{
-      content: none;
-    }}
-    .layout.view-saved .saved-map-splitter-head {{
-      display: block;
-      grid-column: 2;
-      grid-row: 1;
-      min-height: 0;
-      border: 1px solid var(--saved-pane-divider-border);
-      border-bottom: 0;
-      border-radius: 8px 8px 0 0;
-      background: var(--saved-pane-divider-bg);
-      z-index: 2;
-    }}
-    .layout.view-saved .saved-map-splitter-head::before {{
-      top: 8px;
-      bottom: 0;
-      background: var(--saved-pane-divider-line);
-    }}
-    .layout.view-saved .saved-map-splitter-head:hover::before,
-    .layout.view-saved .saved-map-splitter-head.active::before {{
-      background: var(--saved-pane-divider-line-active);
-    }}
-    .layout.view-saved .map-card-head .pane-head-title,
-    .layout.view-saved .map-card-head .pane-head-actions {{
-      min-height: 32px;
-      margin: 0;
-      border: 1px solid var(--saved-pane-head-border);
-      border-bottom: 1px solid var(--saved-pane-head-border);
-      border-radius: 8px 8px 0 0;
-      background: var(--saved-pane-head-bg);
-    }}
-    .layout.view-saved .map-card-head .pane-head-title {{
-      grid-column: 1;
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 8px;
-      padding: 8px 10px 7px 10px;
-    }}
-    .layout.view-saved .map-card-head #map-card-title-text {{
-      order: 2;
-      flex: 1 1 auto;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }}
-    .layout.view-saved .map-card-head .map-title-favorite-btn {{
-      order: 1;
-      margin-left: 0;
-      margin-right: 2px;
-      transform: none;
-    }}
-    .layout.view-saved .map-card-head .pane-head-actions {{
-      grid-column: 3;
-      display: inline-flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 8px;
-      flex-wrap: wrap;
-      padding: 6px 8px;
-    }}
-    .layout.view-saved .map .body {{
-      padding: 0 10px 8px 10px;
-      min-height: 0;
-      display: grid;
-      grid-template-columns: minmax(320px, var(--saved-node-pane-pct)) var(--splitter-size) minmax(320px, 1fr);
-      gap: 8px;
-    }}
-    .layout.view-saved .map-frame {{
-      display: block;
-      grid-column: 3;
-      grid-row: 1;
-      order: 0;
-      flex: 0 0 auto;
-      min-height: 260px;
-      border-color: var(--saved-pane-head-border);
-      border-top: 0;
-      border-radius: 0 0 8px 8px;
-    }}
-    .layout.view-saved .saved-node-pane {{
-      display: flex;
-      grid-column: 1;
-      grid-row: 1;
-      order: 0;
-      flex: 0 0 auto;
-      min-height: 0;
-      gap: 8px;
-      padding: 8px 10px;
-      border: 1px solid var(--saved-pane-head-border);
-      border-top: 0;
-      border-radius: 0 0 8px 8px;
-      background: var(--saved-pane-body-bg);
-    }}
-    .layout.view-saved .saved-node-search-wrap {{
-      display: block;
-      padding: 0;
-    }}
-    .layout.view-saved .saved-node-details {{
-      display: flex;
-      flex: 1 1 auto;
-      min-height: 0;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      padding: 0;
-    }}
-    .layout.view-saved .saved-map-splitter {{
-      display: block;
-      grid-column: 2;
-      grid-row: 1;
-      min-height: 0;
-      border-color: var(--saved-pane-divider-border);
-      background: var(--saved-pane-divider-bg);
-      border-top: 0;
-      border-radius: 0 0 8px 8px;
-    }}
-    .layout.view-saved .saved-map-splitter::before {{
-      background: var(--saved-pane-divider-line);
-      top: 0;
-      bottom: 8px;
-    }}
-    .layout.view-saved .saved-map-splitter:hover::before,
-    .layout.view-saved .saved-map-splitter.active::before {{
-      background: var(--saved-pane-divider-line-active);
-    }}
-    .layout.view-saved .saved-node-stack {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 0;
-    }}
-    .layout.view-saved .saved-node-main-scroll {{
-      flex: 0 0 var(--saved-node-main-pct);
-      min-height: 0;
-      overflow: auto;
-    }}
-    .layout.view-saved .saved-node-history-splitter {{
-      display: block;
-    }}
-    .layout.view-saved .saved-node-history-host {{
-      display: flex;
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .layout.view-saved .saved-node-history-host #map-data-node {{
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 8px;
-    }}
-    .layout.view-saved .saved-node-history-host #tab-panel-signal,
-    .layout.view-saved .saved-node-history-host #tab-panel-link,
-    .layout.view-saved .saved-node-history-host #tab-panel-online,
-    .layout.view-saved .saved-node-history-host #tab-panel-packets,
-    .layout.view-saved .saved-node-history-host #tab-panel-names,
-    .layout.view-saved .saved-node-history-host #tab-panel-overview {{
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      gap: 8px;
-    }}
-    .layout.view-saved .saved-node-history-host #tab-panel-signal,
-    .layout.view-saved .saved-node-history-host #tab-panel-link,
-    .layout.view-saved .saved-node-history-host #tab-panel-online,
-    .layout.view-saved .saved-node-history-host #tab-panel-packets,
-    .layout.view-saved .saved-node-history-host #tab-panel-names,
-    .layout.view-saved .saved-node-history-host #tab-panel-overview {{
-      flex: 1 1 auto;
-      min-height: 0;
-    }}
-    .layout.view-saved .saved-node-history-host #signal-chart-wrap,
-    .layout.view-saved .saved-node-history-host #node-link-quality-chart-wrap,
-    .layout.view-saved .saved-node-history-host #node-online-chart-wrap,
-    .layout.view-saved .saved-node-history-host #node-packets-chart-wrap {{
-      height: 260px;
-      min-height: 220px;
-    }}
-    .layout.view-saved .map-data,
-    .layout.view-saved .chat,
-    .layout.view-saved .nodes,
-    .layout.view-saved .console,
-    .layout.view-saved .hsplitter[data-target="top"],
-    .layout.view-saved .hsplitter[data-target="mid"],
-    .layout.view-saved .hsplitter[data-target="low"] {{
-      display: none !important;
-    }}
-    .layout.view-saved .splitter {{
-      display: none !important;
-      grid-row: 1;
-    }}
     table {{
       width: 100%;
       border-collapse: collapse;
@@ -3000,10 +2648,6 @@
     .chat-node-details-drawer .saved-node-main-scroll {{
       min-height: 0;
     }}
-    .chat-node-details-drawer .saved-node-history-splitter,
-    .chat-node-details-drawer .saved-node-history-host {{
-      display: none !important;
-    }}
     .chat-node-details-history-host #map-data-node {{
       display: flex !important;
       flex-direction: column;
@@ -3490,12 +3134,6 @@
       border-color: rgba(167, 68, 68, 0.56);
       color: #8d3a3a;
       opacity: 1;
-    }}
-    .favorites-card-star {{
-      min-width: 18px;
-      height: 18px;
-      font-size: 9px;
-      padding: 0 5px;
     }}
     .node-name-row .favorite-toggle-btn {{
       margin-left: 0;

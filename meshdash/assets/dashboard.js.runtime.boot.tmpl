@@ -38,8 +38,6 @@
     runBootStep("loadNodeNotes", () => loadNodeNotes());
     runBootStep("loadSplitState", () => loadSplitState());
     runBootStep("loadNetworkNodesSplitState", () => loadNetworkNodesSplitState());
-    runBootStep("loadSavedNodeSplitState", () => loadSavedNodeSplitState());
-    runBootStep("loadSavedNodeHistorySplitState", () => loadSavedNodeHistorySplitState());
     runBootStep("loadGamesSidebarSplitState", () => loadGamesSidebarSplitState());
     runBootStep("loadGamesStatusSplitState", () => loadGamesStatusSplitState());
     runBootStep("loadChatPanelSplitState", () => loadChatPanelSplitState());
@@ -103,8 +101,6 @@
     runBootStep("renderSavedSelectionStatus", () => renderSavedSelectionStatus());
     runBootStep("bindSplitters", () => bindSplitters());
     runBootStep("bindNetworkNodeSplitter", () => bindNetworkNodeSplitter());
-    runBootStep("bindSavedNodeSplitter", () => bindSavedNodeSplitter());
-    runBootStep("bindSavedNodeHistorySplitter", () => bindSavedNodeHistorySplitter());
     runBootStep("bindGamesSplitters", () => bindGamesSplitters());
     runBootStep("bindChatPanelSplitter", () => bindChatPanelSplitter());
     runBootStep("bindChatPanelCollapseToggle", () => bindChatPanelCollapseToggle());
@@ -115,8 +111,6 @@
     runBootStep("bindFavoriteToggleControls", () => bindFavoriteToggleControls());
     runBootStep("bindMuteToggleControls", () => bindMuteToggleControls());
     runBootStep("bindPinToggleControls", () => bindPinToggleControls());
-    runBootStep("bindFavoritesControls", () => bindFavoritesControls());
-    runBootStep("bindSavedNodeSearchControls", () => bindSavedNodeSearchControls());
     runBootStep("bindNodeListSearchControls", () => bindNodeListSearchControls());
     runBootStep("bindNodeRowClicks", () => bindNodeRowClicks());
     runBootStep("bindNodeDirectionalKeys", () => bindNodeDirectionalKeys());
@@ -165,15 +159,7 @@
     runBootStep("bindHistoryTabs", () => bindHistoryTabs());
     runBootStep("bindWheelPassthrough", () => bindWheelPassthrough());
     runBootStep("renderSelectionStatus", () => renderSelectionStatus());
-    const initialSavedNodeId = resolveSavedViewNodeId(latestState);
-    runBootStep("initializeSavedNodeHistory", () => {{
-      if (activeLayoutView === "saved" && isSelectableNodeId(initialSavedNodeId)) {{
-        renderNodeHistoryLoading(initialSavedNodeId);
-      }} else {{
-        setMapDataMode("live");
-      }}
-    }});
-    runBootStep("renderFavorites", () => renderFavorites({{}}));
+    runBootStep("initializeNodeHistory", () => setMapDataMode("live"));
     runBootStep("requestMapResize", () => requestMapResize());
     runBootStep("loadThemeSettingsFromServer", () => {{
       void loadThemeSettingsFromServer();

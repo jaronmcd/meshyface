@@ -144,6 +144,46 @@ def test_dashboard_omits_history_workspace_but_keeps_live_node_history_consumers
     assert "function renderNetworkOverviewSummary" in js
     assert "function networkOverviewSummaryNeedsPacketSeries" in js
 
+
+def test_dashboard_omits_saved_workspace_but_keeps_drawer_node_details() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "meshdash/assets/dashboard.html.tmpl").read_text(encoding="utf-8")
+    css = "\n".join(
+        (root / f"meshdash/assets/{name}").read_text(encoding="utf-8")
+        for name in (
+            "dashboard.css.base.tmpl",
+            "dashboard.css.layout.tmpl",
+            "dashboard.css.components.tmpl",
+        )
+    )
+    known_layout_views = js.split(
+        "const knownLayoutViews = new Set([", 1
+    )[1].split("]);", 1)[0]
+
+    assert '"saved"' not in known_layout_views
+    assert 'activeLayoutView === "saved"' not in js
+    assert 'next === "saved"' not in js
+    assert "syncSavedNodeDetailsDock" not in js
+    assert "renderFavorites" not in js
+    assert "savedNodeSplitStorageKey" not in js
+    assert "savedNodeHistorySplitStorageKey" not in js
+    assert 'class="card favorites"' not in html
+    assert 'class="saved-node-pane"' not in html
+    assert 'id="saved-map-splitter"' not in html
+    assert 'id="saved-node-history-host"' not in js
+    assert ".layout.view-saved" not in css
+    assert ".saved-map-splitter" not in css
+
+    assert "function renderNodeDetails" in js
+    assert '<div id="saved-node-details" class="saved-node-details" aria-live="polite"></div>' in js
+    assert 'id="chat-node-details-history-host"' in js
+    assert "function syncNodeHistoryDock" in js
+
     for removed_view in ("packets", "channels", "data"):
         assert f".layout.view-{removed_view}" not in css
     for removed_runtime_name in (

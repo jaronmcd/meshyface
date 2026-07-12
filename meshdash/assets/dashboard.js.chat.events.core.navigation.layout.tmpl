@@ -34,9 +34,7 @@
     function normalizeLayoutView(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
       let resolved = clean;
-      if (clean === "saved") {{
-        resolved = "network";
-      }} else if (clean === "apps") {{
+      if (clean === "apps") {{
         resolved = loadPreferredAppsLayoutView();
       }} else if (isAppsLayoutView(clean)) {{
         resolved = clean;
@@ -61,7 +59,7 @@
 
     function isMapVisibleLayoutView(viewName) {{
       const view = normalizeLayoutView(viewName);
-      return view === "saved" || (view === "network" && networkSubviewUsesMap(activeNetworkSubview));
+      return view === "network" && networkSubviewUsesMap(activeNetworkSubview);
     }}
 
     const networkDiagnosticsEnabled = !!Number({debug_mode_enabled});
@@ -4494,7 +4492,7 @@
         }}
       }}
 
-      if (showMapPanel && (normalizedView === "network" || normalizedView === "saved")) {{
+      if (showMapPanel && normalizedView === "network") {{
         if (typeof requestMapResizeNow === "function") {{
           requestMapResizeNow();
         }}
@@ -10136,7 +10134,6 @@
       const nodeHistoryPanel = document.getElementById("map-data-node");
       const mapDataBody = document.getElementById("map-data-body");
       const networkHost = document.getElementById("network-node-history-host");
-      const savedHost = document.getElementById("saved-node-history-host");
       const drawerHistoryHost = document.getElementById("chat-node-details-history-host");
       const nodesTitle = document.getElementById("nodes-card-title");
       if (!(nodeHistoryPanel instanceof HTMLElement)) return;
@@ -10148,10 +10145,7 @@
         && isChatNodeDetailsHistoryActive()
         && (drawerHistoryHost instanceof HTMLElement)
       );
-      const dockInSaved = !dockInDrawer && activeLayoutView === "saved" && (savedHost instanceof HTMLElement);
-      const target = dockInDrawer
-        ? drawerHistoryHost
-        : (dockInSaved ? savedHost : mapDataBody);
+      const target = dockInDrawer ? drawerHistoryHost : mapDataBody;
       if (nodeHistoryPanel.parentElement !== target) {{
         target.appendChild(nodeHistoryPanel);
       }}
@@ -10743,8 +10737,6 @@
       if (!(layout instanceof HTMLElement)) return;
       const shell = document.querySelector(".workspace-shell");
       const chatLeftPanel = document.getElementById("chat-left-panel");
-      const requested = String(viewName || "").trim().toLowerCase();
-      const requestedSavedAlias = requested === "saved";
       const next = normalizeLayoutView(viewName);
       const previous = normalizeLayoutView(activeLayoutView);
       const leavingNetworkGraphLayout = !!(
@@ -10803,13 +10795,13 @@
       refreshMapCardTitle();
       const mapResetBtn = document.getElementById("map-reset-view-btn");
       if (mapResetBtn instanceof HTMLButtonElement) {{
-        mapResetBtn.hidden = next === "saved";
+        mapResetBtn.hidden = false;
       }}
       updateMapPacketLinesControl();
       updateMapLinkLayerControl();
       const mapNodes = latestState && Array.isArray(latestState.nodes) ? latestState.nodes : [];
       try {{
-        syncSignalHeatmapLayer(mapNodes, next === "saved");
+        syncSignalHeatmapLayer(mapNodes, false);
       }} catch (_err) {{
       }}
       try {{
@@ -10909,10 +10901,8 @@
         const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";
         const networkTopNodesActive = next === "network" && activeNetworkSubview === "top10";
         let cachedNodeHistory = null;
-        const viewHistoryNodeId = next === "saved"
-          ? resolveSavedViewNodeId(latestState)
-          : (next === "network" ? normalizeNodeId(selectedNodeId || "") : "");
-        if ((next === "saved" || next === "network") && isSelectableNodeId(viewHistoryNodeId)) {{
+        const viewHistoryNodeId = next === "network" ? normalizeNodeId(selectedNodeId || "") : "";
+        if (next === "network" && isSelectableNodeId(viewHistoryNodeId)) {{
           const cached = nodeHistoryCache.get(viewHistoryNodeId);
           if (cached && cached.data) {{
             cachedNodeHistory = cached.data;
@@ -10928,7 +10918,7 @@
         ) {{
           renderChatNodeNavigatorList(latestState);
         }}
-        if (next === "saved" || networkMapSubviewActive) {{
+        if (networkMapSubviewActive) {{
           renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], cachedNodeHistory);
         }}
         if (next === "network") {{
@@ -10974,11 +10964,7 @@
         if (next === "games") {{
           renderGamesView(latestState);
         }}
-        if (next === "saved") {{
-          renderFavorites(latestState, cachedNodeHistory);
-        }} else {{
-          renderSavedNodeDetails(latestState, cachedNodeHistory);
-        }}
+        renderNodeDetails(latestState, cachedNodeHistory);
         if (next === "settings") {{
           renderSettings(latestState);
           syncSettingsPositionSourceUi({{
@@ -11012,30 +10998,14 @@
           scheduleConsoleTerminalScreenFillHeight();
         }});
       }}
-      if (next !== "saved") {{
-        closeSavedNodeSearchDropdown();
-      }}
-      renderSavedNodeSearchDropdown(latestState);
       renderFavoriteMenuNodeSearchDropdown(latestState);
       if (typeof syncChatNodeDetailsDrawer === "function") {{
         syncChatNodeDetailsDrawer(latestState, {{
           fetchHistory: false,
         }});
       }}
-      if (
-        requestedSavedAlias
-        && next === "network"
-        && isSelectableNodeId(normalizeNodeId(selectedNodeId || ""))
-        && typeof setChatNodeDetailsDrawerExpanded === "function"
-      ) {{
-        setChatNodeDetailsDrawerExpanded(true, {{
-          fetchHistory: false,
-          rerender: false,
-        }});
-      }}
       const shouldRefreshSelectedNodeHistoryForView = !!(
-        next === "saved"
-        || networkMapSubviewActive
+        networkMapSubviewActive
         || (
           typeof isChatNodeDetailsDrawerExpanded === "function"
           && isChatNodeDetailsDrawerExpanded()
@@ -11044,7 +11014,7 @@
       if (shouldRefreshSelectedNodeHistoryForView) {{
         void refreshSelectedNodeHistory(false);
       }}
-      if (next === "chat" || next === "files" || next === "games" || next === "network" || next === "saved") {{
+      if (next === "chat" || next === "files" || next === "games" || next === "network") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{

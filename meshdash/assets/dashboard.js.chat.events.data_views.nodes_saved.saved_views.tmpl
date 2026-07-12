@@ -166,7 +166,7 @@
         if (typeof setActiveNetworkSubview === "function") {{
           setActiveNetworkSubview("map", {{ persist: true }});
         }}
-      }} else if (activeLayoutView !== "saved" && activeLayoutView !== "network") {{
+      }} else if (activeLayoutView !== "network") {{
         if (typeof applyLayoutView === "function") {{
           applyLayoutView("network", true);
         }}
@@ -249,7 +249,7 @@
       }}
     }}
 
-    function renderSavedNodeDetails(state, nodeHistory = null, loadingNodeId = "") {{
+    function renderNodeDetails(state, nodeHistory = null, loadingNodeId = "") {{
       const host = document.getElementById("saved-node-details");
       if (!(host instanceof HTMLElement)) return;
       const setElementHtmlIfChanged = (element, markup, cacheKey = "default") => {{
@@ -261,17 +261,6 @@
         element.innerHTML = nextMarkup;
         element[propName] = nextMarkup;
         return true;
-      }};
-      const detachDockedHistoryPanel = () => {{
-        const dockedHistoryPanel = document.getElementById("map-data-node");
-        const mapDataBody = document.getElementById("map-data-body");
-        if (
-          dockedHistoryPanel instanceof HTMLElement
-          && mapDataBody instanceof HTMLElement
-          && host.contains(dockedHistoryPanel)
-        ) {{
-          mapDataBody.appendChild(dockedHistoryPanel);
-        }}
       }};
       const previousMainScroll = host.querySelector(".saved-node-main-scroll");
       const locationHost = document.getElementById("chat-node-details-location-host");
@@ -306,7 +295,7 @@
       ) ? previousMainScroll.clientHeight : 0;
 
       const safeState = (state && typeof state === "object") ? state : {{}};
-      const nodeId = resolveSavedViewNodeId(safeState);
+      const nodeId = normalizeNodeId(selectedNodeId || "");
       const loadingId = normalizeNodeId(loadingNodeId || "");
       const drawerExpanded = (
         typeof isChatNodeDetailsDrawerExpanded === "function"
@@ -515,7 +504,7 @@
         : "n/a";
       const topPeerId = normalizeNodeId((linkStats && linkStats.topPeer) || "");
       const topPeerName = topPeerId
-        ? resolveSavedViewNodeName(safeState, topPeerId)
+        ? resolveNodeDisplayName(safeState, topPeerId)
         : "";
       const topPeerLabel = savedDetailText(topPeerName || topPeerId, topPeerId || "n/a");
       const topPeerValue = isSelectableNodeId(topPeerId)
@@ -617,14 +606,11 @@
       let sectionsHost = host.querySelector(".saved-node-sections");
       let detailsMarkupChanged = false;
       if (!(sectionsHost instanceof HTMLElement)) {{
-        detachDockedHistoryPanel();
         const nextDetailsShellHtml = `
           <div class="saved-node-stack">
             <div class="saved-node-main-scroll">
               <div class="saved-node-sections"></div>
             </div>
-            <div id="saved-node-history-splitter" class="saved-node-history-splitter" title="Drag to resize node info and history panels"></div>
-            <div id="saved-node-history-host" class="saved-node-history-host"></div>
           </div>
         `;
         detailsMarkupChanged = setElementHtmlIfChanged(host, nextDetailsShellHtml, "saved-node-details-shell");
@@ -649,7 +635,6 @@
       if (detailsMarkupChanged || notesMarkupChanged) {{
         bindSavedNodeNotesEditor(nodeId);
       }}
-      bindSavedNodeHistorySplitter();
       syncNodeHistoryDock();
       if ((detailsMarkupChanged || notesMarkupChanged) && previousNodeId === nodeId) {{
         const restoreNoteFocus = () => {{
@@ -710,128 +695,4 @@
           restoreNoteFocus();
         }});
       }}
-    }}
-
-    function renderFavorites(state, nodeHistory = null, loadingNodeId = "") {{
-      const safeState = (state && typeof state === "object") ? state : {{}};
-      renderSavedNodeDetails(safeState, nodeHistory, loadingNodeId);
-      renderSavedNodeSearchDropdown(safeState);
-      renderStarredNodeSelect(safeState);
-      const list = document.getElementById("favorites-list");
-      const caption = document.getElementById("favorites-caption");
-      if (!(list instanceof HTMLElement)) return;
-      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
-      const nodesById = new Map(nodes.map((node) => [normalizeNodeId(node.id || ""), node]));
-      const historyCapsById = new Map(
-        Object.entries((safeState.history_caps && typeof safeState.history_caps === "object") ? safeState.history_caps : {{}})
-          .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
-          .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
-      );
-      const traffic = (safeState.traffic && typeof safeState.traffic === "object") ? safeState.traffic : {{}};
-      const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
-      const latestChatTouchByNode = mapLatestChatTouchInfo(chatMessages);
-
-      const nowUnix = Math.floor(Date.now() / 1000);
-      const entries = visibleFavoriteNodeIds()
-        .map((nodeId) => {{
-          const node = nodesById.get(nodeId);
-          const caps = historyCapsById.get(nodeId);
-          const tagEntry = nodeTagEntryForNode(nodeId);
-          const tagName = tagEntry && tagEntry.preset
-            ? normalizeNodeTagPresetName(tagEntry.preset.name, "Tagged")
-            : "Tagged";
-          const name = preferredNodeName(node) || nodeNameCache.get(nodeId) || `Node ${{nodeId}}`;
-          const freshness = resolveNodeFreshness(node, caps, null, latestChatTouchByNode.get(nodeId) || null);
-          const status = freshnessStatus(freshness.unix, nowUnix);
-          const lastSeenText = savedDetailText(freshness.text);
-          const batteryRaw = Number(
-            (node && node.battery_level != null)
-              ? node.battery_level
-              : (caps && caps.battery_level)
-          );
-          const battery = Number.isFinite(batteryRaw) ? `${{Math.max(0, Math.min(100, Math.round(batteryRaw)))}}%` : "n/a";
-          const hopsRaw = Number(
-            (node && node.hops_away != null)
-              ? node.hops_away
-              : (caps && caps.last_hops)
-          );
-          const hops = Number.isFinite(hopsRaw) && hopsRaw >= 0 ? String(Math.trunc(hopsRaw)) : "n/a";
-          const pos = (
-            node
-            && typeof node.lat === "number"
-            && Number.isFinite(node.lat)
-            && typeof node.lon === "number"
-            && Number.isFinite(node.lon)
-          )
-            ? `${{node.lat.toFixed(5)}}, ${{node.lon.toFixed(5)}}`
-            : ((caps && caps.has_position === true) ? "history" : "n/a");
-          const searchable = nodeSearchKeywordText(nodeId, name, {{ node }});
-          return {{
-            id: nodeId,
-            name,
-            status,
-            lastSeenText,
-            battery,
-            hops,
-            pos,
-            tagName,
-            searchable,
-          }};
-        }})
-        .sort((a, b) => {{
-          const rankDiff = statusRank(a.status) - statusRank(b.status);
-          if (rankDiff !== 0) return rankDiff;
-          return String(a.name || a.id).localeCompare(String(b.name || b.id));
-        }});
-
-      const query = globalNodeSearchQuery();
-      const filtered = query
-        ? entries.filter((entry) => entry.searchable.includes(query))
-        : entries;
-      const onlineCount = entries.filter((entry) => entry.status === "online").length;
-      const warnCount = entries.filter((entry) => entry.status === "warn").length;
-      const staleCount = entries.filter((entry) => entry.status === "stale").length;
-      if (caption) {{
-        caption.textContent = `Tagged subsection: ${{entries.length}} total (${{onlineCount}} online, ${{warnCount}} aging, ${{staleCount}} stale)`;
-      }}
-
-      if (entries.length === 0) {{
-        list.innerHTML = '<div class="favorites-empty">No tagged nodes yet. Click a tag chip next to a node name to add it here.</div>';
-        return;
-      }}
-      if (filtered.length === 0) {{
-        list.innerHTML = '<div class="favorites-empty">No tagged nodes match this search.</div>';
-        return;
-      }}
-
-      list.innerHTML = filtered.map((entry) => (
-        `<div class="favorite-node-item status-${{entry.status}}${{selectedNodeId === entry.id ? " selected-node" : ""}}" data-node-id="${{escAttr(entry.id)}}" title="${{escAttr(`${{entry.name}} (${{entry.id}})` )}}">
-          <div class="favorite-node-main">
-            <div class="favorite-node-name-row">
-              <span class="favorite-node-name">${{escAttr(entry.name)}}</span>
-              <span class="favorite-node-id">${{escAttr(entry.id)}}</span>
-            </div>
-            <div class="favorite-node-meta">
-              <span>Tag: ${{escAttr(entry.tagName)}}</span>
-              <span>Last: ${{escAttr(entry.lastSeenText)}}</span>
-              <span>Batt: ${{escAttr(entry.battery)}}</span>
-              <span>Hops: ${{escAttr(entry.hops)}}</span>
-              <span>Pos: ${{escAttr(entry.pos)}}</span>
-            </div>
-          </div>
-          ${{favoriteToggleButtonHtml(entry.id, "favorites-card-star")}}
-        </div>`
-      )).join("");
-
-      for (const item of list.querySelectorAll(".favorite-node-item")) {{
-        if (!(item instanceof HTMLElement)) continue;
-        item.addEventListener("click", (ev) => {{
-          const target = ev.target;
-          if (target instanceof Element && target.closest(".favorite-toggle-btn")) {{
-            return;
-          }}
-          selectNode(item.dataset.nodeId || "", true, false);
-        }});
-      }}
-      refreshFavoriteToggleButtons();
     }}

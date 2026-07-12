@@ -895,19 +895,7 @@
       return isCanonicalNodeId(resolvedLocalNodeId) ? resolvedLocalNodeId : "";
     }}
 
-    function resolveSavedViewNodeId(state = latestState) {{
-      const explicitId = normalizeNodeId(selectedNodeId || "");
-      if (isSelectableNodeId(explicitId)) {{
-        return explicitId;
-      }}
-      const localId = normalizeNodeId(resolveLocalNodeId(state) || "");
-      if (isSelectableNodeId(localId)) {{
-        return localId;
-      }}
-      return "";
-    }}
-
-    function resolveSavedViewNodeName(state = latestState, nodeId = resolveSavedViewNodeId(state)) {{
+    function resolveNodeDisplayName(state = latestState, nodeId = selectedNodeId) {{
       const clean = normalizeNodeId(nodeId || "");
       if (!isSelectableNodeId(clean)) {{
         return "";
@@ -935,19 +923,6 @@
         }}
       }}
       return nodeNameCache.get(clean) || clean;
-    }}
-
-    function savedViewNodeFrom(nodes, state = latestState) {{
-      const nodeId = resolveSavedViewNodeId(state);
-      if (!isSelectableNodeId(nodeId)) {{
-        return null;
-      }}
-      for (const node of (nodes || [])) {{
-        if (normalizeNodeId(node && node.id) === nodeId) {{
-          return node;
-        }}
-      }}
-      return null;
     }}
 
     function isSelfNodeId(nodeId, state = latestState) {{

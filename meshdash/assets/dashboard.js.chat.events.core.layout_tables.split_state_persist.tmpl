@@ -5,20 +5,6 @@
       }}
     }}
 
-    function persistSavedNodeSplitState() {{
-      try {{
-        window.localStorage.setItem(savedNodeSplitStorageKey, String(savedNodePanePct));
-      }} catch (_err) {{
-      }}
-    }}
-
-    function persistSavedNodeHistorySplitState() {{
-      try {{
-        window.localStorage.setItem(savedNodeHistorySplitStorageKey, String(savedNodeMainPct));
-      }} catch (_err) {{
-      }}
-    }}
-
     function persistGamesSidebarSplitState() {{
       try {{
         window.localStorage.setItem(gamesSidebarSplitStorageKey, String(gamesSidebarWidthPx));

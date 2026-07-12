@@ -785,31 +785,6 @@
       const s = state.summary || {{}};
       let targetValue = s.target || "n/a";
       let updatedValue = state.generated_at || "n/a";
-      let updatedFreshnessStatus = "";
-      let updatedFreshnessLabel = "";
-      if (activeLayoutView === "saved") {{
-        const selectedId = normalizeNodeId(selectedNodeId || "");
-        if (isSelectableNodeId(selectedId)) {{
-          const nodes = Array.isArray(state.nodes) ? state.nodes : [];
-          const node = nodes.find((entry) => normalizeNodeId(entry && entry.id) === selectedId) || null;
-          const historyCapsById = new Map(
-            Object.entries((state.history_caps && typeof state.history_caps === "object") ? state.history_caps : {{}})
-              .map(([rawNodeId, caps]) => [normalizeNodeId(rawNodeId), caps])
-              .filter(([nodeId, caps]) => isSelectableNodeId(nodeId) && caps && typeof caps === "object")
-          );
-          const caps = historyCapsById.get(selectedId) || null;
-          const traffic = (state.traffic && typeof state.traffic === "object") ? state.traffic : {{}};
-          const chatMessages = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
-          const latestChatTouchByNode = mapLatestChatTouchInfo(chatMessages);
-          const freshness = resolveNodeFreshness(node, caps, null, latestChatTouchByNode.get(selectedId) || null);
-          const status = freshnessStatus(freshness.unix, Math.floor(Date.now() / 1000));
-          updatedValue = savedDetailText(freshness.text, state.generated_at || "n/a");
-          updatedFreshnessStatus = status;
-          updatedFreshnessLabel = status === "online"
-            ? "Fresh"
-            : (status === "warn" ? "Aging" : (status === "stale" ? "Stale" : "Unknown"));
-        }}
-      }}
       const nodes = Array.isArray(state.nodes) ? state.nodes : [];
       const localId = normalizeNodeId(resolveLocalNodeId(state) || "");
       const localNode = nodes.find((entry) => normalizeNodeId(entry && entry.id) === localId) || null;
@@ -1518,14 +1493,8 @@
       const updatedFreshness = document.getElementById("updated-freshness");
       if (updatedFreshness instanceof HTMLElement) {{
         updatedFreshness.classList.remove("status-online", "status-warn", "status-stale", "status-unknown");
-        if (activeLayoutView === "saved" && updatedFreshnessLabel) {{
-          updatedFreshness.hidden = false;
-          updatedFreshness.textContent = updatedFreshnessLabel;
-          updatedFreshness.classList.add(`status-${{updatedFreshnessStatus || "unknown"}}`);
-        }} else {{
-          updatedFreshness.hidden = true;
-          updatedFreshness.textContent = "";
-        }}
+        updatedFreshness.hidden = true;
+        updatedFreshness.textContent = "";
       }}
       const err = document.getElementById("local-state-error");
       if (err) {{

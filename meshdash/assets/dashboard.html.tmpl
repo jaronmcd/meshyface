@@ -3179,18 +3179,8 @@
     <section class="card map">
       <div class="map-card-head">
         <h2 id="map-card-title" class="pane-head-title">
-          <button
-            id="map-card-title-favorite-btn"
-            class="favorite-toggle-btn map-title-favorite-btn"
-            type="button"
-            title="Tag node"
-            aria-label="Tag node"
-            aria-pressed="false"
-            hidden
-          ><span class="favorite-toggle-icon node-tag-dot"></span></button>
           <span id="map-card-title-text">Network Map</span>
         </h2>
-        <div id="saved-map-splitter-head" class="saved-map-splitter-head" title="Drag to resize node details and map"></div>
         <div id="map-card-actions-host" class="map-card-actions pane-head-actions">
           <div id="map-controls-dock" class="map-controls-dock">
             <button id="map-reset-view-btn" class="map-reset-view-btn" type="button" title="Reset map view">Reset view</button>
@@ -3198,20 +3188,6 @@
         </div>
       </div>
       <div class="body">
-        <div class="saved-node-pane">
-          <div class="saved-node-search-wrap">
-            <input
-              id="saved-node-search-input"
-              class="list-search-input"
-              type="search"
-              placeholder="Search by ID, name, or notes"
-              autocomplete="off"
-            />
-            <div id="saved-node-search-dropdown" class="node-search-dropdown" hidden></div>
-          </div>
-          <div id="saved-node-details" class="saved-node-details" aria-live="polite"></div>
-        </div>
-        <div id="saved-map-splitter" class="saved-map-splitter" title="Drag to resize node details and map"></div>
         <div class="map-frame">
           <div id="network-map-subviews" class="network-map-subviews" data-active-subview="map">
             <div id="network-map-chrome" class="network-map-chrome" aria-hidden="true">
@@ -3730,7 +3706,7 @@
       <h2 id="nodes-card-title">Nodes</h2>
       <div class="body nodes-body">
         <div class="network-node-stack">
-          <div class="saved-node-search-wrap">
+          <div class="node-list-search-wrap">
             <input
               id="nodes-search-input"
               class="list-search-input"
@@ -3773,19 +3749,6 @@
           <div id="network-node-splitter" class="network-node-splitter" title="Drag to resize node list and history panel"></div>
           <div id="network-node-history-host" class="network-node-history-host" hidden></div>
         </div>
-      </div>
-    </section>
-
-    <section class="card favorites">
-      <h2>Tagged Nodes</h2>
-      <div class="body favorites-body">
-        <div class="favorites-toolbar">
-          <div class="favorites-search-wrap">
-            <input id="favorites-search-input" class="list-search-input" type="search" placeholder="Search tagged by ID or name" autocomplete="off" />
-          </div>
-        </div>
-        <div id="favorites-caption" class="favorites-caption">No tagged nodes yet.</div>
-        <div id="favorites-list" class="scroll favorites-list"></div>
       </div>
     </section>
 

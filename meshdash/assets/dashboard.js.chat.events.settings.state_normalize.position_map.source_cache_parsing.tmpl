@@ -383,9 +383,6 @@
           renderNetworkGraphView(latestState);
         }}
       }}
-      if (activeLayoutView === "saved" && typeof renderFavorites === "function") {{
-        renderFavorites(latestState, null);
-      }}
       if (activeLayoutView === "files" && typeof renderFilesView === "function") {{
         renderFilesView(latestState);
       }}
@@ -397,16 +394,14 @@
           ? networkSubviewUsesMap(activeNetworkSubviewName)
           : activeNetworkSubviewName === "map"
       );
-      const mapVisible = activeLayoutView === "saved" || networkMapVisible;
+      const mapVisible = networkMapVisible;
       if (mapVisible && typeof renderMap === "function") {{
         // A profile preference changes effective appearance without changing
         // any node telemetry, so bypass the normal map-data render cache.
         lastMapSignature = "";
         lastMapGraphSignature = "";
         lastMapRenderMode = "";
-        const mapNodeId = activeLayoutView === "saved"
-          ? resolveSavedViewNodeId(latestState)
-          : normalizeNodeId(selectedNodeId || "");
+        const mapNodeId = normalizeNodeId(selectedNodeId || "");
         const cachedHistory = (
           isSelectableNodeId(mapNodeId)
           && typeof cachedNodeHistory === "function"

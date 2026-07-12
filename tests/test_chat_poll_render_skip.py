@@ -98,7 +98,7 @@ POLL_RENDER_SKIP_TOKEN_GROUPS: tuple[tuple[str, Sequence[str]], ...] = (
             'if (latestState && (activeLayoutView !== "network" || networkMapVisible)) {',
             'const shouldPrefetchNodeHistory = !!(',
             'activeTab === "history"',
-            'if (activeLayoutView === "saved" || networkMapVisible) {',
+            'if (networkMapVisible) {',
             "function setDrawerElementTextIfChanged(element, nextText) {",
             'function setDrawerElementHtmlIfChanged(element, nextHtml, cacheKey = "default") {',
             "function syncDrawerTabButtonState(button, isActive) {",

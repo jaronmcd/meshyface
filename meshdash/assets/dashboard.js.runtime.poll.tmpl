@@ -426,11 +426,9 @@
             typeof isChatNodeDetailsDrawerExpanded === "function"
             && isChatNodeDetailsDrawerExpanded()
           );
-          const historyTargetId304 = activeLayoutView === "saved"
-            ? resolveSavedViewNodeId(latestState)
-            : normalizeNodeId(selectedNodeId || "");
+          const historyTargetId304 = normalizeNodeId(selectedNodeId || "");
           const networkMapActive304 = activeLayoutView === "network" && networkSubviewUsesMap(activeNetworkSubview);
-          const historyRelevant304 = (activeLayoutView === "saved" || networkMapActive304 || drawerHistoryVisible304)
+          const historyRelevant304 = (networkMapActive304 || drawerHistoryVisible304)
             && isSelectableNodeId(historyTargetId304);
           const cachedHistory304 = historyRelevant304 ? cachedNodeHistory(historyTargetId304) : null;
           const nodes304 = Array.isArray(latestState.nodes) ? latestState.nodes : [];
@@ -452,7 +450,7 @@
             renderChatNodeNavigatorList(latestState);
           }}
           renderSummary(latestState);
-          const mapVisible304 = activeLayoutView === "saved" || networkMapActive304;
+          const mapVisible304 = networkMapActive304;
           const trafficVisible304 = mapVisible304;
           markPollPerfPhase(pollPerfRun, "not-modified-context", {{
             hidden: hidden304,
@@ -501,12 +499,6 @@
           }}
           if (activeLayoutView === "games") {{
             renderGamesView(latestState);
-          }}
-          if (activeLayoutView === "saved") {{
-            const loadingId304 = (activeLayoutView === "saved" && historyRelevant304 && !cachedHistory304)
-              ? historyTargetId304
-              : null;
-            renderFavorites(latestState, cachedHistory304, loadingId304);
           }}
           let chatRenderedThisPoll304 = false;
           let chatMaintainedThisPoll304 = false;
@@ -656,16 +648,14 @@
         markPollPerfPhase(pollPerfRun, "pre-render");
 
         const networkMapActive = activeLayoutView === "network" && networkSubviewUsesMap(activeNetworkSubview);
-        const mapVisible = activeLayoutView === "saved" || networkMapActive;
+        const mapVisible = networkMapActive;
         const trafficVisible = mapVisible;
         const drawerHistoryVisible = (
           typeof isChatNodeDetailsDrawerExpanded === "function"
           && isChatNodeDetailsDrawerExpanded()
         );
-        const historyTargetId = activeLayoutView === "saved"
-          ? resolveSavedViewNodeId(state)
-          : normalizeNodeId(selectedNodeId || "");
-        const historyRelevant = (activeLayoutView === "saved" || networkMapActive || drawerHistoryVisible)
+        const historyTargetId = normalizeNodeId(selectedNodeId || "");
+        const historyRelevant = (networkMapActive || drawerHistoryVisible)
           && isSelectableNodeId(historyTargetId);
         const cachedHistory = historyRelevant ? cachedNodeHistory(historyTargetId) : null;
         const networkGraphActive = activeLayoutView === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
@@ -835,13 +825,6 @@
             // Keep node-details history tabs live across non-chat screens too.
             fetchHistory: true,
           }});
-        }}
-
-        if (activeLayoutView === "saved") {{
-          const loadingId = (activeLayoutView === "saved" && historyRelevant && !cachedHistory)
-            ? historyTargetId
-            : null;
-          renderFavorites(state, cachedHistory, loadingId);
         }}
 
         if (activeLayoutView === "network" && activeNetworkSubview === "sensors") {{
