@@ -6,6 +6,8 @@
         String(controlId || "").startsWith("settings-map-layer-")
         || controlId === "settings-time-sync-enabled"
         || controlId === "settings-time-sync-timezone"
+        || controlId === "settings-meshyface-theme-sharing"
+        || String(controlId || "").startsWith("settings-meshyface-node-theme-")
         || controlId === "settings-appearance-keep-screen-on"
         || controlId === "settings-raw-packet-capture-enabled"
         || controlId === "theme-custom-base-color"
@@ -42,7 +44,14 @@
           setActiveSettingsTab(tabBtn.dataset.settingsTab, true);
         }});
       }}
+      for (const tabBtn of settingsCard.querySelectorAll(".settings-appearance-tab-btn[data-settings-appearance-tab]")) {{
+        if (!(tabBtn instanceof HTMLButtonElement)) continue;
+        tabBtn.addEventListener("click", () => {{
+          setActiveSettingsAppearanceTab(tabBtn.dataset.settingsAppearanceTab, true);
+        }});
+      }}
       setActiveSettingsTab(activeSettingsTab, false);
+      setActiveSettingsAppearanceTab(activeSettingsAppearanceTab, false);
       bindMapsSettingsControls();
 
       settingsCard.addEventListener("input", (ev) => {{
@@ -98,6 +107,14 @@
               ? "Time sync timezone set to browser local."
               : `Time sync timezone set to ${{settingsTimeSyncTimezonePref}}.`
           );
+        }}
+        if (target instanceof HTMLInputElement && target.id === "settings-meshyface-theme-sharing") {{
+          setMeshyfaceThemeSharingEnabled(!!target.checked, {{
+            persist: true,
+            rerender: true,
+            announce: true,
+            server: true,
+          }});
         }}
         if (target instanceof HTMLInputElement && target.id === "settings-appearance-keep-screen-on") {{
           setSettingsScreenWakeLockEnabled(!!target.checked, {{
@@ -191,6 +208,15 @@
         setTimeBtn.addEventListener("click", () => {{
           void setRadioTime();
         }});
+      }}
+      const profileBroadcastBtn = document.getElementById("settings-meshyface-profile-broadcast");
+      if (profileBroadcastBtn instanceof HTMLButtonElement) {{
+        profileBroadcastBtn.addEventListener("click", () => {{
+          void broadcastMeshyfaceProfileTheme();
+        }});
+      }}
+      if (typeof bindMeshyfaceNodeThemeControls === "function") {{
+        bindMeshyfaceNodeThemeControls();
       }}
       syncSettingsTimeSyncControls();
       syncSettingsAppearanceControls();

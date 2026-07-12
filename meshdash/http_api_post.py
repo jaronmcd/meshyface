@@ -18,6 +18,8 @@ from .http_route_contracts import (
     RunNetworkToolFn,
     ScheduleBackendRestartFn,
     SendChatFn,
+    SendMeshyfaceProfileFn,
+    SetMeshyfaceProfileProcessingEnabledFn,
     SetBbsSettingsFn,
     SetPingBotEnabledFn,
     SetPingBotMessageOnlyFn,
@@ -77,11 +79,19 @@ parse_network_tool_request = _load_optional_callable(
     ".api_input_network_tools",
     "parse_network_tool_request",
 )
+parse_meshyface_profile_theme_request = _load_optional_callable(
+    ".api_input_meshyface_profile",
+    "parse_meshyface_profile_theme_request",
+)
 
 
 def build_post_route_dependencies(
     *,
     send_chat_fn: SendChatFn | None,
+    send_meshyface_profile_fn: SendMeshyfaceProfileFn | None = None,
+    set_meshyface_profile_processing_enabled_fn: (
+        SetMeshyfaceProfileProcessingEnabledFn | None
+    ) = None,
     set_theme_preset_fn: SetThemePresetFn | None = None,
     set_bbs_settings_fn: SetBbsSettingsFn | None = None,
     set_zork_bot_enabled_fn: SetZorkBotEnabledFn | None = None,
@@ -114,6 +124,11 @@ def build_post_route_dependencies(
             parse_chat_send_request or _parse_chat_send_request_unavailable
         ),
         write_json_response_fn=write_json_response,
+        send_meshyface_profile_fn=send_meshyface_profile_fn,
+        set_meshyface_profile_processing_enabled_fn=(
+            set_meshyface_profile_processing_enabled_fn
+        ),
+        parse_meshyface_profile_theme_request_fn=parse_meshyface_profile_theme_request,
         set_theme_preset_fn=set_theme_preset_fn,
         parse_theme_settings_request_fn=parse_theme_settings_request,
         set_bbs_settings_fn=set_bbs_settings_fn,

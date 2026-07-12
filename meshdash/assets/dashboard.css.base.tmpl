@@ -1112,6 +1112,24 @@
       background: color-mix(in srgb, var(--accent) 13%, transparent);
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
     }}
+    .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node {{
+      border-radius: 9px;
+      background: var(--node-profile-theme-wash, transparent);
+      box-shadow: inset 2px 0 0 var(--node-profile-border, var(--accent));
+    }}
+    .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node[role="button"]:hover {{
+      background: var(--node-profile-theme-wash-hover, var(--node-profile-theme-wash, transparent));
+      box-shadow:
+        inset 2px 0 0 var(--node-profile-border, var(--accent)),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 18%, transparent);
+    }}
+    .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node .self-node-name-text {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 34%,
+        var(--ticker-text-strong) 66%
+      );
+    }}
     .topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot[role="button"]:focus-visible {{
       outline: 2px solid color-mix(in srgb, var(--accent-2) 74%, black);
       outline-offset: 1px;
@@ -1190,6 +1208,14 @@
       align-items: stretch;
       justify-items: stretch;
       text-align: right;
+    }}
+    .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-selected.profiled-node {{
+      box-shadow: inset -2px 0 0 var(--node-profile-border, var(--accent));
+    }}
+    .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-selected.profiled-node[role="button"]:hover {{
+      box-shadow:
+        inset -2px 0 0 var(--node-profile-border, var(--accent)),
+        inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 18%, transparent);
     }}
     .topbar .summary-ticker-item-self .value.self-node-value.is-dual-node-context .self-node-identity-selected .self-node-name {{
       flex: 0 1 auto;
@@ -3282,7 +3308,6 @@
     .workspace-stack-head-shell,
     .workspace-stack-list-shell,
     .settings-panel,
-    .settings-gradient-group,
     .settings-input,
     .settings-select,
     .settings-textarea,
@@ -7271,6 +7296,29 @@
     .network-graph-node.is-tagged.is-selected .network-graph-node-core {{
       stroke-width: 3;
     }}
+    .network-graph-node-theme-surface-fo {{
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 140ms ease;
+    }}
+    .network-graph-node.has-theme-identity .network-graph-node-theme-surface-fo {{
+      opacity: 0.82;
+      visibility: visible;
+    }}
+    .network-graph-node.has-theme-identity:hover .network-graph-node-theme-surface-fo {{
+      opacity: 0.94;
+    }}
+    .network-graph-node-theme-surface {{
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+      border: 1px solid color-mix(in srgb, var(--node-profile-theme-border, var(--node-profile-theme-line, transparent)) 68%, transparent);
+      border-radius: 50%;
+      background: var(--node-profile-theme-surface, var(--node-profile-theme-base, transparent));
+      box-shadow: inset 0 0 5px color-mix(in srgb, var(--node-profile-theme-contrast, #ffffff) 22%, transparent);
+    }}
     .network-graph-node-label {{
       fill: #284335;
       font-size: var(--network-graph-label-font-size, 10px);
@@ -9360,6 +9408,22 @@
       gap: 10px;
       min-height: 0;
     }}
+    .settings-appearance-tabbar {{
+      align-self: flex-start;
+      padding: 4px;
+      border: 1px solid var(--settings-line-soft);
+      border-radius: 10px;
+      background: var(--settings-bg-soft);
+    }}
+    .settings-appearance-tab-panel {{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 0;
+    }}
+    .settings-appearance-tab-panel[hidden] {{
+      display: none;
+    }}
     .settings-about-panel {{
       order: 0;
     }}
@@ -10191,9 +10255,6 @@
       gap: 10px 12px;
       align-items: flex-end;
     }}
-    .settings-gradient-row {{
-      align-items: stretch;
-    }}
     .settings-theme-preset-row {{
       align-items: flex-end;
     }}
@@ -10211,25 +10272,184 @@
     .settings-inline-actions .btn {{
       white-space: nowrap;
     }}
-    .settings-gradient-group {{
-      flex: 1 1 420px;
-      min-width: min(100%, 320px);
-      margin: 0;
-      padding: 10px;
-      border: 1px solid var(--settings-line-soft);
-      border-radius: 10px;
-      background: var(--settings-bg-muted);
+    .settings-meshyface-share-row {{
+      align-items: center;
     }}
-    .settings-gradient-group legend {{
-      padding: 0 4px;
+    .settings-meshyface-share-row .settings-field {{
+      min-width: 0;
+    }}
+    .settings-meshyface-node-theme-panel {{
+      display: grid;
+      grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+      width: 100%;
+    }}
+    .settings-meshyface-node-theme-preview-wrap,
+    .settings-meshyface-node-theme-controls {{
+      min-width: 0;
+    }}
+    .settings-meshyface-node-theme-preview-wrap {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }}
+    .settings-meshyface-node-theme-preview-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 18px;
+    }}
+    .settings-meshyface-node-theme-preview-mode {{
+      max-width: 140px;
+      overflow: hidden;
       color: var(--settings-text-muted);
       font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.18em;
+      letter-spacing: 0.12em;
+      text-overflow: ellipsis;
       text-transform: uppercase;
+      white-space: nowrap;
     }}
-    .settings-background-panel {{
-      flex-basis: 100%;
+    body .settings-meshyface-node-theme-preview {{
+      min-width: 0;
+    }}
+    body .settings-meshyface-node-theme-preview-shell {{
+      display: block;
+      min-height: 182px;
+      padding: 10px;
+      overflow: hidden;
+      border: 1px solid var(--settings-line-soft);
+      border-radius: 8px;
+      background:
+        linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--workspace-shell-bg, var(--settings-bg)) 92%, transparent),
+          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--settings-bg-soft)) 88%, transparent)
+        );
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--settings-line-soft) 48%, transparent);
+    }}
+    body .settings-meshyface-node-theme-preview .settings-meshyface-node-theme-preview-feed {{
+      display: flex;
+      min-height: 160px;
+      padding: 10px;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 10px;
+      overflow: visible;
+      border: 1px solid color-mix(in srgb, var(--workspace-shell-border-muted, var(--settings-line-soft)) 54%, transparent);
+      border-radius: 6px;
+      background:
+        linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--workspace-shell-bg, var(--settings-bg)) 70%, transparent),
+          color-mix(in srgb, var(--bg, #000000) 18%, transparent)
+        );
+    }}
+    body .settings-meshyface-node-theme-preview .chat-feed-item {{
+      width: fit-content;
+      min-width: min(210px, 100%);
+      max-width: min(92%, 300px);
+      margin: 0;
+      transform: none;
+    }}
+    body .settings-meshyface-node-theme-preview .chat-feed-text {{
+      min-height: 18px;
+    }}
+    body .settings-meshyface-node-theme-preview .chat-reaction-row {{
+      margin-top: 6px;
+      opacity: 1;
+    }}
+    body .settings-meshyface-node-theme-preview .chat-member-item {{
+      width: min(100%, 300px);
+      min-height: 34px;
+      margin: 0;
+      border-radius: 6px;
+    }}
+    body .settings-meshyface-node-theme-preview-shell .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert):not(.has-change-marker) {{
+      border-color: var(--node-profile-identity-color);
+      background-image: var(--node-profile-theme-surface) !important;
+    }}
+    body .settings-meshyface-node-theme-preview-shell .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node.chat-selectable:not(.kind-status):not(.kind-alert):not(.has-change-marker):hover {{
+      background-image: var(--node-profile-theme-surface-hover) !important;
+    }}
+    body .settings-meshyface-node-theme-preview-shell .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {{
+      color: var(--theme-text-color, var(--ink)) !important;
+    }}
+    [data-theme="dark"] body .settings-meshyface-node-theme-preview-shell .chat-feed-item {{
+      --chat-feed-node-hue: var(--surface-tint-start-hue);
+      --chat-feed-node-tint-start-hue: var(--surface-tint-start-hue);
+      --chat-feed-node-tint-end-hue: var(--surface-tint-end-hue);
+      --chat-feed-node-outline-hue: var(--surface-tint-outline-hue);
+      --chat-feed-node-outline-dark-sat-mult: 0;
+      --chat-feed-node-outline-dark-light-shift: 4%;
+      --chat-feed-node-dark-sat-mult: 0;
+      --chat-feed-node-dark-light-shift: 0%;
+      --chat-feed-node-outline: color-mix(in srgb, var(--workspace-shell-border-strong) 78%, var(--ui-accent) 22%);
+      --chat-feed-node-outline-soft: color-mix(in srgb, var(--workspace-shell-border-strong) 58%, var(--workspace-shell-bg) 42%);
+      --chat-feed-node-bg: var(--workspace-shell-bg);
+      --chat-feed-node-bg-hover: color-mix(in srgb, var(--workspace-shell-bg) 90%, var(--workspace-shell-border-strong) 10%);
+      --chat-feed-border-color: var(--workspace-shell-border);
+      --chat-feed-node-gradient: linear-gradient(90deg, transparent 0, transparent 100%);
+      --chat-feed-node-gradient-hover: linear-gradient(90deg, transparent 0, transparent 100%);
+      background: var(--chat-feed-channel-edge-bg), var(--chat-feed-node-gradient), var(--chat-feed-node-bg);
+      border: 1px solid var(--chat-feed-border-color);
+      color: var(--ui-text);
+    }}
+    [data-theme="dark"] body .settings-meshyface-node-theme-preview-shell .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {{
+      color: var(--theme-text-color, var(--workspace-shell-text)) !important;
+    }}
+    .settings-meshyface-node-theme-controls {{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }}
+    .settings-control-stack {{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+      width: 100%;
+    }}
+    .settings-control-section {{
+      min-width: 0;
+    }}
+    .settings-control-section + .settings-control-section {{
+      padding-top: 4px;
+      border-top: 1px solid color-mix(in srgb, var(--settings-line-soft) 42%, transparent);
+    }}
+    .settings-control-section > .settings-sublegend {{
+      margin: 0 0 7px;
+    }}
+    .settings-theme-control-stack {{
+      margin-top: 2px;
+    }}
+    .settings-gradient-fields.settings-theme-surface-fields {{
+      grid-template-columns: minmax(130px, 0.9fr) repeat(3, minmax(150px, 1.1fr));
+    }}
+    .settings-gradient-fields.settings-theme-identity-fields {{
+      grid-template-columns: repeat(3, minmax(140px, 1fr));
+    }}
+    .settings-gradient-fields.settings-theme-gradient-fields {{
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+    }}
+    .settings-gradient-fields.settings-meshyface-node-theme-text-fields {{
+      grid-template-columns: minmax(180px, 1.6fr) repeat(3, minmax(120px, 1fr));
+    }}
+    .settings-gradient-fields.settings-meshyface-node-theme-surface-fields {{
+      grid-template-columns: minmax(130px, 0.9fr) repeat(2, minmax(150px, 1.1fr));
+    }}
+    .settings-gradient-fields.settings-meshyface-node-theme-identity-fields {{
+      grid-template-columns: repeat(3, minmax(140px, 1fr));
+    }}
+    .settings-gradient-fields.settings-meshyface-node-theme-gradient-fields {{
+      grid-template-columns: repeat(4, minmax(130px, 1fr));
+    }}
+    .settings-meshyface-node-theme-toggle-field {{
+      align-self: end;
+      min-height: 30px;
     }}
     .settings-background-source-fields {{
       display: grid;
@@ -10292,7 +10512,11 @@
       display: none;
     }}
     @media (max-width: 760px) {{
+      .settings-meshyface-node-theme-panel {{
+        grid-template-columns: 1fr;
+      }}
       .settings-gradient-fields,
+      .settings-meshyface-node-theme-text-fields,
       .settings-background-image-fields,
       .settings-particles-fields,
       .settings-livemap-layer-grid {{
@@ -10306,12 +10530,30 @@
       .settings-gradient-fields {{
         grid-template-columns: repeat(2, minmax(120px, 1fr));
       }}
+      .settings-gradient-fields.settings-theme-surface-fields,
+      .settings-gradient-fields.settings-theme-identity-fields,
+      .settings-gradient-fields.settings-theme-gradient-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-text-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-surface-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-identity-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-gradient-fields {{
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+      }}
       .settings-livemap-layer-grid {{
         grid-template-columns: repeat(3, minmax(96px, 1fr));
       }}
     }}
     @media (max-width: 640px) {{
       .settings-gradient-fields {{
+        grid-template-columns: 1fr;
+      }}
+      .settings-gradient-fields.settings-theme-surface-fields,
+      .settings-gradient-fields.settings-theme-identity-fields,
+      .settings-gradient-fields.settings-theme-gradient-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-text-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-surface-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-identity-fields,
+      .settings-gradient-fields.settings-meshyface-node-theme-gradient-fields {{
         grid-template-columns: 1fr;
       }}
     }}
@@ -10394,6 +10636,49 @@
       background: var(--settings-bg-strong);
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent-soft, var(--accent)) 22%, transparent);
     }}
+    .settings-emoji-input-row {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 30px;
+      gap: 6px;
+      align-items: stretch;
+      min-width: 0;
+    }}
+    .settings-emoji-input-row .settings-input {{
+      min-width: 0;
+      width: 100%;
+    }}
+    .settings-owner-name-input-row {{
+      flex: 0 0 174px;
+    }}
+    .settings-owner-name-long-input-row {{
+      flex: 1 1 280px;
+    }}
+    .settings-emoji-picker-btn {{
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--settings-control-border);
+      border-radius: 8px;
+      background: var(--settings-control-bg);
+      color: var(--settings-control-text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+    }}
+    .settings-emoji-picker-btn:hover,
+    .settings-emoji-picker-btn[aria-expanded="true"] {{
+      border-color: var(--ui-accent-soft, var(--accent));
+      background: var(--settings-bg-strong);
+    }}
+    .settings-emoji-picker-btn:focus-visible {{
+      outline: none;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent-soft, var(--accent)) 24%, transparent);
+    }}
     .settings-input[type="number"] {{
       -moz-appearance: textfield;
       appearance: textfield;
@@ -10427,13 +10712,25 @@
       cursor: pointer;
     }}
     #nodes-table tbody tr.profiled-node:not(.selected-node) td {{
-      background: color-mix(in srgb, var(--node-profile-bg, var(--surface-tint-bg-soft)) 78%, transparent);
+      background:
+        var(--node-profile-theme-wash, linear-gradient(transparent, transparent)),
+        color-mix(in srgb, var(--node-profile-bg, var(--surface-tint-bg-soft)) 42%, var(--surface-tint-bg-soft) 58%);
     }}
     #nodes-table tbody tr.profiled-node:not(.selected-node) td:first-child {{
       box-shadow: inset 3px 0 0 var(--node-profile-border, var(--accent));
     }}
     #nodes-table tbody tr.profiled-node.node-selectable:not(.selected-node):hover td {{
-      background: color-mix(in srgb, var(--node-profile-bg, var(--surface-tint-bg-soft)) 88%, var(--surface-tint-bg-soft) 12%);
+      background:
+        var(--node-profile-theme-wash-hover, var(--node-profile-theme-wash, linear-gradient(transparent, transparent))),
+        color-mix(in srgb, var(--node-profile-bg, var(--surface-tint-bg-soft)) 48%, var(--surface-tint-bg-hover) 52%);
+    }}
+    #nodes-table tbody tr.profiled-node .node-name-label {{
+      color: color-mix(
+        in srgb,
+        var(--node-profile-theme-line, var(--node-profile-border, var(--accent))) 38%,
+        var(--surface-tint-text) 62%
+      );
+      font-weight: 700;
     }}
     .node-profile-emoji {{
       display: inline-block;
@@ -10447,7 +10744,7 @@
         inset 2px 0 0 var(--node-profile-border, var(--accent)),
         inset 0 0 0 1px color-mix(in srgb, var(--node-profile-border, var(--accent)) 18%, transparent);
     }}
-    .chat-feed-item.profiled-node {{
+    .chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {{
       border-color: var(--node-profile-border, var(--chat-feed-border-color));
     }}
     .dashboard-color-picker-control {{

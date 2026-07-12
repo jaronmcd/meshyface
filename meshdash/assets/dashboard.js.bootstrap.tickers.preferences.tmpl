@@ -1198,6 +1198,12 @@
       applyMapTiles(resolvedTheme);
       applySettingsFixedMapTiles(resolvedTheme);
       updateThemeToggleLabel(resolvedTheme);
+      if (typeof renderMeshyfaceNodeThemePreview === "function") {{
+        renderMeshyfaceNodeThemePreview();
+      }}
+      if (typeof rerenderMeshyfaceProfileAppearance === "function") {{
+        rerenderMeshyfaceProfileAppearance();
+      }}
       const historyNodeId = activeLayoutView === "saved"
         ? resolveSavedViewNodeId(latestState)
         : normalizeNodeId(selectedNodeId || "");

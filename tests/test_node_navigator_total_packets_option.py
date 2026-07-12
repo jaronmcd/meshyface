@@ -423,6 +423,24 @@ def test_dashboard_js_sorts_status_using_visible_freshness_snapshot() -> None:
     assert "chatNodeNavigatorStatusSortValue(b, bProjection)" in js
 
 
+def test_dashboard_js_orders_equal_status_nodes_by_latest_received() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    received_tie_break = """if (sortKey === \"status\") {
+          const receivedCmp = chatNodeNavigatorCompareSortValues(
+            chatNodeNavigatorLastUpdateUnix(b, bProjection),
+            chatNodeNavigatorLastUpdateUnix(a, aProjection)
+          );
+          if (receivedCmp !== 0) return receivedCmp;
+        }"""
+    assert received_tie_break in js
+    assert js.index(received_tie_break) < js.index("const activityCmp = chatNodeNavigatorCompareSortValues(")
+
+
 def test_dashboard_js_marks_muted_nodes_in_navigator_rows() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,

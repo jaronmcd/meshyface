@@ -92,6 +92,27 @@ screenshot.
 | --- | --- | --- |
 | [![Signal Green theme with a deep green live-map palette.](docs/screenshots/theme-signal-green.png)](docs/screenshots/theme-signal-green.png) | [![Neon Magenta theme with translucent purple panels and particles.](docs/screenshots/theme-neon-magenta.png)](docs/screenshots/theme-neon-magenta.png) | [![Aurora theme with teal glass, a navy-plum gradient, and amber links.](docs/screenshots/theme-aurora-relay.png)](docs/screenshots/theme-aurora-relay.png) |
 
+### Shared node appearances
+
+Meshyface nodes can share compact appearance packets containing a node-theme
+recipe and an optional ghost or watermark. Configure and preview your node in
+`Settings > Appearance > Node Appearance`, enable **Share node appearance**,
+then use **Broadcast appearance** to publish it.
+
+- Appearance packets use the configured Profiles send channel and inherit the
+  radio's hop-limit setting; Meshyface does not impose a separate hop limit.
+- Received appearances can style node identities in chat, rosters, node
+  details, maps, graphs, sensors, and tickers without replacing the receiving
+  dashboard's own theme.
+- Turning **Share node appearance** off disables both sides of the feature. It
+  stops broadcasts and bypasses the profile receive path before incoming
+  appearance payloads are decoded, cached, or persisted; cached shared
+  appearances are cleared and no received appearance is rendered.
+- When history is enabled, received profiles and the local sharing preference
+  persist in the history SQLite database.
+- Shared appearances are cosmetic metadata. A received appearance does not
+  change radio settings, channels, or the dashboard's saved package theme.
+
 ## System Architecture
 
 ```mermaid

@@ -514,6 +514,84 @@ def build_dashboard_runtime_context(
 
         setattr(loaders.state_fn, "run_network_tool_fn", _run_network_tool_fn)
 
+    # Attach the Meshyface profile broadcaster to the state loader so HTTP
+    # wiring can discover it without adding another server-wide dependency.
+    try:
+        from .services_meshyface_profile import (
+            send_meshyface_profile_theme as _send_meshyface_profile_theme,
+        )
+    except Exception:
+        _send_meshyface_profile_theme = None
+
+    if _send_meshyface_profile_theme is not None:
+        def _send_meshyface_profile_fn(  # type: ignore[no-redef]
+            *,
+            theme,
+            channel_index=0,
+            ghost=None,
+        ):
+            status_fn = getattr(tracker, "meshyface_profile_processing_status", None)
+            if callable(status_fn):
+                status = status_fn()
+                if isinstance(status, Mapping) and not bool(status.get("enabled", False)):
+                    raise ValueError("node appearance sharing is disabled")
+            elif not bool(getattr(tracker, "meshyface_profile_processing_enabled", False)):
+                raise ValueError("node appearance sharing is disabled")
+            return _send_meshyface_profile_theme(
+                channel_index=channel_index,
+                theme=theme,
+                ghost=ghost,
+                iface=iface,
+                send_lock=send_lock,
+                local_node_id_fn=lambda: get_local_node_id_fn(iface),
+            )
+
+        setattr(
+            loaders.state_fn,
+            "send_meshyface_profile_fn",
+            _send_meshyface_profile_fn,
+        )
+        state_lite_fn = getattr(loaders.state_fn, "lite", None)
+        if callable(state_lite_fn):
+            try:
+                setattr(
+                    state_lite_fn,
+                    "send_meshyface_profile_fn",
+                    _send_meshyface_profile_fn,
+                )
+            except Exception:
+                pass
+
+    set_meshyface_profile_processing_enabled = getattr(
+        tracker,
+        "set_meshyface_profile_processing_enabled",
+        None,
+    )
+    if callable(set_meshyface_profile_processing_enabled):
+        def _set_meshyface_profile_processing_enabled_fn(  # type: ignore[no-redef]
+            enabled,
+        ):
+            return set_meshyface_profile_processing_enabled(bool(enabled))
+
+        try:
+            setattr(
+                loaders.state_fn,
+                "set_meshyface_profile_processing_enabled_fn",
+                _set_meshyface_profile_processing_enabled_fn,
+            )
+        except Exception:
+            pass
+        state_lite_fn = getattr(loaders.state_fn, "lite", None)
+        if callable(state_lite_fn):
+            try:
+                setattr(
+                    state_lite_fn,
+                    "set_meshyface_profile_processing_enabled_fn",
+                    _set_meshyface_profile_processing_enabled_fn,
+                )
+            except Exception:
+                pass
+
     # Optional: expose custom telemetry extraction rules persisted in history DB.
     if history_store is not None:
         database_stats_fn = getattr(history_store, "database_stats", None)

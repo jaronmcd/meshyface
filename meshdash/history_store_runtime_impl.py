@@ -44,6 +44,12 @@ from .history_store_packets import (
 from .history_store_malformed_text import (
     load_malformed_text_history as _load_malformed_text_history_helper,
 )
+from .history_store_meshyface_profiles import (
+    backfill_meshyface_profiles_from_packets as _backfill_meshyface_profiles_from_packets_helper,
+    load_meshyface_profiles as _load_meshyface_profiles_helper,
+    save_meshyface_profile as _save_meshyface_profile_helper,
+)
+from .meshyface_profile import MESHYFACE_PROFILE_CACHE_LIMIT
 from .history_store_summary import (
     load_summary_metrics as _load_summary_metrics_helper,
     save_summary_metrics as _save_summary_metrics_helper,
@@ -57,9 +63,11 @@ from .history_store_settings import (
     load_bbs_settings as _load_bbs_settings_helper,
     load_bot_runtime_settings as _load_bot_runtime_settings_helper,
     load_custom_telemetry_settings as _load_custom_telemetry_settings_helper,
+    load_meshyface_profile_processing_settings as _load_meshyface_profile_processing_settings_helper,
     save_bbs_settings as _save_bbs_settings_helper,
     save_bot_runtime_settings as _save_bot_runtime_settings_helper,
     save_custom_telemetry_settings as _save_custom_telemetry_settings_helper,
+    save_meshyface_profile_processing_settings as _save_meshyface_profile_processing_settings_helper,
 )
 from .history_store_database_stats import (
     load_database_stats as _load_database_stats_helper,
@@ -170,6 +178,29 @@ class HistoryStore:
 
     def load_recent_chat(self, limit: int) -> list[dict[str, object]]:
         return _load_recent_chat_helper(self, limit)
+
+    def load_meshyface_profiles(
+        self,
+        *,
+        limit: int | None = None,
+    ) -> list[dict[str, object]]:
+        return _load_meshyface_profiles_helper(
+            self,
+            limit=limit if limit is not None else MESHYFACE_PROFILE_CACHE_LIMIT,
+        )
+
+    def backfill_meshyface_profiles_from_packets(
+        self,
+        *,
+        limit: int | None = None,
+        packet_limit: int | None = None,
+    ) -> list[dict[str, object]]:
+        kwargs: dict[str, object] = {
+            "limit": limit if limit is not None else MESHYFACE_PROFILE_CACHE_LIMIT,
+        }
+        if packet_limit is not None:
+            kwargs["packet_limit"] = packet_limit
+        return _backfill_meshyface_profiles_from_packets_helper(self, **kwargs)
 
     def load_chat_page(
         self,
@@ -285,6 +316,18 @@ class HistoryStore:
     def save_chat(self, chat_entry: dict[str, object]) -> None:
         _save_chat_helper(self, chat_entry)
 
+    def save_meshyface_profile(
+        self,
+        profile: object,
+        *,
+        limit: int | None = None,
+    ) -> bool:
+        return _save_meshyface_profile_helper(
+            self,
+            profile,
+            limit=limit if limit is not None else MESHYFACE_PROFILE_CACHE_LIMIT,
+        )
+
     def update_chat(self, chat_entry: dict[str, object]) -> bool:
         return _update_chat_helper(self, chat_entry)
 
@@ -303,6 +346,9 @@ class HistoryStore:
     def get_bot_runtime_settings(self) -> dict[str, object]:
         return _load_bot_runtime_settings_helper(self)
 
+    def get_meshyface_profile_processing_settings(self) -> dict[str, object]:
+        return _load_meshyface_profile_processing_settings_helper(self)
+
     def get_bbs_posts(self) -> dict[str, object]:
         return _load_bbs_posts_helper(self)
 
@@ -311,6 +357,9 @@ class HistoryStore:
 
     def set_bot_runtime_settings(self, settings: object) -> dict[str, object]:
         return _save_bot_runtime_settings_helper(self, settings=settings)
+
+    def set_meshyface_profile_processing_settings(self, enabled: object) -> dict[str, object]:
+        return _save_meshyface_profile_processing_settings_helper(self, enabled=enabled)
 
     def append_bbs_post(self, post: object) -> dict[str, object]:
         return _append_bbs_post_helper(self, post=post)

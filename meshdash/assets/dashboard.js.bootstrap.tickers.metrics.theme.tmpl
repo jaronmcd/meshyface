@@ -1311,6 +1311,9 @@
           themeCustomLivemapLayerDefaults[layerKey] !== false
         );
       }}
+      if (typeof syncMeshyfaceNodeThemeControls === "function") {{
+        syncMeshyfaceNodeThemeControls();
+      }}
     }}
 
     function applyThemePresetTokens(resolvedTheme) {{

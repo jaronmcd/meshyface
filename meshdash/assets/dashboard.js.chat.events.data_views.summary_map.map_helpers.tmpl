@@ -25,15 +25,96 @@
       return {{ hash: hash >>> 0, count: pointCount }};
     }}
 
+    function mapNodeEffectiveAppearance(nodeId, state = latestState) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      if (!isSelectableNodeId(cleanNodeId)) return null;
+      if (typeof effectiveNodeAppearanceForNode !== "function") return null;
+      const appearanceEntry = effectiveNodeAppearanceForNode(cleanNodeId, state);
+      return appearanceEntry && appearanceEntry.preset ? appearanceEntry : null;
+    }}
+
+    function mapNodeAppearanceColor(appearanceEntry) {{
+      const preset = appearanceEntry && appearanceEntry.preset;
+      const theme = mapNodeAppearanceTheme(appearanceEntry);
+      if (theme) return theme.line_color;
+      const rawColor = String(
+        (appearanceEntry && appearanceEntry.color)
+        || (preset && preset.color)
+        || ""
+      ).trim();
+      return rawColor && typeof normalizeNodeTagColor === "function"
+        ? normalizeNodeTagColor(rawColor, "#2aa85a")
+        : "";
+    }}
+
+    function mapNodeAppearanceTheme(appearanceEntry) {{
+      if (typeof normalizeMeshyfaceProfileTheme !== "function") return null;
+      return normalizeMeshyfaceProfileTheme(appearanceEntry && appearanceEntry.theme);
+    }}
+
+    function mapNodeAppearanceThemeRender(appearanceEntry) {{
+      if (typeof normalizeMeshyfaceProfileThemeRender !== "function") return null;
+      return normalizeMeshyfaceProfileThemeRender(appearanceEntry && appearanceEntry.render);
+    }}
+
+    function mapNodeAppearanceSignature(nodeId, state = latestState) {{
+      const appearanceEntry = mapNodeEffectiveAppearance(nodeId, state);
+      if (!appearanceEntry) return "";
+      const themeSignature = (typeof meshyfaceProfileThemeSignature === "function")
+        ? meshyfaceProfileThemeSignature(appearanceEntry.theme)
+        : "";
+      const render = mapNodeAppearanceThemeRender(appearanceEntry);
+      return [
+        String(appearanceEntry.source || "appearance"),
+        mapNodeAppearanceColor(appearanceEntry),
+        themeSignature,
+        render ? JSON.stringify(render) : "",
+      ].join("|");
+    }}
+
+    function applyMapNodeAppearanceStyle(baseStyle, nodeId, markerKind = "actual", state = latestState) {{
+      // Inferred positions use their dash/color treatment to communicate
+      // confidence and source. Actual GPS markers can carry the node identity
+      // without obscuring that spatial meaning.
+      if (markerKind !== "actual") return baseStyle;
+      const appearanceEntry = mapNodeEffectiveAppearance(nodeId, state);
+      const color = mapNodeAppearanceColor(appearanceEntry);
+      if (!color) return baseStyle;
+      const theme = mapNodeAppearanceTheme(appearanceEntry);
+      const render = mapNodeAppearanceThemeRender(appearanceEntry);
+      const style = Object.assign({{}}, baseStyle);
+      // A received theme uses its generated workspace border and surface,
+      // rather than turning its accent/base into a highlighter marker.
+      style.color = (render && render.border_color) || (theme && theme.line_color) || color;
+      style.fillColor = (render && render.surface_color) || (theme && theme.base_color) || color;
+      if (appearanceEntry && appearanceEntry.profileAppearance) {{
+        style.weight = Math.max(Number(style.weight) || 0, 2.8);
+      }}
+      return style;
+    }}
+
     function buildMapGraphSignature(nodes, edges, options = {{}}) {{
       let hash = 2166136261;
       let nodeCount = 0;
       let nodeXor = 0;
       let nodeSum = 0;
+      let appearanceCount = 0;
+      let appearanceXor = 0;
+      let appearanceSum = 0;
       for (const node of (nodes || [])) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        const appearanceSignature = mapNodeAppearanceSignature(nodeId, latestState);
+        if (appearanceSignature) {{
+          let appearanceHash = 2166136261;
+          appearanceHash = hashMixStr(appearanceHash, nodeId);
+          appearanceHash = hashMixStr(appearanceHash, appearanceSignature);
+          appearanceXor ^= appearanceHash;
+          appearanceSum = (appearanceSum + appearanceHash) >>> 0;
+          appearanceCount += 1;
+        }}
         if (typeof node.lat !== "number" || typeof node.lon !== "number") continue;
         let itemHash = 2166136261;
-        itemHash = hashMixStr(itemHash, normalizeNodeId(node.id));
+        itemHash = hashMixStr(itemHash, nodeId);
         itemHash = hashMixInt(itemHash, Math.round(node.lat * 100000));
         itemHash = hashMixInt(itemHash, Math.round(node.lon * 100000));
         nodeXor ^= itemHash;
@@ -43,6 +124,9 @@
       hash = hashMixInt(hash, nodeCount);
       hash = hashMixInt(hash, nodeXor);
       hash = hashMixInt(hash, nodeSum);
+      hash = hashMixInt(hash, appearanceCount);
+      hash = hashMixInt(hash, appearanceXor);
+      hash = hashMixInt(hash, appearanceSum);
 
       let edgeCount = 0;
       let edgeXor = 0;
@@ -82,7 +166,7 @@
         hash = hashMixInt(hash, edgeFadeBucketMinutes);
       }}
 
-      return `graph:${{(hash >>> 0).toString(16)}}:${{nodeCount}}:${{edgeCount}}:${{edgeFadeBucketMinutes}}`;
+      return `graph:${{(hash >>> 0).toString(16)}}:${{nodeCount}}:${{edgeCount}}:${{appearanceCount}}:${{edgeFadeBucketMinutes}}`;
     }}
 
     function buildMapSignatures(nodes, edges, nodeHistory) {{
@@ -96,6 +180,7 @@
         let hash = 2166136261;
         hash = hashMixStr(hash, "saved");
         hash = hashMixStr(hash, selection);
+        hash = hashMixStr(hash, mapNodeAppearanceSignature(selection, latestState));
         const selectedNode = savedViewNodeFrom(nodes, latestState);
         if (
           selectedNode &&
@@ -2599,8 +2684,9 @@
         baseStyle.fillOpacity = isSelected ? 0.96 : 0.9;
         baseStyle.weight = Math.max(Number(baseStyle.weight) || 0, isSelected ? 2.8 : 2.1);
       }}
+      const identityStyle = applyMapNodeAppearanceStyle(baseStyle, nodeId, kind, safeState);
       const flashStrength = mapNodeActivityFlashStrength(nodeId);
-      const activityStyle = applyMapNodeActivityFlashStyle(baseStyle, flashStrength, kind);
+      const activityStyle = applyMapNodeActivityFlashStyle(identityStyle, flashStrength, kind);
       const traceProgress = mapNodeTraceProgressState(nodeId);
       const progressStyle = applyMapNodeTraceProgressStyle(activityStyle, traceProgress);
       const resultFlash = mapNodeTraceResultFlashState(nodeId);
@@ -2800,6 +2886,18 @@
       const displayId = normalizedId || fallbackId || "n/a";
       const name = String(nodeLabel(safeNode) || displayId).trim() || displayId;
       const emoji = String(opts.emoji != null ? opts.emoji : resolveMapNodeEmoji(displayId, state)).trim();
+      const appearanceEntry = mapNodeEffectiveAppearance(normalizedId, state);
+      const hasNodeAppearance = !!appearanceEntry;
+      const profileAppearance = !!(appearanceEntry && appearanceEntry.profileAppearance);
+      const appearanceStyleVars = hasNodeAppearance && typeof nodeAppearanceStyleVars === "function"
+        ? nodeAppearanceStyleVars(appearanceEntry)
+        : "";
+      const appearanceStyleAttr = appearanceStyleVars
+        ? ` style="${{escAttr(appearanceStyleVars)}}"`
+        : "";
+      const appearanceClass = hasNodeAppearance
+        ? ` has-node-appearance${{profileAppearance ? " profiled-node" : ""}}`
+        : "";
       const lat = Number(safeNode.lat);
       const lon = Number(safeNode.lon);
       const hasCoords = isValidMapCoord(lat, lon);
@@ -2900,7 +2998,7 @@
         : "";
 
       return `
-        <div class="map-node-info-card${{isEstimated ? " is-estimated" : ""}}">
+        <div class="map-node-info-card${{isEstimated ? " is-estimated" : ""}}${{appearanceClass}}"${{appearanceStyleAttr}}>
           <div class="map-node-info-header">
             ${{headerMeta.join("")}}
           </div>
@@ -3086,8 +3184,14 @@
         : String(markerStyleForRing && markerStyleForRing.color ? markerStyleForRing.color : "#86a9ff");
       const ringWidthRaw = Number(markerStyleForRing && markerStyleForRing.weight);
       const ringWidth = clampMapLinkValue(Number.isFinite(ringWidthRaw) ? ringWidthRaw : 2, 1, 3.4);
+      const appearanceEntry = mapNodeEffectiveAppearance(nodeId, state);
+      const appearanceStyleVars = appearanceEntry && typeof nodeAppearanceStyleVars === "function"
+        ? nodeAppearanceStyleVars(appearanceEntry)
+        : "";
       const markerClasses = [
         "map-node-emoji-marker",
+        appearanceEntry ? "has-node-appearance" : "",
+        appearanceEntry && appearanceEntry.profileAppearance ? "profiled-node" : "",
         isSelected ? "is-selected" : "",
         flashStrength > 0.04 ? "is-active" : "",
         traceProgress ? "is-trace-running" : "",
@@ -3108,7 +3212,7 @@
         html: `
           <div
             class="${{markerClasses}}"
-            style="--map-node-flash:${{Number(flashStrength.toFixed(3))}}; --map-node-ring-color:${{escAttr(ringColor)}}; --map-node-ring-width:${{ringWidth.toFixed(1)}}px; --map-node-trace-progress:${{traceProgressPct.toFixed(0)}}; --map-node-trace-angle:${{traceAngleDeg}}; --map-node-trace-result:${{traceResultStrength.toFixed(3)}}; --map-node-trace-color:${{escAttr(traceResultFlash ? traceResultColor : "#7dd3fc")}};"
+            style="--map-node-flash:${{Number(flashStrength.toFixed(3))}}; --map-node-ring-color:${{escAttr(ringColor)}}; --map-node-ring-width:${{ringWidth.toFixed(1)}}px; --map-node-trace-progress:${{traceProgressPct.toFixed(0)}}; --map-node-trace-angle:${{traceAngleDeg}}; --map-node-trace-result:${{traceResultStrength.toFixed(3)}}; --map-node-trace-color:${{escAttr(traceResultFlash ? traceResultColor : "#7dd3fc")}};${{escAttr(appearanceStyleVars)}}"
             ${{traceTitleAttr}}
           >
             <span class="map-node-emoji-glyph" aria-hidden="true">${{escAttr(emoji)}}</span>

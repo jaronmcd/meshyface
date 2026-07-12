@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from .api_input_chat import ChatSendRequest
     from .api_input_custom_telemetry import CustomTelemetrySettingsRequest
     from .api_input_history import NodeHistoryQuery, OnlineActivityQuery
+    from .api_input_meshyface_profile import MeshyfaceProfileThemeRequest
     from .api_input_network_tools import NetworkToolRequest
     from .api_input_radio import RadioSettingsRequest
     from .api_input_raw_packets import RawPacketCaptureSettingsRequest
@@ -19,6 +20,7 @@ else:
     ChannelSettingsRequest = object
     ChatSendRequest = object
     CustomTelemetrySettingsRequest = object
+    MeshyfaceProfileThemeRequest = object
     NodeHistoryQuery = object
     NetworkToolRequest = object
     OnlineActivityQuery = object
@@ -73,6 +75,22 @@ class SendChatFn(Protocol):
         retry_of: Optional[int] = None,
         emoji: object = None,
     ) -> dict[str, object]:
+        ...
+
+
+class SendMeshyfaceProfileFn(Protocol):
+    def __call__(
+        self,
+        *,
+        theme: object,
+        channel_index: object = 0,
+        ghost: object = None,
+    ) -> dict[str, object]:
+        ...
+
+
+class SetMeshyfaceProfileProcessingEnabledFn(Protocol):
+    def __call__(self, enabled: bool) -> dict[str, object]:
         ...
 
 
@@ -209,6 +227,16 @@ class ParseChatSendRequestFn(Protocol):
         *,
         to_int_fn: ToIntFn,
     ) -> ChatSendRequest:
+        ...
+
+
+class ParseMeshyfaceProfileThemeRequestFn(Protocol):
+    def __call__(
+        self,
+        raw_body: bytes,
+        *,
+        to_int_fn: ToIntFn,
+    ) -> MeshyfaceProfileThemeRequest:
         ...
 
 
@@ -385,6 +413,13 @@ class DashboardPostRouteDependencies:
     validate_content_length_fn: ValidateContentLengthFn
     parse_chat_send_request_fn: ParseChatSendRequestFn
     write_json_response_fn: WriteJsonResponseFn
+    send_meshyface_profile_fn: Optional[SendMeshyfaceProfileFn] = None
+    set_meshyface_profile_processing_enabled_fn: Optional[
+        SetMeshyfaceProfileProcessingEnabledFn
+    ] = None
+    parse_meshyface_profile_theme_request_fn: Optional[
+        ParseMeshyfaceProfileThemeRequestFn
+    ] = None
     set_theme_preset_fn: Optional[SetThemePresetFn] = None
     parse_theme_settings_request_fn: Optional[ParseThemeSettingsRequestFn] = None
     set_bbs_settings_fn: Optional[SetBbsSettingsFn] = None

@@ -774,7 +774,7 @@ def test_clear_node_selection_hides_drawer_before_optional_map_redraw() -> None:
     assert clear_block.index("syncChatNodeDetailsDrawer(latestState") < clear_block.index("renderMap(")
 
 
-def test_chat_surfaces_keep_channel_edge_and_tag_tint_without_generated_node_tint() -> None:
+def test_chat_surfaces_keep_channel_edge_and_effective_appearance_tint_without_generated_node_tint() -> None:
     identity_src = read_template("meshdash/assets/dashboard.js.chat.events.core.identity.node_self.tmpl")
     selection_src = read_template(
         "meshdash/assets/dashboard.js.chat.events.core.identity.favorites_selection.selection_cache.tmpl"
@@ -784,19 +784,19 @@ def test_chat_surfaces_keep_channel_edge_and_tag_tint_without_generated_node_tin
 
     combined_src = "\n".join([identity_src, selection_src, peers_src, feed_src])
     channel_edge_push = "rowStyleParts.push(meshChannelEdgeStyle(meshIdx, {{ allowAll: false }}));"
-    tag_tint_push = "rowStyleParts.push(tagTintStyleVars);"
+    appearance_tint_push = "rowStyleParts.push(appearanceTintStyleVars);"
 
     assert "nodeTint" not in combined_src
     assert "data-node-tint" not in combined_src
     assert "settingsUniqueNodeColors" not in combined_src
-    assert "nodeTagTintStyleVars(tagEntry, \"member\", 145)" in peers_src
-    assert "nodeTagTintStyleVars(tintTagEntry, \"feed\", 210)" in feed_src
+    assert "nodeTagTintStyleVars(appearanceEntry, \"member\", 145)" in peers_src
+    assert "nodeTagTintStyleVars(appearanceEntry, \"feed\", 210)" in feed_src
     assert "meshChannelTintStyle" not in combined_src
     assert "meshChannelEdgeClass" not in combined_src
     assert "channel-edge-dotted" not in combined_src
     assert channel_edge_push in feed_src
-    assert tag_tint_push in feed_src
-    assert feed_src.index(channel_edge_push) < feed_src.index(tag_tint_push)
+    assert appearance_tint_push in feed_src
+    assert feed_src.index(channel_edge_push) < feed_src.index(appearance_tint_push)
     assert 'style="--channel-tab-fill: var(--chat-feed-channel-fill);"' in feed_src
     assert "return messageMeshChannelIndex(msg);" in feed_src
 
@@ -1425,13 +1425,15 @@ def test_chat_feed_self_authored_messages_render_as_bubbles_without_inline_time(
     assert "--chat-feed-node-emoji-tail-space: 0px;" in css
     assert ".chat-feed-item.self-authored.has-node-emoji {" in css
     assert "padding-left: 12px;" in css
-    assert ".chat-feed-item.has-node-emoji::after {" in css
-    assert "content: none;" in css
-    assert "display: none;" in css
-    assert ".chat-feed-item.has-node-emoji.has-node-watermark-text::after {" in css
-    assert ".chat-feed-item.self-authored.has-node-emoji::after {" in css
+    assert ".chat-feed-item.has-node-emoji:not(.profiled-node)::after {" in css
+    assert "content: attr(data-node-emoji);" in css
+    assert "display: block;" in css
+    assert "font-size: clamp(44px, 4.8vw, 72px);" in css
+    assert ".chat-feed-item.has-node-emoji.has-node-watermark-text:not(.profiled-node)::after {" in css
+    assert ".chat-feed-item.profiled-node.has-node-emoji::after" not in css
+    assert ".chat-feed-item.self-authored.has-node-emoji:not(.profiled-node)::after {" in css
     assert "left: var(--chat-feed-node-emoji-tail-inset);" in css
-    assert '[data-theme="dark"] .card.chat .chat-feed-item.has-node-emoji::after {' in css
+    assert '[data-theme="dark"] .card.chat .chat-feed-item.has-node-emoji:not(.profiled-node)::after {' not in css
     assert ".chat-hop-watermark-inline {" in css
     assert ".chat-hop-reply-icon {" in css
     assert ".chat-hop-reply-text {" in css

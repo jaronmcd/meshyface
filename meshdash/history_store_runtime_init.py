@@ -126,6 +126,8 @@ def initialize_history_store_runtime(
         "ping_message_only": False,
     }
     store._bot_runtime_settings_updated_unix = 0
+    store._meshyface_profile_processing_enabled = False
+    store._meshyface_profile_processing_updated_unix = 0
     initialize_raw_packet_store_runtime_fn(
         store,
         history_db_path=store.db_path,

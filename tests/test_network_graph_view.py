@@ -239,6 +239,11 @@ def test_dashboard_js_supports_network_graph_subview() -> None:
     assert 'settingsBadgeEmojiChoiceSet.has(String(settingsBadgeEmoji || "").trim())' not in js
     assert '"has-emoji-glyph"' in js
     assert 'class="network-graph-node-emoji-fo"' in js
+    assert 'class="network-graph-node-theme-surface-fo"' in js
+    assert 'class="network-graph-node-theme-surface"' in js
+    assert 'hasProfileThemeIdentity ? "has-theme-identity" : ""' in js
+    assert "meshyfaceProfileThemeSignature(appearanceEntry.theme)" in js
+    assert 'nodeEl.classList.toggle("has-theme-identity", !!profileTheme);' in js
     assert '<title>${escAttr(buildNetworkGraphEdgeTitle(edge' not in js
     assert '<title>${escAttr(buildNetworkGraphNodeTitle(item' not in js
     assert 'label-priority-${labelPriority}' in js
@@ -556,9 +561,12 @@ def test_network_tool_post_requests_are_serialized() -> None:
     assert 'const localId = normalizeNodeId(resolveLocalNodeId(latestState || {}) || "");' in js
     assert 'const isLocalNode = item.nodeId === localId;' in js
     assert 'const isTaggedNode = !!(tagEntry && tagEntry.preset);' in js
-    assert 'isTaggedNode ? "is-tagged" : ""' in js
-    assert 'nodeEl.classList.toggle("is-tagged", isTaggedNode);' in js
-    assert 'nodeEl.setAttribute("style", tagStyleVars);' in js
+    assert 'const hasNodeAppearance = !!(appearanceEntry && appearanceEntry.preset);' in js
+    assert 'hasNodeAppearance ? "is-tagged" : ""' in js
+    assert 'isProfiledNode ? "is-profiled" : ""' in js
+    assert 'nodeEl.classList.toggle("is-tagged", hasNodeAppearance);' in js
+    assert 'nodeEl.classList.toggle("is-profiled", hasNodeAppearance && !isTaggedNode);' in js
+    assert 'nodeEl.setAttribute("style", appearanceStyleVars);' in js
     assert 'function autoNewNodeTagPreset() {' in js
     assert 'id: "auto-new-node",' in js
     assert 'const nodeTagBuiltInIconPaths = {' in js
@@ -802,6 +810,10 @@ def test_network_layout_uses_single_row_map_track() -> None:
     assert ".network-graph-ring.is-broadcast-only {" in css
     assert ".network-graph-node.is-local .network-graph-node-core {" in css
     assert ".network-graph-node.is-tagged .network-graph-node-core {" in css
+    assert ".network-graph-node-theme-surface-fo {" in css
+    assert ".network-graph-node.has-theme-identity .network-graph-node-theme-surface-fo {" in css
+    assert ".network-graph-node-theme-surface {" in css
+    assert "background: var(--node-profile-theme-surface, var(--node-profile-theme-base, transparent));" in css
     assert ".network-graph-node.is-spread-actual" not in css
     assert ".network-graph-node.is-spread-estimated" not in css
     assert "stroke: var(--node-tag-color, var(--accent));" in css

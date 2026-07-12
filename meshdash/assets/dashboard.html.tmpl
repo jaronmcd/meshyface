@@ -713,24 +713,46 @@
               <label class="settings-field">
                 <span class="settings-label">Node Name</span>
                 <div class="settings-row">
-                  <input
-                    id="settings-owner-short-name"
-                    class="settings-input"
-                    type="text"
-                    maxlength="4"
-                    placeholder="Short (max 4)"
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
-                  <input
-                    id="settings-owner-long-name"
-                    class="settings-input"
-                    type="text"
-                    maxlength="80"
-                    placeholder="Long name"
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
+                  <div class="settings-emoji-input-row settings-owner-name-input-row">
+                    <input
+                      id="settings-owner-short-name"
+                      class="settings-input"
+                      type="text"
+                      maxlength="4"
+                      placeholder="Short (max 4)"
+                      autocomplete="off"
+                      spellcheck="false"
+                    />
+                    <button
+                      id="settings-owner-short-name-emoji-btn"
+                      class="settings-emoji-picker-btn"
+                      type="button"
+                      data-chat-emoji-target="settings-owner-short-name"
+                      aria-label="Pick short-name emoji"
+                      aria-expanded="false"
+                      title="Pick emoji"
+                    >🙂</button>
+                  </div>
+                  <div class="settings-emoji-input-row settings-owner-name-input-row settings-owner-name-long-input-row">
+                    <input
+                      id="settings-owner-long-name"
+                      class="settings-input"
+                      type="text"
+                      maxlength="80"
+                      placeholder="Long name"
+                      autocomplete="off"
+                      spellcheck="false"
+                    />
+                    <button
+                      id="settings-owner-long-name-emoji-btn"
+                      class="settings-emoji-picker-btn"
+                      type="button"
+                      data-chat-emoji-target="settings-owner-long-name"
+                      aria-label="Pick long-name emoji"
+                      aria-expanded="false"
+                      title="Pick emoji"
+                    >🙂</button>
+                  </div>
                   <button id="settings-apply-owner" class="btn btn-secondary" type="button">Apply Name</button>
                 </div>
               </label>
@@ -1983,6 +2005,33 @@
 
           <div class="settings-panel settings-panel-wide" data-settings-tab-panel="appearance" hidden>
             <div class="settings-fields">
+              <div class="settings-appearance-tabbar workspace-pillbar" role="tablist" aria-label="Appearance sections">
+                <button
+                  id="settings-appearance-tab-theme-btn"
+                  class="settings-appearance-tab-btn workspace-pill-btn is-active"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="settings-appearance-theme-panel"
+                  data-settings-appearance-tab="theme"
+                >Theme</button>
+                <button
+                  id="settings-appearance-tab-node-btn"
+                  class="settings-appearance-tab-btn workspace-pill-btn"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="settings-appearance-node-panel"
+                  data-settings-appearance-tab="node"
+                >Node Appearance</button>
+              </div>
+              <div
+                id="settings-appearance-theme-panel"
+                class="settings-appearance-tab-panel"
+                role="tabpanel"
+                aria-labelledby="settings-appearance-tab-theme-btn"
+                data-settings-appearance-tab-panel="theme"
+              >
               <div class="settings-row settings-theme-preset-row">
                 <label class="settings-field" for="theme-preset-select">
                   <span class="settings-label">Preset</span>
@@ -2000,99 +2049,107 @@
                   </div>
                 </div>
               </div>
-              <div class="settings-row">
-                <label class="settings-field" for="theme-custom-base-color">
-                  <span class="settings-label">Base color</span>
-                  <input
-                    id="theme-custom-base-color"
-                    class="settings-input settings-color-input"
-                    type="color"
-                    value="#007bff"
-                    aria-label="Custom theme base color"
-                  />
-                </label>
-                <label class="settings-field" for="theme-custom-line-color">
-                  <span class="settings-label">Line color</span>
-                  <input
-                    id="theme-custom-line-color"
-                    class="settings-input settings-color-input"
-                    type="color"
-                    value="#0da6ff"
-                    aria-label="Custom theme line color"
-                  />
-                </label>
-                <label class="settings-field" for="theme-custom-line-contrast-color">
-                  <span class="settings-label">Line contrast color</span>
-                  <input
-                    id="theme-custom-line-contrast-color"
-                    class="settings-input settings-color-input"
-                    type="color"
-                    value="#4f55ff"
-                    aria-label="Custom theme line contrast color"
-                  />
-                </label>
-                <label class="settings-field" for="theme-custom-text-font">
-                  <span class="settings-label">Text font</span>
-                  <select id="theme-custom-text-font" class="settings-select" aria-label="Custom theme text font">
-                    <option value="system">System</option>
-                    <option value="compact">Compact</option>
-                    <option value="rounded">Rounded</option>
-                    <option value="mono">Mono</option>
-                    <option value="serif">Serif</option>
-                  </select>
-                </label>
-                <label class="settings-field settings-theme-depth-field" for="theme-custom-color-depth">
-                  <span class="settings-label">Color depth</span>
-                  <div class="settings-range-row">
-                    <input
-                      id="theme-custom-color-depth"
-                      class="settings-range-input"
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value="44"
-                      aria-label="Custom theme color depth"
-                    />
-                    <output id="theme-custom-color-depth-value" for="theme-custom-color-depth">44%</output>
+              <div class="settings-control-stack settings-theme-control-stack">
+                <div class="settings-control-section">
+                  <div class="settings-sublegend">Surface</div>
+                  <div class="settings-gradient-fields settings-theme-surface-fields">
+                    <label class="settings-field" for="theme-custom-base-color">
+                      <span class="settings-label">Base color</span>
+                      <input
+                        id="theme-custom-base-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#007bff"
+                        aria-label="Custom theme base color"
+                      />
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="theme-custom-foreground-transparency">
+                      <span class="settings-label">Foreground transparency</span>
+                      <div class="settings-range-row">
+                        <input
+                          id="theme-custom-foreground-transparency"
+                          class="settings-range-input"
+                          type="range"
+                          min="0"
+                          max="90"
+                          step="1"
+                          value="39"
+                          aria-label="Custom theme foreground transparency"
+                        />
+                        <output id="theme-custom-foreground-transparency-value" for="theme-custom-foreground-transparency">39%</output>
+                      </div>
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="theme-custom-foreground-blur">
+                      <span class="settings-label">Foreground blur</span>
+                      <div class="settings-range-row">
+                        <input
+                          id="theme-custom-foreground-blur"
+                          class="settings-range-input"
+                          type="range"
+                          min="0"
+                          max="40"
+                          step="1"
+                          value="0"
+                          aria-label="Custom theme foreground blur"
+                        />
+                        <output id="theme-custom-foreground-blur-value" for="theme-custom-foreground-blur">0px</output>
+                      </div>
+                    </label>
+                    <label class="settings-field settings-theme-depth-field" for="theme-custom-color-depth">
+                      <span class="settings-label">Color depth</span>
+                      <div class="settings-range-row">
+                        <input
+                          id="theme-custom-color-depth"
+                          class="settings-range-input"
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value="44"
+                          aria-label="Custom theme color depth"
+                        />
+                        <output id="theme-custom-color-depth-value" for="theme-custom-color-depth">44%</output>
+                      </div>
+                    </label>
                   </div>
-                </label>
-                <label class="settings-field settings-theme-depth-field" for="theme-custom-foreground-transparency">
-                  <span class="settings-label">Foreground transparency</span>
-                  <div class="settings-range-row">
-                    <input
-                      id="theme-custom-foreground-transparency"
-                      class="settings-range-input"
-                      type="range"
-                      min="0"
-                      max="90"
-                      step="1"
-                      value="39"
-                      aria-label="Custom theme foreground transparency"
-                    />
-                    <output id="theme-custom-foreground-transparency-value" for="theme-custom-foreground-transparency">39%</output>
+                </div>
+                <div class="settings-control-section">
+                  <div class="settings-sublegend">Identity</div>
+                  <div class="settings-gradient-fields settings-theme-identity-fields">
+                    <label class="settings-field" for="theme-custom-line-color">
+                      <span class="settings-label">Line color</span>
+                      <input
+                        id="theme-custom-line-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#0da6ff"
+                        aria-label="Custom theme line color"
+                      />
+                    </label>
+                    <label class="settings-field" for="theme-custom-line-contrast-color">
+                      <span class="settings-label">Line contrast color</span>
+                      <input
+                        id="theme-custom-line-contrast-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#4f55ff"
+                        aria-label="Custom theme line contrast color"
+                      />
+                    </label>
+                    <label class="settings-field" for="theme-custom-text-font">
+                      <span class="settings-label">Text font</span>
+                      <select id="theme-custom-text-font" class="settings-select" aria-label="Custom theme text font">
+                        <option value="system">System</option>
+                        <option value="compact">Compact</option>
+                        <option value="rounded">Rounded</option>
+                        <option value="mono">Mono</option>
+                        <option value="serif">Serif</option>
+                      </select>
+                    </label>
                   </div>
-                </label>
-                <label class="settings-field settings-theme-depth-field" for="theme-custom-foreground-blur">
-                  <span class="settings-label">Foreground blur</span>
-                  <div class="settings-range-row">
-                    <input
-                      id="theme-custom-foreground-blur"
-                      class="settings-range-input"
-                      type="range"
-                      min="0"
-                      max="40"
-                      step="1"
-                      value="0"
-                      aria-label="Custom theme foreground blur"
-                    />
-                    <output id="theme-custom-foreground-blur-value" for="theme-custom-foreground-blur">0px</output>
-                  </div>
-                </label>
-              </div>
-              <div class="settings-row settings-gradient-row">
-                <fieldset class="settings-gradient-group settings-background-panel">
-                  <legend>Background</legend>
+                </div>
+                <div class="settings-control-section">
+                  <div class="settings-sublegend">Background</div>
                   <div class="settings-background-source-fields">
                     <label class="settings-field" for="theme-custom-background-type">
                       <span class="settings-label">Background source</span>
@@ -2287,9 +2344,10 @@
                     </label>
                     </div>
                   </div>
-                  <div>
+                </div>
+                <div class="settings-control-section">
                     <div class="settings-sublegend">Background gradient</div>
-                    <div class="settings-gradient-fields">
+                    <div class="settings-gradient-fields settings-theme-gradient-fields">
                     <label class="settings-field" for="theme-custom-gradient-primary-start-color">
                       <span class="settings-label">Start color</span>
                       <input
@@ -2298,16 +2356,6 @@
                         type="color"
                         value="#00356e"
                         aria-label="Background gradient start color"
-                      />
-                    </label>
-                    <label class="settings-field" for="theme-custom-gradient-primary-end-color">
-                      <span class="settings-label">End color</span>
-                      <input
-                        id="theme-custom-gradient-primary-end-color"
-                        class="settings-input settings-color-input"
-                        type="color"
-                        value="#060d1f"
-                        aria-label="Background gradient end color"
                       />
                     </label>
                     <label class="settings-field" for="theme-custom-gradient-primary-type">
@@ -2331,9 +2379,18 @@
                         <option value="center">Center</option>
                       </select>
                     </label>
+                    <label class="settings-field" for="theme-custom-gradient-primary-end-color">
+                      <span class="settings-label">End color</span>
+                      <input
+                        id="theme-custom-gradient-primary-end-color"
+                        class="settings-input settings-color-input"
+                        type="color"
+                        value="#060d1f"
+                        aria-label="Background gradient end color"
+                      />
+                    </label>
                     </div>
-                  </div>
-                </fieldset>
+                </div>
               </div>
               <label class="settings-field settings-inline">
                 <input id="settings-appearance-keep-screen-on" type="checkbox" />
@@ -2354,6 +2411,252 @@
                   <input id="console-timestamps" type="checkbox" />
                   <span>Show timestamps in Console</span>
                 </label>
+              </div>
+              </div>
+              <div
+                id="settings-appearance-node-panel"
+                class="settings-appearance-tab-panel"
+                role="tabpanel"
+                aria-labelledby="settings-appearance-tab-node-btn"
+                data-settings-appearance-tab-panel="node"
+                hidden
+              >
+              <div class="settings-row settings-meshyface-share-row">
+                <label class="settings-field settings-inline">
+                  <input id="settings-meshyface-theme-sharing" type="checkbox" />
+                  <span>Share node appearance</span>
+                </label>
+                <button id="settings-meshyface-profile-broadcast" class="btn" type="button">Broadcast appearance</button>
+              </div>
+              <div id="settings-meshyface-profile-status" class="settings-help-note" aria-live="polite">
+                Allows sending and receiving shared node appearance theme packets. When off, this dashboard does not send, process, or show shared node appearances.
+              </div>
+              <div class="settings-meshyface-node-theme-panel">
+                <div class="settings-meshyface-node-theme-preview-wrap">
+                  <div class="settings-meshyface-node-theme-preview-head">
+                    <span class="settings-label">Shared appearance preview</span>
+                    <span id="settings-meshyface-node-theme-preview-mode" class="settings-meshyface-node-theme-preview-mode">current</span>
+                  </div>
+                  <div id="settings-meshyface-node-theme-preview" class="settings-meshyface-node-theme-preview" aria-live="polite">
+                    <div class="settings-meshyface-node-theme-preview-shell">
+                      <div class="chat-feed settings-meshyface-node-theme-preview-feed">
+                        <div
+                          id="settings-meshyface-node-theme-preview-card"
+                          class="chat-feed-item profiled-node chat-selectable"
+                        >
+                          <div class="chat-feed-line">
+                            <div class="chat-feed-summary">
+                              <span class="chat-endpoint chat-feed-author">
+                                <span class="chat-name" id="settings-meshyface-node-theme-preview-name">Your node</span>
+                              </span>
+                              <span class="chat-feed-colon">:</span>
+                              <span class="chat-feed-text chat-feed-text-inline" id="settings-meshyface-node-theme-preview-message">Node appearance preview</span>
+                            </div>
+                            <span class="chat-feed-side">
+                              <span class="chat-feed-time">now</span>
+                            </span>
+                          </div>
+                          <div class="chat-reaction-row" aria-hidden="true">
+                            <button class="chat-reaction-summary is-empty" type="button" tabindex="-1">React</button>
+                            <button class="chat-reply-btn" type="button" tabindex="-1">↩ Reply</button>
+                            <button class="chat-hop-watermark-inline chat-hop-reply-btn" type="button" tabindex="-1">
+                              <span class="chat-hop-reply-icon" aria-hidden="true">↩</span>
+                              <span class="chat-hop-reply-text">0 hops</span>
+                            </button>
+                          </div>
+                        </div>
+                        <div
+                          id="settings-meshyface-node-theme-preview-member"
+                          class="chat-member-item status-online profiled-node settings-meshyface-node-theme-preview-member"
+                          data-node-id="!preview"
+                          data-unread-direct-count="0"
+                          aria-label="Shared appearance preview"
+                        >
+                          <span class="chat-member-status chat-member-status-dot status-online" title="Status: Online" aria-label="Status: Online">●</span>
+                          <span class="chat-member-main">
+                            <span class="chat-member-name-row">
+                              <span class="chat-member-name-left">
+                                <span class="chat-member-name status-online" id="settings-meshyface-node-theme-preview-member-name">Your node</span>
+                              </span>
+                              <span class="chat-member-actions"></span>
+                            </span>
+                            <span class="chat-member-meta-row" id="settings-meshyface-node-theme-preview-meta">Shared when broadcast</span>
+                            <span class="chat-member-fields-row">
+                              <span>Hops 0</span>
+                              <span>LINK</span>
+                              <span>SNR n/a</span>
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="settings-meshyface-node-theme-controls">
+                  <div class="settings-row settings-theme-preset-row">
+                    <label class="settings-field" for="settings-meshyface-node-theme-select">
+                      <span class="settings-label">Node appearance</span>
+                      <select id="settings-meshyface-node-theme-select" class="settings-select" aria-label="Node appearance"></select>
+                    </label>
+                    <div class="settings-field settings-theme-preset-actions">
+                      <span class="settings-label">Actions</span>
+                      <div class="settings-inline-actions">
+                        <button id="settings-meshyface-node-theme-reset" class="btn btn-secondary" type="button">Reset from current theme</button>
+                        <button id="settings-meshyface-node-theme-save" class="btn btn-secondary" type="button">Save as</button>
+                        <button id="settings-meshyface-node-theme-try-dashboard" class="btn btn-secondary" type="button">Try on dashboard</button>
+                        <button id="settings-meshyface-node-theme-save-dashboard" class="btn btn-secondary" type="button">Save as theme</button>
+                        <button id="settings-meshyface-node-theme-rename" class="btn btn-secondary" type="button" hidden>Rename</button>
+                        <button id="settings-meshyface-node-theme-delete" class="btn btn-danger" type="button" hidden>Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="settings-control-stack settings-meshyface-node-theme-control-stack">
+                    <div class="settings-control-section">
+                      <div class="settings-sublegend">Watermark</div>
+                      <div class="settings-gradient-fields settings-meshyface-node-theme-text-fields">
+                        <label class="settings-field" for="settings-meshyface-node-theme-ghost-text">
+                          <span class="settings-label">Text</span>
+                          <div class="settings-emoji-input-row">
+                            <input id="settings-meshyface-node-theme-ghost-text" class="settings-input" type="text" inputmode="text" maxlength="12" autocomplete="off" spellcheck="false" placeholder="73" />
+                            <button
+                              id="settings-meshyface-node-theme-ghost-text-emoji-btn"
+                              class="settings-emoji-picker-btn"
+                              type="button"
+                              data-chat-emoji-target="settings-meshyface-node-theme-ghost-text"
+                              aria-label="Pick watermark emoji"
+                              aria-expanded="false"
+                              title="Pick emoji"
+                            >🙂</button>
+                          </div>
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-ghost-effect">
+                          <span class="settings-label">Effect</span>
+                          <select id="settings-meshyface-node-theme-ghost-effect" class="settings-select">
+                            <option value="soft">Soft</option>
+                            <option value="glow">Glow</option>
+                            <option value="outline">Outline</option>
+                            <option value="stamp">Stamp</option>
+                          </select>
+                        </label>
+                        <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-ghost-blend">
+                          <span class="settings-label">Strength</span>
+                          <div class="settings-range-row">
+                            <input id="settings-meshyface-node-theme-ghost-blend" class="settings-range-input" type="range" min="0" max="50" step="1" value="24" />
+                            <output id="settings-meshyface-node-theme-ghost-blend-value" for="settings-meshyface-node-theme-ghost-blend">24%</output>
+                          </div>
+                        </label>
+                        <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-foreground-blur">
+                          <span class="settings-label">Blur</span>
+                          <div class="settings-range-row">
+                            <input id="settings-meshyface-node-theme-foreground-blur" class="settings-range-input" type="range" min="0" max="40" step="1" value="0" />
+                            <output id="settings-meshyface-node-theme-foreground-blur-value" for="settings-meshyface-node-theme-foreground-blur">0</output>
+                          </div>
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-ghost-justify">
+                          <span class="settings-label">Justify</span>
+                          <select id="settings-meshyface-node-theme-ghost-justify" class="settings-select">
+                            <option value="left">Left</option>
+                            <option value="center" selected>Center</option>
+                            <option value="right">Right</option>
+                          </select>
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-ghost-tilt">
+                          <span class="settings-label">Tilt</span>
+                          <select id="settings-meshyface-node-theme-ghost-tilt" class="settings-select">
+                            <option value="level">Level</option>
+                            <option value="left">Tilt left</option>
+                            <option value="right">Tilt right</option>
+                          </select>
+                        </label>
+                        <label class="settings-field settings-inline settings-meshyface-node-theme-toggle-field" for="settings-meshyface-node-theme-ghost-upside-down">
+                          <input id="settings-meshyface-node-theme-ghost-upside-down" type="checkbox" />
+                          <span>Upside down</span>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="settings-control-section">
+                      <div class="settings-sublegend">Node surface</div>
+                      <div class="settings-gradient-fields settings-meshyface-node-theme-surface-fields">
+                        <label class="settings-field" for="settings-meshyface-node-theme-base-color">
+                          <span class="settings-label">Base color</span>
+                          <input id="settings-meshyface-node-theme-base-color" class="settings-input settings-color-input" type="color" value="#007bff" />
+                        </label>
+                        <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-foreground-transparency">
+                          <span class="settings-label">Transparency</span>
+                          <div class="settings-range-row">
+                            <input id="settings-meshyface-node-theme-foreground-transparency" class="settings-range-input" type="range" min="0" max="90" step="1" value="39" />
+                            <output id="settings-meshyface-node-theme-foreground-transparency-value" for="settings-meshyface-node-theme-foreground-transparency">39%</output>
+                          </div>
+                        </label>
+                        <label class="settings-field settings-theme-depth-field" for="settings-meshyface-node-theme-color-depth">
+                          <span class="settings-label">Color depth</span>
+                          <div class="settings-range-row">
+                            <input id="settings-meshyface-node-theme-color-depth" class="settings-range-input" type="range" min="0" max="100" step="1" value="44" />
+                            <output id="settings-meshyface-node-theme-color-depth-value" for="settings-meshyface-node-theme-color-depth">44%</output>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="settings-control-section">
+                      <div class="settings-sublegend">Identity</div>
+                      <div class="settings-gradient-fields settings-meshyface-node-theme-identity-fields">
+                        <label class="settings-field" for="settings-meshyface-node-theme-line-color">
+                          <span class="settings-label">Line color</span>
+                          <input id="settings-meshyface-node-theme-line-color" class="settings-input settings-color-input" type="color" value="#0da6ff" />
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-line-contrast-color">
+                          <span class="settings-label">Contrast color</span>
+                          <input id="settings-meshyface-node-theme-line-contrast-color" class="settings-input settings-color-input" type="color" value="#4f55ff" />
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-text-font">
+                          <span class="settings-label">Node font</span>
+                          <select id="settings-meshyface-node-theme-text-font" class="settings-select">
+                            <option value="system">System</option>
+                            <option value="compact">Compact</option>
+                            <option value="rounded">Rounded</option>
+                            <option value="mono">Mono</option>
+                            <option value="serif">Serif</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="settings-control-section">
+                      <div class="settings-sublegend">Background gradient</div>
+                      <div class="settings-gradient-fields settings-meshyface-node-theme-gradient-fields">
+                        <label class="settings-field" for="settings-meshyface-node-theme-gradient-start-color">
+                          <span class="settings-label">Start color</span>
+                          <input id="settings-meshyface-node-theme-gradient-start-color" class="settings-input settings-color-input" type="color" value="#00356e" />
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-gradient-type">
+                          <span class="settings-label">Type</span>
+                          <select id="settings-meshyface-node-theme-gradient-type" class="settings-select">
+                            <option value="linear">Linear</option>
+                            <option value="radial">Radial</option>
+                          </select>
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-gradient-direction">
+                          <span class="settings-label">Direction</span>
+                          <select id="settings-meshyface-node-theme-gradient-direction" class="settings-select">
+                            <option value="right">Right</option>
+                            <option value="left">Left</option>
+                            <option value="down">Down</option>
+                            <option value="up">Up</option>
+                            <option value="down-right">Down right</option>
+                            <option value="down-left">Down left</option>
+                            <option value="up-right">Up right</option>
+                            <option value="up-left">Up left</option>
+                            <option value="center">Center</option>
+                          </select>
+                        </label>
+                        <label class="settings-field" for="settings-meshyface-node-theme-gradient-end-color">
+                          <span class="settings-label">End color</span>
+                          <input id="settings-meshyface-node-theme-gradient-end-color" class="settings-input settings-color-input" type="color" value="#060d1f" />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
               </div>
             </div>
           </div>

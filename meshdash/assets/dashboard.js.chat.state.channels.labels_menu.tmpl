@@ -262,6 +262,11 @@
 
     function meshChannelAppRoutingRows() {{
       const rows = [];
+      rows.push({{
+        id: "profiles",
+        label: "Node Appearance",
+        description: "Shared node appearance broadcasts",
+      }});
       if (bbsFeatureEnabled) {{
         rows.push({{
           id: "bbs",
@@ -293,6 +298,7 @@
 
     function normalizeMeshChannelAppId(rawAppId) {{
       const token = String(rawAppId == null ? "" : rawAppId).trim().toLowerCase();
+      if (token === "profiles") return "profiles";
       if (token === "bbs" && bbsFeatureEnabled) return "bbs";
       if (token === "files" && fileTransferFeatureEnabled) return "files";
       if (token === "bots" && gamesFeatureEnabled) return "bots";
@@ -309,6 +315,7 @@
     function meshChannelDefaultAppSendPrefs() {{
       const sendIndex = normalizeMeshChannelIndex(activeMeshSendChannelIndex);
       const defaults = {{
+        profiles: {{ mode: "global", channel_index: sendIndex }},
         games: {{ mode: "global", channel_index: sendIndex }},
       }};
       if (gamesFeatureEnabled) {{

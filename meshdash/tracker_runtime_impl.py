@@ -1,11 +1,19 @@
 import threading
 import time
+from collections.abc import Mapping
 from typing import Optional
 
 from .helpers import (
     to_int as _to_int,
 )
 from .history_store_runtime import HistoryStore
+from .meshyface_profile import (
+    MESHYFACE_PROFILE_CACHE_LIMIT,
+    normalize_meshyface_profile_ghost as _normalize_meshyface_profile_ghost,
+    normalize_meshyface_profile_node_id as _normalize_meshyface_profile_node_id,
+    normalize_meshyface_theme_recipe as _normalize_meshyface_theme_recipe,
+    parse_meshyface_profile_packet as _parse_meshyface_profile_packet,
+)
 from .nodes import (
     parse_utc_text_to_unix as _parse_utc_text_to_unix,
     utc_now as _utc_now,
@@ -48,6 +56,28 @@ DEFAULT_CHAT_DELIVERY_TIMEOUT_SECONDS = 90
 MIN_REAL_LINK_COUNT = 2
 
 
+def _normalize_meshyface_profile_cache_entry(value: object) -> dict[str, object] | None:
+    if not isinstance(value, Mapping):
+        return None
+    node_id = _normalize_meshyface_profile_node_id(value.get("node_id"))
+    updated_unix = _to_int(value.get("updated_unix"))
+    received_unix = _to_int(value.get("received_unix"))
+    theme = _normalize_meshyface_theme_recipe(value.get("theme"))
+    if not node_id or theme is None or updated_unix is None or updated_unix <= 0:
+        return None
+    ghost = _normalize_meshyface_profile_ghost(value.get("ghost"))
+    profile = {
+        "node_id": node_id,
+        "updated_unix": int(updated_unix),
+        "received_unix": max(0, int(received_unix or 0)),
+        "source": "mesh",
+        "theme": theme,
+    }
+    if ghost:
+        profile["ghost"] = ghost
+    return profile
+
+
 class DashboardTracker:
     def __init__(self, packet_limit: int, history_store: Optional[HistoryStore] = None) -> None:
         self._lock = threading.Lock()
@@ -70,6 +100,11 @@ class DashboardTracker:
         self.radio_link_connected: Optional[bool] = None
         self.radio_link_changed_unix: Optional[int] = None
         self.radio_link_error: Optional[str] = None
+        self.meshyface_profile_processing_enabled = (
+            self._load_meshyface_profile_processing_enabled()
+        )
+        self.meshyface_profiles_by_node_id: dict[str, dict[str, object]] = {}
+        self._restore_meshyface_profiles_from_history_unlocked()
         self._zork_bot_service = None
         self._ping_bot_service = None
         self._ping_public_start_enabled = True
@@ -336,6 +371,7 @@ class DashboardTracker:
                     save_raw_packet_fn(packet)
                 except Exception:
                     pass
+            self._record_meshyface_profile_unlocked(packet)
             self._record_packet_unlocked(packet, interface, include_live_count=True)
             self._bump_state_revision_unlocked()
             bot_services = [
@@ -459,8 +495,205 @@ class DashboardTracker:
 
     def seed_packet(self, packet: dict[str, object], interface: object) -> None:
         with self._lock:
+            self._record_meshyface_profile_unlocked(packet)
             self._record_packet_unlocked(packet, interface, include_live_count=False)
             self._bump_state_revision_unlocked()
+
+    def _record_meshyface_profile_unlocked(self, packet: object) -> bool:
+        if not bool(getattr(self, "meshyface_profile_processing_enabled", False)):
+            return False
+        profile = _parse_meshyface_profile_packet(packet)
+        next_profile = _normalize_meshyface_profile_cache_entry(profile)
+        if next_profile is None:
+            return False
+
+        if not self._cache_meshyface_profile_unlocked(next_profile):
+            return False
+        self._persist_meshyface_profile_unlocked(next_profile)
+        return True
+
+    def _restore_meshyface_profiles_from_history_unlocked(self) -> None:
+        if not bool(getattr(self, "meshyface_profile_processing_enabled", False)):
+            return
+        history_store = getattr(self, "_history_store", None)
+        load_profiles_fn = getattr(history_store, "load_meshyface_profiles", None)
+        if not callable(load_profiles_fn):
+            return
+        try:
+            raw_profiles = load_profiles_fn(limit=MESHYFACE_PROFILE_CACHE_LIMIT)
+        except TypeError:
+            try:
+                raw_profiles = load_profiles_fn()
+            except Exception:
+                return
+        except Exception:
+            return
+        # Dedicated profile persistence was added after raw packets had already
+        # been stored by some dashboards.  Only when that dedicated cache has
+        # no usable rows do a bounded legacy-packet recovery; existing live
+        # rows must remain the source of truth.
+        if not raw_profiles:
+            backfill_profiles_fn = getattr(
+                history_store,
+                "backfill_meshyface_profiles_from_packets",
+                None,
+            )
+            if callable(backfill_profiles_fn):
+                try:
+                    raw_profiles = backfill_profiles_fn(
+                        limit=MESHYFACE_PROFILE_CACHE_LIMIT,
+                    )
+                except TypeError:
+                    try:
+                        raw_profiles = backfill_profiles_fn()
+                    except Exception:
+                        pass
+                except Exception:
+                    # A legacy recovery failure is never allowed to prevent
+                    # dashboard startup or ordinary profile reception.
+                    pass
+        if isinstance(raw_profiles, Mapping):
+            profile_rows = raw_profiles.values()
+        elif isinstance(raw_profiles, (list, tuple)):
+            profile_rows = raw_profiles
+        else:
+            return
+        for raw_profile in profile_rows:
+            profile = _normalize_meshyface_profile_cache_entry(raw_profile)
+            if profile is not None:
+                self._cache_meshyface_profile_unlocked(profile)
+
+    def _load_meshyface_profile_processing_enabled(self) -> bool:
+        history_store = getattr(self, "_history_store", None)
+        load_settings_fn = getattr(
+            history_store,
+            "get_meshyface_profile_processing_settings",
+            None,
+        )
+        if not callable(load_settings_fn):
+            return False
+        try:
+            response = load_settings_fn()
+        except Exception:
+            return False
+        if not isinstance(response, Mapping):
+            return False
+        return bool(response.get("enabled"))
+
+    def _persist_meshyface_profile_processing_enabled_unlocked(self, enabled: bool) -> None:
+        history_store = getattr(self, "_history_store", None)
+        save_settings_fn = getattr(
+            history_store,
+            "set_meshyface_profile_processing_settings",
+            None,
+        )
+        if not callable(save_settings_fn):
+            return
+        try:
+            save_settings_fn(bool(enabled))
+        except Exception:
+            pass
+
+    def _persist_meshyface_profile_unlocked(self, profile: dict[str, object]) -> None:
+        history_store = getattr(self, "_history_store", None)
+        save_profile_fn = getattr(history_store, "save_meshyface_profile", None)
+        if not callable(save_profile_fn):
+            return
+        try:
+            save_profile_fn(profile, limit=MESHYFACE_PROFILE_CACHE_LIMIT)
+        except TypeError:
+            try:
+                save_profile_fn(profile)
+            except Exception:
+                pass
+        except Exception:
+            # Profile identity is optional dashboard state. A storage failure
+            # must not interrupt ordinary radio receive handling.
+            pass
+
+    def _cache_meshyface_profile_unlocked(self, profile: dict[str, object]) -> bool:
+        node_id = str(profile["node_id"])
+        updated_unix = _to_int(profile.get("updated_unix"))
+        if updated_unix is None or updated_unix <= 0:
+            return False
+
+        existing = self.meshyface_profiles_by_node_id.get(node_id)
+        existing_updated = (
+            _to_int(existing.get("updated_unix")) if isinstance(existing, dict) else None
+        )
+        # Manual last-writer-wins: only a strictly newer advertised timestamp
+        # may replace a cached profile. Equal timestamps are intentionally
+        # ignored so packet arrival order cannot flip the chosen theme.
+        if existing_updated is not None and existing_updated >= updated_unix:
+            return False
+
+        self.meshyface_profiles_by_node_id[node_id] = dict(profile)
+
+        while len(self.meshyface_profiles_by_node_id) > MESHYFACE_PROFILE_CACHE_LIMIT:
+            evicted_node_id = min(
+                self.meshyface_profiles_by_node_id,
+                key=lambda candidate: (
+                    int(
+                        _to_int(
+                            self.meshyface_profiles_by_node_id[candidate].get(
+                                "received_unix"
+                            )
+                        )
+                        or 0
+                    ),
+                    candidate,
+                ),
+            )
+            del self.meshyface_profiles_by_node_id[evicted_node_id]
+        return node_id in self.meshyface_profiles_by_node_id
+
+    def meshyface_profile_processing_status(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "ok": True,
+                "enabled": bool(
+                    getattr(self, "meshyface_profile_processing_enabled", False)
+                ),
+                "cached_profiles": len(self.meshyface_profiles_by_node_id),
+            }
+
+    def set_meshyface_profile_processing_enabled(
+        self, enabled: bool
+    ) -> dict[str, object]:
+        with self._lock:
+            next_enabled = bool(enabled)
+            previous_enabled = bool(
+                getattr(self, "meshyface_profile_processing_enabled", False)
+            )
+            changed = previous_enabled != next_enabled
+            self.meshyface_profile_processing_enabled = next_enabled
+            self._persist_meshyface_profile_processing_enabled_unlocked(next_enabled)
+            cleared_profiles = 0
+            if not next_enabled:
+                cleared_profiles = len(self.meshyface_profiles_by_node_id)
+                self.meshyface_profiles_by_node_id.clear()
+            elif changed:
+                self._restore_meshyface_profiles_from_history_unlocked()
+            if changed or cleared_profiles:
+                self._bump_state_revision_unlocked()
+            return {
+                "ok": True,
+                "enabled": next_enabled,
+                "changed": bool(changed or cleared_profiles),
+                "cached_profiles": len(self.meshyface_profiles_by_node_id),
+                "cleared_profiles": cleared_profiles,
+            }
+
+    def meshyface_profiles_snapshot(self) -> dict[str, dict[str, object]]:
+        with self._lock:
+            if not bool(getattr(self, "meshyface_profile_processing_enabled", False)):
+                return {}
+            profiles: dict[str, dict[str, object]] = {}
+            for node_id, profile in self.meshyface_profiles_by_node_id.items():
+                snapshot = _normalize_meshyface_profile_cache_entry(profile)
+                if snapshot is not None:
+                    profiles[str(node_id)] = snapshot
+            return profiles
 
     def _record_packet_unlocked(
         self, packet: dict[str, object], interface: object, include_live_count: bool

@@ -14,6 +14,8 @@ from .api_system_update import (
 
 _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/chat/send",
+    "/api/meshyface/profile/settings",
+    "/api/meshyface/profile/theme",
     "/api/games/zork",
     "/api/tools/network",
     "/api/bots/zork",
@@ -32,6 +34,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
 }
 _PRIVATE_MODE_BLOCKED_POST_PATHS = {
     "/api/chat/send",
+    "/api/meshyface/profile/theme",
     "/api/games/zork",
     "/api/tools/network",
     "/api/bots/zork",
@@ -83,6 +86,14 @@ _handle_standalone_zork_post_helper = _load_optional_handler(
 _handle_network_tool_post_helper = _load_optional_handler(
     ".api_network_tools",
     "handle_network_tool_post",
+)
+_handle_meshyface_profile_theme_post_helper = _load_optional_handler(
+    ".api_meshyface_profile",
+    "handle_meshyface_profile_theme_post",
+)
+_handle_meshyface_profile_settings_post_helper = _load_optional_handler(
+    ".api_meshyface_profile",
+    "handle_meshyface_profile_settings_post",
 )
 _handle_zork_bot_toggle_post_helper = _load_optional_handler(
     ".api_bots",
@@ -211,6 +222,52 @@ def handle_dashboard_post(
             to_int_fn=deps.to_int_fn,
             validate_content_length_fn=deps.validate_content_length_fn,
             parse_chat_send_request_fn=deps.parse_chat_send_request_fn,
+            write_json_response_fn=deps.write_json_response_fn,
+        )
+        return
+
+    if path == "/api/meshyface/profile/settings":
+        if not callable(_handle_meshyface_profile_settings_post_helper):
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj={
+                    "ok": False,
+                    "error": "Meshyface profile processing settings are not enabled on this dashboard instance",
+                },
+            )
+            return
+        _handle_meshyface_profile_settings_post_helper(
+            handler,
+            set_meshyface_profile_processing_enabled_fn=(
+                deps.set_meshyface_profile_processing_enabled_fn
+            ),
+            to_int_fn=deps.to_int_fn,
+            validate_content_length_fn=deps.validate_content_length_fn,
+            write_json_response_fn=deps.write_json_response_fn,
+        )
+        return
+
+    if path == "/api/meshyface/profile/theme":
+        parse_profile_request_fn = deps.parse_meshyface_profile_theme_request_fn
+        if parse_profile_request_fn is None or not callable(
+            _handle_meshyface_profile_theme_post_helper
+        ):
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj={
+                    "ok": False,
+                    "error": "Meshyface profile sync is not enabled on this dashboard instance",
+                },
+            )
+            return
+        _handle_meshyface_profile_theme_post_helper(
+            handler,
+            send_meshyface_profile_fn=deps.send_meshyface_profile_fn,
+            to_int_fn=deps.to_int_fn,
+            validate_content_length_fn=deps.validate_content_length_fn,
+            parse_meshyface_profile_theme_request_fn=parse_profile_request_fn,
             write_json_response_fn=deps.write_json_response_fn,
         )
         return

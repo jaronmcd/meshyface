@@ -466,6 +466,31 @@
           peerSnapshot.historyCaps,
           peerId
         );
+        const peerTagEntry = typeof nodeTagEntryForNode === "function"
+          ? nodeTagEntryForNode(peerId)
+          : null;
+        const peerAppearanceEntry = typeof effectiveNodeAppearanceForNode === "function"
+          ? effectiveNodeAppearanceForNode(peerId, state)
+          : peerTagEntry;
+        const peerProfileAppearanceActive = !!(
+          peerAppearanceEntry
+          && peerAppearanceEntry.preset
+          && peerAppearanceEntry.profileAppearance
+        );
+        const peerTagOverridesProfile = peerTagEntry && (
+          typeof nodeTagOverridesProfileAppearance === "function"
+            ? nodeTagOverridesProfileAppearance(peerTagEntry)
+            : true
+        );
+        const peerProfileClass = peerProfileAppearanceActive && !peerTagOverridesProfile
+          ? " profiled-node"
+          : "";
+        const peerStyleVars = peerProfileClass && typeof nodeAppearanceStyleVars === "function"
+          ? nodeAppearanceStyleVars(peerAppearanceEntry)
+          : "";
+        const peerStyleAttr = peerStyleVars
+          ? ` style="${{escAttr(peerStyleVars)}}"`
+          : "";
         const bucketRaw = directMessagesByPeer.get(peerId);
         const bucket = Array.isArray(bucketRaw) ? bucketRaw : [];
         const messages = bucket.length > chatFeedMaxEntries
@@ -541,6 +566,31 @@
                 fromId,
                 latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at)
               );
+              const messageTagEntry = typeof nodeTagEntryForNode === "function"
+                ? nodeTagEntryForNode(fromId)
+                : null;
+              const messageAppearanceEntry = typeof effectiveNodeAppearanceForNode === "function"
+                ? effectiveNodeAppearanceForNode(fromId, state)
+                : messageTagEntry;
+              const messageProfileAppearanceActive = !!(
+                messageAppearanceEntry
+                && messageAppearanceEntry.preset
+                && messageAppearanceEntry.profileAppearance
+              );
+              const messageTagOverridesProfile = messageTagEntry && (
+                typeof nodeTagOverridesProfileAppearance === "function"
+                  ? nodeTagOverridesProfileAppearance(messageTagEntry)
+                  : true
+              );
+              const messageProfileClass = messageProfileAppearanceActive && !messageTagOverridesProfile
+                ? " profiled-node"
+                : "";
+              const messageStyleVars = messageProfileClass && typeof nodeAppearanceStyleVars === "function"
+                ? nodeAppearanceStyleVars(messageAppearanceEntry)
+                : "";
+              const messageStyleAttr = messageStyleVars
+                ? ` style="${{escAttr(messageStyleVars)}}"`
+                : "";
               const fromLabel = isOwn ? "You" : (fromMeta.label || fromId || "Peer");
               const rawTime = String((msg && (msg.rx_time || msg.captured_at)) || "").trim();
               const msgUnix = latestUnixTimestamp(msg && msg.rx_time, msg && msg.captured_at);
@@ -576,7 +626,7 @@
                 : "";
               const textHtml = chatPlainTextToHtml((msg && msg.text) || "", true)
                 || escAttr(String(emojiOf(msg) || "").trim() || "(no text)");
-              return `<div class="peer-dm-popout-msg${{isOwn ? " is-own" : ""}}${{alertClass}}" data-message-key="${{escAttr(messageKey)}}">
+              return `<div class="peer-dm-popout-msg${{isOwn ? " is-own" : ""}}${{alertClass}}${{messageProfileClass}}" data-message-key="${{escAttr(messageKey)}}" data-node-id="${{escAttr(fromId)}}"${{messageStyleAttr}}>
                 <div class="peer-dm-popout-msg-meta"><span>${{alertChip}}${{escAttr(fromLabel)}}</span><span>${{escAttr(`${{timeLabel}}${{deliverySuffix}}`)}}</span></div>
                 <div class="peer-dm-popout-msg-text">${{textHtml}}</div>
               </div>`;
@@ -610,7 +660,7 @@
           data-peer-dm-channel-index="${{escAttr(threadChannelIndex)}}"
           style="${{escAttr(threadChannelStyle)}}"
         >
-          <header class="peer-dm-popout-head">
+          <header class="peer-dm-popout-head${{peerProfileClass}}"${{peerStyleAttr}}>
             <div class="peer-dm-popout-title">
               <span class="peer-dm-popout-name">${{escAttr(peerName)}}</span>
               <span class="peer-dm-popout-id-row">

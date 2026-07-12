@@ -6466,8 +6466,22 @@
         const nodeEmoji = resolveNetworkGraphNodeEmoji(item);
         const tagEntry = networkGraphVisibleTagEntryForNode(item.nodeId);
         const isTaggedNode = !!(tagEntry && tagEntry.preset);
-        const tagStyleVars = (isTaggedNode && typeof nodeTagStyleVars === "function")
-          ? nodeTagStyleVars(tagEntry)
+        const rawTagEntry = (typeof nodeTagEntryForNode === "function")
+          ? nodeTagEntryForNode(item.nodeId)
+          : null;
+        const appearanceEntry = rawTagEntry
+          ? tagEntry
+          : ((typeof effectiveNodeAppearanceForNode === "function")
+            ? effectiveNodeAppearanceForNode(item.nodeId)
+            : null);
+        const hasNodeAppearance = !!(appearanceEntry && appearanceEntry.preset);
+        const isProfiledNode = hasNodeAppearance && !isTaggedNode;
+        const profileTheme = isProfiledNode && typeof normalizeMeshyfaceProfileTheme === "function"
+          ? normalizeMeshyfaceProfileTheme(appearanceEntry.theme)
+          : null;
+        const hasProfileThemeIdentity = !!profileTheme;
+        const appearanceStyleVars = (hasNodeAppearance && typeof nodeAppearanceStyleVars === "function")
+          ? nodeAppearanceStyleVars(appearanceEntry)
           : "";
         const labelOffsetRaw = item && item.labelOffsetY;
         const labelOffsetY = (
@@ -6495,21 +6509,32 @@
           nodeEmoji ? "has-emoji-glyph" : "",
           isRootNode ? "is-root" : "",
           isSelectedNode ? "is-selected" : "",
-          isTaggedNode ? "is-tagged" : "",
+          hasNodeAppearance ? "is-tagged" : "",
+          isProfiledNode ? "is-profiled" : "",
+          hasProfileThemeIdentity ? "has-theme-identity" : "",
           item.detached ? "is-detached" : "",
           item.broadcastOnly ? "is-broadcast-only" : "",
           `label-priority-${{labelPriority}}`,
         ].filter(Boolean).join(" ");
         const emojiBoxSize = Math.max(24, Math.round(Number(item.radius) * 2.5));
         const emojiBoxOffset = -(emojiBoxSize / 2);
+        const themeSurfaceBoxSize = Math.max(10, Number(item.radius) * 1.56);
+        const themeSurfaceBoxOffset = -(themeSurfaceBoxSize / 2);
         return `
           <g
             class="${{classes}}"
             data-network-graph-node-id="${{escAttr(item.nodeId)}}"
-            ${{tagStyleVars ? `style="${{escAttr(tagStyleVars)}}"` : ""}}
+            ${{appearanceStyleVars ? `style="${{escAttr(appearanceStyleVars)}}"` : ""}}
             transform="translate(${{Number(item.x).toFixed(1)}} ${{Number(item.y).toFixed(1)}})"
           >
             <circle class="network-graph-node-core" r="${{Number(item.radius).toFixed(1)}}"></circle>
+            ${{
+              hasProfileThemeIdentity
+                ? `<foreignObject class="network-graph-node-theme-surface-fo" x="${{themeSurfaceBoxOffset.toFixed(1)}}" y="${{themeSurfaceBoxOffset.toFixed(1)}}" width="${{themeSurfaceBoxSize.toFixed(1)}}" height="${{themeSurfaceBoxSize.toFixed(1)}}" aria-hidden="true">
+                    <div xmlns="http://www.w3.org/1999/xhtml" class="network-graph-node-theme-surface"></div>
+                  </foreignObject>`
+                : ""
+            }}
             ${{
               nodeEmoji
                 ? `<foreignObject class="network-graph-node-emoji-fo" x="${{emojiBoxOffset.toFixed(1)}}" y="${{emojiBoxOffset.toFixed(1)}}" width="${{emojiBoxSize.toFixed(1)}}" height="${{emojiBoxSize.toFixed(1)}}" aria-hidden="true">
@@ -6622,7 +6647,8 @@
       hash = hashMixInt(hash, items.length);
       for (const item of items) {{
         const pos = positions.get(item && item.nodeId) || item || {{}};
-        hash = hashMixStr(hash, normalizeNodeId(item && item.nodeId));
+        const itemNodeId = normalizeNodeId(item && item.nodeId);
+        hash = hashMixStr(hash, itemNodeId);
         hash = hashMixInt(hash, Math.round(Number(pos.x) * 10) || 0);
         hash = hashMixInt(hash, Math.round(Number(pos.y) * 10) || 0);
         hash = hashMixInt(hash, Math.round(Number(item && item.radius) * 10) || 0);
@@ -6630,6 +6656,12 @@
         hash = hashMixInt(hash, item && item.detached ? 1 : 0);
         hash = hashMixInt(hash, item && item.broadcastOnly ? 1 : 0);
         hash = hashMixInt(hash, item && item.showLabel ? 1 : 0);
+        const appearanceEntry = itemNodeId && typeof effectiveNodeAppearanceForNode === "function"
+          ? effectiveNodeAppearanceForNode(itemNodeId)
+          : null;
+        hash = hashMixStr(hash, appearanceEntry && typeof meshyfaceProfileThemeSignature === "function"
+          ? meshyfaceProfileThemeSignature(appearanceEntry.theme)
+          : "");
       }}
       hash = hashMixInt(hash, edges.length);
       for (const edge of edges) {{
@@ -6705,6 +6737,30 @@
       for (const entry of taggedEntries) {{
         hash = hashMixStr(hash, entry);
       }}
+      const appearanceEntries = [];
+      if (typeof effectiveNodeAppearanceForNode === "function") {{
+        for (const nodeId of nodeMap.keys()) {{
+          const cleanNodeId = normalizeNodeId(nodeId || "");
+          if (!cleanNodeId) continue;
+          const appearanceEntry = effectiveNodeAppearanceForNode(cleanNodeId);
+          const preset = appearanceEntry && appearanceEntry.preset ? appearanceEntry.preset : null;
+          if (!preset) continue;
+          appearanceEntries.push([
+            cleanNodeId,
+            String(appearanceEntry.source || "manual-tag"),
+            String(preset.color || ""),
+            String(preset.vibrance || ""),
+            typeof meshyfaceProfileThemeSignature === "function"
+              ? meshyfaceProfileThemeSignature(appearanceEntry.theme)
+              : "",
+          ].join(":"));
+        }}
+      }}
+      appearanceEntries.sort();
+      hash = hashMixInt(hash, appearanceEntries.length);
+      for (const entry of appearanceEntries) {{
+        hash = hashMixStr(hash, entry);
+      }}
       return `network-graph-data:${{(hash >>> 0).toString(16)}}`;
     }}
 
@@ -6766,11 +6822,25 @@
         if (!item) return;
         const tagEntry = networkGraphVisibleTagEntryForNode(item.nodeId);
         const isTaggedNode = !!(tagEntry && tagEntry.preset);
-        nodeEl.classList.toggle("is-tagged", isTaggedNode);
-        if (isTaggedNode && typeof nodeTagStyleVars === "function") {{
-          const tagStyleVars = nodeTagStyleVars(tagEntry);
-          if (tagStyleVars) {{
-            nodeEl.setAttribute("style", tagStyleVars);
+        const rawTagEntry = (typeof nodeTagEntryForNode === "function")
+          ? nodeTagEntryForNode(item.nodeId)
+          : null;
+        const appearanceEntry = rawTagEntry
+          ? tagEntry
+          : ((typeof effectiveNodeAppearanceForNode === "function")
+            ? effectiveNodeAppearanceForNode(item.nodeId)
+            : null);
+        const hasNodeAppearance = !!(appearanceEntry && appearanceEntry.preset);
+        const profileTheme = hasNodeAppearance && !isTaggedNode && typeof normalizeMeshyfaceProfileTheme === "function"
+          ? normalizeMeshyfaceProfileTheme(appearanceEntry.theme)
+          : null;
+        nodeEl.classList.toggle("is-tagged", hasNodeAppearance);
+        nodeEl.classList.toggle("is-profiled", hasNodeAppearance && !isTaggedNode);
+        nodeEl.classList.toggle("has-theme-identity", !!profileTheme);
+        if (hasNodeAppearance && typeof nodeAppearanceStyleVars === "function") {{
+          const appearanceStyleVars = nodeAppearanceStyleVars(appearanceEntry);
+          if (appearanceStyleVars) {{
+            nodeEl.setAttribute("style", appearanceStyleVars);
           }} else {{
             nodeEl.removeAttribute("style");
           }}

@@ -1087,6 +1087,28 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert 'id="theme-custom-gradient-primary-end-color"' in html
     assert 'id="theme-custom-gradient-primary-type"' in html
     assert 'id="theme-custom-gradient-primary-direction"' in html
+    theme_panel_start = html.index('id="settings-appearance-theme-panel"')
+    assert "Surface" in html
+    assert "Identity" in html
+    assert "Accent and text" not in html
+    assert (
+        html.index("Surface", theme_panel_start)
+        < html.index("Identity", theme_panel_start)
+        < html.index("Background", theme_panel_start)
+        < html.index("Background gradient", theme_panel_start)
+    )
+    assert (
+        html.index('id="theme-custom-base-color"', theme_panel_start)
+        < html.index('id="theme-custom-foreground-transparency"', theme_panel_start)
+        < html.index('id="theme-custom-foreground-blur"', theme_panel_start)
+        < html.index('id="theme-custom-color-depth"', theme_panel_start)
+    )
+    assert (
+        html.index('id="theme-custom-gradient-primary-start-color"', theme_panel_start)
+        < html.index('id="theme-custom-gradient-primary-type"', theme_panel_start)
+        < html.index('id="theme-custom-gradient-primary-direction"', theme_panel_start)
+        < html.index('id="theme-custom-gradient-primary-end-color"', theme_panel_start)
+    )
     assert 'id="theme-custom-background-type"' in html
     assert '<option value="particles">Particles</option>' in html
     assert '<option value="livemap">Live map</option>' in html
@@ -1105,7 +1127,7 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "data-background-image-only" in html
     assert "data-background-particles" in html
     assert "data-particles-random-only" in html
-    assert ".settings-gradient-group," in css
+    assert ".settings-gradient-fields.settings-theme-gradient-fields" in css
     assert ".settings-input," in css
     assert "backdrop-filter: var(--theme-foreground-blur, none);" in css
     assert "--settings-control-bg: color-mix(in srgb, var(--settings-bg-soft) 86%, transparent);" in css
@@ -1148,9 +1170,110 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert '<option value="down-right">Down right</option>' in html
     assert 'id="settings-appearance-badge-emoji"' not in html
     assert "theme-live-preview" not in html
-    assert "theme-preview" not in html
+    assert 'id="theme-preview"' not in html
+    assert 'id="settings-appearance-tab-theme-btn"' in html
+    assert 'id="settings-appearance-tab-node-btn"' in html
+    assert 'data-settings-appearance-tab-panel="theme"' in html
+    assert 'data-settings-appearance-tab-panel="node"' in html
+    assert "function normalizeSettingsAppearanceTab(value)" in js
+    assert "function setActiveSettingsAppearanceTab(tab, persist = true)" in js
+    assert "settingsAppearanceTabStorageKey" in js
+    assert 'runBootStep("loadSettingsAppearanceTabPreference", () => loadSettingsAppearanceTabPreference());' in js
+    assert "function normalizeMeshyfaceProfileTheme(rawTheme)" in js
+    assert "rawKeys.length !== meshyfaceProfileThemeKeys.size" in js
+    assert "function currentMeshyfaceProfileThemeRecipe()" in js
+    assert "function currentMeshyfaceProfileOutgoingPayload(extra = null)" in js
+    assert "function normalizeMeshyfaceNodeThemePayload(rawPayload, fallbackSettings = null)" in js
+    assert "function meshyfaceProfileGhostAutoFontSize(value)" in js
+    assert "function meshyfaceProfileGhostAnchorX(justify, value)" in js
+    assert "function normalizeMeshyfaceProfileGhostTilt(value, fallback = meshyfaceProfileGhostTiltDefault)" in js
+    assert 'const meshyfaceProfileGhostTiltDefault = "level";' in js
+    assert 'const meshyfaceProfileGhostJustifyDefault = "center";' in js
+    assert "function normalizeMeshyfaceProfileGhostJustify(value, fallback = meshyfaceProfileGhostJustifyDefault)" in js
+    assert "function meshyfaceProfileGhostTiltBase(value)" in js
+    assert "function meshyfaceProfileGhostTiltUpsideDown(value)" in js
+    assert "function composeMeshyfaceProfileGhostTilt(base, upsideDown)" in js
+    assert "function meshyfaceProfileThemeDashboardSettings(rawTheme, baseSettings = null)" in js
+    assert "function meshyfaceProfileThemeDashboardOptions(rawTheme, extraOptions = null)" in js
+    assert "function hasMeshyfaceProfileThemeDashboardPreviewUndo()" in js
+    assert "function undoMeshyfaceProfileThemeDashboardPreview(button = null)" in js
+    assert "function tryCurrentMeshyfaceNodeThemeOnDashboard()" in js
+    assert "function saveCurrentMeshyfaceNodeThemeAsDashboardTheme()" in js
+    assert "Undo look" in js
+    assert "Try on dashboard" in html
+    assert "Save as theme" in html
+    assert "function currentMeshyfaceNodeThemeSettings()" in js
+    assert "const settings = currentMeshyfaceNodeThemeSettings();" in js
+    assert 'const meshyfaceNodeThemeModes = new Set(["current", "light", "dark"]);' in js
+    assert 'mode: resolvedMeshyfaceProfileThemeMode(),' in js
+    assert 'id="settings-meshyface-node-theme-preview-card"' in html
+    assert 'id="settings-meshyface-node-theme-preview-member"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-justify"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-tilt"' in html
+    assert 'id="settings-meshyface-node-theme-ghost-upside-down"' in html
+    assert 'id="settings-meshyface-node-theme-mode"' not in html
+    assert "Watermark" in html
+    assert "Node surface" in html
+    assert "Identity" in html
+    assert "Background gradient" in html
+    assert '<span class="settings-label">Justify</span>' in html
+    assert '<span class="settings-label">Tilt</span>' in html
+    assert "Upside down" in html
+    assert '<option value="center" selected>Center</option>' in html
+    assert '<option value="upside-down">Upside down</option>' not in html
+    assert '<span class="settings-label">Strength</span>' in html
+    assert 'class="settings-meshyface-node-theme-preview-shell"' in html
+    assert 'class="chat-feed-item profiled-node chat-selectable"' in html
+    assert 'class="chat-member-item status-online profiled-node settings-meshyface-node-theme-preview-member"' in html
+    node_panel_start = html.index('id="settings-appearance-node-panel"')
+    assert (
+        html.index('id="settings-meshyface-node-theme-gradient-start-color"', node_panel_start)
+        < html.index('id="settings-meshyface-node-theme-gradient-type"', node_panel_start)
+        < html.index('id="settings-meshyface-node-theme-gradient-direction"', node_panel_start)
+        < html.index('id="settings-meshyface-node-theme-gradient-end-color"', node_panel_start)
+    )
+    assert "function meshyfaceNodeThemePreviewPayload(rawTheme)" in js
+    assert "preview_only: true," in js
+    assert "function meshyfaceNodeThemePreviewRenderFromPayload(payload, rawTheme)" in js
+    assert "function refreshMeshyfaceNodeThemePreviewRender(rawTheme)" in js
+    assert "function loadMeshyfaceNodeThemePreviewRenderCacheFromStorage()" in js
+    assert "persistMeshyfaceNodeThemePreviewRenderCache(signature, render);" in js
+    assert "queueMeshyfaceNodeThemePreviewRenderRefresh(theme);" in js
+    assert "applyNodeAppearanceElementStyle(target, appearanceEntry);" in js
+    assert "settingsMeshyfaceNodeThemePreviewRender" in js
+    assert "const outgoingPayload = currentMeshyfaceProfileOutgoingPayload();" in js
+    assert "currentMeshyfaceProfileOutgoingPayload({ channel_index: channelIndex })" in js
+    assert 'document.getElementById("settings-meshyface-node-theme-ghost-justify")' in js
+    assert 'document.getElementById("settings-meshyface-node-theme-ghost-upside-down")' in js
+    assert 'bindSelect("settings-meshyface-node-theme-ghost-justify", "ghost_justify", normalizeMeshyfaceProfileGhostJustify);' in js
+    assert 'bindSelect("settings-meshyface-node-theme-ghost-tilt", "ghost_tilt", normalizeMeshyfaceProfileGhostTilt);' not in js
+    assert "composeMeshyfaceProfileGhostTilt(" in js
+    assert "...(theme ? { theme } : {})," not in js
+    assert "if (!theme || !preset) return null;" in js
+    assert "function meshyfaceProfileThemeIdentityGradient(rawTheme)" not in js
+    assert "function meshyfaceProfileThemeWashGradient(rawTheme, hover = false)" not in js
+    assert "function normalizeMeshyfaceProfileThemeRender(rawRender)" in js
+    assert "function meshyfaceProfileThemeBackgroundGradient(rawTheme, rawRender = null)" in js
+    assert "function meshyfaceProfileThemeStyleEntries(rawTheme, rawRender = null)" in js
+    assert "function applyMeshyfaceProfileThemeElementStyle(target, rawTheme, rawRender = null)" in js
+    assert "clearMeshyfaceProfileThemeElementStyle(target);" in js
+    assert "applyMeshyfaceProfileThemeElementStyle(target, entry.theme, profileRender);" in js
+    assert '["--node-profile-theme-background", backgroundGradient]' in js
+    assert '["--node-profile-theme-shell", meshyfaceProfileThemeAlphaGradient(' in js
+    assert '["--node-profile-theme-border", render.border_color]' in js
+    assert '["--node-profile-theme-base", theme.base_color]' in js
+    assert '["--node-profile-theme-line", theme.line_color]' in js
+    assert '["--node-profile-theme-contrast", theme.line_contrast_color]' in js
+    assert "--node-profile-theme-motif" not in js
+    assert "--node-profile-theme-gradient" not in js
+    assert "--node-profile-theme-wash" not in js
+    assert "--node-profile-theme-font-family" in js
+    assert "meshyfaceProfileThemePreviewHtml" not in js
+    assert "node-profile-theme-swatch" not in js
     assert "Shared surface wash" not in html
     assert "Subtle panel and note color" not in html
+    assert "Node font" in html
+    assert '<span class="settings-label">Direction</span>' in html
     assert "Text" in html
     assert "Console preview" not in html
     assert "$ mesh status --live" not in html
@@ -1178,7 +1301,8 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert ">0.2</output>" in html
     assert 'value="88"' in html
     assert ">88%</output>" in html
-    assert 'class="settings-gradient-group settings-background-panel"' in html
+    assert 'class="settings-gradient-group settings-background-panel"' not in html
+    assert 'class="settings-control-section"' in html
     assert 'data-background-livemap-only' in html
     assert 'class="settings-livemap-layer-grid"' in html
     assert 'id="theme-custom-livemap-layer-roads"' in html

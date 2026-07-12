@@ -21,4 +21,5 @@ INDEX_SCHEMA_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS idx_environment_metrics_1m_last_seen_unix ON environment_metrics_1m(last_seen_unix)",
     "CREATE INDEX IF NOT EXISTS idx_environment_metrics_1m_metric_key_bucket_unix ON environment_metrics_1m(metric_key, bucket_unix)",
     "CREATE INDEX IF NOT EXISTS idx_environment_metrics_1m_node_id_bucket_unix ON environment_metrics_1m(node_id, bucket_unix)",
+    "CREATE INDEX IF NOT EXISTS idx_meshyface_profiles_received_unix ON meshyface_profiles(received_unix)",
 ]

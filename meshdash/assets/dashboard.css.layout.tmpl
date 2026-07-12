@@ -7255,15 +7255,33 @@
       padding-left: 12px;
       padding-right: 12px;
     }}
-    .chat-feed-item.has-node-emoji::after {{
-      content: none;
-      display: none;
+    .chat-feed-item.has-node-emoji:not(.profiled-node)::after {{
+      content: attr(data-node-emoji);
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 0;
+      display: block;
+      font-size: clamp(44px, 4.8vw, 72px);
+      line-height: 1;
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+      opacity: 0.14;
+      filter: grayscale(0.18) saturate(0.72) blur(1px);
+      pointer-events: none;
+      user-select: none;
+      white-space: nowrap;
     }}
-    .chat-feed-item.has-node-emoji.has-node-watermark-text::after {{
-      content: none;
-      display: none;
+    .chat-feed-item.has-node-emoji.has-node-watermark-text:not(.profiled-node)::after {{
+      font-size: clamp(28px, 3.4vw, 46px);
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      font-family: var(--font-sans);
+      color: var(--chat-feed-node-border-strong, currentColor);
+      opacity: 0.16;
+      filter: blur(0.2px);
     }}
-    .chat-feed-item.self-authored.has-node-emoji::after {{
+    .chat-feed-item.self-authored.has-node-emoji:not(.profiled-node)::after {{
       left: var(--chat-feed-node-emoji-tail-inset);
       right: auto;
     }}
@@ -7402,7 +7420,7 @@
       background: transparent;
       box-shadow: none;
     }}
-    .chat-feed.chat-feed-view-monitor .chat-feed-item.has-node-emoji::after {{
+    .chat-feed.chat-feed-view-monitor .chat-feed-item.has-node-emoji:not(.profiled-node)::after {{
       content: none;
     }}
     .chat-feed.chat-feed-view-monitor .chat-feed-line {{

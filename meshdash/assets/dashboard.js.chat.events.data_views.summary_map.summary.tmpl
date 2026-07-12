@@ -856,7 +856,41 @@
       const selfMetric = document.getElementById("m-self");
       const selfCard = document.getElementById("summary-ticker-self");
       if (selfCard instanceof HTMLElement) {{
-        selfCard.classList.remove("has-selected-node");
+        selfCard.classList.remove("has-selected-node", "profiled-node", "has-node-profile-watermark");
+        if (typeof clearNodeAppearanceElementStyle === "function") {{
+          clearNodeAppearanceElementStyle(selfCard);
+        }}
+        const selfCardAppearanceEntry = (
+          isSelectableNodeId(localId)
+          && typeof effectiveNodeAppearanceForNode === "function"
+        )
+          ? effectiveNodeAppearanceForNode(localId, state)
+          : null;
+        const selfCardProfileAppearance = !!(
+          selfCardAppearanceEntry
+          && selfCardAppearanceEntry.profileAppearance
+        );
+        if (selfCardProfileAppearance) {{
+          selfCard.classList.add("profiled-node");
+          if (typeof applyNodeAppearanceElementStyle === "function") {{
+            applyNodeAppearanceElementStyle(selfCard, selfCardAppearanceEntry);
+          }}
+          const selfCardChannelIndex = typeof normalizeMeshyfaceProfileLastBroadcastChannelIndex === "function"
+            ? normalizeMeshyfaceProfileLastBroadcastChannelIndex(
+              selfCardAppearanceEntry.channel_index ?? selfCardAppearanceEntry.channelIndex
+            )
+            : null;
+          if (selfCardChannelIndex != null && typeof meshChannelColorMeta === "function") {{
+            const selfCardChannelMeta = meshChannelColorMeta(selfCardChannelIndex, {{ allowAll: false }});
+            selfCard.style.setProperty("--self-node-channel-edge-fill", selfCardChannelMeta.fill);
+          }}
+          const selfCardGhost = typeof meshyfaceProfileGhostForAppearance === "function"
+            ? meshyfaceProfileGhostForAppearance(selfCardAppearanceEntry)
+            : null;
+          if (selfCardGhost && selfCardGhost.text) {{
+            selfCard.classList.add("has-node-profile-watermark");
+          }}
+        }}
         const selfLabel = selfCard.querySelector("[data-ticker-label]");
         if (selfLabel instanceof HTMLElement) {{
           selfLabel.classList.toggle("is-dual-node-label", hasSelectedTickerNode);
@@ -942,6 +976,22 @@
             const slot = document.createElement("div");
             slot.className = `self-node-identity-slot self-node-identity-${{kind}}`;
             const cleanNodeId = normalizeNodeId(nodeId || "");
+            const appearanceEntry = (typeof effectiveNodeAppearanceForNode === "function")
+              ? effectiveNodeAppearanceForNode(cleanNodeId, state)
+              : null;
+            const hasProfileAppearance = !!(
+              appearanceEntry
+              && appearanceEntry.profileAppearance
+            );
+            if (hasProfileAppearance) {{
+              slot.classList.add("profiled-node");
+              if (typeof nodeAppearanceStyleVars === "function") {{
+                const appearanceStyleVars = nodeAppearanceStyleVars(appearanceEntry);
+                if (appearanceStyleVars) {{
+                  slot.setAttribute("style", appearanceStyleVars);
+                }}
+              }}
+            }}
             if (isSelectableNodeId(cleanNodeId)) {{
               const targetLabel = kind === "selected" ? "selected" : "self";
               slot.dataset.nodeId = cleanNodeId;

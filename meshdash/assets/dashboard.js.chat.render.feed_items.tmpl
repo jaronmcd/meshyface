@@ -152,13 +152,19 @@
           fallbackNode,
         ]);
         const tintTagEntry = tagMatch.entry;
-        const tintNodeId = normalizeNodeId(tagMatch.matchedNodeId || sourceNode || nodeId || sourceNodeRaw || "");
+        const tintNodeId = normalizeNodeId(tagMatch.matchedNodeId || nodeId || sourceNode || sourceNodeRaw || "");
         const tagActive = !!(tintTagEntry && tintTagEntry.preset);
-        const tagStyleVars = (tagActive && typeof nodeTagStyleVars === "function")
-          ? nodeTagStyleVars(tintTagEntry)
-          : "";
-        const tagTintStyleVars = (tagActive && typeof nodeTagTintStyleVars === "function")
-          ? nodeTagTintStyleVars(tintTagEntry, "feed", 210)
+        const appearanceEntry = (typeof effectiveNodeAppearanceForNode === "function")
+          ? effectiveNodeAppearanceForNode(tintNodeId)
+          : tintTagEntry;
+        const appearanceActive = !!(appearanceEntry && appearanceEntry.preset);
+        const appearanceStyleVars = (appearanceActive && typeof nodeAppearanceStyleVars === "function")
+          ? nodeAppearanceStyleVars(appearanceEntry)
+          : ((appearanceActive && typeof nodeTagStyleVars === "function")
+            ? nodeTagStyleVars(appearanceEntry)
+            : "");
+        const appearanceTintStyleVars = (appearanceActive && typeof nodeTagTintStyleVars === "function")
+          ? nodeTagTintStyleVars(appearanceEntry, "feed", 210)
           : "";
         const nodeVisualSeedNode = (
           nodesById.get(normalizeNodeId(tintNodeId))
@@ -186,11 +192,11 @@
         if (showMessageChannelTab && typeof meshChannelEdgeStyle === "function") {{
           rowStyleParts.push(meshChannelEdgeStyle(meshIdx, {{ allowAll: false }}));
         }}
-        if (tagTintStyleVars) {{
-          rowStyleParts.push(tagTintStyleVars);
+        if (appearanceTintStyleVars) {{
+          rowStyleParts.push(appearanceTintStyleVars);
         }}
-        if (tagStyleVars) {{
-          rowStyleParts.push(tagStyleVars);
+        if (appearanceStyleVars) {{
+          rowStyleParts.push(appearanceStyleVars);
         }}
         const combinedRowStyle = rowStyleParts
           .filter((value) => !!value)
@@ -240,10 +246,14 @@
         let replyInlineLabel = "";
         let replyInlineText = "";
         let replyInlineMissing = false;
+        let replyParentNodeId = "";
         if (Number.isInteger(replyToId) && replyToId > 0) {{
           const parentMsg = messageIndex.get(String(replyToId));
           if (parentMsg) {{
-            const parentFromMeta = chatEndpointParts(endpointsForMessage(parentMsg).fromId);
+            const parentEndpoints = endpointsForMessage(parentMsg);
+            const parentSourceNode = resolveChatFeedNodeId(parentEndpoints.fromId) || parentEndpoints.fromId;
+            replyParentNodeId = isSelectableNodeId(parentSourceNode) ? parentSourceNode : "";
+            const parentFromMeta = chatEndpointParts(parentEndpoints.fromId);
             const parentLabel = parentFromMeta.label || "Unknown node";
             const parentTextRaw = String(
               parentMsg.text
@@ -275,6 +285,8 @@
                 ? parentPacket.decoded
                 : {{}};
               const parentEndpoints = packetEndpointIds(parentPacketEntry);
+              const parentSourceNode = resolveChatFeedNodeId(parentEndpoints.fromId) || parentEndpoints.fromId;
+              replyParentNodeId = isSelectableNodeId(parentSourceNode) ? parentSourceNode : "";
               const parentUnix = latestUnixTimestamp(
                 parentSummary.rx_time_unix,
                 parentSummary.captured_at,
@@ -308,6 +320,31 @@
             }}
           }}
         }}
+        const replyTagEntry = replyParentNodeId && typeof nodeTagEntryForNode === "function"
+          ? nodeTagEntryForNode(replyParentNodeId)
+          : null;
+        const replyAppearanceEntry = replyParentNodeId && typeof effectiveNodeAppearanceForNode === "function"
+          ? effectiveNodeAppearanceForNode(replyParentNodeId)
+          : replyTagEntry;
+        const replyProfileAppearanceActive = !!(
+          replyAppearanceEntry
+          && replyAppearanceEntry.preset
+          && replyAppearanceEntry.profileAppearance
+        );
+        const replyTagOverridesProfile = !!(
+          replyTagEntry
+          && typeof nodeTagOverridesProfileAppearance === "function"
+          && nodeTagOverridesProfileAppearance(replyTagEntry)
+        );
+        const replyProfileClass = replyProfileAppearanceActive && !replyTagOverridesProfile
+          ? " profiled-node"
+          : "";
+        const replyStyleVars = replyProfileClass && typeof nodeAppearanceStyleVars === "function"
+          ? nodeAppearanceStyleVars(replyAppearanceEntry)
+          : "";
+        const replyStyleAttr = replyStyleVars
+          ? ` style="${{escAttr(replyStyleVars)}}"`
+          : "";
         const messageReactions = messageId ? reactionBuckets.get(String(messageId)) : null;
         const reactionGroups = messageReactions
           ? Array.from(messageReactions.values())
@@ -401,7 +438,19 @@
           ? `<div class="chat-reaction-row">${{reactionRowParts.join("")}}</div>`
           : "";
         const selectedFeedClass = (selectedNodeId && nodeId === selectedNodeId) ? " selected-node" : "";
-        const tagClass = tagActive ? " tagged-node" : "";
+        const profileAppearanceActive = !!(
+          appearanceActive
+          && appearanceEntry
+          && appearanceEntry.profileAppearance
+        );
+        const tagOverridesProfile = tagActive && (
+          typeof nodeTagOverridesProfileAppearance === "function"
+            ? nodeTagOverridesProfileAppearance(tintTagEntry)
+            : true
+        );
+        const tagVisualActive = false;
+        const tagClass = tagVisualActive ? " tagged-node" : "";
+        const profileClass = profileAppearanceActive && !tagOverridesProfile ? " profiled-node" : "";
         const messageKey = chatMessageKey(msg);
         const hasChangeMarker = !!messageKey && activeChangeFocusKeys.has(messageKey);
         const changeClass = hasChangeMarker ? " has-change-marker" : "";
@@ -461,7 +510,7 @@
           ? `Jump to original packet #${{replyInlineJumpTargetId}}`
           : "Original packet is unavailable";
         const replyInline = replyInlineLabel
-          ? `<button type="button" class="chat-reply-inline${{replyInlineMissing ? " missing" : ""}}" data-reply-target-id="${{escAttr(replyInlineJumpTargetId || "")}}" title="${{escAttr(replyInlineTitle)}}" aria-label="${{escAttr(replyInlineTitle)}}">
+          ? `<button type="button" class="chat-reply-inline${{replyInlineMissing ? " missing" : ""}}${{replyProfileClass}}" data-reply-target-id="${{escAttr(replyInlineJumpTargetId || "")}}" data-reply-node-id="${{escAttr(replyParentNodeId)}}"${{replyStyleAttr}} title="${{escAttr(replyInlineTitle)}}" aria-label="${{escAttr(replyInlineTitle)}}">
               <span class="chat-reply-inline-label">↪ ${{escAttr(replyInlineLabel)}}</span>
               <span class="chat-reply-inline-text">${{escAttr(replyInlineText)}}</span>
             </button>`
@@ -494,7 +543,7 @@
             ? '<span class="chat-monitor-alert-tag" title="Alert packet">[!]</span>'
             : "";
           const monitorNetworkTag = `<span class="chat-monitor-network-tag">[ ][MF]</span>`;
-          const monitorItemClass = `chat-feed-item chat-feed-item-monitor-exact ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{tagClass}}${{statusClass}}${{alertClass}}${{monitorViewClass}}`;
+          const monitorItemClass = `chat-feed-item chat-feed-item-monitor-exact ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{tagClass}}${{profileClass}}${{statusClass}}${{alertClass}}${{monitorViewClass}}`;
           return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="${{monitorItemClass.trim()}}"${{rowStyleAttr}} title="${{escAttr(messageTooltip)}}">
             <span class="chat-entry-msg">
               ${{monitorPrefix}}
@@ -528,7 +577,7 @@
           ? `<span class="chat-feed-side">${{sideParts.join("")}}</span>`
           : "";
         const extraRows = monitorMode ? "" : reactionRow;
-        return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="chat-feed-item ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{changeClass}}${{statusClass}}${{alertClass}}${{tagClass}}${{nodeEmojiClass}}${{messageChannelClass}}${{monitorViewClass}}"${{nodeEmojiAttr}}${{rowStyleAttr}} title="${{escAttr(messageTooltip)}}">
+        return `<div data-node-id="${{escAttr(nodeId)}}" data-from-node-id="${{escAttr(sourceNode)}}" data-message-id="${{escAttr(messageId || "")}}" data-message-key="${{escAttr(messageKey || "")}}" data-reply-name="${{escAttr(fromMeta.label || "Unknown node")}}" data-reply-text="${{escAttr(textCompact)}}" class="chat-feed-item ${{selectableClass}}${{selfAuthoredClass}}${{selectedFeedClass}}${{changeClass}}${{statusClass}}${{alertClass}}${{tagClass}}${{profileClass}}${{nodeEmojiClass}}${{messageChannelClass}}${{monitorViewClass}}"${{nodeEmojiAttr}}${{rowStyleAttr}} title="${{escAttr(messageTooltip)}}">
           ${{messageChannelTab}}
           <div class="chat-feed-line">
             <div class="chat-feed-summary">

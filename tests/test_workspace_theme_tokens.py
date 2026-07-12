@@ -13,6 +13,12 @@ def _css_rule(css: str, selector: str) -> str:
     return css.split(marker, 1)[1].split("}", 1)[0]
 
 
+def _last_css_rule(css: str, selector: str) -> str:
+    marker = f"{selector} {{"
+    assert marker in css
+    return css.rsplit(marker, 1)[1].split("}", 1)[0]
+
+
 def test_theme_exposes_shared_workspace_shell_tokens() -> None:
     theme_css = build_theme_css(indent="")
 
@@ -203,10 +209,34 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "border: 1px solid var(--settings-line-soft);" in css
     assert "--floating-stage-bg: var(--theme-background-gradient" in css
     assert "background: var(--theme-background-gradient, var(--theme-gradient-primary, var(--bg)));" in css
-    gradient_group = _css_rule(css, ".settings-gradient-group")
-    assert "background: var(--settings-bg-muted);" in gradient_group
+    control_section_rule = _css_rule(css, ".settings-control-section + .settings-control-section")
+    assert "border-top: 1px solid color-mix(in srgb, var(--settings-line-soft) 42%, transparent);" in control_section_rule
     assert "theme-live-preview" not in css
-    assert "theme-preview" not in css
+    assert ".theme-preview {" not in css
+    assert ".node-profile-theme-swatch" not in css
+    assert "#chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node)::before {" not in css
+    assert ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name {" in css
+    assert ".chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name {" in css
+    assert "var(--chat-member-node-gradient)," in css
+    assert "var(--chat-member-node-gradient-hover)," in css
+    assert ".network-graph-node.has-theme-identity .network-graph-node-label {" in css
+    dark_pinned_profile = _css_rule(
+        css,
+        '[data-theme="dark"] #chat-room-pinned-list .chat-member-item:not(.muted-node)',
+    )
+    dark_pinned_profile_hover = _css_rule(
+        css,
+        '[data-theme="dark"] #chat-room-pinned-list .chat-member-item:not(.muted-node):hover',
+    )
+    assert "var(--chat-member-node-gradient)" in dark_pinned_profile
+    assert "var(--chat-member-node-gradient-hover)" in dark_pinned_profile_hover
+    assert ".card.chat .chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" in css
+    assert ".chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" in css
+    assert ".chat-feed-item.profiled-node.self-authored:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker) {" not in css
+    assert ".chat-feed.chat-feed-view-monitor .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .short-name {" in css
+    assert ".card.chat .chat-reply-inline.profiled-node:not(.missing) {" in css
+    assert ".peer-dm-popout-head.profiled-node {" in css
+    assert ".peer-dm-popout-msg.profiled-node:not(.is-alert) {" in css
     dark_color_picker = _css_rule(css, "[data-theme=\"dark\"] .dashboard-color-picker-popover")
     color_picker = _css_rule(css, ".dashboard-color-picker-popover")
     assert "backdrop-filter: blur(14px) saturate(120%);" in color_picker
@@ -269,3 +299,106 @@ def test_workspace_views_reuse_shared_shell_tokens() -> None:
     assert "[data-theme=\"dark\"] .settings-ticker-config {" in css
     assert "[data-theme=\"dark\"] .layout.view-settings .settings," in css
     assert "[data-theme=\"dark\"] .layout.view-settings .settings .body {" in css
+
+
+def test_received_profile_uses_simple_theme_background_and_border() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    profile_tokens = _css_rule(css, "    .profiled-node")
+    roster = _last_css_rule(
+        css,
+        ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node)",
+    )
+    feed = _last_css_rule(
+        css,
+        ".card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert):not(.has-change-marker)",
+    )
+    feed_author = _last_css_rule(
+        css,
+        ".chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name",
+    )
+    roster_name = _last_css_rule(
+        css,
+        ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name",
+    )
+    table_name = _last_css_rule(css, "#nodes-table tbody tr.profiled-node .node-name-label")
+    ticker_name = _last_css_rule(
+        css,
+        ".topbar .summary-ticker-item-self .value.self-node-value .self-node-identity-slot.profiled-node .self-node-name-text",
+    )
+    self_ticker_card = _last_css_rule(
+        css,
+        ".topbar .summary-ticker-item-self.profiled-node",
+    )
+    self_ticker_label = _last_css_rule(
+        css,
+        ".topbar .summary-ticker-item-self.profiled-node > .label",
+    )
+    self_ticker_compact_label = _last_css_rule(
+        css,
+        ".topbar:not(.ticker-expanded) .summary-ticker-item-self.profiled-node > .label",
+    )
+    self_ticker_themed_name = _last_css_rule(
+        css,
+        ".topbar .summary-ticker-item-self.profiled-node .self-node-name-text",
+    )
+    graph_label = _last_css_rule(
+        css,
+        ".network-graph-node.has-theme-identity .network-graph-node-label",
+    )
+    map_marker = _css_rule(
+        css,
+        ".map-node-emoji-marker.profiled-node:not(.is-trace-running):not(.is-trace-result)",
+    )
+    node_details = _css_rule(css, ".chat-node-details-drawer.profiled-node .chat-node-details-head")
+    assert "--node-profile-identity-edge" in profile_tokens
+    assert "--node-profile-identity-color: var(" in profile_tokens
+    assert "--node-profile-theme-line," in profile_tokens
+    assert "var(--node-profile-border, var(--accent))" in profile_tokens
+    assert "--node-profile-identity-edge: var(--node-profile-identity-color);" in profile_tokens
+    assert "--node-profile-theme-surface:" in profile_tokens
+    assert "--node-profile-theme-surface-hover:" in profile_tokens
+    assert "--node-profile-theme-shell, transparent" in profile_tokens
+    assert "--node-profile-theme-shell-hover" in profile_tokens
+    assert "--node-profile-theme-background," in profile_tokens
+    assert "--node-profile-theme-base" in profile_tokens
+    assert "color-mix(" not in profile_tokens
+    assert "border-bottom-color: var(--node-profile-theme-border-muted, var(--node-profile-identity-color));" in roster
+    assert "background-image: var(--node-profile-theme-surface) !important;" in roster
+    assert "box-shadow: none;" in roster
+    assert "border-color: var(--node-profile-identity-color);" in feed
+    assert "background-image: var(--chat-feed-channel-edge-bg), var(--node-profile-theme-surface) !important;" in feed
+    assert "box-shadow:" not in feed
+    assert "color: var(--chat-member-node-fg, var(--workspace-shell-text)) !important;" in roster_name
+    assert "color: var(--surface-tint-text) !important;" in table_name
+    assert "color: var(--theme-text-color, var(--ink)) !important;" in feed_author
+    assert "color: var(--ticker-text-strong);" in ticker_name
+    assert "--self-node-channel-edge-bg:" in self_ticker_card
+    assert "var(--self-node-channel-edge-fill, transparent) 0 4px" in self_ticker_card
+    assert "--node-profile-self-text:" in self_ticker_card
+    assert "--node-profile-self-label-text:" in self_ticker_card
+    assert "color: var(--node-profile-self-text);" in self_ticker_card
+    assert "background: var(--self-node-channel-edge-bg), var(--node-profile-theme-surface) !important;" in self_ticker_card
+    assert "border-color: var(--node-profile-identity-edge);" in self_ticker_card
+    assert "color: var(--node-profile-self-label-text);" in self_ticker_label
+    assert "var(--node-profile-self-label-text) 84%" in self_ticker_compact_label
+    assert "color: var(--node-profile-self-text);" in self_ticker_themed_name
+    assert "fill: var(--surface-tint-text);" in graph_label
+    for text_rule in (roster_name, table_name, feed_author, ticker_name, graph_label):
+        assert "--node-profile-identity-edge" not in text_rule
+        assert "--node-profile-theme-contrast" not in text_rule
+    assert "!important" in feed_author
+    assert "--node-profile-theme-motif" not in css
+    assert "--node-profile-theme-ribbon-size" not in css
+    assert "inset 4px 0 0 var(--node-profile-identity-edge)" not in css
+    assert ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) .chat-member-name-left::after {" not in css
+    assert ".chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author::after {" not in css
+    assert "#nodes-table tbody tr.profiled-node .node-name-row::after {" not in css
+    assert ".map-node-info-card.profiled-node .map-node-info-title-wrap::after {" not in css
+    assert 'content: "Theme";' not in css
+    assert 'content: "  Theme";' not in css
+    assert "is-trace-running" in css
+    assert "is-trace-result" in css
+    assert "border-color: var(--node-profile-identity-edge);" in map_marker
+    assert "background-image: var(--node-profile-theme-surface) !important;" in node_details
+    assert "box-shadow:" not in node_details
