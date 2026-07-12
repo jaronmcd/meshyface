@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from typing import Callable, Protocol
+from typing import Protocol
 
 from .sql_contracts import SqlConnection, SqlRow, SqlRows
 
