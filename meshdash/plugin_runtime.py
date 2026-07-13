@@ -78,6 +78,40 @@ class _QueuedActionBatch:
     canceled: bool = False
 
 
+@dataclass
+class _ReconfigureRequest:
+    manifests: tuple[BotManifest, ...]
+    manifest_by_id: dict[str, BotManifest]
+    command_plugins: dict[str, str]
+    ready: threading.Event
+    error: str = ""
+
+
+def _validated_manifest_configuration(
+    manifests: Sequence[BotManifest],
+    *,
+    allow_empty: bool = False,
+) -> tuple[tuple[BotManifest, ...], dict[str, BotManifest], dict[str, str]]:
+    configured = tuple(manifests)
+    if not configured and not allow_empty:
+        raise ValueError("at least one enabled plugin manifest is required")
+    if len(configured) > 64:
+        raise ValueError("at most 64 plugins may be enabled")
+    manifest_by_id = {manifest.id: manifest for manifest in configured}
+    if len(manifest_by_id) != len(configured):
+        raise ValueError("plugin IDs must be unique")
+    command_plugins: dict[str, str] = {}
+    for manifest in configured:
+        for command in manifest.commands:
+            previous = command_plugins.get(command)
+            if previous is not None:
+                raise ValueError(
+                    f"command {command!r} is declared by both {previous!r} and {manifest.id!r}"
+                )
+            command_plugins[command] = manifest.id
+    return configured, manifest_by_id, command_plugins
+
+
 def _manifest_payload(manifest: BotManifest) -> dict[str, JsonValue]:
     return {
         "api_version": manifest.api_version,
@@ -164,23 +198,11 @@ class PluginRuntime:
         mp_context: object | None = None,
         monotonic_fn: Callable[[], float] = time.monotonic,
     ) -> None:
-        if not manifests:
-            raise ValueError("at least one enabled plugin manifest is required")
-        if len(manifests) > 64:
-            raise ValueError("at most 64 plugins may be enabled")
-        self._manifests = tuple(manifests)
-        self._manifest_by_id = {manifest.id: manifest for manifest in manifests}
-        if len(self._manifest_by_id) != len(self._manifests):
-            raise ValueError("plugin IDs must be unique")
-        self._command_plugins: dict[str, str] = {}
-        for manifest in manifests:
-            for command in manifest.commands:
-                previous = self._command_plugins.get(command)
-                if previous is not None:
-                    raise ValueError(
-                        f"command {command!r} is declared by both {previous!r} and {manifest.id!r}"
-                    )
-                self._command_plugins[command] = manifest.id
+        (
+            self._manifests,
+            self._manifest_by_id,
+            self._command_plugins,
+        ) = _validated_manifest_configuration(manifests)
         self._state_store = state_store
         self._send_chat_fn = send_chat_fn
         self._node_snapshot_fn = node_snapshot_fn
@@ -197,6 +219,7 @@ class PluginRuntime:
         self._action_queue: queue.Queue[object] = queue.Queue(
             maxsize=max(1, int(config.action_queue_size))
         )
+        self._management_queue: queue.Queue[_ReconfigureRequest] = queue.Queue(maxsize=4)
         self._stop = threading.Event()
         self._closing = threading.Event()
         self._status_lock = threading.Lock()
@@ -248,7 +271,7 @@ class PluginRuntime:
     def try_enqueue(self, event: MessageEvent) -> bool:
         """Route one already-accepted event without blocking its receive callback."""
 
-        if self._stop.is_set() or self._closing.is_set():
+        if self._stop.is_set() or self._closing.is_set() or not self._manifests:
             return False
         clean_text = event.text.strip()
         if event.is_direct and clean_text.lower() in _QUIT_COMMANDS:
@@ -267,6 +290,34 @@ class PluginRuntime:
                 self._dropped_events += 1
             return False
 
+    def reconfigure(self, manifests: Sequence[BotManifest]) -> None:
+        """Replace the enabled plugin set without restarting MeshyFace."""
+
+        configured, manifest_by_id, command_plugins = _validated_manifest_configuration(
+            manifests,
+            allow_empty=True,
+        )
+        if self._closing.is_set() or self._stop.is_set():
+            raise RuntimeError("plugin runtime is closing")
+        request = _ReconfigureRequest(
+            manifests=configured,
+            manifest_by_id=manifest_by_id,
+            command_plugins=command_plugins,
+            ready=threading.Event(),
+        )
+        try:
+            self._management_queue.put(request, timeout=1.0)
+        except queue.Full as exc:
+            raise RuntimeError("plugin runtime management queue is full") from exc
+        wait_seconds = max(
+            2.0,
+            self._config.startup_timeout_seconds + self._config.handler_timeout_seconds + 1.0,
+        )
+        if not request.ready.wait(timeout=wait_seconds):
+            raise TimeoutError("plugin runtime reconfiguration timed out")
+        if request.error:
+            raise RuntimeError(request.error)
+
     def _route_event(self, event: MessageEvent) -> tuple[_Invocation, ...]:
         if event.packet is not None:
             with self._status_lock:
@@ -275,9 +326,7 @@ class PluginRuntime:
                     for plugin_id, registration in self._registry.items()
                     if bool(registration.get("on_packet")) and not registration.get("error")
                 ]
-            return tuple(
-                _Invocation(plugin_id, "packet", event) for plugin_id in packet_plugins
-            )
+            return tuple(_Invocation(plugin_id, "packet", event) for plugin_id in packet_plugins)
         clean_text = event.text.strip()
         command_match = _COMMAND_RE.match(clean_text)
         invocations: list[_Invocation] = []
@@ -290,9 +339,7 @@ class PluginRuntime:
                 return ()
         if not invocations and event.is_direct:
             with self._session_lock:
-                session_plugin = self._sessions.get(
-                    (event.local_node_id, event.sender_id)
-                )
+                session_plugin = self._sessions.get((event.local_node_id, event.sender_id))
             registration = self._registry.get(session_plugin or "", {})
             if session_plugin and bool(registration.get("session")):
                 invocations.append(_Invocation(session_plugin, "session", event))
@@ -317,6 +364,8 @@ class PluginRuntime:
             ready = self._worker_ready
             if self._closing.is_set() or self._stop.is_set():
                 runtime_status = "stopped"
+            elif not self._manifests:
+                runtime_status = "stopped"
             elif alive and ready:
                 runtime_status = "running"
             elif alive or (self._generation == 0 and not self._last_error):
@@ -326,12 +375,8 @@ class PluginRuntime:
             plugins: dict[str, dict[str, object]] = {}
             for plugin_id, registration in self._registry.items():
                 public_registration = dict(registration)
-                registration_error = sanitize_plugin_status_error(
-                    registration.get("error")
-                )
-                last_error = sanitize_plugin_status_error(
-                    registration.get("last_error")
-                )
+                registration_error = sanitize_plugin_status_error(registration.get("error"))
+                last_error = sanitize_plugin_status_error(registration.get("last_error"))
                 if registration_error:
                     public_registration["error"] = registration_error
                     plugin_status = "error"
@@ -416,6 +461,22 @@ class PluginRuntime:
 
     def _dispatch_loop(self) -> None:
         while not self._stop.is_set():
+            try:
+                management_request = self._management_queue.get_nowait()
+            except queue.Empty:
+                management_request = None
+            if management_request is not None:
+                self._apply_reconfiguration(management_request)
+                continue
+            if not self._manifests:
+                if self._closing.is_set():
+                    return
+                try:
+                    management_request = self._management_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                self._apply_reconfiguration(management_request)
+                continue
             if not self._ensure_worker():
                 if self._stop.wait(max(0.05, self._config.restart_backoff_seconds)):
                     return
@@ -445,6 +506,42 @@ class PluginRuntime:
                 if not self._invoke(invocation):
                     break
 
+    def _apply_reconfiguration(self, request: _ReconfigureRequest) -> None:
+        try:
+            # A disabled plugin must not finish queued handlers or emit later actions.
+            # Publish the new registry before terminating the shared worker so the
+            # action thread rejects queued work from a newly disabled plugin.
+            self._manifests = request.manifests
+            self._manifest_by_id = request.manifest_by_id
+            self._command_plugins = request.command_plugins
+            self._stop_worker(force=True)
+            self._started_generation = self._generation
+            enabled_ids = set(self._manifest_by_id)
+            self._plugin_failures = {
+                plugin_id: failures
+                for plugin_id, failures in self._plugin_failures.items()
+                if plugin_id in enabled_ids
+            }
+            self._plugin_quarantined_until = {
+                plugin_id: deadline
+                for plugin_id, deadline in self._plugin_quarantined_until.items()
+                if plugin_id in enabled_ids
+            }
+            self._action_times = {
+                plugin_id: times
+                for plugin_id, times in self._action_times.items()
+                if plugin_id in enabled_ids
+            }
+            while True:
+                try:
+                    self._event_queue.get_nowait()
+                except queue.Empty:
+                    break
+        except Exception as exc:
+            request.error = f"{type(exc).__name__}: {exc}"
+        finally:
+            request.ready.set()
+
     def _control_loop(self) -> None:
         while not self._closing.is_set():
             try:
@@ -461,9 +558,7 @@ class PluginRuntime:
         session_key = (event.local_node_id, event.sender_id)
         try:
             with self._session_lock:
-                self._session_versions[session_key] = (
-                    self._session_versions.get(session_key, 0) + 1
-                )
+                self._session_versions[session_key] = self._session_versions.get(session_key, 0) + 1
                 ended = self._state_store.end_session(
                     event.local_node_id,
                     event.sender_id,
@@ -474,15 +569,11 @@ class PluginRuntime:
                 self._last_error = f"host session end failed: {exc}"
             return
         if ended and not self._closing.is_set():
-            self._queue_action(
-                _QueuedAction("host", event, ReplyAction("Session ended."))
-            )
+            self._queue_action(_QueuedAction("host", event, ReplyAction("Session ended.")))
 
     def _ensure_worker(self) -> bool:
         active_manifests = [
-            manifest
-            for manifest in self._manifests
-            if not self._is_quarantined(manifest.id)
+            manifest for manifest in self._manifests if not self._is_quarantined(manifest.id)
         ]
         active_plugin_ids = frozenset(manifest.id for manifest in active_manifests)
         process = self._process
@@ -516,9 +607,7 @@ class PluginRuntime:
                 encode_message(
                     {
                         "type": "init",
-                        "manifests": [
-                            _manifest_payload(manifest) for manifest in active_manifests
-                        ],
+                        "manifests": [_manifest_payload(manifest) for manifest in active_manifests],
                     }
                 )
             )
@@ -531,9 +620,7 @@ class PluginRuntime:
                     if self._closing.is_set():
                         raise RuntimeError("plugin runtime is closing")
                     continue
-                response = decode_message(
-                    parent_connection.recv_bytes(MAX_PROTOCOL_FRAME_BYTES)
-                )
+                response = decode_message(parent_connection.recv_bytes(MAX_PROTOCOL_FRAME_BYTES))
                 if response.get("type") == "loading":
                     loading_plugin = str(response.get("plugin_id") or "")
                     continue
@@ -573,9 +660,7 @@ class PluginRuntime:
         except Exception as exc:
             if isinstance(exc, TimeoutError) and loading_plugin:
                 self._record_plugin_failure(loading_plugin, str(exc))
-                self._plugin_quarantined_until[loading_plugin] = (
-                    self._monotonic_fn() + 60.0
-                )
+                self._plugin_quarantined_until[loading_plugin] = self._monotonic_fn() + 60.0
             self._record_worker_failure(str(exc))
             self._stop_worker()
             return False
@@ -593,10 +678,7 @@ class PluginRuntime:
                 invocation.event.local_node_id,
                 invocation.event.sender_id,
             )
-            session_active = (
-                self._sessions.get(session_key)
-                == invocation.plugin_id
-            )
+            session_active = self._sessions.get(session_key) == invocation.plugin_id
             session_version = self._session_versions.get(session_key, 0)
         request_id = uuid.uuid4().hex
         try:
@@ -649,9 +731,7 @@ class PluginRuntime:
                 raise RuntimeError("plugin worker returned an invalid result")
             actions = self._validated_actions(response.get("actions"))
             debug_entries = self._validated_debug(response.get("debug"))
-            session_actions = [
-                action for action in actions if isinstance(action, SessionAction)
-            ]
+            session_actions = [action for action in actions if isinstance(action, SessionAction)]
             if len(session_actions) > 1:
                 raise ValueError("plugin result contains conflicting session actions")
             if session_actions and not invocation.event.is_direct:
@@ -703,9 +783,7 @@ class PluginRuntime:
                         expected_state_revision=state.state_revision,
                         expected_peer_state_revision=state.peer_state_revision,
                         session_local_node_id=(
-                            invocation.event.local_node_id
-                            if effective_session_actions
-                            else None
+                            invocation.event.local_node_id if effective_session_actions else None
                         ),
                         session_operation=(
                             effective_session_actions[0].operation
@@ -826,9 +904,9 @@ class PluginRuntime:
         if not invocation.event.is_direct:
             raise ValueError("sessions may only be changed by direct messages")
         if action.operation == "start":
-            self._sessions[
-                (invocation.event.local_node_id, invocation.event.sender_id)
-            ] = invocation.plugin_id
+            self._sessions[(invocation.event.local_node_id, invocation.event.sender_id)] = (
+                invocation.plugin_id
+            )
         else:
             self._sessions.pop(
                 (invocation.event.local_node_id, invocation.event.sender_id),
@@ -856,6 +934,8 @@ class PluginRuntime:
                 for action in item.actions:
                     if self._stop.is_set() or self._closing.is_set():
                         return
+                    if action.plugin_id != "host" and action.plugin_id not in self._manifest_by_id:
+                        continue
                     self._execute_action(action)
             except Exception as exc:
                 with self._status_lock:
@@ -890,9 +970,7 @@ class PluginRuntime:
                     reply_id=event.packet_id if index == 0 and event.packet_id > 0 else None,
                 )
                 if index + 1 < len(segments):
-                    if self._closing.wait(
-                        max(0.0, self._config.long_reply_pace_seconds)
-                    ):
+                    if self._closing.wait(max(0.0, self._config.long_reply_pace_seconds)):
                         return
             return
         if isinstance(action, SendTextAction):

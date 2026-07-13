@@ -127,7 +127,7 @@
       );
     }}
 
-    function scriptsRestartRequired(row) {{
+    function scriptsLifecyclePending(row) {{
       if (!row || typeof row !== "object") return false;
       const status = scriptsNormalizeStatus(row.runtime_status || row.health || row.status);
       return row.restart_required === true
@@ -137,8 +137,8 @@
 
     function scriptsItemState(row, runtimeSummary) {{
       const status = scriptsNormalizeStatus(row.runtime_status || row.health || row.status);
-      if (scriptsRestartRequired(row)) {{
-        return {{ className: "is-pending", label: "Restart pending", error: "" }};
+      if (scriptsLifecyclePending(row)) {{
+        return {{ className: "is-pending", label: "Applying", error: "" }};
       }}
       if (["error", "failed", "crashed"].includes(status)) {{
         return {{
@@ -278,11 +278,7 @@
     }}
 
     function scriptsItemActionCopy(row, itemState) {{
-      if (itemState.label === "Restart pending") {{
-        return row.enabled === true
-          ? "Will start after MeshyFace restarts."
-          : "Still running until MeshyFace restarts.";
-      }}
+      if (itemState.label === "Applying") return "Applying the live runtime change.";
       if (itemState.label === "Error") {{
         return itemState.error ? `Error: ${{itemState.error}}` : "Failed to start.";
       }}
@@ -352,7 +348,6 @@
       );
       const rows = scriptsRuntimeEntries(runtimeSummary);
       const presentation = scriptsRuntimePresentation(runtimeSummary, rows);
-      const restartRequired = rows.some((row) => scriptsConfiguredStateMismatch(row));
       const countText = runtimeSummary && runtimeSummary.enabled === false
         ? "Not inspected"
         : `${{rows.length}} ${{rows.length === 1 ? "script" : "scripts"}}`;
@@ -377,7 +372,6 @@
         presentation.kind,
         presentation.label,
         runtimeMessage,
-        restartRequired,
         countText,
         listHtml,
       ]);
@@ -391,8 +385,6 @@
       scriptsSetRuntimeStatus(presentation.kind, presentation.label);
       scriptsSetRuntimeMessage(runtimeMessage);
       if (count instanceof HTMLElement) count.textContent = countText;
-      const restartNotice = document.getElementById("scripts-restart-notice");
-      if (restartNotice instanceof HTMLElement) restartNotice.hidden = !restartRequired;
       list.innerHTML = listHtml;
       list.scrollTop = previousScrollTop;
       scriptsLastRenderSignature = signature;
@@ -425,13 +417,14 @@
       }}
     }}
 
-    function scriptsUpdateCachedEnabled(scriptId, enabled) {{
+    function scriptsUpdateCachedEnabled(scriptId, enabled, active = enabled) {{
       const runtimeSummary = scriptsRuntimeSummary(latestState);
       const rows = scriptsRuntimeEntries(runtimeSummary);
       const match = rows.find((row) => String(row.id || "") === scriptId);
       if (match) {{
         match.enabled = !!enabled;
-        match.restart_required = (match.enabled === true) !== (match.active === true);
+        match.active = !!active;
+        match.restart_required = false;
       }}
     }}
 
@@ -462,7 +455,7 @@
         if (!response.ok || !payload || payload.ok !== true) {{
           throw new Error(errorMessage || `HTTP ${{response.status}}`);
         }}
-        scriptsUpdateCachedEnabled(cleanId, !!payload.enabled);
+        scriptsUpdateCachedEnabled(cleanId, !!payload.enabled, !!payload.active);
         if (typeof forceNextStatePollFresh === "function") {{
           forceNextStatePollFresh("script-setting");
         }}

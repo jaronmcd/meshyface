@@ -14,6 +14,7 @@ from meshdash.plugin_composition import build_plugin_subsystem
 class _Tracker:
     def __init__(self) -> None:
         self.listeners: list[object] = []
+        self.state_revision = 0
 
     def add_accepted_packet_listener(self, listener: object) -> None:
         self.listeners.append(listener)
@@ -76,7 +77,9 @@ def _wait_until(predicate, timeout: float = 4.0) -> None:
     raise AssertionError("condition did not become true")
 
 
-def test_enabled_master_with_no_enabled_plugins_starts_no_worker_or_dispatcher(tmp_path) -> None:
+def test_enabled_master_with_no_enabled_plugins_registers_live_management_listener(
+    tmp_path,
+) -> None:
     tracker = _Tracker()
     subsystem = build_plugin_subsystem(
         args=_args(tmp_path),
@@ -90,7 +93,7 @@ def test_enabled_master_with_no_enabled_plugins_starts_no_worker_or_dispatcher(t
         assert status["enabled"] is True
         assert status["discovered"] == 0
         assert status["runtime"] == {}
-        assert tracker.listeners == []
+        assert len(tracker.listeners) == 1
     finally:
         subsystem.close()
 
@@ -134,7 +137,7 @@ def test_individual_enablement_loads_in_worker_and_routes_accepted_event(tmp_pat
     assert tracker.listeners == []
 
 
-def test_individual_enablement_persists_for_the_next_runtime(tmp_path) -> None:
+def test_individual_enablement_starts_live_and_persists_for_the_next_runtime(tmp_path) -> None:
     plugin_root = tmp_path / "plugins"
     _write_echo_plugin(plugin_root)
     args = _args(tmp_path)
@@ -151,11 +154,15 @@ def test_individual_enablement_persists_for_the_next_runtime(tmp_path) -> None:
             "ok": True,
             "plugin_id": "echo",
             "enabled": True,
-            "restart_required": True,
+            "active": True,
+            "restart_required": False,
         }
+        _wait_until(
+            lambda: first.status()["scripts"][0]["runtime_status"] == "running"  # type: ignore[index]
+        )
         script = first.status()["scripts"][0]  # type: ignore[index]
-        assert script["runtime_status"] == "restart_pending"
-        assert script["restart_required"] is True
+        assert script["active"] is True
+        assert script["restart_required"] is False
     finally:
         first.close()
 
@@ -170,6 +177,56 @@ def test_individual_enablement_persists_for_the_next_runtime(tmp_path) -> None:
         assert second.status()["enabled_plugins"] == ["echo"]
     finally:
         second.close()
+
+
+def test_individual_disable_stops_live_routing_and_the_last_worker(tmp_path) -> None:
+    plugin_root = tmp_path / "plugins"
+    _write_echo_plugin(plugin_root)
+    tracker = _Tracker()
+    sends: list[dict[str, object]] = []
+    subsystem = build_plugin_subsystem(
+        args=_args(tmp_path, bots_handler_timeout=5.0),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=tracker,
+        send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)) or {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    packet = {
+        "from": 1,
+        "to": 2,
+        "id": 99,
+        "channel": 0,
+        "decoded": {"portnum": "TEXT_MESSAGE_APP", "text": "!echo"},
+    }
+    try:
+        assert subsystem.set_plugin_enabled("echo", True)["active"] is True
+        assert tracker.state_revision == 1
+        _wait_until(
+            lambda: subsystem.status()["scripts"][0]["runtime_status"] == "running"  # type: ignore[index]
+        )
+        tracker.listeners[0](packet, object())  # type: ignore[operator]
+        _wait_until(lambda: len(sends) == 1)
+
+        disable_started = time.monotonic()
+        assert subsystem.set_plugin_enabled("echo", False) == {
+            "ok": True,
+            "plugin_id": "echo",
+            "enabled": False,
+            "active": False,
+            "restart_required": False,
+        }
+        assert time.monotonic() - disable_started < 2.0
+        assert tracker.state_revision == 2
+        status = subsystem.status()
+        assert status["enabled_plugins"] == []
+        assert status["runtime"] == {}
+        assert status["scripts"][0]["runtime_status"] == "disabled"  # type: ignore[index]
+
+        tracker.listeners[0](packet, object())  # type: ignore[operator]
+        time.sleep(0.2)
+        assert len(sends) == 1
+    finally:
+        subsystem.close()
 
 
 def test_broken_plugin_is_reported_without_preventing_healthy_plugin(tmp_path) -> None:
@@ -316,11 +373,10 @@ def send_file(ctx):
 
         _deliver_ack((), 201)
         _wait_until(
-            lambda: sum(
-                str(send.get("text") or "").startswith("MF_FILE_V2|C|")
-                for send in sends
+            lambda: (
+                sum(str(send.get("text") or "").startswith("MF_FILE_V2|C|") for send in sends)
+                == total_chunks
             )
-            == total_chunks
         )
         _deliver_ack(range(total_chunks), 202)
         _wait_until(

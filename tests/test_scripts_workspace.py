@@ -44,22 +44,23 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert 'id="scripts-list"' in html
     assert 'id="scripts-debug-output"' in html
     assert 'id="scripts-debug-clear"' in html
-    assert 'id="scripts-restart-notice"' in html
+    assert "Start or stop installed scripts immediately." in html
     assert "No code editor" not in html
-    assert 'type="file"' not in html.split(
-        '<section class="card scripts workspace-app-shell"', 1
-    )[1].split('<section class="card games workspace-app-shell"', 1)[0]
+    assert (
+        'type="file"'
+        not in html.split('<section class="card scripts workspace-app-shell"', 1)[1].split(
+            '<section class="card games workspace-app-shell"', 1
+        )[0]
+    )
 
-    assert '.layout.view-scripts .scripts {' in css
+    assert ".layout.view-scripts .scripts {" in css
     assert ".scripts-runtime-status.is-enabled {" in css
     assert ".scripts-runtime-status.is-disabled {" in css
     assert ".scripts-runtime-status.is-error {" in css
     assert ".scripts-list {" in css
     assert ".scripts-debug-console {" in css
 
-    known_views = js.split("const knownLayoutViews = new Set([", 1)[1].split(
-        "]);", 1
-    )[0]
+    known_views = js.split("const knownLayoutViews = new Set([", 1)[1].split("]);", 1)[0]
     assert '"scripts"' in known_views
     assert 'clean === "scripts"' in js
     assert 'if (normalized === "scripts") return "Scripts";' in js
@@ -76,51 +77,56 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert "scriptsDebugClearedThrough" in scripts_js
 
 
-def test_scripts_view_renders_master_off_offline_and_restart_pending_states() -> None:
+def test_scripts_view_renders_master_off_offline_and_live_lifecycle_states() -> None:
     js = _js()
 
-    assert 'runtimeSummary.enabled === false' in js
+    assert "runtimeSummary.enabled === false" in js
     assert 'label: "Not inspected", message: scriptsMasterOffGuidance' in js
     assert '? "Not inspected"' in js
     assert "--bots-directory path" in js
     assert "--bots-enable or MESH_DASH_BOTS_ENABLE=true" in js
     assert "then restart MeshyFace" in js
-    assert 'runtimeSummary.available === false' in js
+    assert "runtimeSummary.available === false" in js
     assert 'label: "Waiting for runtime"' in js
-    assert 'scriptsConfiguredStateMismatch(row)' in js
-    assert 'label: "Restart pending"' in js
+    assert "scriptsConfiguredStateMismatch(row)" in js
+    assert 'label: "Applying"' in js
     assert 'label: "Starting"' in js
     assert 'label: "Running"' in js
     assert 'label: "Error"' in js
     assert 'fetch("/api/settings/plugins"' in js
-    assert 'JSON.stringify({ plugin_id: cleanId, enabled: !!enabled })' in js
-    assert "restartNotice.hidden = !restartRequired;" in js
-    assert 'rows.some((row) => scriptsConfiguredStateMismatch(row))' in js
-    assert "Restart MeshyFace to apply the change." in _html()
+    assert "JSON.stringify({ plugin_id: cleanId, enabled: !!enabled })" in js
+    assert "scriptsUpdateCachedEnabled(cleanId, !!payload.enabled, !!payload.active)" in js
+    assert "Restart MeshyFace to apply the change." not in _html()
 
 
 def test_scripts_view_avoids_poll_churn_duplicate_writes_and_render_cascade_failures() -> None:
     js = _js()
 
-    assert 'const scriptsPendingRequests = new Map();' in js
-    assert 'if (!cleanId || scriptsPendingRequests.has(cleanId)) return false;' in js
-    assert 'scriptsPendingRequests.set(cleanId, { enabled: !!enabled });' in js
-    assert 'scriptsPendingRequests.delete(cleanId);' in js
-    assert 'if (signature === scriptsLastRenderSignature) return false;' in js
-    assert 'const focusedScriptId = activeElement instanceof HTMLElement' in js
-    assert 'replacement.focus({ preventScroll: true });' in js
-    assert 'return runPollStep(stepName, () => renderScriptsView(state), false);' in js
+    assert "const scriptsPendingRequests = new Map();" in js
+    assert "if (!cleanId || scriptsPendingRequests.has(cleanId)) return false;" in js
+    assert "scriptsPendingRequests.set(cleanId, { enabled: !!enabled });" in js
+    assert "scriptsPendingRequests.delete(cleanId);" in js
+    assert "if (signature === scriptsLastRenderSignature) return false;" in js
+    assert "const focusedScriptId = activeElement instanceof HTMLElement" in js
+    assert "replacement.focus({ preventScroll: true });" in js
+    assert "return runPollStep(stepName, () => renderScriptsView(state), false);" in js
     assert 'renderScriptsViewSafely(latestState, "poll.notModified.scripts");' in js
     assert 'renderScriptsViewSafely(state, "poll.updated.scripts");' in js
     assert 'renderScriptsViewSafely(latestState, "navigation.loading.scripts");' in js
-    assert 'window.__meshPollStepErrors = ledger;' in js
-    assert 'window.__meshPollStepErrorSequence = sequence;' in js
-    assert 'if (ledger.length > 25) ledger.splice(0, ledger.length - 25);' in js
+    assert "window.__meshPollStepErrors = ledger;" in js
+    assert "window.__meshPollStepErrorSequence = sequence;" in js
+    assert "if (ledger.length > 25) ledger.splice(0, ledger.length - 25);" in js
 
 
 class _Tracker:
-    def add_accepted_packet_listener(self, _listener: object) -> None:
-        raise AssertionError("disabled script must not register a listener")
+    def __init__(self) -> None:
+        self.listeners: list[object] = []
+
+    def add_accepted_packet_listener(self, listener: object) -> None:
+        self.listeners.append(listener)
+
+    def remove_accepted_packet_listener(self, listener: object) -> None:
+        self.listeners.remove(listener)
 
 
 def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_path: Path) -> None:
@@ -178,8 +184,9 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
         assert str(tmp_path) not in json.dumps(status["scripts"])
 
         result = subsystem.set_plugin_enabled("weather", True)
-        assert result["restart_required"] is True
+        assert result["restart_required"] is False
+        assert result["active"] is True
         assert subsystem.status()["scripts"][0]["enabled"] is True
-        assert subsystem.status()["scripts"][0]["active"] is False
+        assert subsystem.status()["scripts"][0]["active"] is True
     finally:
         subsystem.close()

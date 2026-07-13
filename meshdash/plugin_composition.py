@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
@@ -85,15 +86,9 @@ def _script_runtime_health(
         return "disabled", "", False
 
     runtime_plugins = runtime_status.get("plugins")
-    registration = (
-        runtime_plugins.get(plugin_id)
-        if isinstance(runtime_plugins, Mapping)
-        else None
-    )
+    registration = runtime_plugins.get(plugin_id) if isinstance(runtime_plugins, Mapping) else None
     registration_error = (
-        str(registration.get("error") or "").strip()
-        if isinstance(registration, Mapping)
-        else ""
+        str(registration.get("error") or "").strip() if isinstance(registration, Mapping) else ""
     )
     if registration_error:
         return "error", registration_error, False
@@ -119,6 +114,14 @@ class PluginSubsystem:
         enabled_plugin_ids: Sequence[str] = (),
         error: str = "",
         detach_receive_fn: Callable[[], object] | None = None,
+        runtime_factory: (
+            Callable[
+                [Sequence[BotManifest]],
+                tuple[PluginRuntime, OutboundFileTransferService | None],
+            ]
+            | None
+        ) = None,
+        state_changed_fn: Callable[[], object] | None = None,
     ) -> None:
         self._state_store = state_store
         self._runtime = runtime
@@ -127,6 +130,9 @@ class PluginSubsystem:
         self._enabled_plugin_ids = tuple(enabled_plugin_ids)
         self._error = sanitize_plugin_status_error(error)
         self._detach_receive_fn = detach_receive_fn
+        self._runtime_factory = runtime_factory
+        self._state_changed_fn = state_changed_fn
+        self._lifecycle_lock = threading.RLock()
         self._closed = False
 
     def on_receive(self, packet: object, interface: object, *, local_node_id_fn) -> None:
@@ -174,7 +180,11 @@ class PluginSubsystem:
             service.handle_flow(sender_id=sender_id, frame=frame)
 
     def status(self) -> dict[str, object]:
-        runtime_status = self._runtime.status() if self._runtime is not None else {}
+        with self._lifecycle_lock:
+            runtime = self._runtime
+            active_plugin_ids = tuple(self._enabled_plugin_ids)
+            active_ids = set(active_plugin_ids)
+        runtime_status = runtime.status() if runtime is not None else {}
         configured_enabled: dict[str, bool] = {}
         for manifest in self._manifests:
             if self._state_store is None:
@@ -184,7 +194,6 @@ class PluginSubsystem:
                     manifest.id,
                     default=manifest.default_enabled,
                 )
-        active_ids = set(self._enabled_plugin_ids)
         scripts: list[dict[str, object]] = []
         for manifest in self._manifests:
             is_enabled = configured_enabled[manifest.id]
@@ -214,7 +223,7 @@ class PluginSubsystem:
             "enabled": True,
             "error": self._error,
             "discovered": len(self._manifests),
-            "enabled_plugins": list(self._enabled_plugin_ids),
+            "enabled_plugins": list(active_plugin_ids),
             "scripts": scripts,
             "runtime": runtime_status,
             "file_jobs": (
@@ -240,25 +249,86 @@ class PluginSubsystem:
                 "ok": False,
                 "error": {"code": "unknown_plugin", "message": "Unknown plugin ID"},
             }
-        self._state_store.set_plugin_enabled(clean_id, bool(enabled))
-        return {
-            "ok": True,
-            "plugin_id": clean_id,
-            "enabled": bool(enabled),
-            "restart_required": True,
-        }
+        requested_enabled = bool(enabled)
+        with self._lifecycle_lock:
+            if self._closed:
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_unavailable",
+                        "message": "Plugin runtime is closed",
+                    },
+                }
+            current_ids = set(self._enabled_plugin_ids)
+            target_ids = set(current_ids)
+            if requested_enabled:
+                target_ids.add(clean_id)
+            else:
+                target_ids.discard(clean_id)
+            target_manifests = tuple(
+                manifest for manifest in self._manifests if manifest.id in target_ids
+            )
+            previous_setting = self._state_store.plugin_enabled(
+                clean_id,
+                default=next(
+                    manifest.default_enabled
+                    for manifest in self._manifests
+                    if manifest.id == clean_id
+                ),
+            )
+            self._state_store.set_plugin_enabled(clean_id, requested_enabled)
+            try:
+                runtime = self._runtime
+                if target_manifests:
+                    if runtime is None:
+                        if self._runtime_factory is None:
+                            raise RuntimeError("Plugin runtime cannot be started")
+                        runtime, outbound = self._runtime_factory(target_manifests)
+                        self._runtime = runtime
+                        self._outbound_files = outbound
+                    elif target_ids != current_ids:
+                        runtime.reconfigure(target_manifests)
+                elif runtime is not None:
+                    runtime.reconfigure(())
+                    runtime.close()
+                    self._runtime = None
+                self._enabled_plugin_ids = tuple(manifest.id for manifest in target_manifests)
+            except Exception as exc:
+                self._state_store.set_plugin_enabled(clean_id, previous_setting)
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_lifecycle_failed",
+                        "message": sanitize_plugin_status_error(exc),
+                    },
+                }
+            if self._state_changed_fn is not None:
+                try:
+                    self._state_changed_fn()
+                except Exception:
+                    pass
+            return {
+                "ok": True,
+                "plugin_id": clean_id,
+                "enabled": requested_enabled,
+                "active": requested_enabled,
+                "restart_required": False,
+            }
 
     def close(self) -> None:
-        if self._closed:
-            return
-        self._closed = True
+        with self._lifecycle_lock:
+            if self._closed:
+                return
+            self._closed = True
+            runtime = self._runtime
+            self._runtime = None
         if self._detach_receive_fn is not None:
             try:
                 self._detach_receive_fn()
             except Exception:
                 pass
-        if self._runtime is not None:
-            self._runtime.close()
+        if runtime is not None:
+            runtime.close()
         if self._outbound_files is not None:
             self._outbound_files.close()
         if self._state_store is not None:
@@ -279,9 +349,7 @@ def build_plugin_subsystem(
     outbound: OutboundFileTransferService | None = None
     runtime: PluginRuntime | None = None
     try:
-        local_directory = str(
-            getattr(args, "bots_directory", "mesh_dashboard_plugins")
-        )
+        local_directory = str(getattr(args, "bots_directory", "mesh_dashboard_plugins"))
         included_directory = Path(__file__).with_name("included_bots")
         discovered = discover_bots(included_directory, local_directory)
         state_store = PluginStateStore(
@@ -303,53 +371,61 @@ def build_plugin_subsystem(
             for manifest in discovered
             if state_store.plugin_enabled(manifest.id, default=manifest.default_enabled)
         )
-        if not enabled:
-            return PluginSubsystem(
-                state_store=state_store,
-                runtime=None,
-                outbound_files=None,
-                manifests=discovered,
-                enabled_plugin_ids=(),
-            )
-        if bool(getattr(args, "file_transfer_enable", False)):
-            resolver = ApprovedPathFileResolver(
-                str(
-                    getattr(
-                        args,
-                        "bots_files_directory",
-                        "mesh_dashboard_plugin_files",
-                    )
-                ),
-                max_file_bytes=int(getattr(args, "file_transfer_max_bytes", 64 * 1024)),
-            )
-            outbound = OutboundFileTransferService(
-                file_resolver=resolver,
-                send_frame_fn=send_chat_fn,
-                max_file_bytes=int(getattr(args, "file_transfer_max_bytes", 64 * 1024)),
-            )
-        runtime = PluginRuntime(
-            manifests=enabled,
-            state_store=state_store,
-            send_chat_fn=send_chat_fn,
-            node_snapshot_fn=lambda: _node_snapshot(iface),
-            submit_file_fn=outbound.submit if outbound is not None else None,
-            config=PluginRuntimeConfig(
-                event_queue_size=max(
-                    1,
-                    int(getattr(args, "bots_event_queue_size", 128)),
-                ),
-                handler_timeout_seconds=max(
-                    0.1,
-                    float(getattr(args, "bots_handler_timeout", 5.0)),
-                ),
+        runtime_config = PluginRuntimeConfig(
+            event_queue_size=max(
+                1,
+                int(getattr(args, "bots_event_queue_size", 128)),
+            ),
+            handler_timeout_seconds=max(
+                0.1,
+                float(getattr(args, "bots_handler_timeout", 5.0)),
             ),
         )
+
+        def _runtime_factory(
+            manifests: Sequence[BotManifest],
+        ) -> tuple[PluginRuntime, OutboundFileTransferService | None]:
+            nonlocal outbound
+            if outbound is None and bool(getattr(args, "file_transfer_enable", False)):
+                resolver = ApprovedPathFileResolver(
+                    str(
+                        getattr(
+                            args,
+                            "bots_files_directory",
+                            "mesh_dashboard_plugin_files",
+                        )
+                    ),
+                    max_file_bytes=int(getattr(args, "file_transfer_max_bytes", 64 * 1024)),
+                )
+                outbound = OutboundFileTransferService(
+                    file_resolver=resolver,
+                    send_frame_fn=send_chat_fn,
+                    max_file_bytes=int(getattr(args, "file_transfer_max_bytes", 64 * 1024)),
+                )
+            new_runtime = PluginRuntime(
+                manifests=manifests,
+                state_store=state_store,
+                send_chat_fn=send_chat_fn,
+                node_snapshot_fn=lambda: _node_snapshot(iface),
+                submit_file_fn=outbound.submit if outbound is not None else None,
+                config=runtime_config,
+            )
+            return new_runtime, outbound
+
+        if enabled:
+            runtime, outbound = _runtime_factory(enabled)
+
+        def _mark_state_changed() -> None:
+            tracker.state_revision = int(getattr(tracker, "state_revision", 0) or 0) + 1
+
         subsystem = PluginSubsystem(
             state_store=state_store,
             runtime=runtime,
             outbound_files=outbound,
             manifests=discovered,
             enabled_plugin_ids=[manifest.id for manifest in enabled],
+            runtime_factory=_runtime_factory,
+            state_changed_fn=_mark_state_changed,
         )
         add_listener = getattr(tracker, "add_accepted_packet_listener", None)
         remove_listener = getattr(tracker, "remove_accepted_packet_listener", None)

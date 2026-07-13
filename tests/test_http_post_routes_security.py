@@ -47,8 +47,8 @@ def test_handle_dashboard_post_returns_not_found_for_removed_bot_routes(
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
-                (status_code, payload_obj)
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
             ),
         }
     )
@@ -56,7 +56,6 @@ def test_handle_dashboard_post_returns_not_found_for_removed_bot_routes(
     handle_dashboard_post(handler, path=path, deps=deps)
 
     assert calls == [(404, {"ok": False, "error": "Not Found"})]
-
 
 
 def test_handle_dashboard_post_keeps_standalone_zork_route_available() -> None:
@@ -110,8 +109,10 @@ def test_handle_dashboard_post_updates_raw_packet_capture_settings() -> None:
 
     deps = build_post_route_dependencies(
         send_chat_fn=None,
-        set_raw_packet_capture_settings_fn=lambda settings: received.append(settings)
-        or {"ok": True, "capture_enabled": settings["capture_enabled"]},
+        set_raw_packet_capture_settings_fn=lambda settings: (
+            received.append(settings)
+            or {"ok": True, "capture_enabled": settings["capture_enabled"]}
+        ),
         to_int_fn=to_int,
     )
     deps = type(deps)(
@@ -134,15 +135,16 @@ def test_handle_dashboard_post_toggles_file_transfer_auto_accept() -> None:
     received: list[bool] = []
     deps = build_post_route_dependencies(
         send_chat_fn=None,
-        set_file_transfer_auto_accept_enabled_fn=lambda enabled: received.append(enabled)
-        or {"ok": True, "enabled": enabled, "active_sessions": 0},
+        set_file_transfer_auto_accept_enabled_fn=lambda enabled: (
+            received.append(enabled) or {"ok": True, "enabled": enabled, "active_sessions": 0}
+        ),
         to_int_fn=to_int,
     )
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
-                (status_code, payload_obj)
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
             ),
         }
     )
@@ -172,8 +174,8 @@ def test_plugin_management_returns_structured_disabled_error() -> None:
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
-                (status_code, payload_obj)
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
             ),
         }
     )
@@ -183,29 +185,30 @@ def test_plugin_management_returns_structured_disabled_error() -> None:
     assert calls == [(503, disabled)]
 
 
-def test_plugin_management_persists_individual_setting_for_restart() -> None:
+def test_plugin_management_applies_individual_setting_live() -> None:
     body = json.dumps({"plugin_id": "echo", "enabled": False}).encode("utf-8")
     handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
     calls: list[tuple[int, object]] = []
     received: list[tuple[object, bool]] = []
     deps = build_post_route_dependencies(
         send_chat_fn=None,
-        set_plugin_enabled_fn=lambda plugin_id, enabled: received.append(
-            (plugin_id, enabled)
-        )
-        or {
-            "ok": True,
-            "plugin_id": plugin_id,
-            "enabled": enabled,
-            "restart_required": True,
-        },
+        set_plugin_enabled_fn=lambda plugin_id, enabled: (
+            received.append((plugin_id, enabled))
+            or {
+                "ok": True,
+                "plugin_id": plugin_id,
+                "enabled": enabled,
+                "active": enabled,
+                "restart_required": False,
+            }
+        ),
         to_int_fn=to_int,
     )
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
-                (status_code, payload_obj)
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
             ),
         }
     )
@@ -220,7 +223,8 @@ def test_plugin_management_persists_individual_setting_for_restart() -> None:
                 "ok": True,
                 "plugin_id": "echo",
                 "enabled": False,
-                "restart_required": True,
+                "active": False,
+                "restart_required": False,
             },
         )
     ]
@@ -241,8 +245,8 @@ def test_plugin_management_returns_structured_unknown_plugin_error() -> None:
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
-                (status_code, payload_obj)
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
             ),
         }
     )
@@ -272,8 +276,8 @@ def test_plugin_management_returns_structured_invalid_request_error() -> None:
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
-                (status_code, payload_obj)
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
             ),
         }
     )
@@ -344,7 +348,9 @@ def test_handle_dashboard_post_requires_token_for_raw_packet_capture_settings() 
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -372,7 +378,9 @@ def test_handle_dashboard_post_runs_system_update(monkeypatch: pytest.MonkeyPatc
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -415,7 +423,9 @@ def test_handle_dashboard_post_rolls_back_system_update(monkeypatch: pytest.Monk
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -423,10 +433,14 @@ def test_handle_dashboard_post_rolls_back_system_update(monkeypatch: pytest.Monk
 
     assert update_calls == 0
     assert captured == {"target_branch": "main", "target_commit": "dddddddd"}
-    assert calls == [(200, {"ok": True, "rollback": True, "rollback_branch": "rollback/main-dddddddd1111"})]
+    assert calls == [
+        (200, {"ok": True, "rollback": True, "rollback_branch": "rollback/main-dddddddd1111"})
+    ]
 
 
-def test_handle_dashboard_post_syncs_system_update_branches(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_dashboard_post_syncs_system_update_branches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     captured: dict[str, object] = {}
 
     def _sync_update(**kwargs: object) -> dict[str, object]:
@@ -450,14 +464,18 @@ def test_handle_dashboard_post_syncs_system_update_branches(monkeypatch: pytest.
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
     handle_dashboard_post(handler, path="/api/system/update/sync", deps=deps)
 
     assert captured["target_branch"] == "dev"
-    assert calls == [(200, {"ok": True, "synced": True, "updated": False, "state": "update_available"})]
+    assert calls == [
+        (200, {"ok": True, "synced": True, "updated": False, "state": "update_available"})
+    ]
 
 
 def test_handle_dashboard_post_repairs_dirty_checkout(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -518,7 +536,9 @@ def test_handle_dashboard_post_cleans_rollback_branches(monkeypatch: pytest.Monk
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -538,7 +558,9 @@ def test_handle_dashboard_post_cleans_rollback_branches(monkeypatch: pytest.Monk
     ]
 
 
-def test_handle_dashboard_post_requires_token_for_system_update(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_dashboard_post_requires_token_for_system_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     update_calls = 0
 
     def _run_update(**kwargs: object) -> dict[str, object]:
@@ -553,7 +575,9 @@ def test_handle_dashboard_post_requires_token_for_system_update(monkeypatch: pyt
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -563,7 +587,9 @@ def test_handle_dashboard_post_requires_token_for_system_update(monkeypatch: pyt
     assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
 
 
-def test_handle_dashboard_post_requires_token_for_system_update_sync(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_dashboard_post_requires_token_for_system_update_sync(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     sync_calls = 0
 
     def _sync_update(**kwargs: object) -> dict[str, object]:
@@ -571,14 +597,18 @@ def test_handle_dashboard_post_requires_token_for_system_update_sync(monkeypatch
         sync_calls += 1
         return {"ok": True}
 
-    monkeypatch.setattr("meshdash.http_routes_post._sync_update_branches_from_github_helper", _sync_update)
+    monkeypatch.setattr(
+        "meshdash.http_routes_post._sync_update_branches_from_github_helper", _sync_update
+    )
     handler = _FakeHandler()
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -588,7 +618,9 @@ def test_handle_dashboard_post_requires_token_for_system_update_sync(monkeypatch
     assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
 
 
-def test_handle_dashboard_post_requires_token_for_checkout_repair(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_dashboard_post_requires_token_for_checkout_repair(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     repair_calls = 0
 
     def _repair_checkout(**kwargs: object) -> dict[str, object]:
@@ -606,7 +638,9 @@ def test_handle_dashboard_post_requires_token_for_checkout_repair(monkeypatch: p
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -616,7 +650,9 @@ def test_handle_dashboard_post_requires_token_for_checkout_repair(monkeypatch: p
     assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
 
 
-def test_handle_dashboard_post_requires_token_for_rollback_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_dashboard_post_requires_token_for_rollback_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     cleanup_calls = 0
 
     def _cleanup_rollbacks(**kwargs: object) -> dict[str, object]:
@@ -634,7 +670,9 @@ def test_handle_dashboard_post_requires_token_for_rollback_cleanup(monkeypatch: 
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -668,7 +706,9 @@ def test_handle_dashboard_post_schedules_system_restart() -> None:
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -707,7 +747,9 @@ def test_handle_dashboard_post_requires_token_for_system_restart() -> None:
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
