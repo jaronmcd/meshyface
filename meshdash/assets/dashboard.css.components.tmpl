@@ -6525,19 +6525,20 @@
     }}
     .scripts-list {{
       display: grid;
-      flex: 1 1 auto;
+      flex: 0 1 auto;
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
-      gap: 10px;
+      gap: 8px;
       align-content: start;
       min-height: 0;
+      max-height: 42%;
       overflow-y: auto;
       padding: 0 2px 2px;
     }}
     .scripts-debug-console {{
       display: flex;
-      flex: 0 0 min(38%, 300px);
+      flex: 1 1 auto;
       flex-direction: column;
-      min-height: 140px;
+      min-height: 180px;
       overflow: hidden;
       border: 1px solid var(--surface-tint-border);
       border-radius: 12px;
@@ -6548,8 +6549,13 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 8px 10px;
+      padding: 6px 10px;
       border-bottom: 1px solid var(--surface-tint-border);
+    }}
+    .scripts-debug-head > div {{
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
     }}
     .scripts-debug-head h3 {{
       margin: 0;
@@ -6563,6 +6569,8 @@
     .scripts-debug-output {{
       flex: 1 1 auto;
       min-height: 0;
+      /* The shared pre rule caps ordinary diagnostics; this console owns the remaining flex space. */
+      max-height: none;
       margin: 0;
       overflow: auto;
       padding: 10px;
@@ -6585,9 +6593,9 @@
     .scripts-item {{
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 7px;
       min-width: 0;
-      padding: 12px;
+      padding: 10px;
       border: 1px solid var(--surface-tint-border);
       border-radius: 12px;
       background: var(--surface-tint-bg-alt);
