@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import multiprocessing
 import queue
 import re
@@ -33,6 +34,7 @@ from .plugin_worker import plugin_worker_main
 
 _NODE_ID_RE = re.compile(r"![0-9a-f]{8}\Z")
 _COMMAND_RE = re.compile(r"!([a-z][a-z0-9_-]{0,31})(?:\s|\Z)", re.IGNORECASE)
+_TICKER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _QUIT_COMMANDS = {"!quit", "!exit"}
 _QUEUE_STOP = object()
 _ABSOLUTE_PATH_RE = re.compile(
@@ -197,6 +199,7 @@ class PluginRuntime:
         config: PluginRuntimeConfig = PluginRuntimeConfig(),
         mp_context: object | None = None,
         monotonic_fn: Callable[[], float] = time.monotonic,
+        state_changed_fn: Callable[[], object] | None = None,
     ) -> None:
         (
             self._manifests,
@@ -210,6 +213,7 @@ class PluginRuntime:
         self._config = config
         self._mp = mp_context or multiprocessing.get_context("spawn")
         self._monotonic_fn = monotonic_fn
+        self._state_changed_fn = state_changed_fn
         self._event_queue: queue.Queue[object] = queue.Queue(
             maxsize=max(1, int(config.event_queue_size))
         )
@@ -224,6 +228,7 @@ class PluginRuntime:
         self._closing = threading.Event()
         self._status_lock = threading.Lock()
         self._registry: dict[str, dict[str, object]] = {}
+        self._ticker_values: dict[tuple[str, str], dict[str, object]] = {}
         self._process: object | None = None
         self._connection: object | None = None
         self._worker_ready = False
@@ -373,6 +378,7 @@ class PluginRuntime:
             else:
                 runtime_status = "error"
             plugins: dict[str, dict[str, object]] = {}
+            tickers: list[dict[str, object]] = []
             for plugin_id, registration in self._registry.items():
                 public_registration = dict(registration)
                 registration_error = sanitize_plugin_status_error(registration.get("error"))
@@ -392,6 +398,36 @@ class PluginRuntime:
                     public_registration["last_error"] = last_error
                 public_registration["runtime_status"] = plugin_status
                 plugins[plugin_id] = public_registration
+                definitions = registration.get("tickers")
+                if isinstance(definitions, list):
+                    for definition in definitions:
+                        if not isinstance(definition, Mapping):
+                            continue
+                        ticker_id = str(definition.get("id") or "").strip().lower()
+                        if not ticker_id:
+                            continue
+                        value = self._ticker_values.get((plugin_id, ticker_id), {})
+                        tickers.append(
+                            {
+                                "id": f"script:{plugin_id}:{ticker_id}",
+                                "plugin_id": plugin_id,
+                                "ticker_id": ticker_id,
+                                "label": str(definition.get("label") or ticker_id),
+                                "metric": bool(definition.get("metric", False)),
+                                "default_enabled": bool(
+                                    definition.get("default_enabled", True)
+                                ),
+                                "value": value.get("value", "n/a"),
+                                "rows": list(value.get("rows", []))
+                                if isinstance(value.get("rows"), list)
+                                else [],
+                                "state": str(value.get("state") or "neutral"),
+                                "detail": str(value.get("detail") or ""),
+                                "metric_value": value.get("metric_value"),
+                                "updated_at": value.get("updated_at"),
+                                "runtime_status": plugin_status,
+                            }
+                        )
             return {
                 "enabled": True,
                 "status": runtime_status,
@@ -413,6 +449,7 @@ class PluginRuntime:
                 "debug_sequence": self._debug_sequence,
                 "debug": list(self._debug_records),
                 "plugins": plugins,
+                "tickers": tickers,
             }
 
     def close(self) -> None:
@@ -532,6 +569,12 @@ class PluginRuntime:
                 for plugin_id, times in self._action_times.items()
                 if plugin_id in enabled_ids
             }
+            with self._status_lock:
+                self._ticker_values = {
+                    key: value
+                    for key, value in self._ticker_values.items()
+                    if key[0] in enabled_ids
+                }
             while True:
                 try:
                     self._event_queue.get_nowait()
@@ -638,7 +681,11 @@ class PluginRuntime:
                 plugin_id = str(row.get("id") or "")
                 if plugin_id not in self._manifest_by_id:
                     raise RuntimeError("plugin worker returned an unknown plugin")
-                registry[plugin_id] = dict(row)
+                clean_registration = dict(row)
+                clean_registration["tickers"] = list(
+                    self._validated_ticker_definitions(row.get("tickers"))
+                )
+                registry[plugin_id] = clean_registration
             for manifest in self._manifests:
                 if manifest.id not in registry:
                     registry[manifest.id] = {
@@ -649,6 +696,7 @@ class PluginRuntime:
                         "session": False,
                         "on_start": False,
                         "on_stop": False,
+                        "tickers": [],
                         "error": "temporarily quarantined after startup failure",
                     }
             with self._status_lock:
@@ -731,6 +779,10 @@ class PluginRuntime:
                 raise RuntimeError("plugin worker returned an invalid result")
             actions = self._validated_actions(response.get("actions"))
             debug_entries = self._validated_debug(response.get("debug"))
+            ticker_updates = self._validated_ticker_updates(
+                invocation.plugin_id,
+                response.get("tickers"),
+            )
             session_actions = [action for action in actions if isinstance(action, SessionAction)]
             if len(session_actions) > 1:
                 raise ValueError("plugin result contains conflicting session actions")
@@ -803,6 +855,8 @@ class PluginRuntime:
                 raise
             if action_batch is not None:
                 action_batch.ready.set()
+            if ticker_updates:
+                self._publish_ticker_updates(invocation.plugin_id, ticker_updates)
             self._publish_debug(invocation.plugin_id, debug_entries)
             self._plugin_failures[invocation.plugin_id] = 0
             with self._status_lock:
@@ -871,6 +925,152 @@ class PluginRuntime:
                 raise ValueError("plugin debug entry is too large")
             entries.append(clean)
         return tuple(entries)
+
+    def _validated_ticker_definitions(
+        self,
+        raw: object,
+    ) -> tuple[dict[str, object], ...]:
+        if raw is None:
+            return ()
+        if not isinstance(raw, list) or len(raw) > 8:
+            raise ValueError("plugin registry has an invalid ticker list")
+        definitions: list[dict[str, object]] = []
+        seen: set[str] = set()
+        expected = {"id", "label", "metric", "default_enabled"}
+        for item in raw:
+            if not isinstance(item, Mapping) or set(item) != expected:
+                raise ValueError("plugin ticker definition has invalid fields")
+            ticker_id = str(item.get("id") or "")
+            label = str(item.get("label") or "")
+            if _TICKER_ID_RE.fullmatch(ticker_id) is None or ticker_id in seen:
+                raise ValueError("plugin ticker definition has an invalid or duplicate ID")
+            if not label or label != label.strip() or len(label) > 26:
+                raise ValueError("plugin ticker definition has an invalid label")
+            metric = item.get("metric")
+            default_enabled = item.get("default_enabled")
+            if not isinstance(metric, bool) or not isinstance(default_enabled, bool):
+                raise ValueError("plugin ticker definition flags must be booleans")
+            seen.add(ticker_id)
+            definitions.append(
+                {
+                    "id": ticker_id,
+                    "label": label,
+                    "metric": metric,
+                    "default_enabled": default_enabled,
+                }
+            )
+        return tuple(definitions)
+
+    def _validated_ticker_updates(
+        self,
+        plugin_id: str,
+        raw: object,
+    ) -> tuple[dict[str, object], ...]:
+        if raw is None:
+            return ()
+        if not isinstance(raw, list) or len(raw) > 8:
+            raise ValueError("plugin result has an invalid ticker update list")
+        registration = self._registry.get(plugin_id, {})
+        definitions = registration.get("tickers")
+        definition_rows = definitions if isinstance(definitions, list) else []
+        declared_ids = {
+            str(item.get("id") or "")
+            for item in definition_rows
+            if isinstance(item, Mapping)
+        }
+        expected = {"id", "value", "rows", "state", "detail", "metric_value"}
+        updates: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for item in raw:
+            if not isinstance(item, Mapping) or set(item) != expected:
+                raise ValueError("plugin ticker update has invalid fields")
+            ticker_id = str(item.get("id") or "").strip().lower()
+            if ticker_id not in declared_ids or ticker_id in seen:
+                raise ValueError("plugin ticker update references an undeclared or duplicate ID")
+            value = self._validated_ticker_scalar(item.get("value"), maximum=96)
+            state = str(item.get("state") or "neutral")
+            if state not in {"neutral", "good", "warn", "bad"}:
+                raise ValueError("plugin ticker update has an invalid state")
+            detail = item.get("detail")
+            if not isinstance(detail, str) or len(detail) > 256:
+                raise ValueError("plugin ticker update has invalid detail")
+            metric_value = item.get("metric_value")
+            if metric_value is not None:
+                if isinstance(metric_value, bool) or not isinstance(metric_value, (int, float)):
+                    raise ValueError("plugin ticker update has invalid metric_value")
+                if not math.isfinite(float(metric_value)):
+                    raise ValueError("plugin ticker update metric_value must be finite")
+            raw_rows = item.get("rows")
+            if not isinstance(raw_rows, list) or len(raw_rows) > 8:
+                raise ValueError("plugin ticker update has invalid rows")
+            rows: list[dict[str, object]] = []
+            for row in raw_rows:
+                if not isinstance(row, Mapping) or set(row) != {"key", "value"}:
+                    raise ValueError("plugin ticker row has invalid fields")
+                key = row.get("key")
+                if not isinstance(key, str) or not key or len(key) > 20:
+                    raise ValueError("plugin ticker row has an invalid label")
+                rows.append(
+                    {
+                        "key": key,
+                        "value": self._validated_ticker_scalar(
+                            row.get("value"),
+                            maximum=96,
+                        ),
+                    }
+                )
+            seen.add(ticker_id)
+            updates.append(
+                {
+                    "id": ticker_id,
+                    "value": value,
+                    "rows": rows,
+                    "state": state,
+                    "detail": detail,
+                    "metric_value": metric_value,
+                }
+            )
+        return tuple(updates)
+
+    @staticmethod
+    def _validated_ticker_scalar(value: object, *, maximum: int) -> object:
+        if value is None or isinstance(value, (bool, int)):
+            return value
+        if isinstance(value, float):
+            if not math.isfinite(value):
+                raise ValueError("plugin ticker value must be finite")
+            return value
+        if isinstance(value, str) and len(value) <= maximum:
+            return value
+        raise ValueError("plugin ticker value must be a bounded JSON scalar")
+
+    def _publish_ticker_updates(
+        self,
+        plugin_id: str,
+        updates: Sequence[Mapping[str, object]],
+    ) -> None:
+        updated_at = time.time()
+        with self._status_lock:
+            for update in updates:
+                ticker_id = str(update.get("id") or "")
+                self._ticker_values[(plugin_id, ticker_id)] = {
+                    "value": update.get("value"),
+                    "rows": list(update.get("rows", [])),
+                    "state": str(update.get("state") or "neutral"),
+                    "detail": str(update.get("detail") or ""),
+                    "metric_value": update.get("metric_value"),
+                    "updated_at": updated_at,
+                }
+        self._notify_state_changed()
+
+    def _notify_state_changed(self) -> None:
+        callback = self._state_changed_fn
+        if callback is None:
+            return
+        try:
+            callback()
+        except Exception:
+            pass
 
     def _publish_debug(
         self,

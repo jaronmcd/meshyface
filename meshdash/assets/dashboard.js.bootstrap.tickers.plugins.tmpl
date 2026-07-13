@@ -1,0 +1,196 @@
+    function pluginTickerPayloadFromState(state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const summary = safeState.summary && typeof safeState.summary === "object"
+        ? safeState.summary
+        : {{}};
+      const plugins = summary.plugins && typeof summary.plugins === "object"
+        ? summary.plugins
+        : {{}};
+      const runtime = plugins.runtime && typeof plugins.runtime === "object"
+        ? plugins.runtime
+        : {{}};
+      return Array.isArray(runtime.tickers) ? runtime.tickers : [];
+    }}
+
+    function pluginTickerDomToken(tickerId) {{
+      return String(tickerId || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 96);
+    }}
+
+    function ensurePluginTickerCatalogEntry(rawTicker) {{
+      const raw = rawTicker && typeof rawTicker === "object" ? rawTicker : {{}};
+      const id = String(raw.id || "").trim().toLowerCase();
+      if (!/^script:[a-z][a-z0-9_-]{{0,63}}:[a-z][a-z0-9_-]{{0,31}}$/.test(id)) return null;
+      const label = String(raw.label || raw.ticker_id || "Script").trim().slice(0, 26) || "Script";
+      const metric = !!raw.metric;
+      const defaultEnabled = raw.default_enabled !== false;
+      let entry = tickerCatalogById.get(id);
+      if (!entry) {{
+        entry = {{ id, defaultLabel: label, metric, plugin: true }};
+        tickerCatalog.push(entry);
+        tickerCatalogById.set(id, entry);
+        tickerDefaultOrder.push(id);
+        tickerDefaultEnabled[id] = defaultEnabled;
+        tickerDefaultTrendVisibility[id] = metric;
+        if (metric) tickerMetricIds.add(id);
+
+        const prefs = currentTickerPreferences();
+        if (!Array.isArray(prefs.order)) prefs.order = [];
+        if (!prefs.order.includes(id)) prefs.order.push(id);
+        if (!prefs.enabled || typeof prefs.enabled !== "object") prefs.enabled = {{}};
+        if (!(id in prefs.enabled)) prefs.enabled[id] = defaultEnabled;
+        if (!prefs.trend || typeof prefs.trend !== "object") prefs.trend = {{}};
+        if (!(id in prefs.trend)) prefs.trend[id] = metric;
+      }} else {{
+        entry.defaultLabel = label;
+        entry.metric = metric;
+        if (metric) tickerMetricIds.add(id);
+        else tickerMetricIds.delete(id);
+      }}
+      return entry;
+    }}
+
+    function ensurePluginTickerElement(entry) {{
+      if (!entry || !entry.id) return null;
+      const row = document.querySelector(".summary-ticker-row");
+      if (!(row instanceof HTMLElement)) return null;
+      let item = Array.from(row.querySelectorAll('[data-plugin-ticker="1"]'))
+        .find((candidate) => candidate instanceof HTMLElement && candidate.dataset.tickerId === entry.id);
+      if (item instanceof HTMLElement) return item;
+
+      const token = pluginTickerDomToken(entry.id);
+      if (!token) return null;
+      item = document.createElement("div");
+      item.id = `summary-ticker-${{token}}`;
+      item.className = "summary-ticker-item summary-ticker-item-plugin";
+      item.dataset.tickerId = entry.id;
+      item.dataset.pluginTicker = "1";
+      item.hidden = true;
+
+      const label = document.createElement("div");
+      label.className = "label";
+      label.dataset.tickerLabel = "";
+      label.dataset.defaultLabel = entry.defaultLabel;
+      label.textContent = entry.defaultLabel;
+      item.appendChild(label);
+
+      const value = document.createElement("div");
+      value.className = "value node-ticker-value plugin-ticker-value is-compact";
+      value.id = `m-plugin-ticker-${{token}}`;
+      value.textContent = "n/a";
+      item.appendChild(value);
+
+      if (entry.metric) {{
+        const metric = document.createElement("div");
+        metric.className = "metric-ticker";
+        metric.id = `ticker-plugin-${{token}}`;
+        metric.hidden = true;
+
+        const delta = document.createElement("span");
+        delta.className = "metric-ticker-delta";
+        delta.id = `ticker-delta-plugin-${{token}}`;
+        delta.textContent = "n/a";
+        metric.appendChild(delta);
+
+        const rate = document.createElement("span");
+        rate.className = "metric-ticker-rate";
+        rate.id = `ticker-rate-plugin-${{token}}`;
+        rate.textContent = "n/a";
+        metric.appendChild(rate);
+
+        const chart = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        chart.setAttribute("class", "metric-ticker-chart");
+        chart.setAttribute("id", `ticker-chart-plugin-${{token}}`);
+        chart.setAttribute("viewBox", "0 0 72 16");
+        chart.setAttribute("preserveAspectRatio", "none");
+        chart.setAttribute("aria-hidden", "true");
+        metric.appendChild(chart);
+        item.appendChild(metric);
+      }}
+
+      row.appendChild(item);
+      return item;
+    }}
+
+    function renderPluginTicker(rawTicker, entry, item) {{
+      if (!(item instanceof HTMLElement) || !entry) return;
+      const raw = rawTicker && typeof rawTicker === "object" ? rawTicker : {{}};
+      const token = pluginTickerDomToken(entry.id);
+      const valueEl = document.getElementById(`m-plugin-ticker-${{token}}`);
+      if (!(valueEl instanceof HTMLElement)) return;
+      const rows = Array.isArray(raw.rows) ? raw.rows.slice(0, 8) : [];
+      const state = ["neutral", "good", "warn", "bad"].includes(String(raw.state || ""))
+        ? String(raw.state)
+        : "neutral";
+      const detail = String(raw.detail || "").trim();
+      const displayValue = String(raw.value == null || raw.value === "" ? "n/a" : raw.value);
+      const rowsHtml = rows.map((row) => {{
+        const key = String(row && row.key != null ? row.key : "");
+        const value = String(row && row.value != null ? row.value : "n/a");
+        return `<div class="node-ticker-row plugin-ticker-row"><span class="node-ticker-key">${{escAttr(key)}}:</span><span class="node-ticker-val">${{escAttr(value)}}</span></div>`;
+      }}).join("");
+
+      valueEl.classList.toggle("is-compact", !rowsHtml);
+      updateSummaryMiniPanel(valueEl.id, valueEl, rowsHtml ? {{
+        mode: "html",
+        html: rowsHtml,
+        title: detail || `${{entry.defaultLabel}} script ticker`,
+      }} : {{
+        mode: "text",
+        text: displayValue,
+        title: detail || `${{entry.defaultLabel}} script ticker`,
+      }});
+
+      item.classList.remove("metric-state-neutral", "metric-state-good", "metric-state-warn", "metric-state-bad");
+      item.classList.add(`metric-state-${{state}}`);
+      item.classList.toggle("has-plugin-activity", state === "good");
+      item.title = detail;
+
+      const metricContainer = document.getElementById(`ticker-plugin-${{token}}`);
+      const metricValue = raw.metric_value == null || raw.metric_value === ""
+        ? NaN
+        : Number(raw.metric_value);
+      if (entry.metric && Number.isFinite(metricValue)) {{
+        updateMetricTicker(`plugin:${{entry.id}}`, metricValue, {{
+          containerId: `ticker-plugin-${{token}}`,
+          deltaId: `ticker-delta-plugin-${{token}}`,
+          rateId: `ticker-rate-plugin-${{token}}`,
+          chartId: `ticker-chart-plugin-${{token}}`,
+          digits: 1,
+          rateDigits: 1,
+          flatThreshold: 0,
+          maxPoints: 240,
+        }});
+        if (metricContainer instanceof HTMLElement && !tickerTrendEnabled(entry.id)) {{
+          metricContainer.hidden = true;
+        }}
+        item.classList.remove("metric-state-neutral", "metric-state-good", "metric-state-warn", "metric-state-bad");
+        item.classList.add(`metric-state-${{state}}`);
+      }} else if (metricContainer instanceof HTMLElement) {{
+        metricContainer.hidden = true;
+      }}
+    }}
+
+    function syncPluginTickers(state = latestState) {{
+      pluginTickerAvailableIds.clear();
+      const tickers = pluginTickerPayloadFromState(state);
+      let structureChanged = false;
+      for (const rawTicker of tickers) {{
+        const rawId = String(rawTicker && rawTicker.id || "").trim().toLowerCase();
+        const hadCatalogEntry = tickerCatalogById.has(rawId);
+        const token = pluginTickerDomToken(rawId);
+        const hadElement = !!token && document.getElementById(`summary-ticker-${{token}}`) instanceof HTMLElement;
+        const entry = ensurePluginTickerCatalogEntry(rawTicker);
+        if (!entry) continue;
+        pluginTickerAvailableIds.add(entry.id);
+        const item = ensurePluginTickerElement(entry);
+        renderPluginTicker(rawTicker, entry, item);
+        if (!hadCatalogEntry || !hadElement) structureChanged = true;
+      }}
+      if (structureChanged && typeof applyTickerPreferencesToTopbar === "function") {{
+        applyTickerPreferencesToTopbar(state);
+      }}
+    }}

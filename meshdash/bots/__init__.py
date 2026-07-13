@@ -13,6 +13,7 @@ from .sdk import (
     SendTextAction,
     SessionAPI,
     SessionAction,
+    TickerDefinition,
     action_from_dict,
     action_to_dict,
 )
@@ -41,6 +42,7 @@ __all__ = [
     "SendTextAction",
     "SessionAPI",
     "SessionAction",
+    "TickerDefinition",
     "action_from_dict",
     "action_to_dict",
     "SUPPORTED_API_VERSION",

@@ -1482,6 +1482,9 @@
           wifiMetricTicker.hidden = true;
         }}
       }}
+      if (typeof syncPluginTickers === "function") {{
+        syncPluginTickers(state);
+      }}
       if (typeof syncTickerRuntimeAvailability === "function") {{
         syncTickerRuntimeAvailability(state);
       }}

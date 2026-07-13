@@ -751,6 +751,7 @@
     function normalizeTickerId(value) {{
       const key = String(value || "").trim().toLowerCase();
       if (key === "target") return "self";
+      if (/^script:[a-z][a-z0-9_-]{{0,63}}:[a-z][a-z0-9_-]{{0,31}}$/.test(key)) return key;
       return tickerCatalogById.has(key) ? key : "";
     }}
 
@@ -799,7 +800,7 @@
 
       const enabledRaw = raw.enabled && typeof raw.enabled === "object" ? raw.enabled : {{}};
       const enabled = {{}};
-      for (const id of tickerDefaultOrder) {{
+      for (const id of order) {{
         const fallbackEnabled = parseBoolToken(base.enabled[id], true);
         const rawEnabledValue = tickerPreferenceRawValue(enabledRaw, id);
         if (rawEnabledValue === undefined) {{
@@ -824,7 +825,7 @@
 
       const trendRaw = raw.trend && typeof raw.trend === "object" ? raw.trend : {{}};
       const trend = {{}};
-      for (const id of tickerDefaultOrder) {{
+      for (const id of order) {{
         const defaultTrend = !!tickerDefaultTrendVisibility[id];
         if (!(id in trendRaw)) {{
           trend[id] = defaultTrend;
@@ -920,6 +921,11 @@
     function tickerAvailable(tickerId, state = latestState) {{
       const id = normalizeTickerId(tickerId);
       if (!id) return false;
+      const catalogEntry = tickerCatalogById.get(id);
+      if (id.startsWith("script:") && !catalogEntry) return false;
+      if (catalogEntry && catalogEntry.plugin) {{
+        return pluginTickerAvailableIds.has(id);
+      }}
       return true;
     }}
 

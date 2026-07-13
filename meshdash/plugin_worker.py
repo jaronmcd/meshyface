@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import logging
+import math
 import sys
 from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
@@ -34,6 +35,8 @@ from .plugin_protocol import MAX_PROTOCOL_FRAME_BYTES, decode_message, encode_me
 MAX_HANDLER_ACTIONS = 16
 MAX_HANDLER_DEBUG_CALLS = 16
 MAX_HANDLER_DEBUG_BYTES = 16 * 1024
+MAX_HANDLER_TICKER_UPDATES = 8
+MAX_TICKER_ROWS = 8
 
 
 def _manifest_from_payload(payload: Mapping[str, object]) -> BotManifest:
@@ -156,6 +159,8 @@ class _WorkerContext:
     mesh: _WorkerMesh
     log: logging.Logger
     debug_entries: list[list[JsonValue]]
+    declared_ticker_ids: frozenset[str]
+    ticker_updates: dict[str, dict[str, JsonValue]]
 
     @property
     def packet(self) -> Mapping[str, JsonValue] | None:
@@ -167,6 +172,63 @@ class _WorkerContext:
     def reply_long(self, text: str) -> ReplyAction:
         return self.mesh.reply_long(self.message, text)
 
+    def set_ticker(
+        self,
+        ticker_id: str,
+        *,
+        value: JsonValue = "n/a",
+        rows: Mapping[str, JsonValue] | None = None,
+        state: str = "neutral",
+        detail: str = "",
+        metric_value: float | int | None = None,
+    ) -> None:
+        clean_id = str(ticker_id or "").strip().lower()
+        if clean_id not in self.declared_ticker_ids:
+            raise ValueError(f"ticker {clean_id!r} was not declared by this plugin")
+        if clean_id not in self.ticker_updates and len(self.ticker_updates) >= MAX_HANDLER_TICKER_UPDATES:
+            raise ValueError("plugin handler updated too many tickers")
+        clean_value = _ticker_scalar(value, "ticker value", maximum=96)
+        clean_state = str(state or "neutral").strip().lower()
+        if clean_state not in {"neutral", "good", "warn", "bad"}:
+            raise ValueError("ticker state must be neutral, good, warn, or bad")
+        if not isinstance(detail, str):
+            raise ValueError("ticker detail must be a string")
+        clean_detail = " ".join(detail.split()).strip()
+        if len(clean_detail) > 256:
+            raise ValueError("ticker detail must be at most 256 characters")
+        if metric_value is not None:
+            if isinstance(metric_value, bool) or not isinstance(metric_value, (int, float)):
+                raise ValueError("ticker metric_value must be a number or None")
+            if not math.isfinite(float(metric_value)):
+                raise ValueError("ticker metric_value must be finite")
+
+        clean_rows: list[JsonValue] = []
+        if rows is not None:
+            if not isinstance(rows, Mapping):
+                raise ValueError("ticker rows must be an object or None")
+            if len(rows) > MAX_TICKER_ROWS:
+                raise ValueError(f"ticker rows must contain at most {MAX_TICKER_ROWS} entries")
+            for raw_key, raw_value in rows.items():
+                if not isinstance(raw_key, str):
+                    raise ValueError("ticker row labels must be strings")
+                key = " ".join(raw_key.split()).strip()
+                if not key or len(key) > 20:
+                    raise ValueError("ticker row labels must be 1 to 20 characters")
+                clean_rows.append(
+                    {
+                        "key": key,
+                        "value": _ticker_scalar(raw_value, "ticker row value", maximum=96),
+                    }
+                )
+        self.ticker_updates[clean_id] = {
+            "id": clean_id,
+            "value": clean_value,
+            "rows": clean_rows,
+            "state": clean_state,
+            "detail": clean_detail,
+            "metric_value": metric_value,
+        }
+
     def debug(self, *values: object) -> None:
         if len(self.debug_entries) >= MAX_HANDLER_DEBUG_CALLS:
             raise ValueError("plugin handler emitted too many debug entries")
@@ -177,6 +239,23 @@ class _WorkerContext:
         if size > MAX_HANDLER_DEBUG_BYTES:
             raise ValueError("plugin debug entry is too large")
         self.debug_entries.append(clean)
+
+
+def _ticker_scalar(value: object, field: str, *, maximum: int) -> JsonValue:
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"{field} must be finite")
+        return value
+    if isinstance(value, str):
+        clean = " ".join(value.split()).strip()
+        if len(clean) > maximum:
+            raise ValueError(f"{field} must be at most {maximum} characters")
+        return clean or "n/a"
+    raise ValueError(f"{field} must be a JSON scalar")
 
 
 def _normalize_handler_result(result: object) -> list[dict[str, JsonValue]]:
@@ -219,6 +298,7 @@ def _handle_invoke(bots: Mapping[str, Bot], message: Mapping[str, object]) -> di
     initial_session_active = bool(message.get("session_active", False))
     session = _WorkerSession(initial_session_active)
     debug_entries: list[list[JsonValue]] = []
+    ticker_updates: dict[str, dict[str, JsonValue]] = {}
     context = _WorkerContext(
         message=event,
         state=state,
@@ -227,6 +307,8 @@ def _handle_invoke(bots: Mapping[str, Bot], message: Mapping[str, object]) -> di
         mesh=_WorkerMesh(event, cast(Sequence[Mapping[str, object]], nodes_raw)),
         log=logging.getLogger(f"meshdash.plugin.{plugin_id}"),
         debug_entries=debug_entries,
+        declared_ticker_ids=frozenset(bot.tickers),
+        ticker_updates=ticker_updates,
     )
     if handler_kind == "command":
         command = str(message.get("command") or "")
@@ -261,6 +343,7 @@ def _handle_invoke(bots: Mapping[str, Bot], message: Mapping[str, object]) -> di
         "peer_state": dict(peer_state),
         "actions": actions,
         "debug": debug_entries,
+        "tickers": list(ticker_updates.values()),
     }
 
 
@@ -301,6 +384,7 @@ def plugin_worker_main(connection: object) -> None:
                         "session": False,
                         "on_start": False,
                         "on_stop": False,
+                        "tickers": [],
                     }
                 )
             else:
@@ -314,6 +398,7 @@ def plugin_worker_main(connection: object) -> None:
                         "session": bot.session_handler is not None,
                         "on_start": bot.start_handler is not None,
                         "on_stop": bot.stop_handler is not None,
+                        "tickers": [definition.to_dict() for definition in bot.tickers.values()],
                     }
                 )
         send_bytes(encode_message({"type": "ready", "registry": registry}))

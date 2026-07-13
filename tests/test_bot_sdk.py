@@ -12,6 +12,7 @@ from meshdash.bots import (
     SendFileAction,
     SendTextAction,
     SessionAction,
+    TickerDefinition,
     action_from_dict,
     action_to_dict,
 )
@@ -62,6 +63,8 @@ def test_bot_registers_commands_and_handlers_with_read_only_registry() -> None:
     def stop(ctx: object) -> None:
         return None
 
+    ticker = bot.ticker("activity", label="Activity", default_enabled=True)
+
     assert bot.id == "example_bot"
     assert bot.name == "Example Bot"
     assert bot.version == "1.2.3"
@@ -71,8 +74,24 @@ def test_bot_registers_commands_and_handlers_with_read_only_registry() -> None:
     assert bot.session_handler is session
     assert bot.start_handler is start
     assert bot.stop_handler is stop
+    assert ticker == TickerDefinition("activity", "Activity")
+    assert bot.tickers == {"activity": ticker}
     with pytest.raises(TypeError):
         bot.commands["other"] = hello  # type: ignore[index]
+    with pytest.raises(TypeError):
+        bot.tickers["other"] = ticker  # type: ignore[index]
+
+
+def test_bot_validates_ticker_declarations() -> None:
+    bot = Bot(id="example", name="Example", version="1")
+
+    bot.ticker("health", label="Health", metric=True, default_enabled=False)
+    with pytest.raises(ValueError, match="already registered"):
+        bot.ticker("health", label="Duplicate")
+    with pytest.raises(ValueError, match="ticker id"):
+        bot.ticker("Bad ticker", label="Bad")
+    with pytest.raises(ValueError, match="ticker label"):
+        bot.ticker("other", label="x" * 27)
 
 
 @pytest.mark.parametrize("name", ["Hello", "two words", "!hello", "", "a" * 33])

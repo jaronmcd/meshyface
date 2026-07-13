@@ -19,6 +19,7 @@ from meshdash.helpers_json import JsonValue
 
 _BOT_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 _COMMAND_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_TICKER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 
 
 def _nonempty_string(value: object, field: str, *, maximum: int | None = None) -> str:
@@ -56,6 +57,33 @@ def _optional_number(value: object, field: str) -> float | None:
     if value is None:
         return None
     return _number(value, field)
+
+
+@dataclass(frozen=True, slots=True)
+class TickerDefinition:
+    """One display-only dashboard ticker declared by a plugin."""
+
+    id: str
+    label: str
+    metric: bool = False
+    default_enabled: bool = True
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or _TICKER_ID_RE.fullmatch(self.id) is None:
+            raise ValueError("ticker id must match [a-z][a-z0-9_-]{0,31}")
+        _nonempty_string(self.label, "ticker label", maximum=26)
+        if not isinstance(self.metric, bool):
+            raise ValueError("ticker metric must be a boolean")
+        if not isinstance(self.default_enabled, bool):
+            raise ValueError("ticker default_enabled must be a boolean")
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "id": self.id,
+            "label": self.label,
+            "metric": self.metric,
+            "default_enabled": self.default_enabled,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -352,6 +380,17 @@ class BotContext(Protocol):
 
     def reply_long(self, text: str) -> ReplyAction: ...
 
+    def set_ticker(
+        self,
+        ticker_id: str,
+        *,
+        value: JsonValue = "n/a",
+        rows: Mapping[str, JsonValue] | None = None,
+        state: Literal["neutral", "good", "warn", "bad"] = "neutral",
+        detail: str = "",
+        metric_value: float | int | None = None,
+    ) -> None: ...
+
     def debug(self, *values: object) -> None: ...
 
 
@@ -374,6 +413,8 @@ class Bot:
         self._version = _nonempty_string(version, "bot version", maximum=64)
         self._commands: dict[str, BotHandler] = {}
         self._commands_view: Mapping[str, BotHandler] = MappingProxyType(self._commands)
+        self._tickers: dict[str, TickerDefinition] = {}
+        self._tickers_view: Mapping[str, TickerDefinition] = MappingProxyType(self._tickers)
         self._message_handler: BotHandler | None = None
         self._packet_handler: BotHandler | None = None
         self._session_handler: BotHandler | None = None
@@ -397,6 +438,12 @@ class Bot:
         """Live, read-only view of command handlers for the worker runtime."""
 
         return self._commands_view
+
+    @property
+    def tickers(self) -> Mapping[str, TickerDefinition]:
+        """Live, read-only view of dashboard ticker declarations."""
+
+        return self._tickers_view
 
     @property
     def message_handler(self) -> BotHandler | None:
@@ -430,6 +477,27 @@ class Bot:
             return handler
 
         return register
+
+    def ticker(
+        self,
+        ticker_id: str,
+        *,
+        label: str,
+        metric: bool = False,
+        default_enabled: bool = True,
+    ) -> TickerDefinition:
+        """Declare one optional dashboard ticker owned by this plugin."""
+
+        definition = TickerDefinition(
+            id=ticker_id,
+            label=label,
+            metric=metric,
+            default_enabled=default_enabled,
+        )
+        if definition.id in self._tickers:
+            raise ValueError(f"ticker {definition.id!r} is already registered")
+        self._tickers[definition.id] = definition
+        return definition
 
     def on_message(self, handler: BotHandler) -> BotHandler:
         self._message_handler = self._register_single(

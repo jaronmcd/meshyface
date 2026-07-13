@@ -162,6 +162,31 @@ Packet handlers receive the accepted JSON-safe packet as `ctx.packet`.
 `ctx.debug(...)` writes a bounded entry to Apps → Scripts → Script debug output
 and echoes the same entry to the dashboard's foreground terminal.
 
+Scripts may opt into display-only dashboard tickers. A script with no ticker
+declarations adds nothing to the top bar. Declared tickers exist only while the
+script is enabled:
+
+```python
+bot.ticker("activity", label="Example", default_enabled=True)
+
+
+@bot.on_start
+def start(ctx):
+    ctx.set_ticker(
+        "activity",
+        value="ready",
+        rows={"State": "Ready", "Jobs": 0},
+        state="neutral",
+    )
+```
+
+`ctx.set_ticker(...)` updates host-cached UI state after a successful handler;
+it never transmits over the mesh. A ticker accepts a compact scalar value, up
+to eight key/value rows, a bounded detail tooltip, and a semantic `neutral`,
+`good`, `warn`, or `bad` state. Declare `metric=True` and provide a finite
+`metric_value` to use the standard trend display. Ticker IDs are namespaced by
+script, and disabling the script hides its tickers automatically.
+
 State and session changes are committed only after a complete valid handler
 result. Exceptions, malformed results, crashes, and timeouts send no actions and
 commit no state. A timed-out invocation is dropped rather than replayed after

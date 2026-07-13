@@ -392,6 +392,65 @@ def stop(ctx):
     store.close()
 
 
+def test_declared_ticker_updates_runtime_status_without_radio_action(tmp_path) -> None:
+    manifest = _write_plugin(
+        tmp_path,
+        "ticker",
+        commands=("work",),
+        source="""
+from meshdash.bots import Bot
+bot = Bot(id="ticker", name="Ticker", version="1.0.0")
+bot.ticker("activity", label="Activity", metric=True, default_enabled=True)
+@bot.on_start
+def start(ctx):
+    ctx.set_ticker("activity", value="idle", rows={"Jobs": 0}, metric_value=0)
+@bot.command("work")
+def work(ctx):
+    ctx.set_ticker(
+        "activity",
+        value="1 active",
+        rows={"Jobs": 1, "State": "Running"},
+        state="good",
+        detail="One job is running",
+        metric_value=1,
+    )
+""",
+    )
+    store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    sends: list[dict[str, object]] = []
+    changed = threading.Event()
+    runtime = PluginRuntime(
+        manifests=[manifest],
+        state_store=store,
+        send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)),
+        state_changed_fn=changed.set,
+    )
+    try:
+        _wait_until(lambda: bool(runtime.status()["tickers"]))
+        _wait_until(lambda: runtime.status()["tickers"][0]["value"] == "idle")  # type: ignore[index]
+        initial = runtime.status()["tickers"][0]  # type: ignore[index]
+        assert initial["id"] == "script:ticker:activity"
+        assert initial["label"] == "Activity"
+        assert initial["metric"] is True
+        assert initial["rows"] == [{"key": "Jobs", "value": 0}]
+
+        changed.clear()
+        assert runtime.try_enqueue(_event("!work")) is True
+        assert changed.wait(5.0)
+        _wait_until(lambda: runtime.status()["tickers"][0]["value"] == "1 active")  # type: ignore[index]
+        updated = runtime.status()["tickers"][0]  # type: ignore[index]
+        assert updated["state"] == "good"
+        assert updated["detail"] == "One job is running"
+        assert updated["metric_value"] == 1
+        assert sends == []
+
+        runtime.reconfigure(())
+        _wait_until(lambda: runtime.status()["tickers"] == [])
+    finally:
+        runtime.close()
+        store.close()
+
+
 def test_full_event_queue_never_blocks_receive_side_enqueue(tmp_path) -> None:
     manifest = _write_plugin(
         tmp_path,

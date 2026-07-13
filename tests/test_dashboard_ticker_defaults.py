@@ -69,6 +69,40 @@ def test_dashboard_omits_removed_bot_ticker_and_keeps_standalone_zork() -> None:
     assert 'name: "zork"' in js
 
 
+def test_dashboard_builds_opt_in_script_tickers_from_runtime_state() -> None:
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert '<div class="summary-ticker-item summary-ticker-item-plugin"' not in html
+    for token in (
+        "function pluginTickerPayloadFromState(state = latestState)",
+        "function ensurePluginTickerCatalogEntry(rawTicker)",
+        "function ensurePluginTickerElement(entry)",
+        "function renderPluginTicker(rawTicker, entry, item)",
+        "function syncPluginTickers(state = latestState)",
+        "pluginTickerAvailableIds.clear();",
+        "syncPluginTickers(state);",
+        'item.dataset.pluginTicker = "1";',
+        'item.classList.toggle("has-plugin-activity", state === "good");',
+    ):
+        assert token in js
+
+
 
 def test_dashboard_js_does_not_include_live_update_ticker() -> None:
     js = build_dashboard_js(
