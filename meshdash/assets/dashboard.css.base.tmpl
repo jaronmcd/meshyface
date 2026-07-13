@@ -791,7 +791,8 @@
       font-weight: 700;
       color: inherit;
     }}
-    .topbar-view-submenu-item-beta {{
+    .topbar-view-submenu-item-beta,
+    .topbar-view-submenu-item-alpha {{
       display: inline-flex;
       align-items: center;
       padding: 1px 6px;
@@ -806,6 +807,11 @@
       text-transform: uppercase;
       white-space: nowrap;
       flex: 0 0 auto;
+    }}
+    .topbar-view-submenu-item-alpha {{
+      border-color: color-mix(in srgb, #6c8cff 48%, transparent);
+      background: color-mix(in srgb, #6c8cff 14%, white 86%);
+      color: #304ea8;
     }}
     .topbar-view-submenu-item-meta {{
       font-size: 10px;
@@ -2336,14 +2342,16 @@
       grid-row: 2;
     }}
     .workspace-shell[data-layout-view="games"] .workspace-main,
-    .workspace-shell[data-layout-view="files"] .workspace-main {{
+    .workspace-shell[data-layout-view="files"] .workspace-main,
+    .workspace-shell[data-layout-view="scripts"] .workspace-main {{
       gap: 8px;
       grid-template-columns: minmax(0, 1fr);
       grid-template-rows: minmax(0, 1fr);
       align-items: stretch;
     }}
     .workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,
-    .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files {{
+    .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files,
+    .workspace-shell[data-layout-view="scripts"] .workspace-main > .layout.view-scripts {{
       grid-column: 1;
       grid-row: 1;
       min-width: 0;
@@ -2359,11 +2367,13 @@
     }}
     @media (max-width: 1180px) {{
       .workspace-shell[data-layout-view="games"] .workspace-main,
-      .workspace-shell[data-layout-view="files"] .workspace-main {{
+      .workspace-shell[data-layout-view="files"] .workspace-main,
+      .workspace-shell[data-layout-view="scripts"] .workspace-main {{
         grid-template-columns: minmax(0, 1fr);
       }}
       .workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,
-      .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files {{
+      .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files,
+      .workspace-shell[data-layout-view="scripts"] .workspace-main > .layout.view-scripts {{
         grid-column: 1;
       }}
     }}
@@ -7939,6 +7949,13 @@
       min-height: 0;
     }}
     .games {{
+      grid-column: 1 / span 3;
+      grid-row: 2 / 9;
+      display: none;
+      flex-direction: column;
+      min-height: 0;
+    }}
+    .scripts {{
       grid-column: 1 / span 3;
       grid-row: 2 / 9;
       display: none;

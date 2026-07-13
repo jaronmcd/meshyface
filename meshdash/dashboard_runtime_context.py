@@ -207,12 +207,6 @@ def build_dashboard_runtime_context(
         except Exception:
             pass
 
-    receive_buffer.activate(tracker.on_receive)
-    try:
-        setattr(tracker, "_startup_receive_buffer", receive_buffer)
-    except Exception:
-        pass
-
     on_connection_established = getattr(tracker, "on_connection_established", None)
     if callable(on_connection_established):
         subscribe_fn(on_connection_established, "meshtastic.connection.established")
@@ -694,6 +688,68 @@ def build_dashboard_runtime_context(
                 setattr(state_lite_fn, "malformed_text_history_fn", _malformed_text_history)
             except Exception:
                 pass
+
+    if bool(getattr(args, "bots_enable", False)):
+        try:
+            from .plugin_composition import build_plugin_subsystem
+
+            plugin_subsystem = build_plugin_subsystem(
+                args=args,
+                iface=iface,
+                tracker=tracker,
+                send_chat_fn=loaders.send_chat_fn,
+                local_node_id_fn=lambda: get_local_node_id_fn(iface),
+            )
+            setattr(tracker, "_plugin_subsystem", plugin_subsystem)
+            setattr(tracker, "get_plugin_runtime", plugin_subsystem.status)
+            setattr(
+                loaders.state_fn,
+                "set_plugin_enabled_fn",
+                plugin_subsystem.set_plugin_enabled,
+            )
+            state_lite_fn = getattr(loaders.state_fn, "lite", None)
+            if callable(state_lite_fn):
+                setattr(
+                    state_lite_fn,
+                    "set_plugin_enabled_fn",
+                    plugin_subsystem.set_plugin_enabled,
+                )
+        except Exception as exc:
+            plugin_error = f"{type(exc).__name__}: {exc}"
+            setattr(
+                tracker,
+                "get_plugin_runtime",
+                lambda: {"enabled": True, "error": plugin_error},
+            )
+    else:
+        # Static status only: no discovery, state store, worker, or thread exists.
+        setattr(tracker, "get_plugin_runtime", lambda: {"enabled": False})
+
+        def _plugin_runtime_disabled(
+            plugin_id: object,
+            enabled: bool,
+        ) -> dict[str, object]:
+            del plugin_id, enabled
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
+        setattr(loaders.state_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
+        state_lite_fn = getattr(loaders.state_fn, "lite", None)
+        if callable(state_lite_fn):
+            setattr(state_lite_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
+
+    # Activate only after optional post-accept consumers are attached so text
+    # packets buffered while the radio identity was resolving are not lost.
+    receive_buffer.activate(tracker.on_receive)
+    try:
+        setattr(tracker, "_startup_receive_buffer", receive_buffer)
+    except Exception:
+        pass
 
     return DashboardRuntimeContext(
         target=target,

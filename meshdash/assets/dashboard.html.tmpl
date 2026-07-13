@@ -280,7 +280,7 @@
                   role="menuitem"
                   aria-haspopup="menu"
                   aria-expanded="false"
-                  title="Games and app workspaces"
+                  title="Games, Files, and Scripts workspaces"
                 >
                   <span class="topbar-view-menu-item-icon" aria-hidden="true">AP</span>
                   <span class="topbar-view-menu-item-copy">
@@ -288,7 +288,7 @@
                       <span class="topbar-view-menu-item-label">Apps</span>
                       <span id="layout-view-menu-apps-current" class="topbar-view-menu-item-context">Games</span>
                     </span>
-                    <span id="layout-view-menu-apps-meta" class="topbar-view-menu-item-meta">Games and extras</span>
+                    <span id="layout-view-menu-apps-meta" class="topbar-view-menu-item-meta">Games and scripts</span>
                   </span>
                   <span class="topbar-view-menu-item-badge" hidden>0</span>
                   <span class="topbar-view-menu-item-branch" aria-hidden="true"></span>
@@ -326,6 +326,24 @@
                         <span class="topbar-view-submenu-item-beta">BETA</span>
                       </span>
                       <span class="topbar-view-submenu-item-meta">Transfers and inbox</span>
+                    </span>
+                  </button>
+                  <button
+                    class="topbar-view-submenu-item"
+                    data-view="scripts"
+                    data-app-view="scripts"
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked="false"
+                    title="Scripts workspace"
+                  >
+                    <span class="topbar-view-submenu-item-icon" aria-hidden="true">SC</span>
+                    <span class="topbar-view-submenu-item-copy">
+                      <span class="topbar-view-submenu-item-label-row">
+                        <span class="topbar-view-submenu-item-label">Scripts</span>
+                        <span class="topbar-view-submenu-item-alpha">ALPHA</span>
+                      </span>
+                      <span class="topbar-view-submenu-item-meta">Python automations</span>
                     </span>
                   </button>
                 </div>
@@ -2877,6 +2895,40 @@
               </div>
             </div>
             <pre id="files-console-log" class="files-console-log" aria-live="polite">No file transfer activity yet.</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card scripts workspace-app-shell" aria-label="Scripts">
+      <div class="body">
+        <div class="scripts-shell">
+          <header class="scripts-head workspace-chrome-bar workspace-stack-head-shell">
+            <div class="scripts-head-copy">
+              <div class="scripts-title-row">
+                <h2>Scripts</h2>
+                <span class="scripts-alpha-badge">ALPHA</span>
+              </div>
+              <p>Administrator-installed Python automations for incoming mesh events.</p>
+            </div>
+            <div id="scripts-runtime-status" class="scripts-runtime-status is-unavailable" role="status" aria-live="polite">
+              <span class="scripts-runtime-status-dot" aria-hidden="true"></span>
+              <span id="scripts-runtime-status-text">Waiting for runtime status</span>
+            </div>
+          </header>
+          <div id="scripts-runtime-message" class="scripts-runtime-message" role="alert" hidden></div>
+          <div id="scripts-restart-notice" class="scripts-restart-notice" role="status" hidden>
+            Script settings saved. Restart MeshyFace to apply the change.
+          </div>
+          <div class="scripts-list-head">
+            <div>
+              <h3>Installed scripts</h3>
+              <p>Enablement changes are saved immediately and take effect after a restart.</p>
+            </div>
+            <span id="scripts-count" class="scripts-count">0 scripts</span>
+          </div>
+          <div id="scripts-list" class="scripts-list" aria-live="polite">
+            <div class="scripts-empty">Loading scripts…</div>
           </div>
         </div>
       </div>

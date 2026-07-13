@@ -8,6 +8,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from meshdash.helpers import to_int
+from meshdash.http_api import make_http_handler
 from meshdash.http_api_post import build_post_route_dependencies
 from meshdash.http_routes_post import handle_dashboard_post
 
@@ -150,6 +151,177 @@ def test_handle_dashboard_post_toggles_file_transfer_auto_accept() -> None:
 
     assert received == [False]
     assert calls == [(200, {"ok": True, "enabled": False, "active_sessions": 0})]
+
+
+def test_plugin_management_returns_structured_disabled_error() -> None:
+    body = json.dumps({"plugin_id": "echo", "enabled": True}).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    disabled = {
+        "ok": False,
+        "error": {
+            "code": "plugin_runtime_disabled",
+            "message": "Python plugin runtime is disabled at startup",
+        },
+    }
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled: disabled,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
+                (status_code, payload_obj)
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [(503, disabled)]
+
+
+def test_plugin_management_persists_individual_setting_for_restart() -> None:
+    body = json.dumps({"plugin_id": "echo", "enabled": False}).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    received: list[tuple[object, bool]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda plugin_id, enabled: received.append(
+            (plugin_id, enabled)
+        )
+        or {
+            "ok": True,
+            "plugin_id": plugin_id,
+            "enabled": enabled,
+            "restart_required": True,
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
+                (status_code, payload_obj)
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert received == [("echo", False)]
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "plugin_id": "echo",
+                "enabled": False,
+                "restart_required": True,
+            },
+        )
+    ]
+
+
+def test_plugin_management_returns_structured_unknown_plugin_error() -> None:
+    body = json.dumps({"plugin_id": "missing", "enabled": True}).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled: {
+            "ok": False,
+            "error": {"code": "unknown_plugin", "message": "Unknown plugin ID"},
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
+                (status_code, payload_obj)
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            404,
+            {
+                "ok": False,
+                "error": {"code": "unknown_plugin", "message": "Unknown plugin ID"},
+            },
+        )
+    ]
+
+
+def test_plugin_management_returns_structured_invalid_request_error() -> None:
+    body = json.dumps({"plugin_id": "echo", "enabled": "yes"}).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled: {"ok": True},
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
+                (status_code, payload_obj)
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            400,
+            {
+                "ok": False,
+                "error": {
+                    "code": "invalid_request",
+                    "message": "enabled must be a boolean",
+                },
+            },
+        )
+    ]
+
+
+def test_make_http_handler_wires_plugin_management_hook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "meshdash.http_api.build_get_route_dependencies",
+        lambda **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "meshdash.http_api.build_post_route_dependencies",
+        lambda **kwargs: captured.update(kwargs) or object(),
+    )
+    monkeypatch.setattr(
+        "meshdash.http_api.build_dashboard_handler_class",
+        lambda **_kwargs: object,
+    )
+
+    def _state_fn() -> dict[str, object]:
+        return {}
+
+    def _set_plugin_enabled(plugin_id: object, enabled: bool) -> dict[str, object]:
+        return {"ok": True, "plugin_id": plugin_id, "enabled": enabled}
+
+    setattr(_state_fn, "set_plugin_enabled_fn", _set_plugin_enabled)
+
+    make_http_handler("<html></html>", _state_fn)
+
+    assert captured["set_plugin_enabled_fn"] is _set_plugin_enabled
 
 
 def test_handle_dashboard_post_requires_token_for_raw_packet_capture_settings() -> None:

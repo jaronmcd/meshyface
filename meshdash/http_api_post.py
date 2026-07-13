@@ -19,6 +19,7 @@ from .http_route_contracts import (
     SetCustomTelemetrySettingsFn,
     SetRawPacketCaptureSettingsFn,
     SetFileTransferAutoAcceptEnabledFn,
+    SetPluginEnabledFn,
     SetThemePresetFn,
     ToIntFn,
 )
@@ -87,6 +88,7 @@ def build_post_route_dependencies(
     set_file_transfer_auto_accept_enabled_fn: (
         SetFileTransferAutoAcceptEnabledFn | None
     ) = None,
+    set_plugin_enabled_fn: SetPluginEnabledFn | None = None,
     play_standalone_zork_fn: PlayStandaloneZorkFn | None = None,
     run_network_tool_fn: RunNetworkToolFn | None = None,
     schedule_backend_restart_fn: ScheduleBackendRestartFn | None = None,
@@ -119,6 +121,7 @@ def build_post_route_dependencies(
         set_file_transfer_auto_accept_enabled_fn=(
             set_file_transfer_auto_accept_enabled_fn
         ),
+        set_plugin_enabled_fn=set_plugin_enabled_fn,
         parse_raw_packet_capture_settings_request_fn=parse_raw_packet_capture_settings_request,
         apply_radio_settings_fn=apply_radio_settings_fn,
         parse_radio_settings_request_fn=parse_radio_settings_request,

@@ -12,7 +12,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     MESH_DASH_PR_NUMBER=${MESH_DASH_PR_NUMBER} \
     MESH_DASH_HISTORY_DB=/data/mesh_dashboard_history.sqlite3 \
     MESH_DASH_THEME_SETTINGS_FILE=/data/mesh_dashboard_theme_settings.json \
-    MESH_DASHBOARD_MAP_PACKS_DIR=/data/map_packs
+    MESH_DASHBOARD_MAP_PACKS_DIR=/data/map_packs \
+    MESH_DASH_BOTS_ENABLE=0 \
+    MESH_DASH_BOTS_DIRECTORY=/data/plugins \
+    MESH_DASH_BOTS_STATE_DB=/data/plugin-state.sqlite3 \
+    MESH_DASH_BOTS_FILES_DIRECTORY=/data/plugin-files
 
 WORKDIR /app
 
@@ -26,7 +30,7 @@ COPY scripts/build_map_pack.py scripts/build_offline_atlas.py scripts/install_ma
 COPY LICENSE README.md THIRD_PARTY_NOTICES.md THIRD_PARTY_PYTHON_DEPENDENCIES.md ./
 COPY third_party ./third_party
 
-RUN mkdir -p /data
+RUN mkdir -p /data /data/plugins /data/plugin-files
 
 VOLUME ["/data"]
 EXPOSE 8877

@@ -40,6 +40,14 @@ def add_http_runtime_args(
     default_api_token: str | None = None,
     default_file_transfer_enable: bool = False,
     default_file_transfer_auto_accept: bool = False,
+    default_bots_enable: bool = False,
+    default_bots_directory: str = "mesh_dashboard_plugins",
+    default_bots_state_db: str = "mesh_dashboard_plugin_state.sqlite3",
+    default_bots_files_directory: str = "mesh_dashboard_plugin_files",
+    default_bots_handler_timeout: float = 5.0,
+    default_bots_event_queue_size: int = 128,
+    default_bot_enable: list[str] | None = None,
+    default_bot_disable: list[str] | None = None,
     default_games_enable: bool = False,
     default_file_transfer_max_bytes: int = 64 * 1024,
     default_accept_file_transfer_traffic_disclaimer: bool = False,
@@ -146,6 +154,56 @@ def add_http_runtime_args(
             "backend, and use the same value as the browser preference default "
             f"(default: {default_file_transfer_auto_accept})"
         ),
+    )
+    parser.add_argument(
+        "--bots-enable",
+        action=argparse.BooleanOptionalAction,
+        default=default_bots_enable,
+        help=(
+            "Enable the trusted Python plugin subsystem "
+            f"(default: {default_bots_enable})"
+        ),
+    )
+    parser.add_argument(
+        "--bots-directory",
+        default=default_bots_directory,
+        help="Persistent directory containing local bot plugin packages.",
+    )
+    parser.add_argument(
+        "--bots-state-db",
+        default=default_bots_state_db,
+        help="Independent SQLite database for bot state, sessions, and enablement.",
+    )
+    parser.add_argument(
+        "--bots-files-directory",
+        default=default_bots_files_directory,
+        help="Approved root for files requested through the bot API.",
+    )
+    parser.add_argument(
+        "--bots-handler-timeout",
+        type=float,
+        default=default_bots_handler_timeout,
+        help="Maximum seconds allowed for one bot handler.",
+    )
+    parser.add_argument(
+        "--bots-event-queue-size",
+        type=int,
+        default=default_bots_event_queue_size,
+        help="Maximum pending normalized bot events.",
+    )
+    parser.add_argument(
+        "--bot-enable",
+        action="append",
+        default=list(default_bot_enable or ()),
+        metavar="ID",
+        help="Enable one discovered bot ID; may be repeated.",
+    )
+    parser.add_argument(
+        "--bot-disable",
+        action="append",
+        default=list(default_bot_disable or ()),
+        metavar="ID",
+        help="Disable one discovered bot ID; may be repeated.",
     )
     parser.add_argument(
         "--games-enable",

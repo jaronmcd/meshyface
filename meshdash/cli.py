@@ -87,10 +87,22 @@ def build_dashboard_parser(
     env_api_token: Optional[str] = None,
     default_file_transfer_enable: bool = False,
     default_file_transfer_auto_accept: bool = False,
+    default_bots_enable: bool = False,
+    default_bots_directory: str = "mesh_dashboard_plugins",
+    default_bots_state_db: str = "mesh_dashboard_plugin_state.sqlite3",
+    default_bots_files_directory: str = "mesh_dashboard_plugin_files",
+    default_bots_handler_timeout: float = 5.0,
+    default_bots_event_queue_size: int = 128,
     default_games_enable: bool = False,
     default_file_transfer_max_bytes: int = 64 * 1024,
     env_file_transfer_enable: Optional[str] = None,
     env_file_transfer_auto_accept: Optional[str] = None,
+    env_bots_enable: Optional[str] = None,
+    env_bots_directory: Optional[str] = None,
+    env_bots_state_db: Optional[str] = None,
+    env_bots_files_directory: Optional[str] = None,
+    env_bot_enable: Optional[str] = None,
+    env_bot_disable: Optional[str] = None,
     env_games_enable: Optional[str] = None,
     env_file_transfer_max_bytes: Optional[str] = None,
     env_accept_file_transfer_traffic_disclaimer: Optional[str] = None,
@@ -111,6 +123,25 @@ def build_dashboard_parser(
         env_file_transfer_auto_accept,
         default_file_transfer_auto_accept,
     )
+    resolved_bots_enable = parse_env_bool(
+        env_bots_enable,
+        default_bots_enable,
+    )
+    resolved_bots_directory = str(env_bots_directory or default_bots_directory)
+    resolved_bots_state_db = str(env_bots_state_db or default_bots_state_db)
+    resolved_bots_files_directory = str(
+        env_bots_files_directory or default_bots_files_directory
+    )
+    resolved_bot_enable = [
+        value.strip().lower()
+        for value in str(env_bot_enable or "").replace(";", ",").split(",")
+        if value.strip()
+    ]
+    resolved_bot_disable = [
+        value.strip().lower()
+        for value in str(env_bot_disable or "").replace(";", ",").split(",")
+        if value.strip()
+    ]
     resolved_games_enable = parse_env_bool(
         env_games_enable,
         default_games_enable,
@@ -144,6 +175,14 @@ def build_dashboard_parser(
         default_api_token=resolved_api_token,
         default_file_transfer_enable=resolved_file_transfer_enable,
         default_file_transfer_auto_accept=resolved_file_transfer_auto_accept,
+        default_bots_enable=resolved_bots_enable,
+        default_bots_directory=resolved_bots_directory,
+        default_bots_state_db=resolved_bots_state_db,
+        default_bots_files_directory=resolved_bots_files_directory,
+        default_bots_handler_timeout=default_bots_handler_timeout,
+        default_bots_event_queue_size=default_bots_event_queue_size,
+        default_bot_enable=resolved_bot_enable,
+        default_bot_disable=resolved_bot_disable,
         default_games_enable=resolved_games_enable,
         default_file_transfer_max_bytes=resolved_file_transfer_max_bytes,
         default_accept_file_transfer_traffic_disclaimer=resolved_accept_file_transfer_traffic_disclaimer,

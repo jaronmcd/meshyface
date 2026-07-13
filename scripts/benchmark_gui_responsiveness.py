@@ -497,7 +497,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--warmup", type=_non_negative_int, default=1, help="Initial unmeasured poll warmups.")
     parser.add_argument(
         "--views",
-        default="chat,network:map,network:graph,history,settings,console",
+        default="chat,scripts,network:map,network:graph,history,settings,console",
         help="Comma-separated views; network subviews use view:subview.",
     )
     parser.add_argument("--settle-ms", type=_non_negative_int, default=80, help="Delay between measured actions.")

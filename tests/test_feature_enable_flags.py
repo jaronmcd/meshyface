@@ -51,10 +51,12 @@ def _build_parser(**overrides: object) -> argparse.ArgumentParser:
         "env_theme_settings_file": None,
         "default_file_transfer_enable": False,
         "default_file_transfer_auto_accept": False,
+        "default_bots_enable": False,
         "default_games_enable": False,
         "default_file_transfer_max_bytes": 64 * 1024,
         "env_file_transfer_enable": None,
         "env_file_transfer_auto_accept": None,
+        "env_bots_enable": None,
         "env_games_enable": None,
         "env_file_transfer_max_bytes": None,
         "env_accept_file_transfer_traffic_disclaimer": None,
@@ -118,18 +120,71 @@ def test_dashboard_parser_swallows_removed_bbs_flags_without_restoring_bbs() -> 
     assert "bbs" not in parser.format_help().lower()
 
 
-def test_dashboard_parser_rejects_removed_bot_flags() -> None:
+def test_dashboard_parser_supports_master_bots_enable_flag_and_env_default() -> None:
     parser = _build_parser()
 
-    for flag in (
-        "--bots-enable",
-        "--ping-bot-enable",
-        "--zork-bot-enable",
-    ):
+    default_args = parser.parse_args([])
+    assert default_args.bots_enable is False
+
+    explicit_enable_args = parser.parse_args(["--bots-enable"])
+    assert explicit_enable_args.bots_enable is True
+
+    explicit_disable_args = parser.parse_args(["--no-bots-enable"])
+    assert explicit_disable_args.bots_enable is False
+
+    env_enabled_parser = _build_parser(env_bots_enable="true")
+    assert env_enabled_parser.parse_args([]).bots_enable is True
+    assert env_enabled_parser.parse_args(["--no-bots-enable"]).bots_enable is False
+
+    env_disabled_parser = _build_parser(env_bots_enable="false")
+    assert env_disabled_parser.parse_args([]).bots_enable is False
+    assert env_disabled_parser.parse_args(["--bots-enable"]).bots_enable is True
+
+    help_text = parser.format_help()
+    assert "--bots-enable" in help_text
+    assert "--no-bots-enable" in help_text
+
+
+def test_dashboard_parser_supports_plugin_paths_limits_and_individual_overrides() -> None:
+    parser = _build_parser(
+        env_bots_directory="/data/plugins",
+        env_bots_state_db="/data/plugin-state.sqlite3",
+        env_bots_files_directory="/data/plugin-files",
+        env_bot_enable="echo, city",
+        env_bot_disable="old",
+    )
+    args = parser.parse_args(
+        [
+            "--bots-handler-timeout",
+            "2.5",
+            "--bots-event-queue-size",
+            "32",
+            "--bot-enable",
+            "files",
+            "--bot-disable",
+            "noisy",
+        ]
+    )
+
+    assert args.bots_directory == "/data/plugins"
+    assert args.bots_state_db == "/data/plugin-state.sqlite3"
+    assert args.bots_files_directory == "/data/plugin-files"
+    assert args.bots_handler_timeout == 2.5
+    assert args.bots_event_queue_size == 32
+    assert args.bot_enable == ["echo", "city", "files"]
+    assert args.bot_disable == ["old", "noisy"]
+
+
+def test_dashboard_parser_rejects_removed_individual_bot_flags() -> None:
+    parser = _build_parser()
+
+    for flag in ("--ping-bot-enable", "--zork-bot-enable"):
         with pytest.raises(SystemExit) as exc:
             parser.parse_args([flag])
         assert exc.value.code == 2
-    assert "bot" not in parser.format_help().lower()
+    help_text = parser.format_help()
+    assert "--ping-bot-enable" not in help_text
+    assert "--zork-bot-enable" not in help_text
 
 
 def test_dashboard_parser_supports_games_enable_flag_and_env_default() -> None:

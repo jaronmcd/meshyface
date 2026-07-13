@@ -6,12 +6,19 @@
       if (clean === "files" && fileTransferFeatureEnabled) {{
         return clean;
       }}
+      if (clean === "scripts") {{
+        return clean;
+      }}
       return "games";
     }}
 
     function isAppsLayoutView(viewName) {{
       const clean = String(viewName || "").trim().toLowerCase();
-      return clean === "games" || (clean === "files" && fileTransferFeatureEnabled);
+      return (
+        clean === "games"
+        || clean === "scripts"
+        || (clean === "files" && fileTransferFeatureEnabled)
+      );
     }}
 
     function loadPreferredAppsLayoutView() {{
@@ -44,12 +51,13 @@
       if (resolved === "files" && !fileTransferFeatureEnabled) {{
         resolved = "games";
       }}
-      // Public v0 rail: expose only Chat/Network/Console/Games/Files/Settings.
+      // Public launcher: expose the core workspaces and the Apps children.
       return (
         resolved === "chat"
         || resolved === "network"
         || resolved === "console"
         || resolved === "games"
+        || resolved === "scripts"
         || (resolved === "files" && fileTransferFeatureEnabled)
         || resolved === "settings"
       )
@@ -10212,6 +10220,7 @@
     function appsLayoutViewLabel(viewName = "") {{
       const normalized = normalizeAppsLayoutView(viewName);
       if (normalized === "files") return "Files";
+      if (normalized === "scripts") return "Scripts";
       return "Games";
     }}
 
@@ -10228,9 +10237,9 @@
 
     function appsLauncherMenuMetaText() {{
       if (fileTransferFeatureEnabled) {{
-        return "Games and files";
+        return "Games, files, and scripts";
       }}
-      return "Games";
+      return "Games and scripts";
     }}
 
     function closeLayoutViewSubmenus() {{
@@ -11031,6 +11040,9 @@
         if (next === "files") {{
           renderFilesView(latestState);
         }}
+        if (next === "scripts") {{
+          renderScriptsViewSafely(latestState, "navigation.cached.scripts");
+        }}
         if (next === "games") {{
           renderGamesView(latestState);
         }}
@@ -11053,6 +11065,8 @@
         renderNodesPlaceholder("Syncing nodes...");
       }} else if (next === "files") {{
         renderFilesView(latestState);
+      }} else if (next === "scripts") {{
+        renderScriptsViewSafely(latestState, "navigation.loading.scripts");
       }} else if (next === "games") {{
         renderGamesView(latestState);
       }} else if (typeof clearHiddenNodesTable === "function") {{
@@ -11086,7 +11100,7 @@
       if (shouldRefreshSelectedNodeHistoryForView) {{
         void refreshSelectedNodeHistory(false);
       }}
-      if (next === "chat" || next === "files" || next === "games" || next === "network") {{
+      if (next === "chat" || next === "files" || next === "games" || next === "scripts" || next === "network") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{

@@ -114,6 +114,11 @@ class SetFileTransferAutoAcceptEnabledFn(Protocol):
         ...
 
 
+class SetPluginEnabledFn(Protocol):
+    def __call__(self, plugin_id: object, enabled: bool) -> dict[str, object]:
+        ...
+
+
 class ToIntFn(Protocol):
     def __call__(self, value: object) -> Optional[int]:
         ...
@@ -351,6 +356,7 @@ class DashboardPostRouteDependencies:
     set_file_transfer_auto_accept_enabled_fn: Optional[
         SetFileTransferAutoAcceptEnabledFn
     ] = None
+    set_plugin_enabled_fn: Optional[SetPluginEnabledFn] = None
     parse_raw_packet_capture_settings_request_fn: Optional[ParseRawPacketCaptureSettingsRequestFn] = None
     apply_radio_settings_fn: Optional[ApplyRadioSettingsFn] = None
     parse_radio_settings_request_fn: Optional[ParseRadioSettingsRequestFn] = None

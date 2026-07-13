@@ -1428,7 +1428,7 @@ def test_full_app_shells_opt_out_of_global_dark_card_painting() -> None:
     app_shells = set(
         re.findall(r'<section class="card ([^" ]+) workspace-app-shell"', html)
     )
-    assert app_shells == {"chat", "settings", "files", "games"}
+    assert app_shells == {"chat", "settings", "files", "games", "scripts"}
     assert html.count("workspace-app-shell") == len(app_shells)
     assert 'class="card environment' not in html
     assert 'id="environment-metrics-home"' not in html

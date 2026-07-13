@@ -1352,6 +1352,50 @@
       display: none !important;
     }}
 
+    .layout.view-scripts {{
+      height: 100%;
+      min-height: 0;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+    }}
+    .layout.view-scripts .scripts {{
+      grid-column: 1;
+      grid-row: 1;
+      display: flex;
+      height: 100%;
+      min-height: 0;
+      max-height: 100%;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      overflow: visible;
+    }}
+    .layout.view-scripts .scripts .body {{
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+      background: transparent;
+      padding: 0;
+    }}
+    .layout.view-scripts .chat,
+    .layout.view-scripts .files,
+    .layout.view-scripts .settings,
+    .layout.view-scripts .games,
+    .layout.view-scripts .nodes,
+    .layout.view-scripts .map,
+    .layout.view-scripts .map-data,
+    .layout.view-scripts .console,
+    .layout.view-scripts .summary,
+    .layout.view-scripts .splitter,
+    .layout.view-scripts .hsplitter[data-target="top"],
+    .layout.view-scripts .hsplitter[data-target="mid"],
+    .layout.view-scripts .hsplitter[data-target="low"] {{
+      display: none !important;
+    }}
+
     .layout.view-network {{
       --network-pane-head-bg: transparent;
       --network-pane-body-bg: transparent;

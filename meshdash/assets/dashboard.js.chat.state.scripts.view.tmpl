@@ -1,0 +1,450 @@
+    let scriptsLastRenderSignature = "";
+    let scriptsTransientErrorMessage = "";
+    const scriptsPendingRequests = new Map();
+    const scriptsMasterOffGuidance = (
+      "Not inspected. Install script packages in the --bots-directory path, enable Scripts with "
+      + "--bots-enable or MESH_DASH_BOTS_ENABLE=true, then restart MeshyFace."
+    );
+
+    function scriptsRuntimeSummary(state = latestState) {{
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const summary = safeState.summary && typeof safeState.summary === "object"
+        ? safeState.summary
+        : {{}};
+      return summary.plugins && typeof summary.plugins === "object"
+        ? summary.plugins
+        : null;
+    }}
+
+    function scriptsRuntimeErrorMessage(runtimeSummary) {{
+      if (!runtimeSummary || typeof runtimeSummary !== "object") return "";
+      const error = runtimeSummary.error;
+      if (error && typeof error === "object") {{
+        return String(error.message || error.code || "").trim();
+      }}
+      return String(error || "").trim();
+    }}
+
+    function scriptsRuntimeEntries(runtimeSummary) {{
+      if (!runtimeSummary || typeof runtimeSummary !== "object") return [];
+      const rows = Array.isArray(runtimeSummary.scripts) ? runtimeSummary.scripts : [];
+      return rows
+        .filter((row) => row && typeof row === "object" && String(row.id || "").trim())
+        .slice()
+        .sort((left, right) => {{
+          const leftName = String(left.name || left.id || "");
+          const rightName = String(right.name || right.id || "");
+          return leftName.localeCompare(rightName, undefined, {{ sensitivity: "base" }});
+        }});
+    }}
+
+    function scriptsRuntimeDetails(runtimeSummary) {{
+      return runtimeSummary && runtimeSummary.runtime && typeof runtimeSummary.runtime === "object"
+        ? runtimeSummary.runtime
+        : {{}};
+    }}
+
+    function scriptsNormalizeStatus(value) {{
+      return String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+    }}
+
+    function scriptsRegistryEntry(row, runtimeSummary) {{
+      const runtime = scriptsRuntimeDetails(runtimeSummary);
+      const registry = runtime.plugins && typeof runtime.plugins === "object"
+        ? runtime.plugins
+        : {{}};
+      const scriptId = String((row && row.id) || "").trim();
+      const entry = registry[scriptId];
+      return entry && typeof entry === "object" ? entry : null;
+    }}
+
+    function scriptsRowErrorMessage(row, runtimeSummary) {{
+      const directError = row && (row.runtime_error || row.error);
+      if (directError && typeof directError === "object") {{
+        const message = String(directError.message || directError.code || "").trim();
+        if (message) return message;
+      }} else if (directError) {{
+        return String(directError).trim();
+      }}
+      const registryEntry = scriptsRegistryEntry(row, runtimeSummary);
+      const registryError = registryEntry && registryEntry.error;
+      if (registryError && typeof registryError === "object") {{
+        return String(registryError.message || registryError.code || "").trim();
+      }}
+      return String(registryError || "").trim();
+    }}
+
+    function scriptsConfiguredStateMismatch(row) {{
+      return !!(
+        row
+        && typeof row === "object"
+        && (row.enabled === true) !== (row.active === true)
+      );
+    }}
+
+    function scriptsRestartRequired(row) {{
+      if (!row || typeof row !== "object") return false;
+      const status = scriptsNormalizeStatus(row.runtime_status || row.health || row.status);
+      return row.restart_required === true
+        || status === "restart_pending"
+        || scriptsConfiguredStateMismatch(row);
+    }}
+
+    function scriptsItemState(row, runtimeSummary) {{
+      const status = scriptsNormalizeStatus(row.runtime_status || row.health || row.status);
+      if (scriptsRestartRequired(row)) {{
+        return {{ className: "is-pending", label: "Restart pending", error: "" }};
+      }}
+      if (["error", "failed", "crashed"].includes(status)) {{
+        return {{
+          className: "is-error",
+          label: "Error",
+          error: scriptsRowErrorMessage(row, runtimeSummary),
+        }};
+      }}
+      if (["starting", "loading", "initializing"].includes(status)) {{
+        return {{ className: "is-starting", label: "Starting", error: "" }};
+      }}
+      if (["running", "active", "ready"].includes(status)) {{
+        return {{ className: "is-running", label: "Running", error: "" }};
+      }}
+      if (["disabled", "stopped", "inactive"].includes(status)) {{
+        return {{ className: "", label: "Disabled", error: "" }};
+      }}
+
+      const active = row.active === true;
+      if (!active) {{
+        return {{ className: "", label: "Disabled", error: "" }};
+      }}
+      const registryEntry = scriptsRegistryEntry(row, runtimeSummary);
+      const registryStatus = scriptsNormalizeStatus(
+        registryEntry && (registryEntry.runtime_status || registryEntry.health || registryEntry.status)
+      );
+      const rowError = scriptsRowErrorMessage(row, runtimeSummary);
+      if (rowError || ["error", "failed", "crashed"].includes(registryStatus)) {{
+        return {{ className: "is-error", label: "Error", error: rowError }};
+      }}
+      if (["starting", "loading", "initializing"].includes(registryStatus)) {{
+        return {{ className: "is-starting", label: "Starting", error: "" }};
+      }}
+      if (["running", "active", "ready"].includes(registryStatus)) {{
+        return {{ className: "is-running", label: "Running", error: "" }};
+      }}
+      const runtime = scriptsRuntimeDetails(runtimeSummary);
+      const runtimeState = scriptsNormalizeStatus(runtime.state || runtime.status);
+      const runtimeError = String(runtime.last_error || "").trim();
+      if (runtimeState === "error" || runtimeState === "failed") {{
+        return {{ className: "is-error", label: "Error", error: runtimeError }};
+      }}
+      if (runtimeState === "starting") {{
+        return {{ className: "is-starting", label: "Starting", error: "" }};
+      }}
+      if (runtime.worker_alive === false) {{
+        return runtimeError
+          ? {{ className: "is-error", label: "Error", error: runtimeError }}
+          : {{ className: "is-starting", label: "Starting", error: "" }};
+      }}
+      if (runtime.worker_alive === true && !registryEntry) {{
+        return {{ className: "is-starting", label: "Starting", error: "" }};
+      }}
+      return {{ className: "is-running", label: "Running", error: "" }};
+    }}
+
+    function scriptsSetRuntimeStatus(kind, label) {{
+      const status = document.getElementById("scripts-runtime-status");
+      const statusText = document.getElementById("scripts-runtime-status-text");
+      if (status instanceof HTMLElement) {{
+        status.classList.remove("is-enabled", "is-disabled", "is-error", "is-unavailable");
+        status.classList.add(`is-${{kind}}`);
+      }}
+      if (statusText instanceof HTMLElement) {{
+        statusText.textContent = String(label || "Runtime unavailable");
+      }}
+    }}
+
+    function scriptsSetRuntimeMessage(message) {{
+      const panel = document.getElementById("scripts-runtime-message");
+      if (!(panel instanceof HTMLElement)) return;
+      const clean = String(message || "").trim();
+      panel.textContent = clean;
+      panel.hidden = !clean;
+    }}
+
+    function scriptsRuntimePresentation(runtimeSummary, rows) {{
+      if (!runtimeSummary) {{
+        return {{
+          kind: "unavailable",
+          label: "Runtime status unavailable",
+          message: "This MeshyFace backend does not expose Scripts runtime status.",
+        }};
+      }}
+      const summaryError = scriptsRuntimeErrorMessage(runtimeSummary);
+      if (summaryError) {{
+        return {{ kind: "error", label: "Runtime error", message: summaryError }};
+      }}
+      if (runtimeSummary.enabled === false) {{
+        return {{ kind: "disabled", label: "Not inspected", message: scriptsMasterOffGuidance }};
+      }}
+      if (runtimeSummary.available === false) {{
+        return {{
+          kind: "unavailable",
+          label: "Waiting for runtime",
+          message: String(
+            runtimeSummary.message
+            || "Scripts will become available after the dashboard connects to the radio runtime."
+          ),
+        }};
+      }}
+
+      const itemStates = rows.map((row) => scriptsItemState(row, runtimeSummary));
+      const firstItemError = itemStates.find((itemState) => itemState.label === "Error");
+      if (firstItemError) {{
+        return {{
+          kind: "error",
+          label: "Runtime error",
+          message: firstItemError.error || "One or more scripts failed to start.",
+        }};
+      }}
+      const runtime = scriptsRuntimeDetails(runtimeSummary);
+      const runtimeState = scriptsNormalizeStatus(runtime.state || runtime.status);
+      const runtimeError = String(runtime.last_error || "").trim();
+      const hasActiveScripts = rows.some((row) => row.active === true);
+      if (["error", "failed", "crashed"].includes(runtimeState)) {{
+        return {{
+          kind: "error",
+          label: "Runtime error",
+          message: runtimeError || "The Scripts worker stopped unexpectedly.",
+        }};
+      }}
+      if (
+        runtimeState === "starting"
+        || (hasActiveScripts && runtime.worker_alive === false && !runtimeError)
+      ) {{
+        return {{ kind: "unavailable", label: "Runtime starting", message: "" }};
+      }}
+      if (hasActiveScripts && runtime.worker_alive === false && runtimeError) {{
+        return {{ kind: "error", label: "Runtime error", message: runtimeError }};
+      }}
+      return {{
+        kind: "enabled",
+        label: hasActiveScripts ? "Runtime running" : "Runtime enabled",
+        message: "",
+      }};
+    }}
+
+    function scriptsItemActionCopy(row, itemState) {{
+      if (itemState.label === "Restart pending") {{
+        return row.enabled === true
+          ? "Will start after MeshyFace restarts."
+          : "Still running until MeshyFace restarts.";
+      }}
+      if (itemState.label === "Error") {{
+        return itemState.error ? `Error: ${{itemState.error}}` : "Failed to start.";
+      }}
+      if (itemState.label === "Starting") return "Worker startup is in progress.";
+      if (itemState.label === "Running") return "Enabled for this runtime.";
+      return "Not started by this runtime.";
+    }}
+
+    function scriptsItemHtml(row, runtimeSummary, runtimeEnabled) {{
+      const scriptId = String(row.id || "").trim();
+      const scriptName = String(row.name || scriptId || "Unnamed script").trim();
+      const version = String(row.version || "unknown").trim();
+      const source = String(row.source || "local").trim().toLowerCase() === "included"
+        ? "Bundled"
+        : "Local";
+      const enabled = row.enabled === true;
+      const commands = Array.isArray(row.commands) ? row.commands : [];
+      const commandHtml = commands.length > 0
+        ? commands.map((command) => `<span class="scripts-command">!${{escAttr(command)}}</span>`).join("")
+        : '<span class="scripts-command">No commands</span>';
+      const itemState = scriptsItemState(row, runtimeSummary);
+      const pendingRequest = scriptsPendingRequests.get(scriptId);
+      const pending = !!pendingRequest;
+      const buttonLabel = pending
+        ? (pendingRequest.enabled ? "Enabling…" : "Disabling…")
+        : (enabled ? "Disable" : "Enable");
+      return `
+        <article class="scripts-item" data-script-id="${{escAttr(scriptId)}}">
+          <div class="scripts-item-head">
+            <div class="scripts-item-identity">
+              <div class="scripts-item-name" title="${{escAttr(scriptName)}}">${{escAttr(scriptName)}}</div>
+              <div class="scripts-item-id">${{escAttr(scriptId)}}</div>
+            </div>
+            <span class="scripts-item-state ${{itemState.className}}">${{escAttr(itemState.label)}}</span>
+          </div>
+          <div class="scripts-item-meta">
+            <span>v${{escAttr(version)}}</span>
+            <span>${{escAttr(source)}}</span>
+          </div>
+          <div class="scripts-commands" aria-label="Declared commands">${{commandHtml}}</div>
+          <div class="scripts-item-actions">
+            <span class="scripts-item-action-copy">${{escAttr(scriptsItemActionCopy(row, itemState))}}</span>
+            <button
+              class="btn btn-secondary scripts-toggle-btn"
+              type="button"
+              data-script-toggle="${{escAttr(scriptId)}}"
+              data-next-enabled="${{enabled ? "false" : "true"}}"
+              ${{runtimeEnabled && !pending ? "" : "disabled"}}
+            >${{escAttr(buttonLabel)}}</button>
+          </div>
+        </article>
+      `;
+    }}
+
+    function renderScriptsView(state = latestState) {{
+      const list = document.getElementById("scripts-list");
+      const count = document.getElementById("scripts-count");
+      if (!(list instanceof HTMLElement)) return false;
+      const runtimeSummary = scriptsRuntimeSummary(state);
+      const summaryError = scriptsRuntimeErrorMessage(runtimeSummary);
+      const runtimeEnabled = !!(
+        runtimeSummary
+        && runtimeSummary.enabled === true
+        && runtimeSummary.available !== false
+        && !summaryError
+      );
+      const rows = scriptsRuntimeEntries(runtimeSummary);
+      const presentation = scriptsRuntimePresentation(runtimeSummary, rows);
+      const restartRequired = rows.some((row) => scriptsConfiguredStateMismatch(row));
+      const countText = runtimeSummary && runtimeSummary.enabled === false
+        ? "Not inspected"
+        : `${{rows.length}} ${{rows.length === 1 ? "script" : "scripts"}}`;
+      let listHtml = "";
+      if (rows.length <= 0) {{
+        let emptyText = runtimeSummary && runtimeSummary.enabled === false
+          ? scriptsMasterOffGuidance
+          : "Installed scripts have not been inspected.";
+        if (runtimeSummary && runtimeSummary.enabled === true && runtimeSummary.available === false) {{
+          emptyText = "Waiting for the Scripts runtime to become available.";
+        }} else if (runtimeSummary && runtimeSummary.enabled === true) {{
+          emptyText = "No scripts are installed.";
+        }}
+        listHtml = `<div class="scripts-empty">${{escAttr(emptyText)}}</div>`;
+      }} else {{
+        listHtml = rows
+          .map((row) => scriptsItemHtml(row, runtimeSummary, runtimeEnabled))
+          .join("");
+      }}
+      const runtimeMessage = scriptsTransientErrorMessage || presentation.message;
+      const signature = JSON.stringify([
+        presentation.kind,
+        presentation.label,
+        runtimeMessage,
+        restartRequired,
+        countText,
+        listHtml,
+      ]);
+      if (signature === scriptsLastRenderSignature) return false;
+
+      const activeElement = document.activeElement;
+      const focusedScriptId = activeElement instanceof HTMLElement
+        ? String(activeElement.dataset.scriptToggle || "").trim()
+        : "";
+      const previousScrollTop = list.scrollTop;
+      scriptsSetRuntimeStatus(presentation.kind, presentation.label);
+      scriptsSetRuntimeMessage(runtimeMessage);
+      if (count instanceof HTMLElement) count.textContent = countText;
+      const restartNotice = document.getElementById("scripts-restart-notice");
+      if (restartNotice instanceof HTMLElement) restartNotice.hidden = !restartRequired;
+      list.innerHTML = listHtml;
+      list.scrollTop = previousScrollTop;
+      scriptsLastRenderSignature = signature;
+
+      if (focusedScriptId) {{
+        const replacement = Array.from(list.querySelectorAll("[data-script-toggle]"))
+          .find((candidate) => String(candidate.dataset.scriptToggle || "") === focusedScriptId);
+        if (replacement instanceof HTMLButtonElement && !replacement.disabled) {{
+          try {{
+            replacement.focus({{ preventScroll: true }});
+          }} catch (_err) {{
+            replacement.focus();
+          }}
+        }}
+      }}
+      return true;
+    }}
+
+    function renderScriptsViewSafely(state = latestState, stepName = "renderScriptsView") {{
+      if (typeof runPollStep === "function") {{
+        return runPollStep(stepName, () => renderScriptsView(state), false);
+      }}
+      try {{
+        return renderScriptsView(state);
+      }} catch (err) {{
+        if (typeof console !== "undefined" && console && typeof console.error === "function") {{
+          console.error(`[scripts render error] ${{stepName}}`, err);
+        }}
+        return false;
+      }}
+    }}
+
+    function scriptsUpdateCachedEnabled(scriptId, enabled) {{
+      const runtimeSummary = scriptsRuntimeSummary(latestState);
+      const rows = scriptsRuntimeEntries(runtimeSummary);
+      const match = rows.find((row) => String(row.id || "") === scriptId);
+      if (match) {{
+        match.enabled = !!enabled;
+        match.restart_required = (match.enabled === true) !== (match.active === true);
+      }}
+    }}
+
+    async function setScriptEnabled(scriptId, enabled, button) {{
+      const cleanId = String(scriptId || "").trim();
+      if (!cleanId || scriptsPendingRequests.has(cleanId)) return false;
+      scriptsPendingRequests.set(cleanId, {{ enabled: !!enabled }});
+      scriptsTransientErrorMessage = "";
+      if (button instanceof HTMLButtonElement) button.disabled = true;
+      renderScriptsViewSafely(latestState, "scripts.toggle.pending");
+      try {{
+        const response = await fetch("/api/settings/plugins", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ plugin_id: cleanId, enabled: !!enabled }}),
+          cache: "no-store",
+        }});
+        const text = await response.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const error = payload && payload.error;
+        const errorMessage = error && typeof error === "object"
+          ? String(error.message || error.code || "")
+          : String(error || (payload && payload.message) || text || `HTTP ${{response.status}}`);
+        if (!response.ok || !payload || payload.ok !== true) {{
+          throw new Error(errorMessage || `HTTP ${{response.status}}`);
+        }}
+        scriptsUpdateCachedEnabled(cleanId, !!payload.enabled);
+        if (typeof forceNextStatePollFresh === "function") {{
+          forceNextStatePollFresh("script-setting");
+        }}
+        if (typeof requestImmediatePoll === "function") {{
+          requestImmediatePoll(0);
+        }}
+        return true;
+      }} catch (err) {{
+        const message = err instanceof Error ? err.message : String(err || "Unknown error");
+        scriptsTransientErrorMessage = `Could not update ${{cleanId}}: ${{message}}`;
+        return false;
+      }} finally {{
+        scriptsPendingRequests.delete(cleanId);
+        renderScriptsViewSafely(latestState, "scripts.toggle.complete");
+      }}
+    }}
+
+    function bindScriptsView() {{
+      const list = document.getElementById("scripts-list");
+      if (!(list instanceof HTMLElement) || list.dataset.bound === "1") return;
+      list.dataset.bound = "1";
+      list.addEventListener("click", (event) => {{
+        const target = event.target instanceof Element
+          ? event.target.closest("[data-script-toggle]")
+          : null;
+        if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+        const scriptId = String(target.dataset.scriptToggle || "").trim();
+        const enabled = String(target.dataset.nextEnabled || "false") === "true";
+        void setScriptEnabled(scriptId, enabled, target);
+      }});
+    }}

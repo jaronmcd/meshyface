@@ -46,6 +46,12 @@ Options:
   --history-db <path>      History DB path on target host.
   --games-enable           Enable local games and standalone console support in dashboard.env.
   --no-games-enable        Disable local games and standalone console support in dashboard.env.
+  --bots-enable            Enable the Python plugin runtime in dashboard.env.
+  --no-bots-enable         Disable the Python plugin runtime in dashboard.env.
+  --bots-directory <path>  Persistent local plugin directory on the target.
+  --bots-state-db <path>   Persistent plugin state database on the target.
+  --bots-files-directory <path>
+                           Approved plugin file-send root on the target.
   --file-transfer-enable   Enable file transfer in dashboard.env (requires disclaimer).
   --no-file-transfer-enable Disable file transfer in dashboard.env.
   --file-transfer-auto-accept
@@ -94,6 +100,12 @@ Env overrides:
   MESH_DASH_DEPLOY_HISTORY_DB
   MESH_DASH_DEPLOY_PYTHON_UNBUFFERED
   MESH_DASH_DEPLOY_GAMES_ENABLE
+  MESH_DASH_DEPLOY_BOTS_ENABLE
+  MESH_DASH_DEPLOY_BOTS_DIRECTORY
+  MESH_DASH_DEPLOY_BOTS_STATE_DB
+  MESH_DASH_DEPLOY_BOTS_FILES_DIRECTORY
+  MESH_DASH_DEPLOY_BOT_ENABLE
+  MESH_DASH_DEPLOY_BOT_DISABLE
   MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE
   MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT
   MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES
@@ -144,6 +156,12 @@ REFRESH_MS="${MESH_DASH_DEPLOY_REFRESH_MS:-3000}"
 HISTORY_DB="${MESH_DASH_DEPLOY_HISTORY_DB:-}"
 PYTHON_UNBUFFERED="${MESH_DASH_DEPLOY_PYTHON_UNBUFFERED:-1}"
 GAMES_ENABLE="${MESH_DASH_DEPLOY_GAMES_ENABLE:-0}"
+BOTS_ENABLE="${MESH_DASH_DEPLOY_BOTS_ENABLE:-0}"
+BOTS_DIRECTORY="${MESH_DASH_DEPLOY_BOTS_DIRECTORY:-}"
+BOTS_STATE_DB="${MESH_DASH_DEPLOY_BOTS_STATE_DB:-}"
+BOTS_FILES_DIRECTORY="${MESH_DASH_DEPLOY_BOTS_FILES_DIRECTORY:-}"
+BOT_ENABLE_LIST="${MESH_DASH_DEPLOY_BOT_ENABLE:-}"
+BOT_DISABLE_LIST="${MESH_DASH_DEPLOY_BOT_DISABLE:-}"
 FILE_TRANSFER_ENABLE="${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE:-0}"
 FILE_TRANSFER_AUTO_ACCEPT="${MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT:-0}"
 FILE_TRANSFER_MAX_BYTES="${MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES:-65536}"
@@ -153,12 +171,36 @@ DEPLOY_PR_NUMBER="${MESH_DASH_DEPLOY_PR_NUMBER:-${MESH_DASH_PR_NUMBER:-}}"
 MAP_PACK_ZIP="${MESH_DASH_DEPLOY_MAP_PACK_ZIP:-}"
 MAP_PACKS_DIR=""
 GAMES_ENABLE_SET=0
+BOTS_ENABLE_SET=0
+BOTS_DIRECTORY_SET=0
+BOTS_STATE_DB_SET=0
+BOTS_FILES_DIRECTORY_SET=0
+BOT_ENABLE_LIST_SET=0
+BOT_DISABLE_LIST_SET=0
 FILE_TRANSFER_ENABLE_SET=0
 FILE_TRANSFER_AUTO_ACCEPT_SET=0
 FILE_TRANSFER_MAX_BYTES_SET=0
 ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET=0
 if [[ -n "${MESH_DASH_DEPLOY_GAMES_ENABLE+x}" ]]; then
   GAMES_ENABLE_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_BOTS_ENABLE+x}" ]]; then
+  BOTS_ENABLE_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_BOTS_DIRECTORY+x}" ]]; then
+  BOTS_DIRECTORY_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_BOTS_STATE_DB+x}" ]]; then
+  BOTS_STATE_DB_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_BOTS_FILES_DIRECTORY+x}" ]]; then
+  BOTS_FILES_DIRECTORY_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_BOT_ENABLE+x}" ]]; then
+  BOT_ENABLE_LIST_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_BOT_DISABLE+x}" ]]; then
+  BOT_DISABLE_LIST_SET=1
 fi
 if [[ -n "${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE+x}" ]]; then
   FILE_TRANSFER_ENABLE_SET=1
@@ -439,6 +481,15 @@ read_existing_dashboard_env_value() {
   ssh_cmd "${TARGET}" "if [[ -f '${CONFIG_DIR}/dashboard.env' ]]; then awk -F= -v key='${key}' 'index(\$0, key \"=\") == 1 { value = substr(\$0, length(key) + 2); found = 1 } END { if (found) print value }' '${CONFIG_DIR}/dashboard.env'; fi" 2>/dev/null || true
 }
 
+resolve_remote_data_path() {
+  local path="${1:-}"
+  if [[ "${path}" == /* ]]; then
+    printf '%s\n' "${path}"
+  else
+    printf '%s/%s\n' "${REMOTE_ROOT}" "${path}"
+  fi
+}
+
 read_remote_identity() {
   local identity
   identity="$(
@@ -524,6 +575,34 @@ while [[ $# -gt 0 ]]; do
       GAMES_ENABLE=0
       GAMES_ENABLE_SET=1
       shift
+      ;;
+    --bots-enable)
+      BOTS_ENABLE=1
+      BOTS_ENABLE_SET=1
+      shift
+      ;;
+    --no-bots-enable)
+      BOTS_ENABLE=0
+      BOTS_ENABLE_SET=1
+      shift
+      ;;
+    --bots-directory)
+      require_arg "$1" "${2:-}"
+      BOTS_DIRECTORY="$2"
+      BOTS_DIRECTORY_SET=1
+      shift 2
+      ;;
+    --bots-state-db)
+      require_arg "$1" "${2:-}"
+      BOTS_STATE_DB="$2"
+      BOTS_STATE_DB_SET=1
+      shift 2
+      ;;
+    --bots-files-directory)
+      require_arg "$1" "${2:-}"
+      BOTS_FILES_DIRECTORY="$2"
+      BOTS_FILES_DIRECTORY_SET=1
+      shift 2
       ;;
     --file-transfer-enable)
       FILE_TRANSFER_ENABLE=1
@@ -723,6 +802,15 @@ fi
 if [[ -z "${HISTORY_DB}" ]]; then
   HISTORY_DB="${REMOTE_ROOT}/mesh_dashboard_history.sqlite3"
 fi
+if [[ -z "${BOTS_DIRECTORY}" ]]; then
+  BOTS_DIRECTORY="${REMOTE_ROOT}/plugins"
+fi
+if [[ -z "${BOTS_STATE_DB}" ]]; then
+  BOTS_STATE_DB="${REMOTE_ROOT}/plugin-state.sqlite3"
+fi
+if [[ -z "${BOTS_FILES_DIRECTORY}" ]]; then
+  BOTS_FILES_DIRECTORY="${REMOTE_ROOT}/plugin-files"
+fi
 
 if [[ "${UNINSTALL}" -eq 1 && "${WIPE_REMOTE_ROOT}" -eq 1 ]]; then
   echo "use either --uninstall or --wipe-remote-root, not both" >&2
@@ -779,6 +867,37 @@ if [[ "${GAMES_ENABLE_SET}" -eq 0 ]]; then
   fi
 fi
 
+if [[ "${BOTS_ENABLE_SET}" -eq 0 ]]; then
+  existing_bots_enable="$(read_existing_dashboard_env_value "MESH_DASH_BOTS_ENABLE")"
+  if [[ -n "${existing_bots_enable}" ]]; then
+    BOTS_ENABLE="${existing_bots_enable}"
+  fi
+fi
+if [[ "${BOTS_DIRECTORY_SET}" -eq 0 ]]; then
+  existing_bots_directory="$(read_existing_dashboard_env_value "MESH_DASH_BOTS_DIRECTORY")"
+  if [[ -n "${existing_bots_directory}" ]]; then
+    BOTS_DIRECTORY="${existing_bots_directory}"
+  fi
+fi
+if [[ "${BOTS_STATE_DB_SET}" -eq 0 ]]; then
+  existing_bots_state_db="$(read_existing_dashboard_env_value "MESH_DASH_BOTS_STATE_DB")"
+  if [[ -n "${existing_bots_state_db}" ]]; then
+    BOTS_STATE_DB="${existing_bots_state_db}"
+  fi
+fi
+if [[ "${BOTS_FILES_DIRECTORY_SET}" -eq 0 ]]; then
+  existing_bots_files_directory="$(read_existing_dashboard_env_value "MESH_DASH_BOTS_FILES_DIRECTORY")"
+  if [[ -n "${existing_bots_files_directory}" ]]; then
+    BOTS_FILES_DIRECTORY="${existing_bots_files_directory}"
+  fi
+fi
+if [[ "${BOT_ENABLE_LIST_SET}" -eq 0 ]]; then
+  BOT_ENABLE_LIST="$(read_existing_dashboard_env_value "MESH_DASH_BOT_ENABLE")"
+fi
+if [[ "${BOT_DISABLE_LIST_SET}" -eq 0 ]]; then
+  BOT_DISABLE_LIST="$(read_existing_dashboard_env_value "MESH_DASH_BOT_DISABLE")"
+fi
+
 if [[ "${FILE_TRANSFER_MAX_BYTES_SET}" -eq 0 ]]; then
   existing_file_transfer_max_bytes="$(read_existing_dashboard_env_value "MESH_DASH_FILE_TRANSFER_MAX_BYTES")"
   if [[ -n "${existing_file_transfer_max_bytes}" ]]; then
@@ -799,6 +918,13 @@ if [[ "${ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET}" -eq 0 ]]; then
     ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER="${existing_file_transfer_disclaimer}"
   fi
 fi
+
+# Systemd starts Meshyface in REMOTE_ROOT. Store absolute paths in dashboard.env
+# so directory creation and runtime path resolution agree for relative overrides.
+BOTS_DIRECTORY="$(resolve_remote_data_path "${BOTS_DIRECTORY}")"
+BOTS_STATE_DB="$(resolve_remote_data_path "${BOTS_STATE_DB}")"
+BOTS_FILES_DIRECTORY="$(resolve_remote_data_path "${BOTS_FILES_DIRECTORY}")"
+BOTS_STATE_DB_PARENT="$(dirname -- "${BOTS_STATE_DB}")"
 
 if ! [[ "${FILE_TRANSFER_MAX_BYTES}" =~ ^[0-9]+$ ]]; then
   echo "--file-transfer-max-bytes must be an integer" >&2
@@ -844,7 +970,7 @@ if [[ "${WIPE_REMOTE_ROOT}" -eq 1 ]]; then
   uninstall_remote_meshyface
 fi
 
-ssh_cmd "${TARGET}" "mkdir -p '${REMOTE_ROOT}' '${APP_DIR}' '${CONFIG_DIR}' '${LOG_DIR}'"
+ssh_cmd "${TARGET}" "mkdir -p '${REMOTE_ROOT}' '${APP_DIR}' '${CONFIG_DIR}' '${LOG_DIR}' '${BOTS_DIRECTORY}' '${BOTS_STATE_DB_PARENT}' '${BOTS_FILES_DIRECTORY}'"
 
 if [[ "${CLEAN_APP_DIR}" -eq 1 ]]; then
   if [[ -z "${APP_DIR}" || "${APP_DIR}" == "/" ]]; then
@@ -964,6 +1090,12 @@ REFRESH_MS=${REFRESH_MS}
 MESH_DASH_HISTORY_DB=${HISTORY_DB}
 MESH_DASHBOARD_MAP_PACKS_DIR=${MAP_PACKS_DIR}
 MESH_DASH_GAMES_ENABLE=${GAMES_ENABLE}
+MESH_DASH_BOTS_ENABLE=${BOTS_ENABLE}
+MESH_DASH_BOTS_DIRECTORY=${BOTS_DIRECTORY}
+MESH_DASH_BOTS_STATE_DB=${BOTS_STATE_DB}
+MESH_DASH_BOTS_FILES_DIRECTORY=${BOTS_FILES_DIRECTORY}
+MESH_DASH_BOT_ENABLE=${BOT_ENABLE_LIST}
+MESH_DASH_BOT_DISABLE=${BOT_DISABLE_LIST}
 MESH_DASH_FILE_TRANSFER_ENABLE=${FILE_TRANSFER_ENABLE}
 MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=${FILE_TRANSFER_AUTO_ACCEPT}
 MESH_DASH_FILE_TRANSFER_MAX_BYTES=${FILE_TRANSFER_MAX_BYTES}

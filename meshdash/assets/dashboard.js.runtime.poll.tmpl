@@ -22,6 +22,21 @@
 
     function reportPollStepError(stepName, err) {{
       const message = err instanceof Error ? (err.message || String(err)) : String(err || "unknown error");
+      if (typeof window !== "undefined") {{
+        const ledger = Array.isArray(window.__meshPollStepErrors)
+          ? window.__meshPollStepErrors
+          : [];
+        const sequence = Math.max(0, Math.trunc(Number(window.__meshPollStepErrorSequence) || 0)) + 1;
+        window.__meshPollStepErrorSequence = sequence;
+        ledger.push({{
+          sequence,
+          step: String(stepName || "unknown"),
+          message,
+          atMs: Date.now(),
+        }});
+        if (ledger.length > 25) ledger.splice(0, ledger.length - 25);
+        window.__meshPollStepErrors = ledger;
+      }}
       if (typeof appendConsoleLine === "function") {{
         appendConsoleLine(`poll-step|${{Date.now()}}|${{stepName}}`, `[poll step error] ${{stepName}}: ${{message}}`);
       }}
@@ -573,6 +588,9 @@
           if (activeLayoutView === "files") {{
             renderFilesView(latestState);
           }}
+          if (activeLayoutView === "scripts") {{
+            renderScriptsViewSafely(latestState, "poll.notModified.scripts");
+          }}
           if (activeLayoutView === "settings" && activeSettingsTab === "channels") {{
             renderChannelsView(latestState);
           }}
@@ -830,6 +848,9 @@
         }}
         if (activeLayoutView === "files") {{
           renderFilesView(state);
+        }}
+        if (activeLayoutView === "scripts") {{
+          renderScriptsViewSafely(state, "poll.updated.scripts");
         }}
         if (networkOverviewActive) {{
           if (weeklySummary && !weeklySummary.error) {{

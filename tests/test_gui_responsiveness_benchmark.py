@@ -45,6 +45,11 @@ def test_dashboard_js_includes_gui_responsiveness_benchmark(
             "domChatFeedItems",
             "meshGuiBenchmarkSampleTimingBreakdown",
             "meshGuiBenchmarkPollView",
+            "meshGuiBenchmarkPollStepErrorsSince",
+            "meshGuiBenchmarkAssertPollSucceeded",
+            "meshGuiBenchmarkScriptsViewContract",
+            "Scripts view contract failed: loading state remained after poll",
+            "Scripts view contract failed: node roster was emptied by Scripts rendering",
             "meshGuiBenchmarkCachedPoll",
             "includeCachedPoll",
             "includeInteractions",
@@ -88,9 +93,30 @@ def test_dashboard_js_includes_gui_responsiveness_benchmark(
             "networkGraphRender: graphStats ?",
             "networkGraphRenderRunsAdded",
             'const stateProfiles = ["default", "chat", "network", "network-graph", "network-map", "status", "console"];',
+            '{ view: "scripts", subview: "" }',
             "mesh-gui-benchmark-result",
         ),
     )
+
+
+def test_gui_responsiveness_default_runner_views_include_scripts() -> None:
+    benchmark = _load_benchmark_module()
+
+    args = benchmark.parse_args([])
+    url = benchmark.build_benchmark_url(
+        "http://127.0.0.1:8877/",
+        iterations=1,
+        warmup=0,
+        views=args.views,
+        settle_ms=0,
+        include_api=False,
+        include_selection=False,
+        include_cached_poll=False,
+        include_interactions=False,
+    )
+
+    assert args.views.split(",")[:2] == ["chat", "scripts"]
+    assert "mesh_gui_bench_views=chat%2Cscripts%2C" in url
 
 
 def test_gui_responsiveness_thresholds_pass_for_values_inside_budget() -> None:

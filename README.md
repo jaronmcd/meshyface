@@ -11,7 +11,8 @@ The current UI exposes:
 - Network workspace for map, overview, links, routes, sensors, Top 10 rankings,
   node details, and on-demand history
 - Console workspace for live packet/log output
-- Apps workspace with Games and a Files tab when file transfer is enabled
+- Apps workspace with Scripts (Alpha), Games, and a Files tab when file transfer
+  is enabled
 - Settings workspace with radio, device, connectivity, location, channels,
   tickers, lists, appearance, and about panes
 - SQLite-backed history, search, rollups, theme persistence, and custom
@@ -190,6 +191,18 @@ contributes to the same persisted packet, chat, node, and rollup history.
 
 Operational commands that inspect or repair local dashboard data are documented
 in [docs/maintenance.md](docs/maintenance.md).
+
+### Scripts (Alpha)
+
+Administrator-installed Python automations can run in an opt-in spawned
+worker with bounded dispatch, handler timeouts, durable JSON state, direct-message
+sessions, validated chat actions, node/location lookups, and host-managed file
+jobs. The subsystem is disabled by default. Script Python is trusted code, not
+sandboxed code. Its management surface is **Apps → Scripts (Alpha)**; it
+shows runtime and enablement status but does not edit or upload code. See
+[Scripts (Alpha)](docs/plugins.md) for the copyable Hello example, one-restart
+install flow, package format, compatibility names, trust model, and
+troubleshooting.
 
 ## Links View Semantics
 
