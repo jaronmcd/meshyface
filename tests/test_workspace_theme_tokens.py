@@ -383,6 +383,10 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
         css,
         ".chat-node-details-footer-actions.has-node-theme",
     )
+    node_details_background_watermark = _last_css_rule(
+        css,
+        ".chat-node-details-drawer.profiled-node .chat-node-details-panel::before",
+    )
     roster_watermark = _css_rule(
         css,
         ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node)::after",
@@ -440,13 +444,18 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
     assert "background-image: var(--node-profile-theme-surface) !important;" in node_details_theme_preview
     assert "--node-profile-theme-contrast" not in node_details_theme_preview
     assert "font-family: var(--node-profile-theme-font-family, inherit);" not in node_details_theme_preview
+    assert 'content: var(--node-profile-ghost-text, "");' in node_details_background_watermark
+    assert "left: 50%;" in node_details_background_watermark
+    assert "font-size: clamp(96px, 18vw, 260px);" in node_details_background_watermark
+    assert "opacity: calc(var(--node-profile-ghost-opacity, 0) * 0.22);" in node_details_background_watermark
+    assert "pointer-events: none;" in node_details_background_watermark
     assert ".chat-node-details-footer-actions.has-node-theme .chat-node-details-action-btn" not in css
     assert ".chat-node-details-footer-actions.has-node-theme .chat-node-details-footer-label" not in css
     assert ".chat-node-details-tabs.has-node-theme .chat-node-details-tab-btn" not in css
     themed_tabs = _last_css_rule(css, ".chat-node-details-tabs.has-node-theme")
     assert "background-image: var(--node-profile-theme-surface) !important;" in themed_tabs
     assert ".chat-node-details-footer-actions.has-node-theme::after" not in css
-    assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" in css
+    assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" not in css
     assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head {" in css
     themed_head = _last_css_rule(
         css,

@@ -198,7 +198,7 @@ def test_entire_node_details_title_strip_is_an_inviting_collapse_control() -> No
     assert "right: 8px;" in head_close_hint
     assert "opacity: 0.38;" in head_close_hint
     assert "pointer-events: none;" in head_close_hint
-    assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" in css
+    assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" not in css
     assert 'content: var(--node-profile-ghost-text, "");' in css
     assert ".chat-node-details-promoted-host .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" not in css
     assert ".chat-node-details-head-main:hover {" in css
