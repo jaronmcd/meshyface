@@ -352,6 +352,8 @@ class BotContext(Protocol):
 
     def reply_long(self, text: str) -> ReplyAction: ...
 
+    def debug(self, *values: object) -> None: ...
+
 
 BotHandler: TypeAlias = Callable[[BotContext], object]
 

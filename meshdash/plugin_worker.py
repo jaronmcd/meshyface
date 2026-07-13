@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import logging
 import sys
 from collections.abc import Mapping, MutableMapping, Sequence
@@ -25,12 +26,14 @@ from .bots import (
     action_to_dict,
     validate_bot_against_manifest,
 )
-from .helpers_json import JsonValue
+from .helpers_json import JsonValue, to_jsonable
 from .offline_atlas import nearest_city
 from .plugin_protocol import MAX_PROTOCOL_FRAME_BYTES, decode_message, encode_message
 
 
 MAX_HANDLER_ACTIONS = 16
+MAX_HANDLER_DEBUG_CALLS = 16
+MAX_HANDLER_DEBUG_BYTES = 16 * 1024
 
 
 def _manifest_from_payload(payload: Mapping[str, object]) -> BotManifest:
@@ -152,6 +155,7 @@ class _WorkerContext:
     session: _WorkerSession
     mesh: _WorkerMesh
     log: logging.Logger
+    debug_entries: list[list[JsonValue]]
 
     @property
     def packet(self) -> Mapping[str, JsonValue] | None:
@@ -162,6 +166,17 @@ class _WorkerContext:
 
     def reply_long(self, text: str) -> ReplyAction:
         return self.mesh.reply_long(self.message, text)
+
+    def debug(self, *values: object) -> None:
+        if len(self.debug_entries) >= MAX_HANDLER_DEBUG_CALLS:
+            raise ValueError("plugin handler emitted too many debug entries")
+        clean = to_jsonable(list(values))
+        if not isinstance(clean, list):
+            raise ValueError("plugin debug entry must be an array")
+        size = len(json.dumps(clean, separators=(",", ":")).encode("utf-8"))
+        if size > MAX_HANDLER_DEBUG_BYTES:
+            raise ValueError("plugin debug entry is too large")
+        self.debug_entries.append(clean)
 
 
 def _normalize_handler_result(result: object) -> list[dict[str, JsonValue]]:
@@ -203,6 +218,7 @@ def _handle_invoke(bots: Mapping[str, Bot], message: Mapping[str, object]) -> di
     peer_state = cast(MutableMapping[str, JsonValue], dict(peer_state_raw))
     initial_session_active = bool(message.get("session_active", False))
     session = _WorkerSession(initial_session_active)
+    debug_entries: list[list[JsonValue]] = []
     context = _WorkerContext(
         message=event,
         state=state,
@@ -210,6 +226,7 @@ def _handle_invoke(bots: Mapping[str, Bot], message: Mapping[str, object]) -> di
         session=session,
         mesh=_WorkerMesh(event, cast(Sequence[Mapping[str, object]], nodes_raw)),
         log=logging.getLogger(f"meshdash.plugin.{plugin_id}"),
+        debug_entries=debug_entries,
     )
     if handler_kind == "command":
         command = str(message.get("command") or "")
@@ -243,6 +260,7 @@ def _handle_invoke(bots: Mapping[str, Bot], message: Mapping[str, object]) -> di
         "state": dict(state),
         "peer_state": dict(peer_state),
         "actions": actions,
+        "debug": debug_entries,
     }
 
 

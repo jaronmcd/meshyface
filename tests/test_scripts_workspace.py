@@ -42,6 +42,8 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert 'class="card scripts workspace-app-shell"' in html
     assert 'id="scripts-runtime-status"' in html
     assert 'id="scripts-list"' in html
+    assert 'id="scripts-debug-output"' in html
+    assert 'id="scripts-debug-clear"' in html
     assert 'id="scripts-restart-notice"' in html
     assert "No code editor" not in html
     assert 'type="file"' not in html.split(
@@ -53,6 +55,7 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert ".scripts-runtime-status.is-disabled {" in css
     assert ".scripts-runtime-status.is-error {" in css
     assert ".scripts-list {" in css
+    assert ".scripts-debug-console {" in css
 
     known_views = js.split("const knownLayoutViews = new Set([", 1)[1].split(
         "]);", 1
@@ -68,6 +71,9 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     )[0]
     assert "esc(" not in scripts_js
     assert "escAttr(emptyText)" in scripts_js
+    assert "function renderScriptsDebug(runtimeSummary)" in scripts_js
+    assert "Array.isArray(runtime.debug)" in scripts_js
+    assert "scriptsDebugClearedThrough" in scripts_js
 
 
 def test_scripts_view_renders_master_off_offline_and_restart_pending_states() -> None:

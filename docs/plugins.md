@@ -148,8 +148,8 @@ def hello(ctx):
 
 Commands use an explicit `!` prefix on the mesh, such as `!hello`. Handlers may
 return one action, a list or tuple of actions, or `None`. Supported decorators
-are `@bot.command(...)`, `@bot.on_message`, `@bot.session`, `@bot.on_start`, and
-`@bot.on_stop`.
+are `@bot.command(...)`, `@bot.on_message`, `@bot.on_packet`, `@bot.session`,
+`@bot.on_start`, and `@bot.on_stop`.
 
 The context exposes immutable normalized message information, global `state`,
 sender-scoped `peer_state`, session controls, logging, and a stable service
@@ -157,6 +157,10 @@ facade. Text sends, channel sends, long replies, and file sends are requests;
 the host validates and schedules them after the handler completes. Node and
 position lookups use a normalized snapshot, while nearest-city lookup uses the
 bundled offline atlas.
+
+Packet handlers receive the accepted JSON-safe packet as `ctx.packet`.
+`ctx.debug(...)` writes a bounded entry to Apps → Scripts → Script debug output
+and echoes the same entry to the dashboard's foreground terminal.
 
 State and session changes are committed only after a complete valid handler
 result. Exceptions, malformed results, crashes, and timeouts send no actions and

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import multiprocessing
 import queue
 import re
@@ -213,6 +214,8 @@ class PluginRuntime:
         self._restarts = 0
         self._last_error = ""
         self._current_plugin = ""
+        self._debug_sequence = 0
+        self._debug_records: deque[dict[str, JsonValue]] = deque(maxlen=50)
         self._plugin_failures: dict[str, int] = {}
         self._plugin_quarantined_until: dict[str, float] = {}
         self._action_times: dict[str, deque[float]] = {}
@@ -362,6 +365,8 @@ class PluginRuntime:
                 "restarts": self._restarts,
                 "current_plugin": self._current_plugin,
                 "last_error": sanitize_plugin_status_error(self._last_error),
+                "debug_sequence": self._debug_sequence,
+                "debug": list(self._debug_records),
                 "plugins": plugins,
             }
 
@@ -643,6 +648,7 @@ class PluginRuntime:
             if response.get("type") != "result":
                 raise RuntimeError("plugin worker returned an invalid result")
             actions = self._validated_actions(response.get("actions"))
+            debug_entries = self._validated_debug(response.get("debug"))
             session_actions = [
                 action for action in actions if isinstance(action, SessionAction)
             ]
@@ -719,6 +725,7 @@ class PluginRuntime:
                 raise
             if action_batch is not None:
                 action_batch.ready.set()
+            self._publish_debug(invocation.plugin_id, debug_entries)
             self._plugin_failures[invocation.plugin_id] = 0
             with self._status_lock:
                 self._last_error = ""
@@ -770,6 +777,46 @@ class PluginRuntime:
                     raise ValueError("plugin file destination must be a canonical node ID")
             actions.append(action)
         return tuple(actions)
+
+    def _validated_debug(self, raw: object) -> tuple[list[JsonValue], ...]:
+        if raw is None:
+            return ()
+        if not isinstance(raw, list) or len(raw) > 16:
+            raise ValueError("plugin result has an invalid debug list")
+        entries: list[list[JsonValue]] = []
+        for item in raw:
+            clean = to_jsonable(item)
+            if not isinstance(clean, list):
+                raise ValueError("plugin debug entry must be an array")
+            size = len(json.dumps(clean, separators=(",", ":")).encode("utf-8"))
+            if size > 16 * 1024:
+                raise ValueError("plugin debug entry is too large")
+            entries.append(clean)
+        return tuple(entries)
+
+    def _publish_debug(
+        self,
+        plugin_id: str,
+        entries: Sequence[list[JsonValue]],
+    ) -> None:
+        for values in entries:
+            rendered = " ".join(
+                value
+                if isinstance(value, str)
+                else json.dumps(value, separators=(",", ":"), sort_keys=True)
+                for value in values
+            )
+            print(f"[script:{plugin_id}] {rendered}", flush=True)
+            with self._status_lock:
+                self._debug_sequence += 1
+                self._debug_records.append(
+                    {
+                        "seq": self._debug_sequence,
+                        "timestamp": time.time(),
+                        "plugin_id": plugin_id,
+                        "values": list(values),
+                    }
+                )
 
     def _apply_session_action_unlocked(
         self,

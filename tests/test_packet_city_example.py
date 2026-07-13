@@ -1,4 +1,3 @@
-import json
 import runpy
 from types import SimpleNamespace
 
@@ -13,20 +12,21 @@ class _Mesh:
         return {"name": "Minneapolis", "state": "Minnesota", "distance_km": 1.2}
 
 
-def test_packet_city_example_prints_city_and_redacted_packet(capsys) -> None:
+def test_packet_city_example_emits_city_and_redacted_packet() -> None:
     module = runpy.run_path("examples/plugins/packet_city/bot.py")
     handler = module["print_packet_and_city"]
+    entries = []
     context = SimpleNamespace(
         message=SimpleNamespace(sender_id="!00000001"),
         mesh=_Mesh(),
         packet={"decoded": {"admin": {"session_passkey": "secret", "pin": "123456"}}},
+        debug=lambda *values: entries.append(values),
     )
 
     handler(context)
 
-    output = capsys.readouterr().out.strip()
-    assert output.startswith("packet&city: ")
-    payload = json.loads(output.removeprefix("packet&city: "))
+    assert entries[0][0] == "packet&city:"
+    payload = entries[0][1]
     assert payload["city"] == "Minneapolis, Minnesota (1.2 km)"
     assert payload["packet"]["decoded"]["admin"] == {
         "pin": "<redacted>",

@@ -1,4 +1,6 @@
     let scriptsLastRenderSignature = "";
+    let scriptsLastDebugSignature = "";
+    let scriptsDebugClearedThrough = 0;
     let scriptsTransientErrorMessage = "";
     const scriptsPendingRequests = new Map();
     const scriptsMasterOffGuidance = (
@@ -42,6 +44,49 @@
       return runtimeSummary && runtimeSummary.runtime && typeof runtimeSummary.runtime === "object"
         ? runtimeSummary.runtime
         : {{}};
+    }}
+
+    function scriptsDebugRecords(runtimeSummary) {{
+      const runtime = scriptsRuntimeDetails(runtimeSummary);
+      const rows = Array.isArray(runtime.debug) ? runtime.debug : [];
+      return rows.filter((row) => (
+        row
+        && typeof row === "object"
+        && Number(row.seq || 0) > scriptsDebugClearedThrough
+      ));
+    }}
+
+    function scriptsDebugLine(row) {{
+      const timestamp = Number(row.timestamp || 0);
+      const timeText = timestamp > 0
+        ? new Date(timestamp * 1000).toLocaleTimeString()
+        : "--:--:--";
+      const pluginId = String(row.plugin_id || "script");
+      const values = Array.isArray(row.values) ? row.values : [];
+      const message = values.map((value) => (
+        typeof value === "string" ? value : JSON.stringify(value)
+      )).join(" ");
+      return `[${{timeText}}] ${{pluginId}}: ${{message}}`;
+    }}
+
+    function renderScriptsDebug(runtimeSummary) {{
+      const output = document.getElementById("scripts-debug-output");
+      const count = document.getElementById("scripts-debug-count");
+      if (!(output instanceof HTMLElement)) return false;
+      const rows = scriptsDebugRecords(runtimeSummary);
+      const text = rows.length > 0
+        ? rows.map((row) => scriptsDebugLine(row)).join("\n")
+        : "No script debug output yet.";
+      const signature = JSON.stringify([scriptsDebugClearedThrough, text]);
+      if (signature === scriptsLastDebugSignature) return false;
+      const pinned = output.scrollTop + output.clientHeight >= output.scrollHeight - 20;
+      output.textContent = text;
+      if (count instanceof HTMLElement) {{
+        count.textContent = `${{rows.length}} ${{rows.length === 1 ? "entry" : "entries"}}`;
+      }}
+      if (pinned) output.scrollTop = output.scrollHeight;
+      scriptsLastDebugSignature = signature;
+      return true;
     }}
 
     function scriptsNormalizeStatus(value) {{
@@ -297,6 +342,7 @@
       const count = document.getElementById("scripts-count");
       if (!(list instanceof HTMLElement)) return false;
       const runtimeSummary = scriptsRuntimeSummary(state);
+      renderScriptsDebug(runtimeSummary);
       const summaryError = scriptsRuntimeErrorMessage(runtimeSummary);
       const runtimeEnabled = !!(
         runtimeSummary
@@ -447,4 +493,13 @@
         const enabled = String(target.dataset.nextEnabled || "false") === "true";
         void setScriptEnabled(scriptId, enabled, target);
       }});
+      const clearButton = document.getElementById("scripts-debug-clear");
+      if (clearButton instanceof HTMLButtonElement) {{
+        clearButton.addEventListener("click", () => {{
+          const runtime = scriptsRuntimeDetails(scriptsRuntimeSummary(latestState));
+          scriptsDebugClearedThrough = Number(runtime.debug_sequence || 0);
+          scriptsLastDebugSignature = "";
+          renderScriptsDebug(scriptsRuntimeSummary(latestState));
+        }});
+      }}
     }}

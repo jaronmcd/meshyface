@@ -6525,12 +6525,53 @@
     }}
     .scripts-list {{
       display: grid;
+      flex: 1 1 auto;
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
       gap: 10px;
       align-content: start;
       min-height: 0;
       overflow-y: auto;
       padding: 0 2px 2px;
+    }}
+    .scripts-debug-console {{
+      display: flex;
+      flex: 0 0 min(38%, 300px);
+      flex-direction: column;
+      min-height: 140px;
+      overflow: hidden;
+      border: 1px solid var(--surface-tint-border);
+      border-radius: 12px;
+      background: var(--surface-tint-bg-alt);
+    }}
+    .scripts-debug-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--surface-tint-border);
+    }}
+    .scripts-debug-head h3 {{
+      margin: 0;
+      color: var(--surface-tint-text, var(--ui-text));
+      font-size: 12px;
+    }}
+    .scripts-debug-head span {{
+      color: var(--surface-tint-text-soft, var(--ui-text-soft));
+      font-size: 9px;
+    }}
+    .scripts-debug-output {{
+      flex: 1 1 auto;
+      min-height: 0;
+      margin: 0;
+      overflow: auto;
+      padding: 10px;
+      color: var(--surface-tint-text, var(--ui-text));
+      font-family: var(--theme-monospace-font, ui-monospace, SFMono-Regular, Consolas, monospace);
+      font-size: 10px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }}
     .scripts-empty {{
       grid-column: 1 / -1;

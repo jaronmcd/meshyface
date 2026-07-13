@@ -1,17 +1,12 @@
 """Print accepted packets and their sender's nearest known city."""
 
 from collections.abc import Mapping
-import json
 
 from meshdash.bots import Bot
 
 
 bot = Bot(id="packet_city", name="Packet & City Debug", version="1.0.0")
 _SECRET_KEYS = {"adminkey", "password", "pin", "privatekey", "psk", "sessionpasskey"}
-
-
-def debug(label, value):
-    print(label, json.dumps(value, separators=(",", ":"), sort_keys=True), flush=True)
 
 
 def _redact(value):
@@ -53,4 +48,4 @@ def _sender_city(ctx, packet):
 @bot.on_packet
 def print_packet_and_city(ctx):
     packet = ctx.packet or {}
-    debug("packet&city:", {"city": _sender_city(ctx, packet), "packet": _redact(packet)})
+    ctx.debug("packet&city:", {"city": _sender_city(ctx, packet), "packet": _redact(packet)})

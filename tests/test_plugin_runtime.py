@@ -140,6 +140,7 @@ def packet(ctx):
     ctx.peer_state["packet_id"] = ctx.message.packet_id
     ctx.peer_state["portnum"] = ctx.message.portnum
     ctx.peer_state["payload"] = ctx.packet["decoded"]["payload"]
+    ctx.debug("packet&city:", {"city": "Test City", "packet_id": ctx.message.packet_id})
 """,
     )
     store = PluginStateStore(str(tmp_path / "state.sqlite3"))
@@ -156,6 +157,11 @@ def packet(ctx):
             lambda: store.snapshot("packets", "!00000001").peer_state
             == {"packet_id": 77, "portnum": "POSITION_APP", "payload": "abcd"}
         )
+        _wait_until(lambda: bool(runtime.status()["debug"]))
+        assert runtime.status()["debug"][-1]["values"] == [  # type: ignore[index]
+            "packet&city:",
+            {"city": "Test City", "packet_id": 77},
+        ]
         assert runtime.status()["plugins"]["packets"]["on_packet"] is True  # type: ignore[index]
     finally:
         runtime.close()
