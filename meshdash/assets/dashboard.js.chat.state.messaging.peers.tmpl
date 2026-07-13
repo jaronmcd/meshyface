@@ -2353,6 +2353,7 @@
       const anchorTopY = Math.max(0, Math.min(workspaceRect.height, anchorTopViewportY - workspaceRect.top));
       const anchorBottomY = Math.max(0, Math.min(workspaceRect.height, anchorBottomViewportY - workspaceRect.top));
       const targetX = Math.max(anchorX + 1, Math.min(workspaceRect.width, hostRect.left - workspaceRect.left));
+      const targetRight = Math.max(targetX, Math.min(workspaceRect.width, hostRect.right - workspaceRect.left));
       const targetTop = Math.max(0, Math.min(workspaceRect.height, hostRect.top - workspaceRect.top));
       const targetBottom = Math.max(targetTop, Math.min(workspaceRect.height, hostRect.bottom - workspaceRect.top));
       const hostCornerRadius = Number.parseFloat(window.getComputedStyle(promotedHost).borderTopLeftRadius);
@@ -2362,12 +2363,13 @@
         hostRect.width / 2
       ));
       const targetCurveX = targetX + targetRadius;
+      const targetRightCurveX = targetRight - targetRadius;
       const targetTopInner = targetTop + targetRadius;
       const targetBottomInner = targetBottom - targetRadius;
       const bridgeShape = `M ${{anchorX.toFixed(1)}} ${{anchorTopY.toFixed(1)}} L ${{targetCurveX.toFixed(1)}} ${{targetTop.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetTop.toFixed(1)}} ${{targetX.toFixed(1)}} ${{targetTopInner.toFixed(1)}} L ${{targetX.toFixed(1)}} ${{targetBottomInner.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetBottom.toFixed(1)}} ${{targetCurveX.toFixed(1)}} ${{targetBottom.toFixed(1)}} L ${{anchorX.toFixed(1)}} ${{anchorBottomY.toFixed(1)}} Z`;
       const topEdge = `M ${{anchorX.toFixed(1)}} ${{anchorTopY.toFixed(1)}} L ${{targetCurveX.toFixed(1)}} ${{targetTop.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetTop.toFixed(1)}} ${{targetX.toFixed(1)}} ${{targetTopInner.toFixed(1)}}`;
       const bottomEdge = `M ${{anchorX.toFixed(1)}} ${{anchorBottomY.toFixed(1)}} L ${{targetCurveX.toFixed(1)}} ${{targetBottom.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetBottom.toFixed(1)}} ${{targetX.toFixed(1)}} ${{targetBottomInner.toFixed(1)}}`;
-      const targetEdge = `M ${{targetX.toFixed(1)}} ${{targetTopInner.toFixed(1)}} L ${{targetX.toFixed(1)}} ${{targetBottomInner.toFixed(1)}}`;
+      const targetEdge = `M ${{targetX.toFixed(1)}} ${{targetTopInner.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetTop.toFixed(1)}} ${{targetCurveX.toFixed(1)}} ${{targetTop.toFixed(1)}} L ${{targetRightCurveX.toFixed(1)}} ${{targetTop.toFixed(1)}} Q ${{targetRight.toFixed(1)}} ${{targetTop.toFixed(1)}} ${{targetRight.toFixed(1)}} ${{targetTopInner.toFixed(1)}} L ${{targetRight.toFixed(1)}} ${{targetBottomInner.toFixed(1)}} Q ${{targetRight.toFixed(1)}} ${{targetBottom.toFixed(1)}} ${{targetRightCurveX.toFixed(1)}} ${{targetBottom.toFixed(1)}} L ${{targetCurveX.toFixed(1)}} ${{targetBottom.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetBottom.toFixed(1)}} ${{targetX.toFixed(1)}} ${{targetBottomInner.toFixed(1)}} L ${{targetX.toFixed(1)}} ${{targetTopInner.toFixed(1)}} Z`;
       const boundaryLeft = Math.max(0, Math.min(workspaceRect.width, listRect.left - workspaceRect.left));
       const boundaryRight = Math.max(boundaryLeft, Math.min(workspaceRect.width, listRect.right - workspaceRect.left));
       const offscreenBoundary = position === "visible"

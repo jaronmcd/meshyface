@@ -77,16 +77,23 @@ def test_promoted_bridge_anchors_to_selected_row_without_scrolling() -> None:
     assert "anchorBottomY.toFixed(1)" in js
     assert "const targetEdge =" in js
     assert "hostRect.left - workspaceRect.left" in js
+    assert "hostRect.right - workspaceRect.left" in js
     assert "hostRect.top - workspaceRect.top" in js
     assert "hostRect.bottom - workspaceRect.top" in js
     assert "window.getComputedStyle(promotedHost).borderTopLeftRadius" in js
     assert "const targetRadius = Math.max(0, Math.min(" in js
     assert "const targetCurveX = targetX + targetRadius;" in js
+    assert "const targetRightCurveX = targetRight - targetRadius;" in js
     assert "const targetTopInner = targetTop + targetRadius;" in js
     assert "const targetBottomInner = targetBottom - targetRadius;" in js
     assert " Q " in js
     assert 'bridge.querySelector(".chat-node-context-bridge-edge-target")' in js
     assert 'target.setAttribute("d", targetEdge)' in js
+    assert "targetRightCurveX.toFixed(1)" in js
+    assert "targetRight.toFixed(1)" in js
+    assert "targetTopInner.toFixed(1)} L ${targetRight.toFixed(1)" in js
+    assert "targetBottomInner.toFixed(1)} Q ${targetRight.toFixed(1)" in js
+    assert "targetTopInner.toFixed(1)} Z`" in js
     assert 'row.classList.remove("chat-node-context-bridge-source")' in js
     assert 'geometry.row.classList.add("chat-node-context-bridge-source")' in js
     assert 'rowStyle.getPropertyValue("--node-profile-theme-base").trim()' in js
