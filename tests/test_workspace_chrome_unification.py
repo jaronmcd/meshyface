@@ -1075,7 +1075,6 @@ def test_peer_dm_popout_follows_workspace_shell_tokens() -> None:
     css = build_dashboard_css(theme_css="")
 
     popout_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-window {", 1)[1].split("}", 1)[0]
-    head_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-head {", 1)[1].split("}", 1)[0]
     msg_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-msg {", 1)[1].split("}", 1)[0]
     composer_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-composer {", 1)[1].split("}", 1)[0]
     input_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-input {", 1)[1].split("}", 1)[0]
