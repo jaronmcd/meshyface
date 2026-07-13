@@ -7605,8 +7605,7 @@
     .card.chat .chat-reply-inline.profiled-node,
     .peer-dm-popout-head.profiled-node,
     .peer-dm-popout-msg.profiled-node,
-    .map-node-info-card.profiled-node,
-    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head {{
+    .map-node-info-card.profiled-node {{
       position: relative;
       overflow: hidden;
       isolation: isolate;
@@ -7615,8 +7614,7 @@
     .card.chat .chat-reply-inline.profiled-node::after,
     .peer-dm-popout-head.profiled-node::after,
     .peer-dm-popout-msg.profiled-node::after,
-    .map-node-info-card.profiled-node::after,
-    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {{
+    .map-node-info-card.profiled-node::after {{
       content: var(--node-profile-ghost-text, "");
       position: absolute;
       top: 50%;
@@ -7641,8 +7639,7 @@
     .card.chat .chat-reply-inline.profiled-node > *,
     .peer-dm-popout-head.profiled-node > *,
     .peer-dm-popout-msg.profiled-node > *,
-    .map-node-info-card.profiled-node > *,
-    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head > * {{
+    .map-node-info-card.profiled-node > * {{
       position: relative;
       z-index: 1;
     }}
@@ -7925,7 +7922,33 @@
       box-shadow: inset 0 0 0 1px var(--node-profile-theme-border-muted, var(--node-profile-identity-edge));
     }}
     .chat-node-details-drawer.profiled-node .chat-node-details-panel {{
+      position: relative;
+      isolation: isolate;
       background-image: var(--node-profile-theme-surface) !important;
+    }}
+    .chat-node-details-drawer.profiled-node .chat-node-details-panel::before {{
+      content: var(--node-profile-ghost-text, "");
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      z-index: 0;
+      display: block;
+      color: var(--node-profile-theme-contrast, var(--node-profile-identity-color));
+      font-size: clamp(96px, 18vw, 260px);
+      font-weight: var(--node-profile-ghost-weight, 800);
+      letter-spacing: var(--node-profile-ghost-tracking, 0.02em);
+      line-height: 1;
+      opacity: calc(var(--node-profile-ghost-opacity, 0) * 0.22);
+      pointer-events: none;
+      white-space: nowrap;
+      mix-blend-mode: var(--node-profile-ghost-blend-mode, screen);
+      filter: var(--node-profile-ghost-filter, blur(0.2px));
+      transform: translate(-50%, -50%) var(--node-profile-ghost-transform, rotate(-7deg) scale(1.14));
+      transform-origin: center center;
+    }}
+    .chat-node-details-drawer.profiled-node .chat-node-details-panel > * {{
+      position: relative;
+      z-index: 1;
     }}
     .chat-node-details-footer-actions.has-node-theme {{
       position: relative;
