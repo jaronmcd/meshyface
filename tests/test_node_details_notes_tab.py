@@ -476,7 +476,6 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     assert "flex: 0 0 auto;" in footer_section
     assert "display: grid;" in footer_section
     assert "grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);" in footer_section
-    assert "border-top: 1px solid" in footer_section
     assert "background: var(--workspace-shell-bg-alt" in footer_section
     theme_action_section = css.split(".chat-node-details-footer-theme-actions {", 1)[1].split("}", 1)[0]
     assert "justify-content: center;" in theme_action_section

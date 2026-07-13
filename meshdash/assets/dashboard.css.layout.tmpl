@@ -2003,7 +2003,6 @@
       border-top-right-radius: 8px;
     }}
     .chat-node-details-drawer {{
-      border: 1px solid var(--surface-tint-border);
       border-radius: 8px;
       background: var(--surface-tint-bg);
       display: flex;
@@ -2079,9 +2078,7 @@
           color-mix(in srgb, var(--workspace-shell-bg, var(--ui-panel)) 90%, #050b13 10%)
         ),
         var(--workspace-shell-bg, var(--ui-panel));
-      box-shadow:
-        0 18px 48px color-mix(in srgb, var(--shadow-color, #0d1c16) 24%, transparent),
-        0 0 0 1px color-mix(in srgb, var(--surface-tint-border-strong) 46%, transparent);
+      box-shadow: 0 18px 48px color-mix(in srgb, var(--shadow-color, #0d1c16) 24%, transparent);
     }}
     .chat-node-details-promoted-host .chat-node-details-head {{
       position: absolute;
@@ -2092,7 +2089,6 @@
       align-items: center;
       gap: 6px;
       padding: 0;
-      border: 0;
       background: transparent;
       overflow: visible;
     }}
@@ -2137,7 +2133,7 @@
     }}
     .chat-node-context-bridge-edge {{
       fill: none;
-      stroke: color-mix(in srgb, var(--ui-accent) 42%, transparent);
+      stroke: color-mix(in srgb, var(--chat-node-context-bridge-edge-color, var(--workspace-shell-border, var(--ui-accent))) 42%, transparent);
       stroke-width: 1;
       vector-effect: non-scaling-stroke;
     }}
@@ -2146,19 +2142,19 @@
     }}
     .chat-node-context-bridge-edge-target {{
       opacity: 0.72;
-      filter: drop-shadow(0 0 4px color-mix(in srgb, var(--ui-accent) 32%, transparent));
+      filter: drop-shadow(0 0 4px color-mix(in srgb, var(--chat-node-context-bridge-edge-color, var(--workspace-shell-border, var(--ui-accent))) 32%, transparent));
     }}
     .chat-node-context-bridge-offscreen-boundary {{
       fill: none;
-      stroke: color-mix(in srgb, var(--ui-accent) 82%, white 18%);
+      stroke: color-mix(in srgb, var(--chat-node-context-bridge-edge-color, var(--workspace-shell-border, var(--ui-accent))) 82%, white 18%);
       stroke-width: 1.5;
       vector-effect: non-scaling-stroke;
-      filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ui-accent) 62%, transparent));
+      filter: drop-shadow(0 0 5px color-mix(in srgb, var(--chat-node-context-bridge-edge-color, var(--workspace-shell-border, var(--ui-accent))) 62%, transparent));
     }}
     .chat-member-item.chat-node-context-bridge-source {{
       box-shadow:
-        inset 0 1px 0 color-mix(in srgb, var(--ui-accent) 42%, transparent),
-        inset 0 -1px 0 color-mix(in srgb, var(--ui-accent) 42%, transparent),
+        inset 0 1px 0 color-mix(in srgb, var(--chat-node-context-bridge-edge-color, var(--workspace-shell-border, var(--ui-accent))) 42%, transparent),
+        inset 0 -1px 0 color-mix(in srgb, var(--chat-node-context-bridge-edge-color, var(--workspace-shell-border, var(--ui-accent))) 42%, transparent),
         inset 0 0 0 999px color-mix(in srgb, var(--chat-node-context-bridge-fill-color, var(--ui-accent)) 5.5%, transparent) !important;
     }}
     @media (prefers-reduced-motion: reduce) {{
@@ -2193,7 +2189,6 @@
       align-items: center;
       gap: 8px;
       padding: 7px 8px 6px 8px;
-      border-bottom: 1px solid var(--surface-tint-border);
       background: var(--surface-tint-bg-alt);
     }}
     .chat-node-details-head-main {{
@@ -2325,7 +2320,6 @@
       flex-wrap: wrap;
       gap: 4px;
       padding: 6px 8px 4px 8px;
-      border-bottom: 1px solid #d8e6d5;
       background: #f2faf3;
     }}
     .chat-node-details-tab-spacer {{
@@ -2439,7 +2433,6 @@
       gap: 6px;
       min-width: 0;
       padding: 6px 8px;
-      border-top: 1px solid var(--workspace-shell-border, var(--surface-tint-border));
       background: var(--workspace-shell-bg-alt, var(--surface-tint-bg-alt));
     }}
     .chat-node-details-footer-node-actions,
@@ -4241,7 +4234,6 @@
       width: min(400px, calc(100vw - 24px));
       max-width: calc(100vw - 24px);
       max-height: min(520px, calc(100vh - 24px));
-      border: 1px solid rgba(var(--peer-dm-channel-rgb), 0.44);
       border-radius: 12px;
       background:
         linear-gradient(
@@ -4266,7 +4258,6 @@
       box-shadow: none;
     }}
     .peer-dm-popout-head {{
-      border-bottom: 1px solid rgba(var(--peer-dm-channel-rgb), 0.35);
       background:
         linear-gradient(
           180deg,

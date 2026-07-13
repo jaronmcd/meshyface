@@ -863,7 +863,6 @@ def test_node_details_drawer_follows_workspace_shell_tokens() -> None:
     splitter_section = css.split("[data-theme=\"dark\"] .chat-node-details-splitter {", 1)[1].split("}", 1)[0]
     splitter_handle_section = css.split("[data-theme=\"dark\"] .chat-node-details-splitter::before {", 1)[1].split("}", 1)[0]
 
-    assert "var(--workspace-shell-border)" in drawer_section
     assert "var(--workspace-shell-bg)" in drawer_section
     assert "var(--workspace-shell-bg-alt)" in head_section
     assert "var(--workspace-shell-text-soft)" in tab_section
@@ -1082,10 +1081,8 @@ def test_peer_dm_popout_follows_workspace_shell_tokens() -> None:
     input_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-input {", 1)[1].split("}", 1)[0]
     send_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-send-btn {", 1)[1].split("}", 1)[0]
 
-    assert "var(--workspace-shell-border)" in popout_section
     assert "var(--workspace-shell-bg-alt)" in popout_section
     assert "var(--workspace-shell-bg)" in popout_section
-    assert "var(--workspace-shell-border-muted)" in head_section
     assert "var(--workspace-shell-border-muted)" in msg_section
     assert "var(--workspace-shell-text)" in msg_section
     assert "var(--workspace-shell-border-muted)" in composer_section

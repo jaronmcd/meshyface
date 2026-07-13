@@ -2260,10 +2260,12 @@
       const drawer = document.getElementById("chat-node-details-drawer");
       if (bridge instanceof HTMLElement) {{
         bridge.style.removeProperty("--chat-node-context-bridge-fill-color");
+        bridge.style.removeProperty("--chat-node-context-bridge-edge-color");
       }}
       document.querySelectorAll(".chat-member-item.chat-node-context-bridge-source").forEach((row) => {{
         row.classList.remove("chat-node-context-bridge-source");
         row.style.removeProperty("--chat-node-context-bridge-fill-color");
+        row.style.removeProperty("--chat-node-context-bridge-edge-color");
       }});
       const promoted = !!(
         drawer instanceof HTMLElement
@@ -2295,7 +2297,15 @@
 
       const {{ rowRect, listRect, position }} = geometry;
       const rowStyle = window.getComputedStyle(geometry.row);
-      const profileBridgeColor = rowStyle.getPropertyValue("--node-profile-theme-base").trim();
+      const localBridgeColor = rowStyle.getPropertyValue("--node-profile-border").trim();
+      const profileBridgeColor = (
+        rowStyle.getPropertyValue("--node-profile-theme-base").trim()
+        || localBridgeColor
+      );
+      const profileBridgeEdgeColor = (
+        rowStyle.getPropertyValue("--node-profile-theme-line").trim()
+        || localBridgeColor
+      );
       const bridgeColor = (
         profileBridgeColor
         && typeof CSS !== "undefined"
@@ -2305,6 +2315,16 @@
       if (bridgeColor) {{
         bridge.style.setProperty("--chat-node-context-bridge-fill-color", bridgeColor);
         geometry.row.style.setProperty("--chat-node-context-bridge-fill-color", bridgeColor);
+      }}
+      const bridgeEdgeColor = (
+        profileBridgeEdgeColor
+        && typeof CSS !== "undefined"
+        && typeof CSS.supports === "function"
+        && CSS.supports("color", profileBridgeEdgeColor)
+      ) ? profileBridgeEdgeColor : "";
+      if (bridgeEdgeColor) {{
+        bridge.style.setProperty("--chat-node-context-bridge-edge-color", bridgeEdgeColor);
+        geometry.row.style.setProperty("--chat-node-context-bridge-edge-color", bridgeEdgeColor);
       }}
       geometry.row.classList.add("chat-node-context-bridge-source");
       const inset = 7;

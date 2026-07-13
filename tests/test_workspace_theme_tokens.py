@@ -438,14 +438,13 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
     assert "is-trace-result" in css
     assert "border-color: var(--node-profile-identity-edge);" in map_marker
     assert "background-image: var(--node-profile-theme-surface) !important;" in node_details_theme_preview
-    assert "border-top-color: var(--node-profile-identity-edge);" in node_details_theme_preview
     assert "--node-profile-theme-contrast" not in node_details_theme_preview
     assert "font-family: var(--node-profile-theme-font-family, inherit);" not in node_details_theme_preview
     assert ".chat-node-details-footer-actions.has-node-theme .chat-node-details-action-btn" not in css
     assert ".chat-node-details-footer-actions.has-node-theme .chat-node-details-footer-label" not in css
     assert ".chat-node-details-tabs.has-node-theme .chat-node-details-tab-btn" not in css
     themed_tabs = _last_css_rule(css, ".chat-node-details-tabs.has-node-theme")
-    assert "border-bottom-color: var(--node-profile-identity-edge);" in themed_tabs
+    assert "background-image: var(--node-profile-theme-surface) !important;" in themed_tabs
     assert ".chat-node-details-footer-actions.has-node-theme::after" not in css
     assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" in css
     assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head {" in css
