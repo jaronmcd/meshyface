@@ -328,7 +328,6 @@
     const roomSlugRe = /^[a-z0-9][a-z0-9_-]{0,47}$/;
     const chatMessageMaxBytes = Math.max(1, Math.trunc(Number({chat_max_bytes}) || 0));
     const fileTransferFeatureEnabled = !!Number({file_transfer_enabled});
-    const fileTransferAutoAcceptDefault = !!Number({file_transfer_auto_accept});
     const fileTransferProtocolPrefix = "MF_FILE_V2";
     // Browser-facing V2 frames are an internal JSON/API representation. The
     // backend converts them to compact binary before radio transmission.
@@ -355,10 +354,6 @@
       fileTransferMaxChunks,
       Math.ceil(fileTransferChunkCacheMaxBytes / fileTransferChunkBytes)
     );
-    const fileTransferMetaAdmissionMaxPeers = 128;
-    const fileTransferMetaAdmissionPeerCooldownMs = 2 * 1000;
-    const fileTransferMetaAdmissionGlobalCooldownMs = 250;
-    const fileTransferMetaAdmissionPeerTtlMs = 20 * 60 * 1000;
     const fileTransferCompressionCodecRaw = "raw";
     const fileTransferCompressionCodecLzss = "lzss";
     const fileTransferCompressionEnabled = true;
@@ -369,7 +364,6 @@
     const fileTransferCompressionMinMatchBytes = 4;
     const fileTransferCompressionMaxMatchBytes = 130;
     const fileTransferDestinationStorageKey = "meshDashboardFileTransferDestinationV1";
-    const fileTransferAutoAcceptStorageKey = "meshDashboardFileTransferAutoAcceptV1";
     const fileTransferDismissedStorageKey = "meshDashboardFileTransferDismissedV1";
     const fileTransferInboundDecisionStorageKey = "meshDashboardFileTransferInboundDecisionV1";
     const fileTransferInboundFlowStorageKey = "meshDashboardFileTransferInboundFlowV1";

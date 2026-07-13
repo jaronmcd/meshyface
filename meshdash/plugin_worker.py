@@ -14,6 +14,7 @@ from types import ModuleType
 from typing import cast
 
 from .plugins import (
+    AcceptFileOfferAction,
     Script,
     ScriptAction,
     PluginManifest,
@@ -172,6 +173,9 @@ class _WorkerContext:
     def reply_long(self, text: str) -> ReplyAction:
         return self.mesh.reply_long(self.message, text)
 
+    def accept_file(self) -> AcceptFileOfferAction:
+        return AcceptFileOfferAction()
+
     def set_ticker(
         self,
         ticker_id: str,
@@ -263,7 +267,14 @@ def _normalize_handler_result(result: object) -> list[dict[str, JsonValue]]:
         return []
     if isinstance(
         result,
-        (ReplyAction, SendTextAction, SendChannelAction, SendFileAction, SessionAction),
+        (
+            ReplyAction,
+            SendTextAction,
+            SendChannelAction,
+            SendFileAction,
+            AcceptFileOfferAction,
+            SessionAction,
+        ),
     ):
         actions: Sequence[ScriptAction] = (result,)
     elif isinstance(result, (list, tuple)):

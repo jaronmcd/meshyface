@@ -1,6 +1,7 @@
 """Public Python API for trusted MeshyFace scripts."""
 
 from .sdk import (
+    AcceptFileOfferAction,
     Script,
     ScriptAction,
     ScriptContext,
@@ -30,6 +31,7 @@ from .manifest import (
 )
 
 __all__ = [
+    "AcceptFileOfferAction",
     "Script",
     "ScriptAction",
     "ScriptContext",

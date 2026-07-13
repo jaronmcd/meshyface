@@ -342,6 +342,7 @@ def build_plugin_subsystem(
     tracker: object,
     send_chat_fn: Callable[..., object],
     local_node_id_fn: Callable[[], str],
+    accept_file_offer_fn: Callable[[Mapping[str, object]], object] | None = None,
 ) -> PluginSubsystem:
     """Build only after the startup master switch has been checked."""
 
@@ -411,6 +412,7 @@ def build_plugin_subsystem(
                 send_chat_fn=send_chat_fn,
                 node_snapshot_fn=lambda: _node_snapshot(iface),
                 submit_file_fn=outbound.submit if outbound is not None else None,
+                accept_file_offer_fn=accept_file_offer_fn,
                 config=runtime_config,
                 state_changed_fn=_mark_state_changed,
             )

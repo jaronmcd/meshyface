@@ -199,6 +199,14 @@ actions also require `--file-transfer-enable` and
 `--accept-file-transfer-traffic-disclaimer` (or their environment equivalents),
 because they use the existing airtime-intensive file-transfer transport.
 
+An `@script.on_packet` handler may return `ctx.accept_file()` for the direct
+inbound MF_FILE_V2 metadata offer in its current packet. The host revalidates
+the packet, destination, sender, channel, size limits, replay limits, and rate
+limits before opening a receive session; scripts never receive the radio or
+receiver service itself. There is no global auto-accept setting. Disabling a
+plugin prevents it from accepting new offers, while an already accepted
+transfer may finish.
+
 Lifecycle hooks are best-effort: `on_start` can run again after a worker restart,
 and `on_stop` cannot run when a hung or crashed worker must be terminated.
 

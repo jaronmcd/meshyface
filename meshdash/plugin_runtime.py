@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import cast
 
 from .plugins import (
+    AcceptFileOfferAction,
     ScriptAction,
     PluginManifest,
     MessageEvent,
@@ -196,6 +197,7 @@ class PluginRuntime:
         send_chat_fn: Callable[..., object],
         node_snapshot_fn: Callable[[], Sequence[Mapping[str, object]]] = tuple,
         submit_file_fn: Callable[..., object] | None = None,
+        accept_file_offer_fn: Callable[[Mapping[str, JsonValue]], object] | None = None,
         config: PluginRuntimeConfig = PluginRuntimeConfig(),
         mp_context: object | None = None,
         monotonic_fn: Callable[[], float] = time.monotonic,
@@ -210,6 +212,7 @@ class PluginRuntime:
         self._send_chat_fn = send_chat_fn
         self._node_snapshot_fn = node_snapshot_fn
         self._submit_file_fn = submit_file_fn
+        self._accept_file_offer_fn = accept_file_offer_fn
         self._config = config
         self._mp = mp_context or multiprocessing.get_context("spawn")
         self._monotonic_fn = monotonic_fn
@@ -1197,6 +1200,15 @@ class PluginRuntime:
             )
             if isinstance(response, Mapping) and response.get("ok") is False:
                 raise RuntimeError(str(response.get("error") or "file job was rejected"))
+            return
+        if isinstance(action, AcceptFileOfferAction):
+            if self._accept_file_offer_fn is None:
+                raise RuntimeError("host-managed inbound file acceptance is unavailable")
+            if event.packet is None:
+                raise ValueError("accept_file() requires the current packet to contain a file offer")
+            response = self._accept_file_offer_fn(event.packet)
+            if isinstance(response, Mapping) and response.get("ok") is False:
+                raise ValueError(str(response.get("error") or "file offer was rejected"))
 
     def _is_quarantined(self, plugin_id: str) -> bool:
         return self._plugin_quarantined_until.get(plugin_id, 0.0) > self._monotonic_fn()

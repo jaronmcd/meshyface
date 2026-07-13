@@ -894,7 +894,7 @@ def run_dashboard_runtime(
                 except Exception:
                     pass
             close_file_transfer = getattr(
-                getattr(context.tracker, "_file_transfer_auto_accept_service", None),
+                getattr(context.tracker, "_file_transfer_inbound_service", None),
                 "close",
                 None,
             )

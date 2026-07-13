@@ -522,19 +522,19 @@ def build_dashboard_runtime_context(
             except Exception:
                 pass
 
+    file_transfer_inbound_service = None
     if bool(getattr(args, "file_transfer_enable", False)):
         try:
-            from .services_file_transfer_auto_accept import (
-                build_file_transfer_auto_accept_service as _build_file_transfer_auto_accept_service,
+            from .services_file_transfer_inbound import (
+                build_inbound_file_transfer_service as _build_inbound_file_transfer_service,
             )
         except Exception:
-            _build_file_transfer_auto_accept_service = None
+            _build_inbound_file_transfer_service = None
 
-        if _build_file_transfer_auto_accept_service is not None:
-            file_transfer_auto_accept_service = _build_file_transfer_auto_accept_service(
+        if _build_inbound_file_transfer_service is not None:
+            file_transfer_inbound_service = _build_inbound_file_transfer_service(
                 local_node_id_fn=lambda: get_local_node_id_fn(iface),
                 send_chat_fn=loaders.send_chat_fn,
-                enabled=bool(getattr(args, "file_transfer_auto_accept", False)),
                 max_ack_frame_bytes=1024,
                 max_file_bytes=getattr(
                     args,
@@ -542,12 +542,12 @@ def build_dashboard_runtime_context(
                     DEFAULT_FILE_TRANSFER_MAX_BYTES,
                 ),
             )
-            subscribe_fn(file_transfer_auto_accept_service.on_receive, "meshtastic.receive")
+            subscribe_fn(file_transfer_inbound_service.on_receive, "meshtastic.receive")
             try:
                 setattr(
                     tracker,
-                    "_file_transfer_auto_accept_service",
-                    file_transfer_auto_accept_service,
+                    "_file_transfer_inbound_service",
+                    file_transfer_inbound_service,
                 )
             except Exception:
                 pass
@@ -555,38 +555,10 @@ def build_dashboard_runtime_context(
                 setattr(
                     tracker,
                     "get_file_transfer_runtime",
-                    file_transfer_auto_accept_service.get_runtime,
+                    file_transfer_inbound_service.get_runtime,
                 )
             except Exception:
                 pass
-            try:
-                setattr(
-                    loaders.state_fn,
-                    "get_file_transfer_auto_accept_runtime_fn",
-                    file_transfer_auto_accept_service.get_runtime,
-                )
-                setattr(
-                    loaders.state_fn,
-                    "set_file_transfer_auto_accept_enabled_fn",
-                    file_transfer_auto_accept_service.set_enabled,
-                )
-            except Exception:
-                pass
-            state_lite_fn = getattr(loaders.state_fn, "lite", None)
-            if callable(state_lite_fn):
-                try:
-                    setattr(
-                        state_lite_fn,
-                        "get_file_transfer_auto_accept_runtime_fn",
-                        file_transfer_auto_accept_service.get_runtime,
-                    )
-                    setattr(
-                        state_lite_fn,
-                        "set_file_transfer_auto_accept_enabled_fn",
-                        file_transfer_auto_accept_service.set_enabled,
-                    )
-                except Exception:
-                    pass
 
     search_history_packets_fn = getattr(history_store, "search_packets", None)
     if callable(search_history_packets_fn):
@@ -699,6 +671,11 @@ def build_dashboard_runtime_context(
                 tracker=tracker,
                 send_chat_fn=loaders.send_chat_fn,
                 local_node_id_fn=lambda: get_local_node_id_fn(iface),
+                accept_file_offer_fn=(
+                    file_transfer_inbound_service.accept_offer
+                    if file_transfer_inbound_service is not None
+                    else None
+                ),
             )
             setattr(tracker, "_plugin_subsystem", plugin_subsystem)
             setattr(tracker, "get_plugin_runtime", plugin_subsystem.status)

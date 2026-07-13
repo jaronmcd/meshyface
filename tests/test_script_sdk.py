@@ -5,6 +5,7 @@ from dataclasses import FrozenInstanceError, fields
 import pytest
 
 from meshdash.plugins import (
+    AcceptFileOfferAction,
     Script,
     MessageEvent,
     ReplyAction,
@@ -164,6 +165,7 @@ def test_message_event_strictly_validates_decoded_payload() -> None:
         SendTextAction("!01020304", "hello", channel_index=2),
         SendChannelAction(1, "hello channel"),
         SendFileAction("!01020304", "daily-report"),
+        AcceptFileOfferAction(),
         SessionAction("start"),
         SessionAction("end"),
     ],
@@ -172,8 +174,13 @@ def test_actions_are_immutable_and_json_round_trip(action: object) -> None:
     payload = action_to_dict(action)  # type: ignore[arg-type]
 
     assert action_from_dict(payload) == action
-    with pytest.raises(FrozenInstanceError):
-        setattr(action, fields(action)[0].name, "changed")  # type: ignore[arg-type]
+    action_fields = fields(action)  # type: ignore[arg-type]
+    if action_fields:
+        with pytest.raises(FrozenInstanceError):
+            setattr(action, action_fields[0].name, "changed")
+    else:
+        with pytest.raises((FrozenInstanceError, TypeError)):
+            setattr(action, "changed", True)
 
 
 def test_action_decoder_rejects_unknown_types_fields_and_bad_values() -> None:
@@ -190,3 +197,5 @@ def test_action_decoder_rejects_unknown_types_fields_and_bad_values() -> None:
                 "channel_index": True,
             }
         )
+    with pytest.raises(ValueError, match="unknown fields"):
+        action_from_dict({"type": "accept_file_offer", "enabled": True})

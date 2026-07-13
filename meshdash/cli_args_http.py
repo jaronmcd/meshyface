@@ -39,7 +39,6 @@ def add_http_runtime_args(
     default_private_mode: bool = False,
     default_api_token: str | None = None,
     default_file_transfer_enable: bool = False,
-    default_file_transfer_auto_accept: bool = False,
     default_plugins_enable: bool = False,
     default_plugins_directory: str = "mesh_dashboard_plugins",
     default_plugins_state_db: str = "mesh_dashboard_plugin_state.sqlite3",
@@ -143,16 +142,6 @@ def add_http_runtime_args(
         help=(
             "Enable Meshyface peer-to-peer file transfer UI and send workflow "
             f"(default: {default_file_transfer_enable})"
-        ),
-    )
-    parser.add_argument(
-        "--file-transfer-auto-accept",
-        action=argparse.BooleanOptionalAction,
-        default=default_file_transfer_auto_accept,
-        help=(
-            "Automatically accept direct inbound Meshyface file transfers in the "
-            "backend, and use the same value as the browser preference default "
-            f"(default: {default_file_transfer_auto_accept})"
         ),
     )
     parser.add_argument(

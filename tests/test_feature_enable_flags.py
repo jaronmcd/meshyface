@@ -50,12 +50,10 @@ def _build_parser(**overrides: object) -> argparse.ArgumentParser:
         "env_theme_preset": None,
         "env_theme_settings_file": None,
         "default_file_transfer_enable": False,
-        "default_file_transfer_auto_accept": False,
         "default_plugins_enable": False,
         "default_games_enable": False,
         "default_file_transfer_max_bytes": 64 * 1024,
         "env_file_transfer_enable": None,
-        "env_file_transfer_auto_accept": None,
         "env_plugins_enable": None,
         "env_games_enable": None,
         "env_file_transfer_max_bytes": None,
@@ -95,17 +93,14 @@ def test_render_html_exposes_games_flag_when_enabled() -> None:
     assert 'data-app-view="bots"' not in html
 
 
-def test_render_html_exposes_file_transfer_auto_accept_default() -> None:
-    html = _render_html(
-        file_transfer_enabled=True,
-        file_transfer_auto_accept=True,
-    )
+def test_render_html_has_no_global_file_auto_accept_control() -> None:
+    html = _render_html(file_transfer_enabled=True)
 
     assert 'const fileTransferFeatureEnabled = !!Number(1);' in html
-    assert 'const fileTransferAutoAcceptDefault = !!Number(1);' in html
-    assert 'id="files-auto-accept-toggle"' in html
-    assert "meshDashboardFileTransferAutoAcceptV1" in html
-    assert "function autoAcceptInboundFileTransferIfEnabled(" in html
+    assert "fileTransferBackendAcceptedKeys" in html
+    assert 'id="files-auto-accept-toggle"' not in html
+    assert "/api/settings/file_transfer" not in html
+    assert "fileTransferAutoAccept" not in html
 
 
 def test_dashboard_parser_swallows_removed_bbs_flags_without_restoring_bbs() -> None:
@@ -200,17 +195,14 @@ def test_dashboard_parser_supports_games_enable_flag_and_env_default() -> None:
     assert explicit_enable_args.games_enable is True
 
 
-def test_dashboard_parser_supports_file_transfer_auto_accept_flag_and_env_default() -> None:
-    parser = _build_parser(env_file_transfer_auto_accept="1")
+def test_dashboard_parser_rejects_removed_file_transfer_auto_accept_flags() -> None:
+    parser = _build_parser()
 
-    env_default_args = parser.parse_args([])
-    assert env_default_args.file_transfer_auto_accept is True
-
-    explicit_disable_args = parser.parse_args(["--no-file-transfer-auto-accept"])
-    assert explicit_disable_args.file_transfer_auto_accept is False
-
-    explicit_enable_args = parser.parse_args(["--file-transfer-auto-accept"])
-    assert explicit_enable_args.file_transfer_auto_accept is True
+    for flag in ("--file-transfer-auto-accept", "--no-file-transfer-auto-accept"):
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args([flag])
+        assert exc.value.code == 2
+    assert "file-transfer-auto-accept" not in parser.format_help()
 
 
 def test_file_transfer_enable_requires_traffic_disclaimer() -> None:

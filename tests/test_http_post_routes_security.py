@@ -36,6 +36,7 @@ class _FakeHandler:
         "/api/settings/bot",
         "/api/bots/zork",
         "/api/bots/ping",
+        "/api/settings/file_transfer",
     ),
 )
 def test_handle_dashboard_post_returns_not_found_for_removed_bot_routes(
@@ -126,33 +127,6 @@ def test_handle_dashboard_post_updates_raw_packet_capture_settings() -> None:
 
     assert received == [{"capture_enabled": True}]
     assert calls == [(200, {"ok": True, "capture_enabled": True})]
-
-
-def test_handle_dashboard_post_toggles_file_transfer_auto_accept() -> None:
-    body = json.dumps({"enabled": False}).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
-    calls: list[tuple[int, object]] = []
-    received: list[bool] = []
-    deps = build_post_route_dependencies(
-        send_chat_fn=None,
-        set_file_transfer_auto_accept_enabled_fn=lambda enabled: (
-            received.append(enabled) or {"ok": True, "enabled": enabled, "active_sessions": 0}
-        ),
-        to_int_fn=to_int,
-    )
-    deps = type(deps)(
-        **{
-            **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
-                calls.append((status_code, payload_obj))
-            ),
-        }
-    )
-
-    handle_dashboard_post(handler, path="/api/settings/file_transfer", deps=deps)
-
-    assert received == [False]
-    assert calls == [(200, {"ok": True, "enabled": False, "active_sessions": 0})]
 
 
 def test_plugin_management_returns_structured_disabled_error() -> None:

@@ -54,10 +54,6 @@ Options:
                            Approved plugin file-send root on the target.
   --file-transfer-enable   Enable file transfer in dashboard.env (requires disclaimer).
   --no-file-transfer-enable Disable file transfer in dashboard.env.
-  --file-transfer-auto-accept
-                           Enable backend auto accept and default browser preference.
-  --no-file-transfer-auto-accept
-                           Disable backend auto accept; default browsers to manual accept.
   --file-transfer-max-bytes <bytes>
                            Max file transfer size written to dashboard.env.
   --accept-file-transfer-traffic-disclaimer
@@ -107,7 +103,6 @@ Env overrides:
   MESH_DASH_DEPLOY_PLUGIN_ENABLE
   MESH_DASH_DEPLOY_PLUGIN_DISABLE
   MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE
-  MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT
   MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES
   MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER
   MESH_DASH_DEPLOY_GIT_COMMIT
@@ -163,7 +158,6 @@ PLUGINS_FILES_DIRECTORY="${MESH_DASH_DEPLOY_PLUGINS_FILES_DIRECTORY:-}"
 PLUGIN_ENABLE_LIST="${MESH_DASH_DEPLOY_PLUGIN_ENABLE:-}"
 PLUGIN_DISABLE_LIST="${MESH_DASH_DEPLOY_PLUGIN_DISABLE:-}"
 FILE_TRANSFER_ENABLE="${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE:-0}"
-FILE_TRANSFER_AUTO_ACCEPT="${MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT:-0}"
 FILE_TRANSFER_MAX_BYTES="${MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES:-65536}"
 ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER="${MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER:-0}"
 DEPLOY_GIT_COMMIT="${MESH_DASH_DEPLOY_GIT_COMMIT:-${MESH_DASH_GIT_COMMIT:-}}"
@@ -178,7 +172,6 @@ PLUGINS_FILES_DIRECTORY_SET=0
 PLUGIN_ENABLE_LIST_SET=0
 PLUGIN_DISABLE_LIST_SET=0
 FILE_TRANSFER_ENABLE_SET=0
-FILE_TRANSFER_AUTO_ACCEPT_SET=0
 FILE_TRANSFER_MAX_BYTES_SET=0
 ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET=0
 if [[ -n "${MESH_DASH_DEPLOY_GAMES_ENABLE+x}" ]]; then
@@ -204,9 +197,6 @@ if [[ -n "${MESH_DASH_DEPLOY_PLUGIN_DISABLE+x}" ]]; then
 fi
 if [[ -n "${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE+x}" ]]; then
   FILE_TRANSFER_ENABLE_SET=1
-fi
-if [[ -n "${MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT+x}" ]]; then
-  FILE_TRANSFER_AUTO_ACCEPT_SET=1
 fi
 if [[ -n "${MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES+x}" ]]; then
   FILE_TRANSFER_MAX_BYTES_SET=1
@@ -614,16 +604,6 @@ while [[ $# -gt 0 ]]; do
       FILE_TRANSFER_ENABLE_SET=1
       shift
       ;;
-    --file-transfer-auto-accept)
-      FILE_TRANSFER_AUTO_ACCEPT=1
-      FILE_TRANSFER_AUTO_ACCEPT_SET=1
-      shift
-      ;;
-    --no-file-transfer-auto-accept)
-      FILE_TRANSFER_AUTO_ACCEPT=0
-      FILE_TRANSFER_AUTO_ACCEPT_SET=1
-      shift
-      ;;
     --file-transfer-max-bytes)
       require_arg "$1" "${2:-}"
       FILE_TRANSFER_MAX_BYTES="$2"
@@ -905,13 +885,6 @@ if [[ "${FILE_TRANSFER_MAX_BYTES_SET}" -eq 0 ]]; then
   fi
 fi
 
-if [[ "${FILE_TRANSFER_AUTO_ACCEPT_SET}" -eq 0 ]]; then
-  existing_file_transfer_auto_accept="$(read_existing_dashboard_env_value "MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT")"
-  if [[ -n "${existing_file_transfer_auto_accept}" ]]; then
-    FILE_TRANSFER_AUTO_ACCEPT="${existing_file_transfer_auto_accept}"
-  fi
-fi
-
 if [[ "${ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET}" -eq 0 ]]; then
   existing_file_transfer_disclaimer="$(read_existing_dashboard_env_value "MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER")"
   if [[ -n "${existing_file_transfer_disclaimer}" ]]; then
@@ -950,7 +923,7 @@ if [[ -n "${SERIAL_PATH}" ]]; then
 fi
 echo "[deploy] games_enable=${GAMES_ENABLE}"
 echo "[deploy] plugins_enable=${PLUGINS_ENABLE}"
-echo "[deploy] file_transfer_enable=${FILE_TRANSFER_ENABLE} file_transfer_auto_accept=${FILE_TRANSFER_AUTO_ACCEPT} file_transfer_max_bytes=${FILE_TRANSFER_MAX_BYTES}"
+echo "[deploy] file_transfer_enable=${FILE_TRANSFER_ENABLE} file_transfer_max_bytes=${FILE_TRANSFER_MAX_BYTES}"
 if [[ -n "${DEPLOY_PR_NUMBER}" ]]; then
   echo "[deploy] revision=${DEPLOY_GIT_COMMIT} · PR #${DEPLOY_PR_NUMBER}"
 else
@@ -1098,7 +1071,6 @@ MESH_DASH_PLUGINS_FILES_DIRECTORY=${PLUGINS_FILES_DIRECTORY}
 MESH_DASH_PLUGIN_ENABLE=${PLUGIN_ENABLE_LIST}
 MESH_DASH_PLUGIN_DISABLE=${PLUGIN_DISABLE_LIST}
 MESH_DASH_FILE_TRANSFER_ENABLE=${FILE_TRANSFER_ENABLE}
-MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=${FILE_TRANSFER_AUTO_ACCEPT}
 MESH_DASH_FILE_TRANSFER_MAX_BYTES=${FILE_TRANSFER_MAX_BYTES}
 MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER=${ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER}
 MESH_DASH_GIT_COMMIT=${DEPLOY_GIT_COMMIT}
@@ -1127,16 +1099,8 @@ if grep -q '^MESH_DASH_DEPLOY_PAYLOAD_HASH=' '${CONFIG_DIR}/dashboard.env'; then
   sed -i \"s/^MESH_DASH_DEPLOY_PAYLOAD_HASH=.*/MESH_DASH_DEPLOY_PAYLOAD_HASH=${remote_payload_hash}/\" '${CONFIG_DIR}/dashboard.env'; \
 else \
   printf '\nMESH_DASH_DEPLOY_PAYLOAD_HASH=%s\n' '${remote_payload_hash}' >> '${CONFIG_DIR}/dashboard.env'; \
-fi"
-  if [[ "${FILE_TRANSFER_AUTO_ACCEPT_SET}" -eq 1 ]]; then
-    echo "[deploy] updating file transfer auto accept in existing ${CONFIG_DIR}/dashboard.env"
-    ssh_cmd "${TARGET}" "\
-if grep -q '^MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=' '${CONFIG_DIR}/dashboard.env'; then \
-  sed -i \"s/^MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=.*/MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=${FILE_TRANSFER_AUTO_ACCEPT}/\" '${CONFIG_DIR}/dashboard.env'; \
-else \
-  printf '\nMESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=%s\n' '${FILE_TRANSFER_AUTO_ACCEPT}' >> '${CONFIG_DIR}/dashboard.env'; \
-fi"
-  fi
+fi && \
+sed -i '/^MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=/d' '${CONFIG_DIR}/dashboard.env'"
 fi
 
 if ! ssh_cmd "${TARGET}" "test -x '${REMOTE_PYTHON}'"; then

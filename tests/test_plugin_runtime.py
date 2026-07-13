@@ -47,6 +47,7 @@ def _event(
     *,
     packet_id: int = 10,
     packet: dict[str, object] | None = None,
+    portnum: str | None = None,
 ) -> MessageEvent:
     return MessageEvent(
         text=text,
@@ -60,7 +61,7 @@ def _event(
         reply_packet_id=None,
         received_at=time.time(),
         packet=packet,
-        portnum="POSITION_APP" if packet is not None else "",
+        portnum=portnum if portnum is not None else ("POSITION_APP" if packet else ""),
     )
 
 
@@ -163,6 +164,42 @@ def packet(ctx):
             {"city": "Test City", "packet_id": 77},
         ]
         assert runtime.status()["plugins"]["packets"]["on_packet"] is True  # type: ignore[index]
+    finally:
+        runtime.close()
+        store.close()
+
+
+def test_packet_handler_can_request_host_validated_file_acceptance(tmp_path) -> None:
+    manifest = _write_plugin(
+        tmp_path,
+        "receiver",
+        commands=(),
+        source="""
+from meshdash.plugins import Script
+script = Script(id="receiver", name="Receiver", version="1.0.0")
+@script.on_packet
+def packet(ctx):
+    return ctx.accept_file()
+""",
+    )
+    store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    accepted_packets: list[dict[str, object]] = []
+    runtime = PluginRuntime(
+        manifests=[manifest],
+        state_store=store,
+        send_chat_fn=lambda **_kwargs: None,
+        accept_file_offer_fn=lambda packet: accepted_packets.append(dict(packet))
+        or {"ok": True, "accepted": True},
+    )
+    packet = {
+        "from": 1,
+        "to": 2,
+        "channel": 0,
+        "decoded": {"portnum": 258, "payload": "4d4632"},
+    }
+    try:
+        assert runtime.try_enqueue(_event("", packet=packet, portnum="258"))
+        _wait_until(lambda: accepted_packets == [packet])
     finally:
         runtime.close()
         store.close()

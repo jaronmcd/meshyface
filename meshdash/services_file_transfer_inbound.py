@@ -9,6 +9,7 @@ from .config import DEFAULT_FILE_TRANSFER_MAX_BYTES
 from .file_transfer_protocol import (
     FILE_TRANSFER_CHUNK_BYTES,
     FILE_TRANSFER_MAX_FILE_BYTES,
+    FILE_TRANSFER_MAX_WIRE_BYTES,
     build_file_transfer_ack_frame,
     decode_file_transfer_packet,
     file_transfer_frame_text,
@@ -88,6 +89,26 @@ def _extract_packet_text(packet: object) -> str:
     return ""
 
 
+def _packet_with_binary_payload(packet: Mapping[str, object]) -> Mapping[str, object]:
+    """Restore the bounded payload hex emitted by the Script JSON boundary."""
+
+    decoded = packet.get("decoded")
+    if not isinstance(decoded, Mapping):
+        return packet
+    payload = decoded.get("payload")
+    if not isinstance(payload, str) or len(payload) > FILE_TRANSFER_MAX_WIRE_BYTES * 2:
+        return packet
+    try:
+        binary_payload = bytes.fromhex(payload)
+    except ValueError:
+        return packet
+    restored_decoded = dict(decoded)
+    restored_decoded["payload"] = binary_payload
+    restored_packet = dict(packet)
+    restored_packet["decoded"] = restored_decoded
+    return restored_packet
+
+
 def _node_id_from_num(interface: object | None, node_num: object) -> str:
     del interface
     if isinstance(node_num, bool) or (
@@ -120,13 +141,12 @@ def _packet_endpoint_id(packet: Mapping[str, object], endpoint: str, interface: 
     return ""
 
 
-class FileTransferAutoAcceptService:
+class InboundFileTransferService:
     def __init__(
         self,
         *,
         local_node_id_fn,
         send_chat_fn,
-        enabled: bool = True,
         now_monotonic_fn=time.monotonic,
         now_unix_fn=time.time,
         ack_cooldown_seconds: float = _ACK_COOLDOWN_SECONDS,
@@ -144,7 +164,7 @@ class FileTransferAutoAcceptService:
         self._lock = threading.Lock()
         self._local_node_id_fn = local_node_id_fn
         self._send_chat_fn = send_chat_fn
-        self._enabled = bool(enabled)
+        self._closed = False
         self._now_monotonic_fn = now_monotonic_fn
         self._now_unix_fn = now_unix_fn
         self._ack_cooldown_seconds = max(0.0, float(ack_cooldown_seconds))
@@ -214,7 +234,7 @@ class FileTransferAutoAcceptService:
         idle_seconds = max(0.0, float(now_monotonic) - float(session.updated_monotonic or now_monotonic))
         return {
             "key": key,
-            "source": "backend_auto_accept",
+            "source": "script_accept",
             "authoritative": True,
             "sender_id": session.sender_id,
             "receiver_id": session.receiver_id,
@@ -256,8 +276,8 @@ class FileTransferAutoAcceptService:
                 reverse=True,
             )
             return {
-                "ok": True,
-                "enabled": bool(self._enabled),
+                "ok": not self._closed,
+                "available": not self._closed,
                 "active_sessions": len(self._sessions_by_key),
                 "sessions": sessions,
                 "sent_ack_count": int(self._sent_ack_count),
@@ -271,22 +291,13 @@ class FileTransferAutoAcceptService:
             return ""
 
     def close(self) -> None:
-        self.set_enabled(False)
-
-    def set_enabled(self, enabled: bool) -> dict[str, object]:
         with self._lock:
-            self._enabled = bool(enabled)
-            if not self._enabled:
-                self._sessions_by_key.clear()
-                self._packet_replay_seen.clear()
-                self._fingerprint_replay_seen.clear()
-                self._meta_monotonic_by_peer.clear()
-                self._last_meta_monotonic = None
-            return {
-                "ok": True,
-                "enabled": bool(self._enabled),
-                "active_sessions": len(self._sessions_by_key),
-            }
+            self._closed = True
+            self._sessions_by_key.clear()
+            self._packet_replay_seen.clear()
+            self._fingerprint_replay_seen.clear()
+            self._meta_monotonic_by_peer.clear()
+            self._last_meta_monotonic = None
 
     def _admit_meta(self, sender_id: str, *, now_monotonic: float) -> bool:
         with self._lock:
@@ -473,7 +484,7 @@ class FileTransferAutoAcceptService:
         if payload is None:
             return
         with self._lock:
-            if not self._enabled:
+            if self._closed:
                 return
         frame, destination, channel_index = payload
         try:
@@ -611,9 +622,70 @@ class FileTransferAutoAcceptService:
             self._prune_locked(now_monotonic)
             self._sessions_by_key.pop(key, None)
 
+    def accept_offer(
+        self,
+        packet: object,
+        interface: object | None = None,
+    ) -> dict[str, object]:
+        with self._lock:
+            if self._closed:
+                return {"ok": False, "error": "Inbound file receiver is closed"}
+        if not isinstance(packet, Mapping):
+            return {"ok": False, "error": "accept_file() requires a packet object"}
+        packet = _packet_with_binary_payload(packet)
+        frame = decode_file_transfer_packet(
+            packet,
+            max_file_bytes=self._max_file_bytes,
+            max_total_chunks=self._max_total_chunks,
+        )
+        if frame is None or str(frame.get("kind") or "").strip().lower() != "meta":
+            return {"ok": False, "error": "accept_file() requires a valid file metadata offer"}
+        frame_text = file_transfer_frame_text(frame)
+        local_id = self._local_node_id()
+        if not _is_canonical_node_id(local_id):
+            return {"ok": False, "error": "Local node ID is unavailable"}
+        sender_id = _packet_endpoint_id(packet, "from", interface)
+        receiver_id = _packet_endpoint_id(packet, "to", interface)
+        if not _is_canonical_node_id(sender_id):
+            return {"ok": False, "error": "File offer sender ID is invalid"}
+        if receiver_id != local_id:
+            return {"ok": False, "error": "File offer is not addressed to this node"}
+        if sender_id == local_id:
+            return {"ok": False, "error": "Local file offers cannot be accepted"}
+        now_monotonic = float(self._now_monotonic_fn())
+        channel_index = _packet_channel_index(packet)
+        if channel_index is None:
+            return {"ok": False, "error": "File offer channel is invalid"}
+        if not self._accept_packet_once(
+            packet=packet,
+            sender_id=sender_id,
+            receiver_id=receiver_id,
+            channel_index=channel_index,
+            frame_text=frame_text,
+            now_monotonic=now_monotonic,
+        ):
+            return {"ok": True, "accepted": False, "duplicate": True}
+        if not self._admit_meta(sender_id, now_monotonic=now_monotonic):
+            return {"ok": True, "accepted": False, "rate_limited": True}
+        payload = self._handle_meta(
+            sender_id=sender_id,
+            receiver_id=receiver_id,
+            channel_index=channel_index,
+            frame=frame,
+            now_monotonic=now_monotonic,
+        )
+        self._send_ack(payload)
+        return {
+            "ok": True,
+            "accepted": True,
+            "sender_id": sender_id,
+            "transfer_id": str(frame.get("transfer_id") or ""),
+            "channel_index": channel_index,
+        }
+
     def on_receive(self, packet: object, interface: object | None = None) -> None:
         with self._lock:
-            if not self._enabled:
+            if self._closed:
                 return
         if not isinstance(packet, Mapping):
             return
@@ -626,21 +698,15 @@ class FileTransferAutoAcceptService:
             return
         frame_text = file_transfer_frame_text(frame)
         kind = str(frame.get("kind") or "").strip().lower()
-        if kind not in {"meta", "chunk", "flow"}:
+        if kind not in {"chunk", "flow"}:
             return
-
         local_id = self._local_node_id()
         if not _is_canonical_node_id(local_id):
             return
         sender_id = _packet_endpoint_id(packet, "from", interface)
         receiver_id = _packet_endpoint_id(packet, "to", interface)
-        if not _is_canonical_node_id(sender_id):
+        if not _is_canonical_node_id(sender_id) or receiver_id != local_id or sender_id == local_id:
             return
-        if receiver_id != local_id:
-            return
-        if sender_id == local_id:
-            return
-
         now_monotonic = float(self._now_monotonic_fn())
         channel_index = _packet_channel_index(packet)
         if channel_index is None:
@@ -653,18 +719,6 @@ class FileTransferAutoAcceptService:
             frame_text=frame_text,
             now_monotonic=now_monotonic,
         ):
-            return
-        if kind == "meta":
-            if not self._admit_meta(sender_id, now_monotonic=now_monotonic):
-                return
-            payload = self._handle_meta(
-                sender_id=sender_id,
-                receiver_id=receiver_id,
-                channel_index=channel_index,
-                frame=frame,
-                now_monotonic=now_monotonic,
-            )
-            self._send_ack(payload)
             return
         if kind == "chunk":
             payload = self._handle_chunk(
@@ -685,11 +739,11 @@ class FileTransferAutoAcceptService:
         )
 
 
-def build_file_transfer_auto_accept_service(**kwargs: object) -> FileTransferAutoAcceptService:
-    return FileTransferAutoAcceptService(**kwargs)
+def build_inbound_file_transfer_service(**kwargs: object) -> InboundFileTransferService:
+    return InboundFileTransferService(**kwargs)
 
 
 __all__ = [
-    "FileTransferAutoAcceptService",
-    "build_file_transfer_auto_accept_service",
+    "InboundFileTransferService",
+    "build_inbound_file_transfer_service",
 ]

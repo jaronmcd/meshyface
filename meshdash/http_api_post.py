@@ -18,7 +18,6 @@ from .http_route_contracts import (
     SetMeshyfaceProfileProcessingEnabledFn,
     SetCustomTelemetrySettingsFn,
     SetRawPacketCaptureSettingsFn,
-    SetFileTransferAutoAcceptEnabledFn,
     SetPluginEnabledFn,
     SetThemePresetFn,
     ToIntFn,
@@ -85,9 +84,6 @@ def build_post_route_dependencies(
     apply_channel_settings_fn: ApplyChannelSettingsFn | None = None,
     set_custom_telemetry_settings_fn: SetCustomTelemetrySettingsFn | None = None,
     set_raw_packet_capture_settings_fn: SetRawPacketCaptureSettingsFn | None = None,
-    set_file_transfer_auto_accept_enabled_fn: (
-        SetFileTransferAutoAcceptEnabledFn | None
-    ) = None,
     set_plugin_enabled_fn: SetPluginEnabledFn | None = None,
     play_standalone_zork_fn: PlayStandaloneZorkFn | None = None,
     run_network_tool_fn: RunNetworkToolFn | None = None,
@@ -118,9 +114,6 @@ def build_post_route_dependencies(
         set_custom_telemetry_settings_fn=set_custom_telemetry_settings_fn,
         parse_custom_telemetry_settings_request_fn=parse_custom_telemetry_settings_request,
         set_raw_packet_capture_settings_fn=set_raw_packet_capture_settings_fn,
-        set_file_transfer_auto_accept_enabled_fn=(
-            set_file_transfer_auto_accept_enabled_fn
-        ),
         set_plugin_enabled_fn=set_plugin_enabled_fn,
         parse_raw_packet_capture_settings_request_fn=parse_raw_packet_capture_settings_request,
         apply_radio_settings_fn=apply_radio_settings_fn,

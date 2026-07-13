@@ -40,7 +40,6 @@ def _args(tmp_path, *, no_history: bool = False):
         games_enable=False,
         plugins_enable=False,
         file_transfer_enable=False,
-        file_transfer_auto_accept=False,
     )
 
 

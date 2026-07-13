@@ -289,8 +289,6 @@ not shown in the dashboard.
 
 - `--file-transfer-enable`: enable the Files app; requires
   `--accept-file-transfer-traffic-disclaimer`
-- `--file-transfer-auto-accept`: accept direct inbound transfers without a
-  browser confirmation
 - `--file-transfer-max-bytes <bytes>`: per-file limit, default `65536` and
   constrained to `1024`-`524288`
 
@@ -303,7 +301,6 @@ configured limit. The Files app displays the selected limit and its source.
 Related environment variables:
 
 - `MESH_DASH_FILE_TRANSFER_ENABLE`
-- `MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT`
 - `MESH_DASH_FILE_TRANSFER_MAX_BYTES`
 - `MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER`
 

@@ -263,6 +263,14 @@ class SendFileAction:
 
 
 @dataclass(frozen=True, slots=True)
+class AcceptFileOfferAction:
+    """Accept the direct inbound file offer carried by the current packet."""
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {"type": "accept_file_offer"}
+
+
+@dataclass(frozen=True, slots=True)
 class SessionAction:
     operation: Literal["start", "end"]
 
@@ -275,7 +283,12 @@ class SessionAction:
 
 
 ScriptAction: TypeAlias = (
-    ReplyAction | SendTextAction | SendChannelAction | SendFileAction | SessionAction
+    ReplyAction
+    | SendTextAction
+    | SendChannelAction
+    | SendFileAction
+    | AcceptFileOfferAction
+    | SessionAction
 )
 
 
@@ -284,7 +297,14 @@ def action_to_dict(action: ScriptAction) -> dict[str, JsonValue]:
 
     if not isinstance(
         action,
-        (ReplyAction, SendTextAction, SendChannelAction, SendFileAction, SessionAction),
+        (
+            ReplyAction,
+            SendTextAction,
+            SendChannelAction,
+            SendFileAction,
+            AcceptFileOfferAction,
+            SessionAction,
+        ),
     ):
         raise TypeError(f"unsupported script action: {type(action).__name__}")
     return action.to_dict()
@@ -316,6 +336,9 @@ def action_from_dict(payload: Mapping[str, object]) -> ScriptAction:
             destination_id=cast(str, payload["destination_id"]),
             path_or_file_id=cast(str, payload["path_or_file_id"]),
         )
+    if action_type == "accept_file_offer":
+        _require_action_fields(payload, {"type"})
+        return AcceptFileOfferAction()
     if action_type == "session":
         _require_action_fields(payload, {"type", "operation"})
         return SessionAction(operation=cast(Literal["start", "end"], payload["operation"]))
@@ -379,6 +402,8 @@ class ScriptContext(Protocol):
     def reply(self, text: str) -> ReplyAction: ...
 
     def reply_long(self, text: str) -> ReplyAction: ...
+
+    def accept_file(self) -> AcceptFileOfferAction: ...
 
     def set_ticker(
         self,
