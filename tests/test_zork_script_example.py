@@ -60,10 +60,14 @@ def _context(
     broadcast: bool = False,
 ):
     replies: list[str] = []
+    tickers: list[dict[str, object]] = []
 
     def _reply_long(value: str) -> ReplyAction:
         replies.append(value)
         return ReplyAction(value, long=True)
+
+    def _set_ticker(ticker_id: str, **kwargs: object) -> None:
+        tickers.append({"id": ticker_id, **kwargs})
 
     return SimpleNamespace(
         message=SimpleNamespace(
@@ -75,7 +79,9 @@ def _context(
             is_broadcast=broadcast,
         ),
         reply_long=_reply_long,
+        set_ticker=_set_ticker,
         replies=replies,
+        tickers=tickers,
     )
 
 
@@ -89,12 +95,18 @@ def test_zork_example_matches_manifest_and_preserves_direct_gameplay() -> None:
     assert manifest.id == "zork"
     assert manifest.commands == ("zork",)
     assert manifest.default_enabled is False
+    assert tuple(bot.tickers) == ("activity",)
 
-    start = bot.message_handler(_context("zork"))
+    start_context = _context("zork")
+    start = bot.message_handler(start_context)
     assert isinstance(start, ReplyAction)
     assert start.long is True
     assert "zork: session started" in start.text
     assert "Type 'help' for the command set." in start.text
+    assert start_context.tickers[-1]["id"] == "activity"
+    assert start_context.tickers[-1]["state"] == "good"
+    assert start_context.tickers[-1]["rows"]["Game"] == "Zork"
+    assert start_context.tickers[-1]["rows"]["Sess"] == "1 active"
 
     look = bot.message_handler(_context("look"))
     assert isinstance(look, ReplyAction)
@@ -180,6 +192,11 @@ def test_zork_example_runs_in_spawned_worker_and_routes_private_replies(tmp_path
         assert runtime.try_enqueue(_event("zork")) is True
         _wait_until(lambda: "command set" in _sent_text("!00000001"))
         assert "zork: session started" in _sent_text("!00000001")
+        _wait_until(lambda: runtime.status()["tickers"][0]["state"] == "good")  # type: ignore[index]
+        ticker = runtime.status()["tickers"][0]  # type: ignore[index]
+        assert ticker["id"] == "script:zork:activity"
+        assert ticker["rows"][0] == {"key": "Game", "value": "Zork"}
+        assert ticker["rows"][1] == {"key": "Sess", "value": "1 active"}
         with sends_lock:
             first_peer_sends = [
                 dict(row) for row in sends if row.get("destination") == "!00000001"
@@ -212,6 +229,7 @@ def test_zork_example_documents_install_and_runtime_boundaries() -> None:
     for token in (
         "exact public `zork`",
         "MESH_DASH_DEPLOY_BOT_ENABLE=zork",
+        "scp -r examples/plugins/zork",
         "/home/j/mesh/plugins/",
         "--bots-enable",
         "does not require `--games-enable`",

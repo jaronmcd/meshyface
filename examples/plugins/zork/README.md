@@ -9,6 +9,10 @@ the former mesh Zork bot's message behavior:
 - unrelated public traffic is ignored; and
 - replies use the Scripts runtime's byte-safe, paced long-reply transport.
 
+When the script is enabled it also declares a **Zork** summary ticker mirroring
+the former bot ticker: active sessions, current peers/rooms, request/reply
+counts, and last activity. Disabling the script hides the ticker automatically.
+
 The engine keeps up to 128 peer sessions and expires idle games after 45
 minutes, as the old bot did. Sessions live in the script worker and reset when
 the script or dashboard restarts. The standalone local Console game remains a
@@ -19,7 +23,7 @@ For the standard systemd deployment, copy the package to the persistent plugin
 directory before enabling it:
 
 ```bash
-scp -R examples/plugins/zork \
+scp -r examples/plugins/zork \
   j@192.168.1.67:/home/j/mesh/plugins/
 
 MESH_DASH_DEPLOY_BOT_ENABLE=zork \
