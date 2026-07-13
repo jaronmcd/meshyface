@@ -36,7 +36,12 @@
     function mapNodeAppearanceColor(appearanceEntry) {{
       const preset = appearanceEntry && appearanceEntry.preset;
       const theme = mapNodeAppearanceTheme(appearanceEntry);
-      if (theme) return theme.line_color;
+      if (theme) {{
+        const displayTheme = typeof meshyfaceProfileThemeClientTheme === "function"
+          ? meshyfaceProfileThemeClientTheme(theme)
+          : theme;
+        return displayTheme.line_color;
+      }}
       const rawColor = String(
         (appearanceEntry && appearanceEntry.color)
         || (preset && preset.color)
@@ -80,8 +85,14 @@
       const appearanceEntry = mapNodeEffectiveAppearance(nodeId, state);
       const color = mapNodeAppearanceColor(appearanceEntry);
       if (!color) return baseStyle;
-      const theme = mapNodeAppearanceTheme(appearanceEntry);
-      const render = mapNodeAppearanceThemeRender(appearanceEntry);
+      const sourceTheme = mapNodeAppearanceTheme(appearanceEntry);
+      const theme = sourceTheme && typeof meshyfaceProfileThemeClientTheme === "function"
+        ? meshyfaceProfileThemeClientTheme(sourceTheme)
+        : sourceTheme;
+      const rawRender = mapNodeAppearanceThemeRender(appearanceEntry);
+      const render = sourceTheme && typeof meshyfaceProfileThemeClientRender === "function"
+        ? meshyfaceProfileThemeClientRender(sourceTheme, rawRender)
+        : rawRender;
       const style = Object.assign({{}}, baseStyle);
       // A received theme uses its generated workspace border and surface,
       // rather than turning its accent/base into a highlighter marker.

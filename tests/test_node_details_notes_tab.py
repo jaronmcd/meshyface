@@ -42,16 +42,17 @@ def test_render_html_defers_chat_node_details_drawer_until_needed() -> None:
     assert 'id="chat-node-details-tab-notes"' not in initial_dom_html
 
 
-def test_dashboard_js_uses_icon_only_close_button_for_node_details_drawer() -> None:
+def test_dashboard_js_omits_redundant_close_button_for_node_details_drawer() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
 
-    assert 'id="chat-node-details-close-btn"' in js
-    assert ">&times;</button>" in js
-    assert ">Collapse</button>" not in js
+    assert 'id="chat-node-details-close-btn"' not in js
+    assert 'class="chat-node-details-close-btn"' not in js
+    assert 'const closeBtn = document.getElementById("chat-node-details-close-btn");' not in js
+    assert ".chat-node-details-close-btn {" not in build_dashboard_css(theme_css="")
 
 
 def test_dashboard_js_includes_chat_node_details_location_chat_and_links_tabs() -> None:
@@ -89,7 +90,6 @@ def test_dashboard_js_places_messages_before_details_and_notes_in_drawer_tabs() 
         node_history_max_points=240,
     )
 
-    head_index = js.index('class="chat-node-details-head"')
     tabs_index = js.index('class="chat-node-details-tabs"')
     tag_index = js.index('id="chat-node-details-tab-tag"')
     details_index = js.index('id="chat-node-details-tab-details"')
@@ -101,11 +101,21 @@ def test_dashboard_js_places_messages_before_details_and_notes_in_drawer_tabs() 
     notes_index = js.index('id="chat-node-details-tab-notes"')
     messages_index = js.index('id="chat-node-details-tab-messages"')
 
-    assert head_index < tag_index < tabs_index
-    assert messages_index < details_index < telemetry_index < history_index < location_index < chat_index < links_index < notes_index
+    assert (
+        tabs_index
+        < messages_index
+        < details_index
+        < telemetry_index
+        < history_index
+        < location_index
+        < chat_index
+        < links_index
+        < notes_index
+        < tag_index
+    )
 
 
-def test_dashboard_js_places_tag_title_pin_and_mute_actions_in_drawer_header() -> None:
+def test_dashboard_js_centers_theme_actions_in_existing_drawer_footer() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
@@ -122,20 +132,78 @@ def test_dashboard_js_places_tag_title_pin_and_mute_actions_in_drawer_header() -
     pin_index = js.index('id="chat-node-details-pin-btn"')
     mute_index = js.index('id="chat-node-details-mute-btn"')
     tabs_index = js.index('class="chat-node-details-tabs"')
+    footer_index = js.index('class="chat-node-details-footer-actions"')
+    head_markup = js[head_index:tabs_index]
+    footer_markup = js[footer_index:]
 
     assert 'id="chat-node-details-dm-btn"' not in js
+    assert 'id="chat-node-details-tab-tag"' not in head_markup
+    assert 'id="chat-node-details-pin-btn"' not in head_markup
+    assert 'id="chat-node-details-mute-btn"' not in head_markup
+    assert 'id="chat-node-details-theme-try-btn"' not in head_markup
+    assert 'id="chat-node-details-theme-save-btn"' not in head_markup
+    assert 'id="chat-node-details-tab-tag"' in footer_markup
+    assert 'id="chat-node-details-pin-btn"' in footer_markup
+    assert 'id="chat-node-details-mute-btn"' in footer_markup
+    assert 'class="chat-node-details-footer-theme-actions"' in footer_markup
+    assert 'id="chat-node-details-theme-try-btn"' in footer_markup
+    assert 'id="chat-node-details-theme-save-btn"' in footer_markup
+    assert 'const detailsTabs = drawer.querySelector(".chat-node-details-tabs");' in js
+    assert 'detailsTabs.classList.toggle("has-node-theme", profileAppearance);' in js
+    assert 'detailsTabs.classList.remove("has-node-theme");' in js
     assert (
         head_index
-        < tag_index
         < status_index
         < reset_index
         < title_index
+        < tabs_index
+        < footer_index
+        < tag_index
         < theme_try_index
         < theme_save_index
         < pin_index
         < mute_index
-        < tabs_index
     )
+
+
+def test_entire_node_details_title_strip_is_an_inviting_collapse_control() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    css = build_dashboard_css(theme_css="")
+
+    assert (
+        '<button id="chat-node-details-title" class="chat-node-details-title" '
+        'type="button" title="Collapse node details" aria-label="Collapse node details">'
+    ) in js
+    assert (
+        '<div class="chat-node-details-head-main" tabindex="0" '
+        'title="Collapse node details" aria-label="Collapse node details">'
+    ) in js
+    assert 'const headMain = document.querySelector("#chat-node-details-drawer .chat-node-details-head-main");' in js
+    assert 'headMain.addEventListener("click", (event) => {' in js
+    head_binding = js.split('headMain.addEventListener("click", (event) => {', 1)[1].split("}, true);", 1)[0]
+    assert "setChatNodeDetailsDrawerExpanded(false" in js
+    assert "event.preventDefault();" in head_binding
+    assert "event.stopPropagation();" in head_binding
+    assert 'closest(".chat-node-details-reset-btn")' not in head_binding
+    assert 'headMain.addEventListener("keydown", (event) => {' in js
+    head_style = css.rsplit(".chat-node-details-head-main {", 1)[1].split("}", 1)[0]
+    head_close_hint = css.split(".chat-node-details-head-main::after {", 1)[1].split("}", 1)[0]
+    assert "cursor: pointer;" in head_style
+    assert "transition: background-color 120ms ease" in head_style
+    assert 'content: "×";' in head_close_hint
+    assert "right: 8px;" in head_close_hint
+    assert "opacity: 0.38;" in head_close_hint
+    assert "pointer-events: none;" in head_close_hint
+    assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" in css
+    assert 'content: var(--node-profile-ghost-text, "");' in css
+    assert ".chat-node-details-promoted-host .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" not in css
+    assert ".chat-node-details-head-main:hover {" in css
+    assert ".chat-node-details-head-main:hover::after," in css
+    assert ".chat-node-details-head-main:focus-visible," in css
 
 
 def test_render_html_includes_promoted_node_details_host() -> None:
@@ -163,7 +231,7 @@ def test_render_html_includes_promoted_node_details_host() -> None:
     assert 'class="chat-node-details-action-btn chat-node-details-promote-btn"' in js
     assert 'id="chat-node-details-promoted-shell"' in html
     assert 'id="chat-node-details-promoted-host"' in html
-    assert js.index('id="chat-node-details-promote-btn"') < js.index('id="chat-node-details-close-btn"')
+    assert 'id="chat-node-details-close-btn"' not in js
     assert html.index('class="workspace-main"') < html.index('id="chat-node-details-promoted-shell"')
 
 
@@ -318,9 +386,12 @@ def test_dashboard_js_promotes_node_details_without_duplicate_drawer_state() -> 
     assert "promotedVisible = syncChatNodeDetailsDrawerPlacement(drawer, promotedVisible);" in js
     assert "const inlineVisible = visibleExpanded && !promotedVisible;" in js
     assert 'usersSection.classList.toggle("has-node-details", inlineVisible);' in js
-    assert "promoteBtn.hidden = promotedVisible;" in js
-    assert "promoteBtn.disabled = promotedVisible;" in js
-    assert 'setDrawerElementTextIfChanged(\n          promoteBtn.querySelector(".chat-node-details-promote-label"),\n          "Expand"\n        );' in js
+    assert "promoteBtn.hidden = false;" in js
+    assert "promoteBtn.disabled = false;" in js
+    assert 'promoteBtn.classList.toggle("active", promotedVisible);' in js
+    assert 'promoteBtn.setAttribute("aria-pressed", promotedVisible ? "true" : "false");' in js
+    assert "? `Collapse ${titleName} details back into the node list`" in js
+    assert 'promotedVisible ? "Collapse" : "Expand"' in js
     assert '"Dock"' not in js
     assert "Return ${titleName} details to the left node list" not in js
     assert "function setChatNodeDetailsPromoted(promoted, options = null) {" in js
@@ -370,23 +441,44 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     assert "position: relative;" in promoted_host_section
     assert "z-index: 1;" in promoted_host_section
     assert "overflow: hidden;" in promoted_host_section
-    assert ".chat-node-details-promoted-host .chat-node-details-head-main," in css
+    assert ".chat-node-details-promoted-host .chat-node-details-head-main {" in css
     assert ".chat-node-details-promoted-host .chat-node-details-head-actions {" in css
+    promoted_actions_section = css.split(
+        ".chat-node-details-promoted-host .chat-node-details-head-actions {", 1
+    )[1].split("}", 1)[0]
+    assert "display: inline-flex;" in promoted_actions_section
+    assert ".chat-node-details-promoted-host .chat-node-details-head-actions > :not(.chat-node-details-promote-btn) {" in css
     assert ".chat-node-details-promoted-host .chat-node-details-tabs {" in css
+    assert ".chat-node-details-tabs.has-node-theme {" in css
+    assert ".chat-node-details-tabs.has-node-theme .chat-node-details-tab-btn" not in css
+    assert ".chat-node-details-drawer.profiled-node .chat-node-details-panel {" in css
+    history_plate_section = css.split(
+        '[data-theme="dark"] .chat-node-details-history-host #map-data-node {',
+        1,
+    )[1].split("}", 1)[0]
+    assert "border-color: var(--workspace-shell-border);" in history_plate_section
+    assert "background:" not in history_plate_section
     assert "padding-right: 38px;" in css
-    assert ".chat-node-details-promoted-host .node-details.profiled-node::after," in css
-    assert "content: none;" in css
+    assert ".chat-node-details-promoted-host .node-details.profiled-node::after," not in css
     assert "var(--workspace-shell-bg, var(--ui-panel))" in promoted_host_section
     assert ".chat-node-details-promoted-host .chat-node-details-drawer {" in css
     assert "height: 100%;" in css
     assert ".chat-node-details-head {" in css
     head_section = css.split("\n    .chat-node-details-head {", 1)[1].split("}", 1)[0]
-    assert "grid-template-columns: minmax(0, 1fr) auto auto;" in head_section
+    assert "grid-template-columns: minmax(0, 1fr) auto;" in head_section
     assert ".chat-node-details-head-main {" in css
-    head_main_section = css.split(".chat-node-details-head-main {", 1)[1].split("}", 1)[0]
+    head_main_section = css.rsplit(".chat-node-details-head-main {", 1)[1].split("}", 1)[0]
     assert "width: 100%;" in head_main_section
-    assert "grid-template-columns: auto auto auto auto minmax(0, 1fr);" in head_main_section
+    assert "grid-template-columns: auto auto auto minmax(0, 1fr);" in head_main_section
     assert "justify-self: stretch;" in head_main_section
+    assert ".chat-node-details-footer-actions {" in css
+    footer_section = css.split(".chat-node-details-footer-actions {", 1)[1].split("}", 1)[0]
+    assert "flex: 0 0 auto;" in footer_section
+    assert "display: grid;" in footer_section
+    assert "grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);" in footer_section
+    assert "background: var(--workspace-shell-bg-alt" in footer_section
+    theme_action_section = css.split(".chat-node-details-footer-theme-actions {", 1)[1].split("}", 1)[0]
+    assert "justify-content: center;" in theme_action_section
     assert ".chat-node-details-promoted-host .chat-node-details-tag-host {" in css
     assert '.chat-left-section.chat-users-section > .chat-node-details-inline-host[data-dock="shared"] {' in css
     assert "padding: 6px 5px 6px 5px;" in css
@@ -553,9 +645,10 @@ def test_selected_node_inspector_uses_effective_profile_appearance() -> None:
 
     assert "function applyNodeAppearanceElementStyle(target, appearanceEntry)" in js
     assert "function clearNodeAppearanceElementStyle(target)" in js
-    assert 'host.classList.toggle("has-node-appearance", hasNodeAppearance);' in js
+    assert '!host.closest("#chat-node-details-drawer")' in js
+    assert 'host.classList.toggle("has-node-appearance", renderNodeAppearance);' in js
     assert 'host.classList.toggle("profiled-node", profileAppearance);' in js
-    assert "applyNodeAppearanceElementStyle(host, appearanceEntry);" in js
+    assert "if (renderNodeAppearance && typeof applyNodeAppearanceElementStyle" in js
     assert 'drawer.classList.toggle("has-node-appearance", hasNodeAppearance);' in js
     assert 'drawer.classList.toggle("profiled-node", profileAppearance);' in js
     assert "applyNodeAppearanceElementStyle(drawer, appearanceEntry);" in js
@@ -564,3 +657,8 @@ def test_selected_node_inspector_uses_effective_profile_appearance() -> None:
     assert ".chat-node-details-drawer.has-node-appearance .chat-node-details-icon-btn {" in css
     assert ".node-details.has-node-appearance {" in css
     assert ".node-details.has-node-appearance .node-details-section:first-child {" in css
+    assert "\n    .node-details.profiled-node {\n" not in css
+    assert "\n    .node-details.profiled-node::after,\n" not in css
+    assert ".node-details.profiled-node .node-details-section:first-child {" not in css
+    assert ".node-details.profiled-node .node-details-section:first-child::after," not in css
+    assert ".node-details.profiled-node .node-details-section:first-child > *," not in css

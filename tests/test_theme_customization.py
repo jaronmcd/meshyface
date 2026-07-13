@@ -1162,6 +1162,15 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert 'data-theme-toggle="full"' not in html
     assert 'data-theme-toggle="compact"' in html
     assert ">Theme: Dark</button>" not in html
+    theme_apply = js.split("function applyThemePreference(mode, persist = true) {", 1)[1].split(
+        "const historyNodeId =", 1
+    )[0]
+    assert 'document.documentElement.setAttribute("data-theme", resolvedTheme);' in theme_apply
+    assert 'if (latestState && typeof renderSummary === "function") {' in theme_apply
+    assert "renderSummary(latestState);" in theme_apply
+    assert theme_apply.index('document.documentElement.setAttribute("data-theme", resolvedTheme);') < theme_apply.index(
+        "renderSummary(latestState);"
+    )
     assert 'id="theme-custom-gradient-secondary-start-color"' not in html
     assert 'id="theme-custom-gradient-secondary-end-color"' not in html
     assert 'id="theme-custom-gradient-secondary-type"' not in html
@@ -1264,11 +1273,19 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "function meshyfaceProfileThemeIdentityGradient(rawTheme)" not in js
     assert "function meshyfaceProfileThemeWashGradient(rawTheme, hover = false)" not in js
     assert "function normalizeMeshyfaceProfileThemeRender(rawRender)" in js
+    assert "function meshyfaceProfileThemeClientColor(color, sourceMode, role = \"surface\")" in js
+    assert "function meshyfaceProfileThemeClientTheme(rawTheme)" in js
+    assert "function meshyfaceProfileThemeClientRender(rawTheme, rawRender)" in js
+    assert 'theme.mode === resolvedMeshyfaceProfileThemeMode()' in js
+    assert 'property = "--workspace-shell-bg";' in js
+    assert 'property = "--workspace-shell-text";' in js
     assert "function meshyfaceProfileThemeBackgroundGradient(rawTheme, rawRender = null)" in js
     assert "function meshyfaceProfileThemeStyleEntries(rawTheme, rawRender = null)" in js
     assert "function applyMeshyfaceProfileThemeElementStyle(target, rawTheme, rawRender = null)" in js
     assert "clearMeshyfaceProfileThemeElementStyle(target);" in js
     assert "applyMeshyfaceProfileThemeElementStyle(target, entry.theme, profileRender);" in js
+    assert "const theme = meshyfaceProfileThemeClientTheme(sourceTheme);" in js
+    assert "const render = meshyfaceProfileThemeClientRender(sourceTheme, rawRender);" in js
     assert '["--node-profile-theme-background", backgroundGradient]' in js
     assert '["--node-profile-theme-shell", meshyfaceProfileThemeAlphaGradient(' in js
     assert '["--node-profile-theme-border", render.border_color]' in js
@@ -1535,7 +1552,10 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "line_contrast_color:" in js
     assert "tint_color:" not in js
     assert "tint_intensity:" not in js
-    assert "text_color:" not in js
+    theme_save_payload = js.split(
+        "function buildThemeSettingsSavePayload(options = null) {", 1
+    )[1].split("async function saveThemeSettings(options = null, requestOptions = null) {", 1)[0]
+    assert "text_color:" not in theme_save_payload
     assert "text_font:" in js
     assert "gradient_primary_start_color:" in js
     assert "foreground_transparency:" in js

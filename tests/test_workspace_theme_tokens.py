@@ -379,7 +379,15 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
         css,
         ".map-node-emoji-marker.profiled-node:not(.is-trace-running):not(.is-trace-result)",
     )
-    node_details = _css_rule(css, ".chat-node-details-drawer.profiled-node .chat-node-details-head")
+    node_details_theme_preview = _last_css_rule(
+        css,
+        ".chat-node-details-footer-actions.has-node-theme",
+    )
+    roster_watermark = _css_rule(
+        css,
+        ".chat-member-item.profiled-node:not(.tagged-node):not(.muted-node)::after",
+    )
+    roster_base = _css_rule(css, "    .chat-member-item")
     assert "--node-profile-identity-edge" in profile_tokens
     assert "--node-profile-identity-color: var(" in profile_tokens
     assert "--node-profile-theme-line," in profile_tokens
@@ -429,5 +437,28 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
     assert "is-trace-running" in css
     assert "is-trace-result" in css
     assert "border-color: var(--node-profile-identity-edge);" in map_marker
-    assert "background-image: var(--node-profile-theme-surface) !important;" in node_details
-    assert "box-shadow:" not in node_details
+    assert "background-image: var(--node-profile-theme-surface) !important;" in node_details_theme_preview
+    assert "--node-profile-theme-contrast" not in node_details_theme_preview
+    assert "font-family: var(--node-profile-theme-font-family, inherit);" not in node_details_theme_preview
+    assert ".chat-node-details-footer-actions.has-node-theme .chat-node-details-action-btn" not in css
+    assert ".chat-node-details-footer-actions.has-node-theme .chat-node-details-footer-label" not in css
+    assert ".chat-node-details-tabs.has-node-theme .chat-node-details-tab-btn" not in css
+    themed_tabs = _last_css_rule(css, ".chat-node-details-tabs.has-node-theme")
+    assert "background-image: var(--node-profile-theme-surface) !important;" in themed_tabs
+    assert ".chat-node-details-footer-actions.has-node-theme::after" not in css
+    assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" in css
+    assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head {" in css
+    themed_head = _last_css_rule(
+        css,
+        "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head",
+    )
+    assert "background-image: var(--node-profile-theme-surface) !important;" in themed_head
+    assert "\n    .node-details.profiled-node {\n" not in css
+    assert ".node-details.profiled-node .node-details-section:first-child {" not in css
+    assert ".node-details.profiled-node .node-details-section:first-child::after," not in css
+    assert 'content: var(--node-profile-ghost-text, "");' in roster_watermark
+    assert "left: var(--node-profile-ghost-anchor-x, 50%);" in roster_watermark
+    assert "opacity: var(--node-profile-ghost-opacity, 0);" in roster_watermark
+    assert "pointer-events: none;" in roster_watermark
+    assert "flex: 0 0 auto;" in roster_base
+    assert "box-shadow:" not in node_details_theme_preview

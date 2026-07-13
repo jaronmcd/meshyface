@@ -139,6 +139,8 @@
     let fileTransferDestinationId = "";
     let fileTransferAutoAcceptInbound = !!fileTransferAutoAcceptDefault;
     let fileTransferAutoAcceptLoaded = false;
+    let fileTransferAutoAcceptUpdateInFlight = false;
+    let fileTransferAutoAcceptPendingValue = null;
     const peerDmFileTransferUiByPeer = new Map();
     let peerDmPopoutStatusHideTimer = null;
     let peerDmPopoutStatusHideToken = "";

@@ -858,20 +858,17 @@ def test_node_details_drawer_follows_workspace_shell_tokens() -> None:
     tab_section = css.split("[data-theme=\"dark\"] .chat-node-details-tab-btn {", 1)[1].split("}", 1)[0]
     active_tab_section = css.split("[data-theme=\"dark\"] .chat-node-details-tab-btn.is-active {", 1)[1].split("}", 1)[0]
     action_section = css.split("[data-theme=\"dark\"] .chat-node-details-action-btn {", 1)[1].split("}", 1)[0]
-    saved_details_section = css.split("[data-theme=\"dark\"] .chat-node-details-drawer .node-details {", 1)[1].split("}", 1)[0]
     saved_section = css.split("[data-theme=\"dark\"] .node-details-section {", 1)[1].split("}", 1)[0]
     saved_stat_section = css.split("[data-theme=\"dark\"] .node-details-stat {", 1)[1].split("}", 1)[0]
     splitter_section = css.split("[data-theme=\"dark\"] .chat-node-details-splitter {", 1)[1].split("}", 1)[0]
     splitter_handle_section = css.split("[data-theme=\"dark\"] .chat-node-details-splitter::before {", 1)[1].split("}", 1)[0]
 
-    assert "var(--workspace-shell-border)" in drawer_section
     assert "var(--workspace-shell-bg)" in drawer_section
     assert "var(--workspace-shell-bg-alt)" in head_section
     assert "var(--workspace-shell-text-soft)" in tab_section
     assert "var(--workspace-shell-active-bg)" in active_tab_section
     assert "var(--workspace-shell-active-text)" in active_tab_section
     assert "var(--workspace-shell-border-muted)" in action_section
-    assert "var(--workspace-shell-bg)" in saved_details_section
     assert "var(--workspace-shell-bg-alt)" in saved_section
     assert "var(--workspace-shell-border-muted)" in saved_stat_section
     assert "var(--workspace-shell-border)" in splitter_section
@@ -1078,16 +1075,13 @@ def test_peer_dm_popout_follows_workspace_shell_tokens() -> None:
     css = build_dashboard_css(theme_css="")
 
     popout_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-window {", 1)[1].split("}", 1)[0]
-    head_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-head {", 1)[1].split("}", 1)[0]
     msg_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-msg {", 1)[1].split("}", 1)[0]
     composer_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-composer {", 1)[1].split("}", 1)[0]
     input_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-input {", 1)[1].split("}", 1)[0]
     send_section = css.split("[data-theme=\"dark\"] .peer-dm-popout-send-btn {", 1)[1].split("}", 1)[0]
 
-    assert "var(--workspace-shell-border)" in popout_section
     assert "var(--workspace-shell-bg-alt)" in popout_section
     assert "var(--workspace-shell-bg)" in popout_section
-    assert "var(--workspace-shell-border-muted)" in head_section
     assert "var(--workspace-shell-border-muted)" in msg_section
     assert "var(--workspace-shell-text)" in msg_section
     assert "var(--workspace-shell-border-muted)" in composer_section
@@ -1409,6 +1403,8 @@ def test_files_view_removes_outer_card_shell_for_full_app_canvas() -> None:
     assert "height: var(--files-transfer-list-height);" in files_transfers_section
     assert "max-height: none;" in files_transfers_section
     assert "cursor: row-resize;" in files_splitter_section
+    assert "border: 0;" in files_splitter_section
+    assert "background: transparent;" in files_splitter_section
 
 
 def test_full_app_shells_opt_out_of_global_dark_card_painting() -> None:
@@ -1501,6 +1497,8 @@ def test_files_transfer_rows_reuse_peer_profile_theme_surface() -> None:
     assert "effectiveNodeAppearanceForNode(peerNodeId, state)" in js
     assert "appearanceEntry.profileAppearance" in js
     assert "nodeAppearanceStyleVars(appearanceEntry)" in js
+    assert "meshyfaceProfileThemeClientTheme(profileTheme)" in js
+    assert "meshyfaceProfileThemeClientRender(profileTheme, rawProfileRender)" in js
     assert "data-peer-node-id=" in js
     assert "#files-transfer-table tbody tr.files-transfer-profiled-row {" in css
     assert "background-image: var(--node-profile-theme-surface) !important;" in css
@@ -1538,7 +1536,9 @@ def test_files_view_uses_persistent_transfer_console_splitter() -> None:
     assert 'id="files-transfer-console-splitter"' in html
     assert 'aria-orientation="horizontal"' in html
     assert ".files-transfer-console-splitter::before {" in css
-    assert "var(--workspace-shell-border-muted)" in dark_splitter_section
+    assert "border-color: transparent;" in dark_splitter_section
+    assert "background: transparent;" in dark_splitter_section
+    assert "height: 1px;" in css.split(".files-transfer-console-splitter::before {", 1)[1].split("}", 1)[0]
     assert 'const filesTransferListSplitStorageKey = "meshDashboardFilesTransferListHeightPxV1";' in js
     assert "let filesTransferListHeightPx = 96;" in js
     assert "function clampFilesTransferListHeightPx(value) {" in js

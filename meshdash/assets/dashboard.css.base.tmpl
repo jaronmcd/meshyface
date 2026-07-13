@@ -4116,32 +4116,30 @@
       position: relative;
       flex: 0 0 8px;
       min-height: 8px;
-      border: 1px solid color-mix(in srgb, var(--surface-tint-border) 84%, transparent);
-      border-radius: 8px;
-      background: linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--surface-tint-bg-soft) 92%, white 8%),
-        color-mix(in srgb, var(--surface-tint-bg-alt) 92%, white 8%)
-      );
+      border: 0;
+      border-radius: 0;
+      background: transparent;
       cursor: row-resize;
       touch-action: none;
       user-select: none;
       box-sizing: border-box;
+      overflow: hidden;
     }}
     .files-transfer-console-splitter::before {{
       content: "";
       position: absolute;
-      left: 10px;
-      right: 10px;
+      left: 8px;
+      right: 8px;
       top: 50%;
-      height: 2px;
+      height: 1px;
       transform: translateY(-50%);
       border-radius: 1px;
-      background: var(--surface-tint-border-strong);
+      background: color-mix(in srgb, var(--ui-border) 74%, var(--ui-text-soft) 26%);
+      opacity: 0.72;
     }}
     .files-transfer-console-splitter:hover::before,
     .files-transfer-console-splitter.active::before {{
-      background: var(--surface-tint-text);
+      background: var(--ui-accent);
     }}
     #files-transfer-table {{
       width: 100%;
@@ -7624,9 +7622,7 @@
       display: none;
       flex: 1 1 auto;
       min-height: 0;
-      border: 1px solid var(--surface-tint-border);
       border-radius: 8px;
-      background: var(--surface-tint-bg-soft);
       padding: 8px;
       overflow: hidden;
     }}

@@ -351,10 +351,14 @@
         ? effectiveNodeAppearanceForNode(nodeId, safeState)
         : null;
       const hasNodeAppearance = !!(appearanceEntry && appearanceEntry.preset);
-      const profileAppearance = !!(hasNodeAppearance && appearanceEntry.profileAppearance);
-      host.classList.toggle("has-node-appearance", hasNodeAppearance);
+      const renderNodeAppearance = !!(
+        hasNodeAppearance
+        && !host.closest("#chat-node-details-drawer")
+      );
+      const profileAppearance = !!(renderNodeAppearance && appearanceEntry.profileAppearance);
+      host.classList.toggle("has-node-appearance", renderNodeAppearance);
       host.classList.toggle("profiled-node", profileAppearance);
-      if (hasNodeAppearance && typeof applyNodeAppearanceElementStyle === "function") {{
+      if (renderNodeAppearance && typeof applyNodeAppearanceElementStyle === "function") {{
         applyNodeAppearanceElementStyle(host, appearanceEntry);
       }} else if (typeof clearNodeAppearanceElementStyle === "function") {{
         clearNodeAppearanceElementStyle(host);

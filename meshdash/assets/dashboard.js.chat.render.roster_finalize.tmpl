@@ -335,6 +335,7 @@
         const opts = options && typeof options === "object" ? options : {{}};
         const mode = String(opts.mode || "drawer").trim().toLowerCase();
         const isPopout = mode === "popout";
+        const renderProfileAppearance = mode !== "drawer";
         const showPopoutAction = !!opts.showPopoutAction;
         const showFocusAction = !!opts.showFocusAction;
         const showCloseAction = !!opts.showCloseAction;
@@ -452,7 +453,7 @@
             ? nodeTagOverridesProfileAppearance(peerTagEntry)
             : true
         );
-        const peerProfileClass = peerProfileAppearanceActive && !peerTagOverridesProfile
+        const peerProfileClass = renderProfileAppearance && peerProfileAppearanceActive && !peerTagOverridesProfile
           ? " profiled-node"
           : "";
         const peerStyleVars = peerProfileClass && typeof nodeAppearanceStyleVars === "function"
@@ -549,7 +550,7 @@
                   ? nodeTagOverridesProfileAppearance(messageTagEntry)
                   : true
               );
-              const messageProfileClass = messageProfileAppearanceActive && !messageTagOverridesProfile
+              const messageProfileClass = renderProfileAppearance && messageProfileAppearanceActive && !messageTagOverridesProfile
                 ? " profiled-node"
                 : "";
               const messageStyleVars = messageProfileClass && typeof nodeAppearanceStyleVars === "function"

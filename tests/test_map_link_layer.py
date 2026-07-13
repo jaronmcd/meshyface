@@ -997,6 +997,8 @@ def test_dashboard_map_renders_effective_node_identity_on_markers_and_popups() -
     assert "function applyMapNodeAppearanceStyle(baseStyle, nodeId, markerKind = \"actual\", state = latestState)" in js
     assert 'if (markerKind !== "actual") return baseStyle;' in js
     assert "function mapNodeAppearanceThemeRender(appearanceEntry)" in js
+    assert "meshyfaceProfileThemeClientTheme(sourceTheme)" in js
+    assert "meshyfaceProfileThemeClientRender(sourceTheme, rawRender)" in js
     assert "style.color = (render && render.border_color) || (theme && theme.line_color) || color;" in js
     assert "style.fillColor = (render && render.surface_color) || (theme && theme.base_color) || color;" in js
     assert "style.weight = Math.max(Number(style.weight) || 0, 2.8);" in js

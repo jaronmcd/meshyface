@@ -1366,6 +1366,9 @@
       if (!(targetList instanceof HTMLElement) || targetList.dataset.memberClickBound === "1") return;
       targetList.dataset.memberClickBound = "1";
       targetList.addEventListener("scroll", () => {{
+        if (typeof scheduleChatNodeContextBridgeSync === "function") {{
+          scheduleChatNodeContextBridgeSync();
+        }}
         const nowMs = Date.now();
         if (
           nowMs > Number(chatNodeNavigatorProgrammaticScrollResetUntilMs || 0)
@@ -1423,9 +1426,24 @@
         const nodeId = normalizeNodeId(member.dataset.nodeId || "");
         const unreadDirectCount = Math.max(0, Math.trunc(Number(member.dataset.unreadDirectCount) || 0));
         if (!isSelectableNodeId(nodeId)) return;
-        selectNode(nodeId, true, false);
+        const selectedBeforeClick = normalizeNodeId(selectedNodeId || "");
+        const collapseSelectedNodeDetails = !!(
+          selectedBeforeClick === nodeId
+          && typeof isChatNodeDetailsDrawerExpanded === "function"
+          && isChatNodeDetailsDrawerExpanded()
+        );
+        if (collapseSelectedNodeDetails && typeof setChatNodeDetailsDrawerExpanded === "function") {{
+          setChatNodeDetailsDrawerExpanded(false, {{
+            fetchHistory: false,
+            rerender: false,
+          }});
+        }} else {{
+          selectNode(nodeId, true, false);
+        }}
         const selectedAfterClick = normalizeNodeId(selectedNodeId || "");
         if (
+          !collapseSelectedNodeDetails
+          &&
           unreadDirectCount > 0
           && selectedAfterClick === nodeId
           && typeof setChatNodeDetailsDrawerTab === "function"
@@ -2199,6 +2217,200 @@
     }}
 
     let chatNodeNavigatorSearchBoundsResizeBound = false;
+    let chatNodeContextBridgeFrame = null;
+    let chatNodeContextBridgeResizeBound = false;
+
+    function selectedChatNodeNavigatorRows(nodeId = selectedNodeId) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      if (!isSelectableNodeId(cleanNodeId)) return [];
+      const escapedId = (typeof cssEscapeAttrValue === "function")
+        ? cssEscapeAttrValue(cleanNodeId)
+        : cleanNodeId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      return Array.from(document.querySelectorAll(
+        `#chat-room-unread-list .chat-member-item[data-node-id="${{escapedId}}"], `
+        + `#chat-room-meshtastic-list .chat-member-item[data-node-id="${{escapedId}}"], `
+        + `#chat-room-pinned-list .chat-member-item[data-node-id="${{escapedId}}"], `
+        + `#chat-room-list .chat-member-item[data-node-id="${{escapedId}}"]`
+      )).filter((row) => row instanceof HTMLElement);
+    }}
+
+    function chatNodeContextBridgeRowGeometry(nodeId = selectedNodeId) {{
+      let best = null;
+      for (const row of selectedChatNodeNavigatorRows(nodeId)) {{
+        const list = row.closest(".chat-member-list, .chat-member-pinned-list");
+        if (!(list instanceof HTMLElement)) continue;
+        const rowRect = row.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        const visibleTop = Math.max(rowRect.top, listRect.top);
+        const visibleBottom = Math.min(rowRect.bottom, listRect.bottom);
+        const visiblePixels = Math.max(0, visibleBottom - visibleTop);
+        const position = rowRect.bottom <= listRect.top + 1
+          ? "above"
+          : (rowRect.top >= listRect.bottom - 1 ? "below" : "visible");
+        const candidate = {{ row, rowRect, listRect, visiblePixels, position }};
+        if (!best || candidate.visiblePixels > best.visiblePixels) best = candidate;
+      }}
+      return best;
+    }}
+
+    function syncChatNodeContextBridge() {{
+      const bridge = document.getElementById("chat-node-context-bridge");
+      const workspace = document.querySelector(".workspace-shell");
+      const promotedHost = document.getElementById("chat-node-details-promoted-host");
+      const drawer = document.getElementById("chat-node-details-drawer");
+      if (bridge instanceof HTMLElement) {{
+        bridge.style.removeProperty("--chat-node-context-bridge-fill-color");
+        bridge.style.removeProperty("--chat-node-context-bridge-edge-color");
+      }}
+      document.querySelectorAll(".chat-member-item.chat-node-context-bridge-source").forEach((row) => {{
+        row.classList.remove("chat-node-context-bridge-source");
+        row.style.removeProperty("--chat-node-context-bridge-fill-color");
+        row.style.removeProperty("--chat-node-context-bridge-edge-color");
+      }});
+      const promoted = !!(
+        drawer instanceof HTMLElement
+        && drawer.dataset.promoted === "true"
+        && !drawer.hidden
+      );
+      if (
+        !(bridge instanceof HTMLElement)
+        || !(workspace instanceof HTMLElement)
+        || !(promotedHost instanceof HTMLElement)
+        || !promoted
+      ) {{
+        if (bridge instanceof HTMLElement) {{
+          bridge.hidden = true;
+          bridge.dataset.position = "hidden";
+        }}
+        return;
+      }}
+
+      const geometry = chatNodeContextBridgeRowGeometry(selectedNodeId);
+      const workspaceRect = workspace.getBoundingClientRect();
+      const hostRect = promotedHost.getBoundingClientRect();
+      const panelRect = document.getElementById("chat-left-panel")?.getBoundingClientRect?.();
+      if (!geometry || !(panelRect && Number.isFinite(panelRect.right))) {{
+        bridge.hidden = true;
+        bridge.dataset.position = "hidden";
+        return;
+      }}
+
+      const {{ rowRect, listRect, position }} = geometry;
+      const rowStyle = window.getComputedStyle(geometry.row);
+      const localBridgeColor = rowStyle.getPropertyValue("--node-profile-border").trim();
+      const profileBridgeColor = (
+        rowStyle.getPropertyValue("--node-profile-theme-base").trim()
+        || localBridgeColor
+      );
+      const profileBridgeEdgeColor = (
+        rowStyle.getPropertyValue("--node-profile-theme-line").trim()
+        || localBridgeColor
+      );
+      const bridgeColor = (
+        profileBridgeColor
+        && typeof CSS !== "undefined"
+        && typeof CSS.supports === "function"
+        && CSS.supports("color", profileBridgeColor)
+      ) ? profileBridgeColor : "";
+      if (bridgeColor) {{
+        bridge.style.setProperty("--chat-node-context-bridge-fill-color", bridgeColor);
+        geometry.row.style.setProperty("--chat-node-context-bridge-fill-color", bridgeColor);
+      }}
+      const bridgeEdgeColor = (
+        profileBridgeEdgeColor
+        && typeof CSS !== "undefined"
+        && typeof CSS.supports === "function"
+        && CSS.supports("color", profileBridgeEdgeColor)
+      ) ? profileBridgeEdgeColor : "";
+      if (bridgeEdgeColor) {{
+        bridge.style.setProperty("--chat-node-context-bridge-edge-color", bridgeEdgeColor);
+        geometry.row.style.setProperty("--chat-node-context-bridge-edge-color", bridgeEdgeColor);
+      }}
+      geometry.row.classList.add("chat-node-context-bridge-source");
+      const inset = 7;
+      let anchorTopViewportY;
+      let anchorBottomViewportY;
+      if (position === "above") {{
+        anchorTopViewportY = listRect.top + 1;
+        anchorBottomViewportY = anchorTopViewportY;
+      }} else if (position === "below") {{
+        anchorBottomViewportY = listRect.bottom - 1;
+        anchorTopViewportY = anchorBottomViewportY;
+      }} else {{
+        anchorTopViewportY = Math.max(
+          listRect.top + inset,
+          Math.min(listRect.bottom - inset, rowRect.top + 1)
+        );
+        anchorBottomViewportY = Math.max(
+          anchorTopViewportY,
+          Math.max(listRect.top + inset, Math.min(listRect.bottom - inset, rowRect.bottom - 1))
+        );
+      }}
+      const anchorX = Math.max(
+        0,
+        Math.min(workspaceRect.width, ((rowRect.left + rowRect.right) / 2) - workspaceRect.left)
+      );
+      const anchorTopY = Math.max(0, Math.min(workspaceRect.height, anchorTopViewportY - workspaceRect.top));
+      const anchorBottomY = Math.max(0, Math.min(workspaceRect.height, anchorBottomViewportY - workspaceRect.top));
+      const targetX = Math.max(anchorX + 1, Math.min(workspaceRect.width, hostRect.left - workspaceRect.left));
+      const targetRight = Math.max(targetX, Math.min(workspaceRect.width, hostRect.right - workspaceRect.left));
+      const targetTop = Math.max(0, Math.min(workspaceRect.height, hostRect.top - workspaceRect.top));
+      const targetBottom = Math.max(targetTop, Math.min(workspaceRect.height, hostRect.bottom - workspaceRect.top));
+      const hostCornerRadius = Number.parseFloat(window.getComputedStyle(promotedHost).borderTopLeftRadius);
+      const targetRadius = Math.max(0, Math.min(
+        Number.isFinite(hostCornerRadius) ? hostCornerRadius : 8,
+        (targetBottom - targetTop) / 2,
+        hostRect.width / 2
+      ));
+      const targetCurveX = targetX + targetRadius;
+      const targetRightCurveX = targetRight - targetRadius;
+      const targetTopInner = targetTop + targetRadius;
+      const targetBottomInner = targetBottom - targetRadius;
+      const bridgeShape = `M ${{anchorX.toFixed(1)}} ${{anchorTopY.toFixed(1)}} L ${{targetCurveX.toFixed(1)}} ${{targetTop.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetTop.toFixed(1)}} ${{targetX.toFixed(1)}} ${{targetTopInner.toFixed(1)}} L ${{targetX.toFixed(1)}} ${{targetBottomInner.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetBottom.toFixed(1)}} ${{targetCurveX.toFixed(1)}} ${{targetBottom.toFixed(1)}} L ${{anchorX.toFixed(1)}} ${{anchorBottomY.toFixed(1)}} Z`;
+      const topEdge = `M ${{anchorX.toFixed(1)}} ${{anchorTopY.toFixed(1)}} L ${{targetCurveX.toFixed(1)}} ${{targetTop.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetTop.toFixed(1)}} ${{targetX.toFixed(1)}} ${{targetTopInner.toFixed(1)}}`;
+      const bottomEdge = `M ${{anchorX.toFixed(1)}} ${{anchorBottomY.toFixed(1)}} L ${{targetCurveX.toFixed(1)}} ${{targetBottom.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetBottom.toFixed(1)}} ${{targetX.toFixed(1)}} ${{targetBottomInner.toFixed(1)}}`;
+      const targetEdge = `M ${{targetX.toFixed(1)}} ${{targetTopInner.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetTop.toFixed(1)}} ${{targetCurveX.toFixed(1)}} ${{targetTop.toFixed(1)}} L ${{targetRightCurveX.toFixed(1)}} ${{targetTop.toFixed(1)}} Q ${{targetRight.toFixed(1)}} ${{targetTop.toFixed(1)}} ${{targetRight.toFixed(1)}} ${{targetTopInner.toFixed(1)}} L ${{targetRight.toFixed(1)}} ${{targetBottomInner.toFixed(1)}} Q ${{targetRight.toFixed(1)}} ${{targetBottom.toFixed(1)}} ${{targetRightCurveX.toFixed(1)}} ${{targetBottom.toFixed(1)}} L ${{targetCurveX.toFixed(1)}} ${{targetBottom.toFixed(1)}} Q ${{targetX.toFixed(1)}} ${{targetBottom.toFixed(1)}} ${{targetX.toFixed(1)}} ${{targetBottomInner.toFixed(1)}} L ${{targetX.toFixed(1)}} ${{targetTopInner.toFixed(1)}} Z`;
+      const boundaryLeft = Math.max(0, Math.min(workspaceRect.width, listRect.left - workspaceRect.left));
+      const boundaryRight = Math.max(boundaryLeft, Math.min(workspaceRect.width, listRect.right - workspaceRect.left));
+      const offscreenBoundary = position === "visible"
+        ? ""
+        : `M ${{boundaryLeft.toFixed(1)}} ${{anchorTopY.toFixed(1)}} L ${{boundaryRight.toFixed(1)}} ${{anchorTopY.toFixed(1)}}`;
+      const svg = bridge.querySelector(".chat-node-context-bridge-svg");
+      const glow = bridge.querySelector(".chat-node-context-bridge-glow");
+      const wash = bridge.querySelector(".chat-node-context-bridge-wash");
+      const boundary = bridge.querySelector(".chat-node-context-bridge-offscreen-boundary");
+      const top = bridge.querySelector(".chat-node-context-bridge-edge-top");
+      const bottom = bridge.querySelector(".chat-node-context-bridge-edge-bottom");
+      const target = bridge.querySelector(".chat-node-context-bridge-edge-target");
+      if (svg instanceof SVGElement) {{
+        svg.setAttribute("viewBox", `0 0 ${{Math.max(1, workspaceRect.width).toFixed(1)}} ${{Math.max(1, workspaceRect.height).toFixed(1)}}`);
+      }}
+      if (glow instanceof SVGPathElement) glow.setAttribute("d", bridgeShape);
+      if (wash instanceof SVGPathElement) wash.setAttribute("d", bridgeShape);
+      if (boundary instanceof SVGPathElement) boundary.setAttribute("d", offscreenBoundary);
+      if (top instanceof SVGPathElement) top.setAttribute("d", topEdge);
+      if (bottom instanceof SVGPathElement) bottom.setAttribute("d", bottomEdge);
+      if (target instanceof SVGPathElement) target.setAttribute("d", targetEdge);
+      bridge.dataset.position = position;
+      bridge.hidden = false;
+    }}
+
+    function scheduleChatNodeContextBridgeSync() {{
+      if (!chatNodeContextBridgeResizeBound && typeof window !== "undefined") {{
+        chatNodeContextBridgeResizeBound = true;
+        window.addEventListener("resize", scheduleChatNodeContextBridgeSync, {{ passive: true }});
+      }}
+      if (chatNodeContextBridgeFrame !== null) return;
+      const run = () => {{
+        chatNodeContextBridgeFrame = null;
+        syncChatNodeContextBridge();
+      }};
+      if (typeof requestAnimationFrame === "function") {{
+        chatNodeContextBridgeFrame = requestAnimationFrame(run);
+      }} else {{
+        run();
+      }}
+    }}
 
     function syncChatNodeNavigatorSearchBounds() {{
       const panel = document.getElementById("chat-left-panel");
@@ -2589,6 +2801,7 @@
       bindChatNodeNavigatorListInteractions(meshtasticList);
       bindChatNodeNavigatorListInteractions(pinnedList);
       scheduleChatNodeNavigatorSearchBoundsSync();
+      scheduleChatNodeContextBridgeSync();
       if (chatNodeNavigatorSelectionScrollLocked) {{
         resetChatNodeNavigatorViewport();
       }}
@@ -3544,22 +3757,16 @@
       drawer.className = "chat-node-details-drawer";
       drawer.hidden = true;
       drawer.innerHTML = [
-        '<div class="chat-node-details-head"><div class="chat-node-details-head-main">',
+        '<div class="chat-node-details-head"><div class="chat-node-details-head-main" tabindex="0" title="Collapse node details" aria-label="Collapse node details">',
         '<button id="chat-node-details-icon-btn" class="chat-node-details-icon-btn" type="button" title="Set node icon" aria-label="Set node icon"><span id="chat-node-details-icon-chip" class="chat-node-details-icon-chip is-empty" aria-hidden="true">+</span></button>',
         '<input id="chat-node-details-head-icon-input" type="text" hidden aria-hidden="true" tabindex="-1" />',
-        '<button id="chat-node-details-tab-tag" class="chat-node-details-tab-btn chat-node-details-tab-tag-btn chat-node-details-head-tag-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="tag" title="Add or edit node tag" aria-label="Add or edit node tag"><span id="chat-node-details-tab-tag-label" class="chat-node-details-tab-tag-label">+tag</span></button>',
         '<span id="chat-node-details-status-chip" class="chat-node-details-status-chip" hidden></span>',
         '<button id="chat-node-details-reset-btn" class="chat-node-details-action-btn chat-node-details-reset-btn" type="button" title="Clear saved tag and custom icon" aria-label="Clear saved tag and custom icon" hidden>Reset</button>',
-        '<div id="chat-node-details-title" class="chat-node-details-title">Node Details</div>',
+        '<button id="chat-node-details-title" class="chat-node-details-title" type="button" title="Collapse node details" aria-label="Collapse node details">Node Details</button>',
         '</div>',
         '<div class="chat-node-details-head-actions">',
-        '<button id="chat-node-details-theme-try-btn" class="chat-node-details-action-btn chat-node-details-theme-try-btn" type="button" title="Preview shared node appearance as dashboard theme" aria-label="Preview shared node appearance as dashboard theme" hidden>Try look</button>',
-        '<button id="chat-node-details-theme-save-btn" class="chat-node-details-action-btn chat-node-details-theme-save-btn" type="button" title="Save shared node appearance as dashboard theme" aria-label="Save shared node appearance as dashboard theme" hidden>Save theme</button>',
-        '<button id="chat-node-details-pin-btn" class="pin-toggle-btn chat-node-details-action-btn chat-node-details-pin-btn" type="button" title="Pin this node to the top of the chat list" aria-label="Pin this node to the top of the chat list" aria-pressed="false" hidden><span class="chat-node-details-pin-label">Pin</span></button>',
-        '<button id="chat-node-details-mute-btn" class="mute-toggle-btn chat-node-details-action-btn chat-node-details-mute-btn" type="button" title="Mute this user in chat feed" aria-pressed="false" hidden><span class="chat-node-details-mute-label">Mute</span></button>',
         '<button id="chat-node-details-promote-btn" class="chat-node-details-action-btn chat-node-details-promote-btn" type="button" title="Expand node details over the workspace" aria-label="Expand node details over the workspace" aria-pressed="false" hidden><span class="chat-node-details-promote-label">Expand</span></button>',
         '</div>',
-        '<button id="chat-node-details-close-btn" class="chat-node-details-close-btn" type="button" title="Collapse node details" aria-label="Collapse node details">&times;</button>',
         '</div>',
         '<div class="chat-node-details-tabs" role="tablist" aria-label="Selected node detail tabs">',
         '<button id="chat-node-details-tab-messages" class="chat-node-details-tab-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="messages">Messages</button>',
@@ -3580,6 +3787,16 @@
         '<div id="chat-node-details-panel-links" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-links" hidden><div id="chat-node-details-links-host" class="chat-node-details-links-host"></div></div>',
         '<div id="chat-node-details-panel-telemetry" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-telemetry" hidden><div id="chat-node-details-telemetry-host" class="chat-node-details-telemetry-host"></div></div>',
         '<div id="chat-node-details-panel-tag" class="chat-node-details-panel" role="tabpanel" aria-labelledby="chat-node-details-tab-tag" hidden><div id="chat-node-details-tag-host" class="chat-node-details-tag-host"></div></div>',
+        '<div id="chat-node-details-footer-actions" class="chat-node-details-footer-actions" aria-label="Node and theme actions">',
+        '<div class="chat-node-details-footer-node-actions"><span class="chat-node-details-footer-label">Node actions</span>',
+        '<button id="chat-node-details-tab-tag" class="chat-node-details-tab-btn chat-node-details-tab-tag-btn chat-node-details-footer-tag-btn" type="button" role="tab" aria-selected="false" data-drawer-tab="tag" title="Add or edit node tag" aria-label="Add or edit node tag"><span id="chat-node-details-tab-tag-label" class="chat-node-details-tab-tag-label">+tag</span></button></div>',
+        '<div class="chat-node-details-footer-theme-actions" aria-label="Shared theme actions">',
+        '<button id="chat-node-details-theme-try-btn" class="chat-node-details-action-btn chat-node-details-theme-try-btn" type="button" title="Preview shared node appearance as dashboard theme" aria-label="Preview shared node appearance as dashboard theme" hidden>Try look</button>',
+        '<button id="chat-node-details-theme-save-btn" class="chat-node-details-action-btn chat-node-details-theme-save-btn" type="button" title="Save shared node appearance as dashboard theme" aria-label="Save shared node appearance as dashboard theme" hidden>Save theme</button></div>',
+        '<div class="chat-node-details-footer-state-actions">',
+        '<button id="chat-node-details-pin-btn" class="pin-toggle-btn chat-node-details-action-btn chat-node-details-pin-btn" type="button" title="Pin this node to the top of the chat list" aria-label="Pin this node to the top of the chat list" aria-pressed="false" hidden><span class="chat-node-details-pin-label">Pin</span></button>',
+        '<button id="chat-node-details-mute-btn" class="mute-toggle-btn chat-node-details-action-btn chat-node-details-mute-btn" type="button" title="Mute this user in chat feed" aria-pressed="false" hidden><span class="chat-node-details-mute-label">Mute</span></button></div>',
+        '</div>',
       ].join("");
       inlineHost.appendChild(drawer);
       bindChatNodeDetailsDrawerControls({{ skipSync: true }});
@@ -3694,16 +3911,18 @@
             lazyMounted: false,
           }});
         }}
+        scheduleChatNodeContextBridgeSync();
         return;
       }}
       const titleEl = document.getElementById("chat-node-details-title");
-      const closeBtn = document.getElementById("chat-node-details-close-btn");
       const detailsSplitter = document.getElementById("chat-node-details-splitter");
       const pinBtn = document.getElementById("chat-node-details-pin-btn");
       const muteBtn = document.getElementById("chat-node-details-mute-btn");
       const promoteBtn = document.getElementById("chat-node-details-promote-btn");
       const themeTryBtn = document.getElementById("chat-node-details-theme-try-btn");
       const themeSaveBtn = document.getElementById("chat-node-details-theme-save-btn");
+      const footerActions = document.getElementById("chat-node-details-footer-actions");
+      const detailsTabs = drawer.querySelector(".chat-node-details-tabs");
       const resetBtn = document.getElementById("chat-node-details-reset-btn");
       const detailsTabBtn = document.getElementById("chat-node-details-tab-details");
       const locationTabBtn = document.getElementById("chat-node-details-tab-location");
@@ -3758,9 +3977,6 @@
       }}
 
       drawer.hidden = !visibleExpanded;
-      if (closeBtn instanceof HTMLButtonElement) {{
-        closeBtn.disabled = !visibleExpanded;
-      }}
       if (!visibleExpanded) {{
         drawer.classList.remove("has-node-appearance", "profiled-node");
         if (typeof clearNodeAppearanceElementStyle === "function") {{
@@ -3817,6 +4033,12 @@
           themeSaveBtn.dataset.nodeId = "";
           themeSaveBtn.dataset.themeName = "";
         }}
+        if (footerActions instanceof HTMLElement) {{
+          footerActions.classList.remove("has-node-theme");
+        }}
+        if (detailsTabs instanceof HTMLElement) {{
+          detailsTabs.classList.remove("has-node-theme");
+        }}
         if (resetBtn instanceof HTMLButtonElement) {{
           resetBtn.hidden = true;
           resetBtn.disabled = true;
@@ -3846,6 +4068,7 @@
           resetChatNodeDetailsInlineHost(inlineHost);
         }}
         drawer.remove();
+        scheduleChatNodeContextBridgeSync();
         if (perfToken > 0 && typeof markNodeSelectionPerf === "function") {{
           markNodeSelectionPerf(perfToken, "selection.drawer_sync", perfStartMs, {{
             visibleExpanded: false,
@@ -4085,6 +4308,7 @@
       if (titleEl instanceof HTMLElement) {{
         setDrawerElementTextIfChanged(titleEl, `${{titleName}} (${selectedId})`);
       }}
+      scheduleChatNodeContextBridgeSync();
       const sharedProfileTheme = (
         profileAppearance
         && appearanceEntry
@@ -4100,6 +4324,12 @@
         typeof hasMeshyfaceProfileThemeDashboardPreviewUndo === "function"
         && hasMeshyfaceProfileThemeDashboardPreviewUndo()
       );
+      if (footerActions instanceof HTMLElement) {{
+        footerActions.classList.toggle("has-node-theme", profileAppearance);
+      }}
+      if (detailsTabs instanceof HTMLElement) {{
+        detailsTabs.classList.toggle("has-node-theme", profileAppearance);
+      }}
       if (themeTryBtn instanceof HTMLButtonElement) {{
         themeTryBtn.hidden = !canImportSharedProfileTheme && !dashboardPreviewUndoActive;
         themeTryBtn.disabled = dashboardPreviewUndoActive
@@ -4156,16 +4386,18 @@
         setDrawerElementTextIfChanged(muteBtn.querySelector(".chat-node-details-mute-label"), active ? "Muted" : "Mute");
       }}
       if (promoteBtn instanceof HTMLButtonElement) {{
-        promoteBtn.hidden = promotedVisible;
-        promoteBtn.disabled = promotedVisible;
-        promoteBtn.classList.remove("active");
-        promoteBtn.setAttribute("aria-pressed", "false");
-        const promoteTitle = `Expand ${{titleName}} details over the workspace`;
+        promoteBtn.hidden = false;
+        promoteBtn.disabled = false;
+        promoteBtn.classList.toggle("active", promotedVisible);
+        promoteBtn.setAttribute("aria-pressed", promotedVisible ? "true" : "false");
+        const promoteTitle = promotedVisible
+          ? `Collapse ${{titleName}} details back into the node list`
+          : `Expand ${{titleName}} details over the workspace`;
         promoteBtn.title = promoteTitle;
         promoteBtn.setAttribute("aria-label", promoteTitle);
         setDrawerElementTextIfChanged(
           promoteBtn.querySelector(".chat-node-details-promote-label"),
-          "Expand"
+          promotedVisible ? "Collapse" : "Expand"
         );
       }}
 
@@ -4314,18 +4546,28 @@
 
     function bindChatNodeDetailsDrawerControls(options = null) {{
       const opts = options && typeof options === "object" ? options : {{}};
-      const closeBtn = document.getElementById("chat-node-details-close-btn");
+      const headMain = document.querySelector("#chat-node-details-drawer .chat-node-details-head-main");
       const promoteBtn = document.getElementById("chat-node-details-promote-btn");
       const themeTryBtn = document.getElementById("chat-node-details-theme-try-btn");
       const themeSaveBtn = document.getElementById("chat-node-details-theme-save-btn");
       const drawer = document.getElementById("chat-node-details-drawer");
-      if (closeBtn instanceof HTMLButtonElement && closeBtn.dataset.bound !== "1") {{
-        closeBtn.dataset.bound = "1";
-        closeBtn.addEventListener("click", () => {{
+      if (headMain instanceof HTMLElement && headMain.dataset.collapseBound !== "1") {{
+        headMain.dataset.collapseBound = "1";
+        const collapseFromHead = () => {{
           setChatNodeDetailsDrawerExpanded(false, {{
             fetchHistory: false,
             rerender: false,
           }});
+        }};
+        headMain.addEventListener("click", (event) => {{
+          event.preventDefault();
+          event.stopPropagation();
+          collapseFromHead();
+        }}, true);
+        headMain.addEventListener("keydown", (event) => {{
+          if (event.target !== headMain || (event.key !== "Enter" && event.key !== " ")) return;
+          event.preventDefault();
+          collapseFromHead();
         }});
       }}
       if (promoteBtn instanceof HTMLButtonElement && promoteBtn.dataset.bound !== "1") {{

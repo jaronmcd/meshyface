@@ -2828,19 +2828,15 @@
       background: var(--workspace-shell-bg);
     }}
     [data-theme="dark"] .files-transfer-console-splitter {{
-      border-color: var(--workspace-shell-border-muted);
-      background: linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--workspace-shell-bg-alt) 88%, black 12%),
-        color-mix(in srgb, var(--workspace-shell-bg) 82%, var(--surface-tint-color, var(--workspace-shell-border)) 18%)
-      );
+      border-color: transparent;
+      background: transparent;
     }}
     [data-theme="dark"] .files-transfer-console-splitter::before {{
-      background: var(--workspace-shell-border-strong);
+      background: var(--workspace-shell-divider-line-active);
     }}
     [data-theme="dark"] .files-transfer-console-splitter:hover::before,
     [data-theme="dark"] .files-transfer-console-splitter.active::before {{
-      background: var(--workspace-shell-text);
+      background: var(--ui-accent);
     }}
     [data-theme="dark"] #files-transfer-table thead th {{
       background: color-mix(in srgb, var(--workspace-shell-bg-alt) 86%, black 14%);
@@ -3938,28 +3934,15 @@
       color: var(--workspace-shell-text-soft);
     }}
     [data-theme="dark"] .chat-node-details-drawer {{
-      border-color: var(--workspace-shell-border);
       background: var(--workspace-shell-bg);
     }}
     [data-theme="dark"] .chat-node-details-head {{
-      border-bottom-color: var(--workspace-shell-border);
       background: var(--workspace-shell-bg-alt);
     }}
     [data-theme="dark"] .chat-node-details-title {{
       color: var(--workspace-shell-text);
     }}
-    [data-theme="dark"] .chat-node-details-close-btn {{
-      border-color: var(--workspace-shell-border-muted);
-      background: var(--workspace-shell-bg-alt);
-      color: var(--workspace-shell-text);
-    }}
-    [data-theme="dark"] .chat-node-details-close-btn:hover {{
-      border-color: var(--workspace-shell-border-strong);
-      background: var(--workspace-shell-hover-bg);
-      color: var(--workspace-shell-text);
-    }}
     [data-theme="dark"] .chat-node-details-tabs {{
-      border-bottom-color: var(--workspace-shell-border);
       background: var(--workspace-shell-bg-alt);
     }}
     [data-theme="dark"] .chat-node-details-tab-btn {{
@@ -4064,12 +4047,7 @@
       --telemetry-running-accent: color-mix(in srgb, var(--ui-accent) 26%, #7ea0d8 74%);
       --telemetry-error-accent: color-mix(in srgb, var(--ui-accent) 20%, #da7c7c 80%);
     }}
-    [data-theme="dark"] .chat-node-details-drawer .node-details {{
-      border-color: var(--workspace-shell-border);
-      background: var(--workspace-shell-bg);
-    }}
     [data-theme="dark"] .chat-node-details-history-host #map-data-node {{
-      background: var(--workspace-shell-bg);
       border-color: var(--workspace-shell-border);
     }}
     [data-theme="dark"] .chat-peer-input {{
@@ -4201,10 +4179,6 @@
     }}
     [data-theme="dark"] .signal-timeline-label-major {{
       color: var(--workspace-shell-text);
-    }}
-    [data-theme="dark"] .node-details {{
-      border-color: var(--ui-border);
-      background: var(--ui-panel-alt);
     }}
     [data-theme="dark"] .node-search-dropdown {{
       border-color: color-mix(in srgb, var(--workspace-shell-border) 72%, var(--ui-border));
@@ -6165,7 +6139,6 @@
       color: var(--workspace-shell-active-text);
     }}
     [data-theme="dark"] .peer-dm-popout-window {{
-      border-color: var(--workspace-shell-border);
       background:
         linear-gradient(
           180deg,
@@ -6181,7 +6154,6 @@
       box-shadow: 0 16px 34px rgba(0, 0, 0, 0.62);
     }}
     [data-theme="dark"] .peer-dm-popout-head {{
-      border-color: var(--workspace-shell-border-muted);
       background:
         linear-gradient(
           180deg,
@@ -7446,7 +7418,6 @@
       ) !important;
     }}
     .peer-dm-popout-head.profiled-node {{
-      border-color: var(--node-profile-theme-line, var(--node-profile-border, var(--peer-dm-channel-fill)));
       background: var(--node-profile-theme-wash, var(--node-profile-color-wash, transparent));
     }}
     .peer-dm-popout-head.profiled-node .peer-dm-popout-name {{
@@ -7539,11 +7510,6 @@
       );
     }}
     .chat-node-details-drawer.has-node-appearance .chat-node-details-head {{
-      border-bottom-color: color-mix(
-        in srgb,
-        var(--node-profile-theme-line, var(--node-profile-border, var(--surface-tint-border-strong))) 66%,
-        var(--surface-tint-border) 34%
-      );
       background:
         var(
           --node-profile-theme-wash,
@@ -7640,9 +7606,7 @@
     .peer-dm-popout-head.profiled-node,
     .peer-dm-popout-msg.profiled-node,
     .map-node-info-card.profiled-node,
-    .chat-node-details-drawer.profiled-node .chat-node-details-head,
-    .node-details.profiled-node,
-    .node-details.profiled-node .node-details-section:first-child {{
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head {{
       position: relative;
       overflow: hidden;
       isolation: isolate;
@@ -7652,9 +7616,7 @@
     .peer-dm-popout-head.profiled-node::after,
     .peer-dm-popout-msg.profiled-node::after,
     .map-node-info-card.profiled-node::after,
-    .chat-node-details-drawer.profiled-node .chat-node-details-head::after,
-    .node-details.profiled-node::after,
-    .node-details.profiled-node .node-details-section:first-child::after {{
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {{
       content: var(--node-profile-ghost-text, "");
       position: absolute;
       top: 50%;
@@ -7680,9 +7642,7 @@
     .peer-dm-popout-head.profiled-node > *,
     .peer-dm-popout-msg.profiled-node > *,
     .map-node-info-card.profiled-node > *,
-    .chat-node-details-drawer.profiled-node .chat-node-details-head > *,
-    .node-details.profiled-node > *,
-    .node-details.profiled-node .node-details-section:first-child > * {{
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head > * {{
       position: relative;
       z-index: 1;
     }}
@@ -7841,6 +7801,34 @@
     .topbar .summary-ticker-item-self.profiled-node.has-node-profile-watermark.has-node-emoji:not(.has-dual-node-watermarks)::after {{
       content: none;
     }}
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) {{
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }}
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node)::after {{
+      content: var(--node-profile-ghost-text, "");
+      position: absolute;
+      top: 50%;
+      left: var(--node-profile-ghost-anchor-x, 50%);
+      z-index: 0;
+      color: var(--node-profile-theme-contrast, var(--node-profile-identity-color));
+      font-size: var(--node-profile-ghost-font-size, clamp(16px, 2.1em, 34px));
+      font-weight: var(--node-profile-ghost-weight, 800);
+      letter-spacing: var(--node-profile-ghost-tracking, 0.02em);
+      line-height: 1;
+      opacity: var(--node-profile-ghost-opacity, 0);
+      pointer-events: none;
+      white-space: nowrap;
+      mix-blend-mode: var(--node-profile-ghost-blend-mode, screen);
+      filter: var(--node-profile-ghost-filter, blur(0.2px));
+      transform: translate(-50%, -50%) var(--node-profile-ghost-transform, rotate(-7deg) scale(1.14));
+      transform-origin: center center;
+    }}
+    .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node) > * {{
+      position: relative;
+      z-index: 1;
+    }}
     .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node),
     #chat-room-pinned-list .chat-member-item.profiled-node:not(.tagged-node):not(.muted-node):not(.selected-node) {{
       border-bottom-color: var(--node-profile-theme-border-muted, var(--node-profile-identity-color));
@@ -7895,7 +7883,6 @@
       color: var(--theme-text-color, var(--ui-text)) !important;
     }}
     .peer-dm-popout-head.profiled-node {{
-      border-color: var(--node-profile-identity-edge);
       background-image: var(--node-profile-theme-surface) !important;
     }}
     .peer-dm-popout-msg.profiled-node:not(.is-alert) {{
@@ -7927,21 +7914,28 @@
     .map-node-info-card.profiled-node .map-node-info-title {{
       color: var(--ui-text) !important;
     }}
-    .chat-node-details-drawer.profiled-node .chat-node-details-head {{
-      border-bottom-color: var(--node-profile-identity-edge);
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head {{
       background-image: var(--node-profile-theme-surface) !important;
     }}
-    .chat-node-details-drawer.profiled-node .chat-node-details-title {{
-      color: var(--surface-tint-text) !important;
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-title {{
+      color: var(--node-profile-theme-text-strong, var(--workspace-shell-text)) !important;
     }}
-    .node-details.profiled-node {{
-      border-color: var(--node-profile-identity-edge);
+    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head-main:hover {{
+      background: var(--node-profile-theme-shell-hover, transparent);
+      box-shadow: inset 0 0 0 1px var(--node-profile-theme-border-muted, var(--node-profile-identity-edge));
+    }}
+    .chat-node-details-drawer.profiled-node .chat-node-details-panel {{
       background-image: var(--node-profile-theme-surface) !important;
     }}
-    .node-details.profiled-node .node-details-section:first-child {{
-      border-color: var(--node-profile-identity-edge);
+    .chat-node-details-footer-actions.has-node-theme {{
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
       background-image: var(--node-profile-theme-surface) !important;
     }}
-    .node-details.profiled-node .node-details-section:first-child .node-details-section-title {{
-      color: var(--surface-tint-text-soft) !important;
+    .chat-node-details-tabs.has-node-theme {{
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      background-image: var(--node-profile-theme-surface) !important;
     }}

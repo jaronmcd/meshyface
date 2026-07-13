@@ -367,6 +367,10 @@
 
       const suppressChatRosterSelectionScroll = (
         !!chatNodeNavigatorSelectionScrollLocked
+        || (
+          typeof isChatNodeDetailsPromotedActive === "function"
+          && isChatNodeDetailsPromotedActive()
+        )
       );
       if (!suppressChatRosterSelectionScroll) {{
         for (const chatRoomList of [

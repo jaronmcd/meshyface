@@ -109,6 +109,11 @@ class SetRawPacketCaptureSettingsFn(Protocol):
         ...
 
 
+class SetFileTransferAutoAcceptEnabledFn(Protocol):
+    def __call__(self, enabled: bool) -> dict[str, object]:
+        ...
+
+
 class ToIntFn(Protocol):
     def __call__(self, value: object) -> Optional[int]:
         ...
@@ -343,6 +348,9 @@ class DashboardPostRouteDependencies:
     set_custom_telemetry_settings_fn: Optional[SetCustomTelemetrySettingsFn] = None
     parse_custom_telemetry_settings_request_fn: Optional[ParseCustomTelemetrySettingsRequestFn] = None
     set_raw_packet_capture_settings_fn: Optional[SetRawPacketCaptureSettingsFn] = None
+    set_file_transfer_auto_accept_enabled_fn: Optional[
+        SetFileTransferAutoAcceptEnabledFn
+    ] = None
     parse_raw_packet_capture_settings_request_fn: Optional[ParseRawPacketCaptureSettingsRequestFn] = None
     apply_radio_settings_fn: Optional[ApplyRadioSettingsFn] = None
     parse_radio_settings_request_fn: Optional[ParseRadioSettingsRequestFn] = None

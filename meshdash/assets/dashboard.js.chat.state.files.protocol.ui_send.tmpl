@@ -478,38 +478,66 @@
       const toggle = document.getElementById("files-auto-accept-toggle");
       if (!(toggle instanceof HTMLInputElement)) return;
       const backendAutoAcceptEnabled = fileTransferBackendAutoAcceptEnabled(latestState);
-      toggle.checked = backendAutoAcceptEnabled || fileTransferAutoAcceptInboundEnabled();
-      toggle.disabled = !fileTransferFeatureEnabled || backendAutoAcceptEnabled;
-      toggle.title = backendAutoAcceptEnabled
-        ? "Backend auto accept is enabled for direct inbound file transfers."
-        : (
-          toggle.checked
-            ? "Direct inbound file transfers are accepted automatically."
-            : "Direct inbound file transfers require manual acceptance."
-        );
+      toggle.checked = fileTransferAutoAcceptUpdateInFlight
+        ? !!fileTransferAutoAcceptPendingValue
+        : backendAutoAcceptEnabled;
+      toggle.disabled = !fileTransferFeatureEnabled || fileTransferAutoAcceptUpdateInFlight;
+      toggle.title = toggle.checked
+        ? "Direct inbound file transfers are accepted automatically."
+        : "Direct inbound file transfers require manual acceptance.";
     }}
 
     function bindFileTransferAutoAcceptToggle() {{
       const toggle = document.getElementById("files-auto-accept-toggle");
       if (!(toggle instanceof HTMLInputElement) || toggle.dataset.bound === "1") return;
       toggle.dataset.bound = "1";
-      toggle.addEventListener("change", () => {{
+      toggle.addEventListener("change", async () => {{
         const enabled = !!toggle.checked;
-        setFileTransferAutoAcceptInbound(enabled);
-        setFileTransferStatus(
-          enabled
-            ? "Auto accept enabled for received files."
-            : "Auto accept disabled for received files."
-        );
-        appendFileTransferConsole(
-          enabled
-            ? "Auto accept enabled for direct inbound file transfers."
-            : "Auto accept disabled for direct inbound file transfers."
-        );
-        if (enabled) {{
-          scheduleFileTransferMaintenance(latestState);
+        const previous = !enabled;
+        fileTransferAutoAcceptUpdateInFlight = true;
+        fileTransferAutoAcceptPendingValue = enabled;
+        syncFileTransferAutoAcceptToggle();
+        try {{
+          const resp = await fetch("/api/settings/file_transfer", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ enabled }}),
+            cache: "no-store",
+          }});
+          const text = await resp.text();
+          let payload = null;
+          try {{
+            payload = text ? JSON.parse(text) : null;
+          }} catch (_err) {{
+          }}
+          if (!resp.ok || !payload || payload.ok === false) {{
+            throw new Error(String((payload && payload.error) || text || `HTTP ${{resp.status}}`));
+          }}
+          setFileTransferAutoAcceptInbound(enabled);
+          const runtime = fileTransferBackendRuntime(latestState);
+          if (runtime && typeof runtime === "object") runtime.enabled = enabled;
+          setFileTransferStatus(
+            enabled
+              ? "Auto accept enabled for received files."
+              : "Auto accept disabled for received files."
+          );
+          appendFileTransferConsole(
+            enabled
+              ? "Auto accept enabled for direct inbound file transfers."
+              : "Auto accept disabled for direct inbound file transfers."
+          );
+          if (enabled) scheduleFileTransferMaintenance(latestState);
           requestImmediatePoll(40);
           void poll();
+        }} catch (err) {{
+          toggle.checked = previous;
+          const msg = err instanceof Error ? err.message : String(err || "unknown error");
+          setFileTransferStatus(`Could not update auto accept: ${{msg}}`);
+          appendFileTransferConsole(`Auto accept update failed: ${{msg}}`);
+        }} finally {{
+          fileTransferAutoAcceptUpdateInFlight = false;
+          fileTransferAutoAcceptPendingValue = null;
+          syncFileTransferAutoAcceptToggle();
         }}
       }});
     }}

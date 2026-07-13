@@ -386,6 +386,11 @@
       "surface_hover_opacity",
       "border_color",
       "border_muted_color",
+      "text_color",
+      "text_strong_color",
+      "text_soft_color",
+      "text_muted_color",
+      "text_on_fill_color",
     ]);
     // Theme packets carry enums, not CSS fragments. This closed map lets a
     // receiver recreate the sender's advertised host gradient safely.
@@ -679,6 +684,11 @@
       const surfaceHoverOpacity = normalizeMeshyfaceProfileThemeInteger(rawRender.surface_hover_opacity, 0, 100);
       const borderColor = normalizeMeshyfaceProfileColor(rawRender.border_color, "");
       const borderMutedColor = normalizeMeshyfaceProfileColor(rawRender.border_muted_color, "");
+      const textColor = normalizeMeshyfaceProfileColor(rawRender.text_color, "");
+      const textStrongColor = normalizeMeshyfaceProfileColor(rawRender.text_strong_color, "");
+      const textSoftColor = normalizeMeshyfaceProfileColor(rawRender.text_soft_color, "");
+      const textMutedColor = normalizeMeshyfaceProfileColor(rawRender.text_muted_color, "");
+      const textOnFillColor = normalizeMeshyfaceProfileColor(rawRender.text_on_fill_color, "");
       if (
         !backgroundStart
         || !backgroundEnd
@@ -688,6 +698,11 @@
         || surfaceHoverOpacity == null
         || !borderColor
         || !borderMutedColor
+        || !textColor
+        || !textStrongColor
+        || !textSoftColor
+        || !textMutedColor
+        || !textOnFillColor
       ) {{
         return null;
       }}
@@ -700,6 +715,11 @@
         surface_hover_opacity: surfaceHoverOpacity,
         border_color: borderColor,
         border_muted_color: borderMutedColor,
+        text_color: textColor,
+        text_strong_color: textStrongColor,
+        text_soft_color: textSoftColor,
+        text_muted_color: textMutedColor,
+        text_on_fill_color: textOnFillColor,
       }};
     }}
 
@@ -714,6 +734,105 @@
       }}
       const documentMode = String(document.documentElement.getAttribute("data-theme") || "").trim().toLowerCase();
       return documentMode === "dark" ? "dark" : "light";
+    }}
+
+    function meshyfaceProfileThemeRgb(value) {{
+      const cleanHex = normalizeMeshyfaceProfileColor(value, "");
+      if (cleanHex) {{
+        return [1, 3, 5].map((offset) => Number.parseInt(cleanHex.slice(offset, offset + 2), 16));
+      }}
+      const match = /^rgba?\(\s*(\d{{1,3}})\s*,\s*(\d{{1,3}})\s*,\s*(\d{{1,3}})(?:\s*,\s*(?:0(?:\.\d+)?|1(?:\.0+)?))?\s*\)$/i.exec(
+        String(value || "").trim()
+      );
+      if (!match) return null;
+      const channels = match.slice(1, 4).map((part) => Number.parseInt(part, 10));
+      return channels.every((part) => Number.isFinite(part) && part >= 0 && part <= 255)
+        ? channels
+        : null;
+    }}
+
+    function meshyfaceProfileThemeRgbHex(rgb, fallback = "") {{
+      if (!Array.isArray(rgb) || rgb.length !== 3) return fallback;
+      return `#${{rgb.map((part) => Math.max(0, Math.min(255, Math.round(part))).toString(16).padStart(2, "0")).join("")}}`;
+    }}
+
+    function meshyfaceProfileThemeClientPaletteColor(property, fallback) {{
+      try {{
+        const value = window.getComputedStyle(document.documentElement).getPropertyValue(property).trim();
+        if (meshyfaceProfileThemeRgb(value)) return value;
+      }} catch (_err) {{}}
+      return fallback;
+    }}
+
+    function meshyfaceProfileThemeMixColor(first, second, firstWeight) {{
+      const firstRgb = meshyfaceProfileThemeRgb(first);
+      const secondRgb = meshyfaceProfileThemeRgb(second);
+      if (!firstRgb || !secondRgb) return normalizeMeshyfaceProfileColor(first, "");
+      const weight = Math.max(0, Math.min(1, Number(firstWeight) || 0));
+      return meshyfaceProfileThemeRgbHex(firstRgb.map((part, index) => (
+        (part * weight) + (secondRgb[index] * (1 - weight))
+      )));
+    }}
+
+    function meshyfaceProfileThemeClientColor(color, sourceMode, role = "surface") {{
+      const cleanColor = normalizeMeshyfaceProfileColor(color, "");
+      const cleanSourceMode = normalizeMeshyfaceProfileThemeEnum(sourceMode, meshyfaceProfileThemeModes);
+      const clientMode = resolvedMeshyfaceProfileThemeMode();
+      if (!cleanColor || !cleanSourceMode || cleanSourceMode === clientMode) return cleanColor;
+      let property = "--workspace-shell-bg";
+      let fallback = clientMode === "dark" ? "#101826" : "#f8fafc";
+      let remoteWeight = clientMode === "dark" ? 0.18 : 0.24;
+      if (role === "surface-hover") {{
+        property = "--workspace-shell-hover-bg";
+        fallback = clientMode === "dark" ? "#1a2638" : "#eef3f9";
+        remoteWeight = clientMode === "dark" ? 0.22 : 0.28;
+      }} else if (role === "line" || role === "border") {{
+        property = "--workspace-shell-border-strong";
+        fallback = clientMode === "dark" ? "#58709b" : "#6984b5";
+        remoteWeight = 0.68;
+      }} else if (role === "contrast") {{
+        property = "--workspace-shell-text";
+        fallback = clientMode === "dark" ? "#e6edf3" : "#172033";
+        remoteWeight = 0.12;
+      }}
+      return meshyfaceProfileThemeMixColor(
+        cleanColor,
+        meshyfaceProfileThemeClientPaletteColor(property, fallback),
+        remoteWeight
+      );
+    }}
+
+    function meshyfaceProfileThemeClientTheme(rawTheme) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!theme || theme.mode === resolvedMeshyfaceProfileThemeMode()) return theme;
+      return {{
+        ...theme,
+        base_color: meshyfaceProfileThemeClientColor(theme.base_color, theme.mode, "surface"),
+        line_color: meshyfaceProfileThemeClientColor(theme.line_color, theme.mode, "line"),
+        line_contrast_color: meshyfaceProfileThemeClientColor(theme.line_contrast_color, theme.mode, "contrast"),
+        gradient_primary_start_color: meshyfaceProfileThemeClientColor(theme.gradient_primary_start_color, theme.mode, "surface"),
+        gradient_primary_end_color: meshyfaceProfileThemeClientColor(theme.gradient_primary_end_color, theme.mode, "surface"),
+      }};
+    }}
+
+    function meshyfaceProfileThemeClientRender(rawTheme, rawRender) {{
+      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
+      const render = normalizeMeshyfaceProfileThemeRender(rawRender);
+      if (!theme || !render || theme.mode === resolvedMeshyfaceProfileThemeMode()) return render;
+      return normalizeMeshyfaceProfileThemeRender({{
+        ...render,
+        background_start_color: meshyfaceProfileThemeClientColor(render.background_start_color, theme.mode, "surface"),
+        background_end_color: meshyfaceProfileThemeClientColor(render.background_end_color, theme.mode, "surface"),
+        surface_color: meshyfaceProfileThemeClientColor(render.surface_color, theme.mode, "surface"),
+        surface_hover_color: meshyfaceProfileThemeClientColor(render.surface_hover_color, theme.mode, "surface-hover"),
+        border_color: meshyfaceProfileThemeClientColor(render.border_color, theme.mode, "border"),
+        border_muted_color: meshyfaceProfileThemeClientColor(render.border_muted_color, theme.mode, "border"),
+        text_color: meshyfaceProfileThemeClientColor(render.text_color, theme.mode, "contrast"),
+        text_strong_color: meshyfaceProfileThemeClientColor(render.text_strong_color, theme.mode, "contrast"),
+        text_soft_color: meshyfaceProfileThemeClientColor(render.text_soft_color, theme.mode, "contrast"),
+        text_muted_color: meshyfaceProfileThemeClientColor(render.text_muted_color, theme.mode, "contrast"),
+        text_on_fill_color: meshyfaceProfileThemeClientColor(render.text_on_fill_color, theme.mode, "contrast"),
+      }});
     }}
 
     const meshyfaceNodeThemeModes = new Set(["current", "light", "dark"]);
@@ -1122,9 +1241,10 @@
     }}
 
     function meshyfaceProfileThemeBackgroundGradient(rawTheme, rawRender = null) {{
-      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
-      if (!theme) return "";
-      const render = normalizeMeshyfaceProfileThemeRender(rawRender);
+      const sourceTheme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!sourceTheme) return "";
+      const theme = meshyfaceProfileThemeClientTheme(sourceTheme);
+      const render = meshyfaceProfileThemeClientRender(sourceTheme, rawRender);
       const direction = meshyfaceProfileThemeGradientDirectionCss[theme.gradient_primary_direction];
       const kind = theme.gradient_primary_type;
       const directionCss = direction && direction[kind];
@@ -1230,6 +1350,11 @@
         surface_hover_opacity: surfaceHover && surfaceHover.opacity,
         border_color: tokens["--workspace-shell-border"],
         border_muted_color: tokens["--workspace-shell-border-muted"],
+        text_color: tokens["--theme-text-color"],
+        text_strong_color: tokens["--theme-text-color-strong"],
+        text_soft_color: tokens["--theme-text-color-soft"],
+        text_muted_color: tokens["--theme-text-color-muted"],
+        text_on_fill_color: tokens["--theme-text-color-on-fill"],
       }});
     }}
 
@@ -1247,6 +1372,11 @@
         surface_hover_opacity: surfaceHoverOpacity,
         border_color: theme.line_color,
         border_muted_color: theme.line_contrast_color,
+        text_color: theme.line_contrast_color,
+        text_strong_color: theme.line_contrast_color,
+        text_soft_color: theme.line_contrast_color,
+        text_muted_color: theme.line_contrast_color,
+        text_on_fill_color: theme.line_contrast_color,
       }});
     }}
 
@@ -1383,6 +1513,11 @@
       "--node-profile-theme-line",
       "--node-profile-theme-contrast",
       "--node-profile-theme-font-family",
+      "--node-profile-theme-text",
+      "--node-profile-theme-text-strong",
+      "--node-profile-theme-text-soft",
+      "--node-profile-theme-text-muted",
+      "--node-profile-theme-text-on-fill",
     ];
     const meshyfaceProfileGhostStyleProperties = [
       "--node-profile-ghost-text",
@@ -1397,10 +1532,11 @@
     ];
 
     function meshyfaceProfileThemeStyleEntries(rawTheme, rawRender = null) {{
-      const theme = normalizeMeshyfaceProfileTheme(rawTheme);
-      if (!theme) return [];
-      const render = normalizeMeshyfaceProfileThemeRender(rawRender);
-      const backgroundGradient = meshyfaceProfileThemeBackgroundGradient(theme, render);
+      const sourceTheme = normalizeMeshyfaceProfileTheme(rawTheme);
+      if (!sourceTheme) return [];
+      const theme = meshyfaceProfileThemeClientTheme(sourceTheme);
+      const render = meshyfaceProfileThemeClientRender(sourceTheme, rawRender);
+      const backgroundGradient = meshyfaceProfileThemeBackgroundGradient(sourceTheme, rawRender);
       if (!backgroundGradient) return [];
       const entries = [
         ["--node-profile-theme-background", backgroundGradient],
@@ -1414,7 +1550,12 @@
           ["--node-profile-theme-shell", meshyfaceProfileThemeAlphaGradient(render.surface_color, render.surface_opacity)],
           ["--node-profile-theme-shell-hover", meshyfaceProfileThemeAlphaGradient(render.surface_hover_color, render.surface_hover_opacity)],
           ["--node-profile-theme-border", render.border_color],
-          ["--node-profile-theme-border-muted", render.border_muted_color]
+          ["--node-profile-theme-border-muted", render.border_muted_color],
+          ["--node-profile-theme-text", render.text_color],
+          ["--node-profile-theme-text-strong", render.text_strong_color],
+          ["--node-profile-theme-text-soft", render.text_soft_color],
+          ["--node-profile-theme-text-muted", render.text_muted_color],
+          ["--node-profile-theme-text-on-fill", render.text_on_fill_color]
         );
       }}
       return entries;
