@@ -265,6 +265,16 @@ class PluginRuntime:
             return False
 
     def _route_event(self, event: MessageEvent) -> tuple[_Invocation, ...]:
+        if event.packet is not None:
+            with self._status_lock:
+                packet_plugins = [
+                    plugin_id
+                    for plugin_id, registration in self._registry.items()
+                    if bool(registration.get("on_packet")) and not registration.get("error")
+                ]
+            return tuple(
+                _Invocation(plugin_id, "packet", event) for plugin_id in packet_plugins
+            )
         clean_text = event.text.strip()
         command_match = _COMMAND_RE.match(clean_text)
         invocations: list[_Invocation] = []
@@ -543,6 +553,7 @@ class PluginRuntime:
                         "id": manifest.id,
                         "commands": [],
                         "on_message": False,
+                        "on_packet": False,
                         "session": False,
                         "on_start": False,
                         "on_stop": False,

@@ -42,7 +42,12 @@ def _write_plugin(
     return parse_manifest(directory / "bot.toml")
 
 
-def _event(text: str, *, packet_id: int = 10) -> MessageEvent:
+def _event(
+    text: str,
+    *,
+    packet_id: int = 10,
+    packet: dict[str, object] | None = None,
+) -> MessageEvent:
     return MessageEvent(
         text=text,
         sender_id="!00000001",
@@ -54,6 +59,8 @@ def _event(text: str, *, packet_id: int = 10) -> MessageEvent:
         packet_id=packet_id,
         reply_packet_id=None,
         received_at=time.time(),
+        packet=packet,
+        portnum="POSITION_APP" if packet is not None else "",
     )
 
 
@@ -118,6 +125,41 @@ def hello(ctx):
     assert runtime.status()["worker_alive"] is False
     assert runtime.status()["worker_ready"] is False
     assert runtime.status()["status"] == "stopped"
+
+
+def test_packet_handler_runs_inside_worker_with_raw_packet_context(tmp_path) -> None:
+    manifest = _write_plugin(
+        tmp_path,
+        "packets",
+        commands=(),
+        source="""
+from meshdash.bots import Bot
+bot = Bot(id="packets", name="Packets", version="1.0.0")
+@bot.on_packet
+def packet(ctx):
+    ctx.peer_state["packet_id"] = ctx.message.packet_id
+    ctx.peer_state["portnum"] = ctx.message.portnum
+    ctx.peer_state["payload"] = ctx.packet["decoded"]["payload"]
+""",
+    )
+    store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    runtime = PluginRuntime(
+        manifests=[manifest],
+        state_store=store,
+        send_chat_fn=lambda **_kwargs: None,
+    )
+    try:
+        assert runtime.try_enqueue(
+            _event("", packet_id=77, packet={"decoded": {"payload": "abcd"}})
+        )
+        _wait_until(
+            lambda: store.snapshot("packets", "!00000001").peer_state
+            == {"packet_id": 77, "portnum": "POSITION_APP", "payload": "abcd"}
+        )
+        assert runtime.status()["plugins"]["packets"]["on_packet"] is True  # type: ignore[index]
+    finally:
+        runtime.close()
+        store.close()
 
 
 def test_quit_never_waits_for_sqlite_on_the_receive_callback(tmp_path) -> None:

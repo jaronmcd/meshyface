@@ -153,6 +153,10 @@ class _WorkerContext:
     mesh: _WorkerMesh
     log: logging.Logger
 
+    @property
+    def packet(self) -> Mapping[str, JsonValue] | None:
+        return self.message.packet
+
     def reply(self, text: str) -> ReplyAction:
         return self.mesh.reply(self.message, text)
 
@@ -212,6 +216,8 @@ def _handle_invoke(bots: Mapping[str, Bot], message: Mapping[str, object]) -> di
         handler = bot.commands.get(command)
     elif handler_kind == "message":
         handler = bot.message_handler
+    elif handler_kind == "packet":
+        handler = bot.packet_handler
     elif handler_kind == "session":
         handler = bot.session_handler
     elif handler_kind == "start":
@@ -273,6 +279,7 @@ def plugin_worker_main(connection: object) -> None:
                         "error": f"{type(exc).__name__}: {exc}",
                         "commands": [],
                         "on_message": False,
+                        "on_packet": False,
                         "session": False,
                         "on_start": False,
                         "on_stop": False,
@@ -285,6 +292,7 @@ def plugin_worker_main(connection: object) -> None:
                         "id": manifest.id,
                         "commands": list(bot.commands),
                         "on_message": bot.message_handler is not None,
+                        "on_packet": bot.packet_handler is not None,
                         "session": bot.session_handler is not None,
                         "on_start": bot.start_handler is not None,
                         "on_stop": bot.stop_handler is not None,

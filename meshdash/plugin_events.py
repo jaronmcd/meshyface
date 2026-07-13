@@ -1,4 +1,4 @@
-"""Normalize accepted Meshtastic text packets for plugin dispatch."""
+"""Normalize accepted Meshtastic packets for plugin dispatch."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from collections.abc import Mapping
 
 from .bots import MessageEvent
 from .helpers import calculate_hops, extract_reply_id, to_int
+from .helpers_json import to_jsonable
 
 
 _BROADCAST_NODE_NUM = 0xFFFFFFFF
@@ -107,4 +108,52 @@ def normalize_plugin_message_event(
     )
 
 
-__all__ = ["normalize_plugin_message_event"]
+def normalize_plugin_packet_event(
+    packet: object,
+    *,
+    local_node_id: object,
+    now_fn=time.time,
+) -> MessageEvent | None:
+    """Wrap one accepted packet for ``@bot.on_packet`` handlers."""
+
+    if not isinstance(packet, Mapping):
+        return None
+    sender_id = _endpoint(packet, "from", ("fromId", "from_id"))
+    destination_id = _endpoint(packet, "to", ("toId", "to_id"))
+    clean_local = _node_id(local_node_id)
+    if not sender_id or not destination_id or not clean_local:
+        return None
+    channel = to_int(packet.get("channel"))
+    packet_id = to_int(packet.get("id") or packet.get("packet_id") or packet.get("packetId"))
+    decoded = packet.get("decoded")
+    portnum = (
+        str(decoded.get("portnum") or "").strip().upper()
+        if isinstance(decoded, Mapping)
+        else ""
+    )
+    received_at = packet.get("rxTime") or packet.get("received_at") or now_fn()
+    try:
+        received_float = float(received_at)
+    except (TypeError, ValueError):
+        received_float = float(now_fn())
+    clean_packet = to_jsonable(dict(packet))
+    if not isinstance(clean_packet, dict):
+        return None
+    is_broadcast = destination_id == "^all"
+    return MessageEvent(
+        text="",
+        sender_id=sender_id,
+        destination_id=destination_id,
+        local_node_id=clean_local,
+        channel_index=max(0, int(channel or 0)),
+        is_direct=destination_id == clean_local,
+        is_broadcast=is_broadcast,
+        packet_id=max(0, int(packet_id or 0)),
+        reply_packet_id=None,
+        received_at=received_float,
+        packet=clean_packet,
+        portnum=portnum,
+    )
+
+
+__all__ = ["normalize_plugin_message_event", "normalize_plugin_packet_event"]

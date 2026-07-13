@@ -9,7 +9,7 @@ from .bots import BotManifest, discover_bots
 from .file_transfer_protocol import decode_file_transfer_packet
 from .helpers import to_int, to_jsonable
 from .helpers_packet_position import extract_position_fields
-from .plugin_events import normalize_plugin_message_event
+from .plugin_events import normalize_plugin_message_event, normalize_plugin_packet_event
 from .plugin_runtime import (
     PluginRuntime,
     PluginRuntimeConfig,
@@ -136,9 +136,16 @@ class PluginSubsystem:
         runtime = self._runtime
         if runtime is None:
             return
+        local_node_id = local_node_id_fn()
+        packet_event = normalize_plugin_packet_event(
+            packet,
+            local_node_id=local_node_id,
+        )
+        if packet_event is not None:
+            runtime.try_enqueue(packet_event)
         event = normalize_plugin_message_event(
             packet,
-            local_node_id=local_node_id_fn(),
+            local_node_id=local_node_id,
         )
         if event is not None:
             runtime.try_enqueue(event)

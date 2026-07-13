@@ -75,6 +75,8 @@ class MessageEvent:
     snr: float | None = None
     rssi: float | None = None
     hops: int | None = None
+    packet: Mapping[str, JsonValue] | None = None
+    portnum: str = ""
 
     def __post_init__(self) -> None:
         _nonempty_string(self.sender_id, "sender_id", maximum=64)
@@ -89,6 +91,10 @@ class MessageEvent:
         _optional_number(self.snr, "snr")
         _optional_number(self.rssi, "rssi")
         _optional_integer(self.hops, "hops", minimum=0)
+        if self.packet is not None and not isinstance(self.packet, Mapping):
+            raise ValueError("packet must be an object or None")
+        if not isinstance(self.portnum, str):
+            raise ValueError("portnum must be a string")
         if not isinstance(self.is_direct, bool) or not isinstance(self.is_broadcast, bool):
             raise ValueError("is_direct and is_broadcast must be booleans")
         if self.is_direct and self.is_broadcast:
@@ -109,6 +115,8 @@ class MessageEvent:
             "snr": self.snr,
             "rssi": self.rssi,
             "hops": self.hops,
+            "packet": dict(self.packet) if self.packet is not None else None,
+            "portnum": self.portnum,
         }
 
     @classmethod
@@ -127,6 +135,8 @@ class MessageEvent:
             "snr",
             "rssi",
             "hops",
+            "packet",
+            "portnum",
         }
         missing = expected - payload.keys()
         unknown = payload.keys() - expected
@@ -148,6 +158,8 @@ class MessageEvent:
             snr=cast(float | None, payload["snr"]),
             rssi=cast(float | None, payload["rssi"]),
             hops=cast(int | None, payload["hops"]),
+            packet=cast(Mapping[str, JsonValue] | None, payload["packet"]),
+            portnum=cast(str, payload["portnum"]),
         )
 
 
@@ -329,6 +341,7 @@ class MeshyFaceAPI(Protocol):
 
 class BotContext(Protocol):
     message: MessageEvent
+    packet: Mapping[str, JsonValue] | None
     mesh: MeshyFaceAPI
     state: MutableMapping[str, JsonValue]
     peer_state: MutableMapping[str, JsonValue]
@@ -360,6 +373,7 @@ class Bot:
         self._commands: dict[str, BotHandler] = {}
         self._commands_view: Mapping[str, BotHandler] = MappingProxyType(self._commands)
         self._message_handler: BotHandler | None = None
+        self._packet_handler: BotHandler | None = None
         self._session_handler: BotHandler | None = None
         self._start_handler: BotHandler | None = None
         self._stop_handler: BotHandler | None = None
@@ -385,6 +399,10 @@ class Bot:
     @property
     def message_handler(self) -> BotHandler | None:
         return self._message_handler
+
+    @property
+    def packet_handler(self) -> BotHandler | None:
+        return self._packet_handler
 
     @property
     def session_handler(self) -> BotHandler | None:
@@ -414,6 +432,12 @@ class Bot:
     def on_message(self, handler: BotHandler) -> BotHandler:
         self._message_handler = self._register_single(
             "message handler", self._message_handler, handler
+        )
+        return handler
+
+    def on_packet(self, handler: BotHandler) -> BotHandler:
+        self._packet_handler = self._register_single(
+            "packet handler", self._packet_handler, handler
         )
         return handler
 

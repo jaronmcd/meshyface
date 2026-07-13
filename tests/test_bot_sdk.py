@@ -46,6 +46,10 @@ def test_bot_registers_commands_and_handlers_with_read_only_registry() -> None:
     def message(ctx: object) -> None:
         return None
 
+    @bot.on_packet
+    def packet(ctx: object) -> None:
+        return None
+
     @bot.session
     def session(ctx: object) -> None:
         return None
@@ -63,6 +67,7 @@ def test_bot_registers_commands_and_handlers_with_read_only_registry() -> None:
     assert bot.version == "1.2.3"
     assert bot.commands == {"hello": hello}
     assert bot.message_handler is message
+    assert bot.packet_handler is packet
     assert bot.session_handler is session
     assert bot.start_handler is start
     assert bot.stop_handler is stop
@@ -92,6 +97,10 @@ def test_bot_rejects_duplicate_registrations() -> None:
     with pytest.raises(ValueError, match="already registered"):
         bot.on_message(hello)
 
+    bot.on_packet(hello)
+    with pytest.raises(ValueError, match="already registered"):
+        bot.on_packet(hello)
+
 
 @pytest.mark.parametrize("bot_id", ["Example", "two words", "-bad", "", "a" * 65])
 def test_bot_rejects_invalid_ids(bot_id: str) -> None:
@@ -100,9 +109,13 @@ def test_bot_rejects_invalid_ids(bot_id: str) -> None:
 
 
 def test_message_event_is_immutable_and_round_trips() -> None:
-    event = _message()
+    event = MessageEvent.from_dict(
+        {**_message().to_dict(), "packet": {"decoded": {"payload": "abcd"}}, "portnum": "POSITION_APP"}
+    )
 
     assert MessageEvent.from_dict(event.to_dict()) == event
+    assert event.packet == {"decoded": {"payload": "abcd"}}
+    assert event.portnum == "POSITION_APP"
     with pytest.raises(FrozenInstanceError):
         event.text = "changed"  # type: ignore[misc]
 
