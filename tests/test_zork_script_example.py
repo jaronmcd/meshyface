@@ -1,0 +1,219 @@
+from __future__ import annotations
+
+import runpy
+import threading
+import time
+from pathlib import Path
+from types import SimpleNamespace
+
+from meshdash.bots import (
+    Bot,
+    MessageEvent,
+    ReplyAction,
+    parse_manifest,
+    validate_bot_against_manifest,
+)
+from meshdash.plugin_runtime import PluginRuntime, PluginRuntimeConfig
+from meshdash.plugin_state import PluginStateStore
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+ZORK_EXAMPLE = REPO_ROOT / "examples" / "plugins" / "zork"
+
+
+def _wait_until(predicate, *, timeout: float = 5.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.02)
+    raise AssertionError("condition did not become true before timeout")
+
+
+def _event(
+    text: str,
+    *,
+    sender_id: str = "!00000001",
+    destination_id: str = "!00000002",
+    packet_id: int = 10,
+) -> MessageEvent:
+    broadcast = destination_id == "^all"
+    return MessageEvent(
+        text=text,
+        sender_id=sender_id,
+        destination_id=destination_id,
+        local_node_id="!00000002",
+        channel_index=3,
+        is_direct=not broadcast,
+        is_broadcast=broadcast,
+        packet_id=packet_id,
+        reply_packet_id=None,
+        received_at=time.time(),
+    )
+
+
+def _context(
+    text: str,
+    *,
+    sender_id: str = "!00000001",
+    direct: bool = True,
+    broadcast: bool = False,
+):
+    replies: list[str] = []
+
+    def _reply_long(value: str) -> ReplyAction:
+        replies.append(value)
+        return ReplyAction(value, long=True)
+
+    return SimpleNamespace(
+        message=SimpleNamespace(
+            text=text,
+            sender_id=sender_id,
+            destination_id="^all" if broadcast else "!00000002",
+            local_node_id="!00000002",
+            is_direct=direct,
+            is_broadcast=broadcast,
+        ),
+        reply_long=_reply_long,
+        replies=replies,
+    )
+
+
+def test_zork_example_matches_manifest_and_preserves_direct_gameplay() -> None:
+    manifest = parse_manifest(ZORK_EXAMPLE / "bot.toml")
+    namespace = runpy.run_path(str(manifest.entrypoint_path))
+    bot = namespace[manifest.entrypoint_object]
+
+    assert isinstance(bot, Bot)
+    assert validate_bot_against_manifest(manifest, bot) is bot
+    assert manifest.id == "zork"
+    assert manifest.commands == ("zork",)
+    assert manifest.default_enabled is False
+
+    start = bot.message_handler(_context("zork"))
+    assert isinstance(start, ReplyAction)
+    assert start.long is True
+    assert "zork: session started" in start.text
+    assert "Type 'help' for the command set." in start.text
+
+    look = bot.message_handler(_context("look"))
+    assert isinstance(look, ReplyAction)
+    assert "West of House" in look.text
+
+    quit_reply = bot.message_handler(_context("quit"))
+    assert isinstance(quit_reply, ReplyAction)
+    assert "zork: session ended" in quit_reply.text
+    assert bot.message_handler(_context("look")) is None
+
+
+def test_zork_example_keeps_public_trigger_exact_and_replies_privately() -> None:
+    manifest = parse_manifest(ZORK_EXAMPLE / "bot.toml")
+    namespace = runpy.run_path(str(manifest.entrypoint_path))
+    bot = namespace[manifest.entrypoint_object]
+
+    unrelated = _context(
+        "I am playing zork",
+        sender_id="!00000003",
+        direct=False,
+        broadcast=True,
+    )
+    assert bot.message_handler(unrelated) is None
+    assert unrelated.replies == []
+
+    public_start = _context(
+        "ZoRk",
+        sender_id="!00000003",
+        direct=False,
+        broadcast=True,
+    )
+    start = bot.message_handler(public_start)
+    assert isinstance(start, ReplyAction)
+    assert "zork: session started" in start.text
+
+    direct_follow_up = _context("look", sender_id="!00000003")
+    look = bot.message_handler(direct_follow_up)
+    assert isinstance(look, ReplyAction)
+    assert "West of House" in look.text
+
+    public_prefixed = _context(
+        "!zork",
+        sender_id="!00000004",
+        direct=False,
+        broadcast=True,
+    )
+    assert bot.commands["zork"](public_prefixed) is None
+
+    direct_prefixed = _context("!zork", sender_id="!00000004")
+    prefixed_start = bot.commands["zork"](direct_prefixed)
+    assert isinstance(prefixed_start, ReplyAction)
+    assert "zork: session started" in prefixed_start.text
+
+
+def test_zork_example_runs_in_spawned_worker_and_routes_private_replies(tmp_path) -> None:
+    manifest = parse_manifest(ZORK_EXAMPLE / "bot.toml")
+    store = PluginStateStore(str(tmp_path / "plugin-state.sqlite3"))
+    sends: list[dict[str, object]] = []
+    sends_lock = threading.Lock()
+
+    def _send(**kwargs: object) -> None:
+        with sends_lock:
+            sends.append(dict(kwargs))
+
+    def _sent_text(destination: str) -> str:
+        with sends_lock:
+            return " ".join(
+                str(row.get("text") or "")
+                for row in sends
+                if row.get("destination") == destination
+            )
+
+    runtime = PluginRuntime(
+        manifests=[manifest],
+        state_store=store,
+        send_chat_fn=_send,
+        config=PluginRuntimeConfig(
+            handler_timeout_seconds=2.0,
+            long_reply_pace_seconds=0,
+        ),
+    )
+    try:
+        assert runtime.try_enqueue(_event("zork")) is True
+        _wait_until(lambda: "command set" in _sent_text("!00000001"))
+        assert "zork: session started" in _sent_text("!00000001")
+        with sends_lock:
+            first_peer_sends = [
+                dict(row) for row in sends if row.get("destination") == "!00000001"
+            ]
+        assert first_peer_sends[0]["reply_id"] == 10
+        assert all(row["channel_index"] == 3 for row in first_peer_sends)
+
+        assert runtime.try_enqueue(_event("look", packet_id=11)) is True
+        _wait_until(lambda: _sent_text("!00000001").count("West of House") >= 2)
+
+        assert runtime.try_enqueue(
+            _event(
+                "zork",
+                sender_id="!00000003",
+                destination_id="^all",
+                packet_id=12,
+            )
+        ) is True
+        _wait_until(lambda: "zork: session started" in _sent_text("!00000003"))
+        assert "command set" in _sent_text("!00000003")
+        assert runtime.status()["plugins"]["zork"]["on_message"] is True  # type: ignore[index]
+    finally:
+        runtime.close()
+        store.close()
+
+
+def test_zork_example_documents_install_and_runtime_boundaries() -> None:
+    readme = (ZORK_EXAMPLE / "README.md").read_text(encoding="utf-8")
+
+    for token in (
+        "exact public `zork`",
+        "MESH_DASH_DEPLOY_BOT_ENABLE=zork",
+        "/home/j/mesh/plugins/",
+        "--bots-enable",
+        "does not require `--games-enable`",
+    ):
+        assert token in readme
