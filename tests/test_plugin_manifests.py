@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from meshdash.bots import Bot
-from meshdash.bots.manifest import (
-    BotDefinitionError,
-    DuplicateBotIdError,
+from meshdash.plugins import Script
+from meshdash.plugins.manifest import (
+    PluginDefinitionError,
+    DuplicatePluginIdError,
     ManifestError,
-    discover_bots,
+    discover_plugins,
     parse_manifest,
-    validate_bot_against_manifest,
+    validate_script_against_manifest,
 )
 
 
@@ -19,10 +19,10 @@ def _write_plugin(
     root: Path,
     directory_name: str,
     *,
-    bot_id: str | None = None,
+    plugin_id: str | None = None,
     name: str = "Example",
     version: str = "1.0.0",
-    entrypoint: str = "bot.py:bot",
+    entrypoint: str = "script.py:script",
     commands: tuple[str, ...] = ("hello",),
     default_enabled: bool = False,
     python_source: str = "this is deliberately not valid Python",
@@ -30,10 +30,10 @@ def _write_plugin(
 ) -> Path:
     plugin = root / directory_name
     plugin.mkdir(parents=True)
-    (plugin / "bot.py").write_text(python_source, encoding="utf-8")
+    (plugin / "script.py").write_text(python_source, encoding="utf-8")
     command_list = ", ".join(f'"{command}"' for command in commands)
-    declared_id = bot_id if bot_id is not None else directory_name
-    (plugin / "bot.toml").write_text(
+    declared_id = plugin_id if plugin_id is not None else directory_name
+    (plugin / "plugin.toml").write_text(
         "\n".join(
             [
                 "api_version = 1",
@@ -54,19 +54,19 @@ def _write_plugin(
 def test_parse_valid_manifest_resolves_entrypoint_without_importing(tmp_path: Path) -> None:
     plugin = _write_plugin(tmp_path, "example", default_enabled=True)
 
-    manifest = parse_manifest(plugin / "bot.toml", source="included")
+    manifest = parse_manifest(plugin / "plugin.toml", source="included")
 
     assert manifest.api_version == 1
     assert manifest.id == "example"
     assert manifest.name == "Example"
     assert manifest.version == "1.0.0"
-    assert manifest.entrypoint == "bot.py:bot"
+    assert manifest.entrypoint == "script.py:script"
     assert manifest.commands == ("hello",)
     assert manifest.default_enabled is True
-    assert manifest.manifest_path == (plugin / "bot.toml").resolve()
+    assert manifest.manifest_path == (plugin / "plugin.toml").resolve()
     assert manifest.plugin_directory == plugin.resolve()
-    assert manifest.entrypoint_path == (plugin / "bot.py").resolve()
-    assert manifest.entrypoint_object == "bot"
+    assert manifest.entrypoint_path == (plugin / "script.py").resolve()
+    assert manifest.entrypoint_object == "script"
     assert manifest.source == "included"
 
 
@@ -80,9 +80,9 @@ def test_parse_valid_manifest_resolves_entrypoint_without_importing(tmp_path: Pa
         ('commands = ["Hello"]', r"commands\[0\] must match"),
         ('commands = ["hello", "hello"]', "duplicate command"),
         ('default_enabled = "false"', "default_enabled must be a boolean"),
-        ('entrypoint = "bot.py"', "entrypoint must use"),
-        ('entrypoint = "/tmp/bot.py:bot"', "entrypoint must stay"),
-        ('entrypoint = "../bot.py:bot"', "entrypoint must stay"),
+        ('entrypoint = "script.py"', "entrypoint must use"),
+        ('entrypoint = "/tmp/script.py:script"', "entrypoint must stay"),
+        ('entrypoint = "../script.py:script"', "entrypoint must stay"),
     ],
 )
 def test_parse_manifest_rejects_invalid_values(
@@ -91,7 +91,7 @@ def test_parse_manifest_rejects_invalid_values(
     message: str,
 ) -> None:
     plugin = _write_plugin(tmp_path, "example")
-    manifest_path = plugin / "bot.toml"
+    manifest_path = plugin / "plugin.toml"
     lines = manifest_path.read_text(encoding="utf-8").splitlines()
     key = replacement.split("=", 1)[0].strip()
     manifest_path.write_text(
@@ -105,7 +105,7 @@ def test_parse_manifest_rejects_invalid_values(
 
 def test_parse_manifest_rejects_missing_unknown_and_malformed_fields(tmp_path: Path) -> None:
     plugin = _write_plugin(tmp_path, "example")
-    manifest_path = plugin / "bot.toml"
+    manifest_path = plugin / "plugin.toml"
     contents = manifest_path.read_text(encoding="utf-8")
     manifest_path.write_text(contents.replace('name = "Example"\n', ""), encoding="utf-8")
     with pytest.raises(ManifestError, match="missing fields: name"):
@@ -113,21 +113,21 @@ def test_parse_manifest_rejects_missing_unknown_and_malformed_fields(tmp_path: P
 
     plugin = _write_plugin(tmp_path, "unknown", extra_toml='typo_enabled = true')
     with pytest.raises(ManifestError, match="unknown fields: typo_enabled"):
-        parse_manifest(plugin / "bot.toml")
+        parse_manifest(plugin / "plugin.toml")
 
-    (plugin / "bot.toml").write_text("not = [valid", encoding="utf-8")
+    (plugin / "plugin.toml").write_text("not = [valid", encoding="utf-8")
     with pytest.raises(ManifestError, match="invalid TOML"):
-        parse_manifest(plugin / "bot.toml")
+        parse_manifest(plugin / "plugin.toml")
 
 
 def test_parse_manifest_rejects_entrypoint_symlink_escape(tmp_path: Path) -> None:
     outside = tmp_path / "outside.py"
-    outside.write_text("bot = None", encoding="utf-8")
-    plugin = _write_plugin(tmp_path, "example", entrypoint="linked.py:bot")
+    outside.write_text("script = None", encoding="utf-8")
+    plugin = _write_plugin(tmp_path, "example", entrypoint="linked.py:script")
     (plugin / "linked.py").symlink_to(outside)
 
     with pytest.raises(ManifestError, match="must stay inside"):
-        parse_manifest(plugin / "bot.toml")
+        parse_manifest(plugin / "plugin.toml")
 
 
 def test_discovery_is_deterministic_and_does_not_import_python(tmp_path: Path) -> None:
@@ -139,68 +139,68 @@ def test_discovery_is_deterministic_and_does_not_import_python(tmp_path: Path) -
     (local / "not-a-plugin").mkdir(parents=True)
     (local / "README.txt").write_text("ignored", encoding="utf-8")
 
-    manifests = discover_bots(included, local)
+    manifests = discover_plugins(included, local)
 
     assert [manifest.id for manifest in manifests] == ["alpha", "zeta", "middle"]
     assert [manifest.source for manifest in manifests] == ["included", "included", "local"]
 
 
 def test_discovery_ignores_missing_roots_and_rejects_non_directory(tmp_path: Path) -> None:
-    assert discover_bots(tmp_path / "missing-included", tmp_path / "missing-local") == ()
+    assert discover_plugins(tmp_path / "missing-included", tmp_path / "missing-local") == ()
     not_a_directory = tmp_path / "plugins.txt"
     not_a_directory.write_text("no", encoding="utf-8")
     with pytest.raises(ManifestError, match="not a directory"):
-        discover_bots(not_a_directory, None)
+        discover_plugins(not_a_directory, None)
 
 
 def test_discovery_rejects_duplicate_ids_with_both_paths(tmp_path: Path) -> None:
     included = tmp_path / "included"
     local = tmp_path / "local"
-    first = _write_plugin(included, "first", bot_id="duplicate")
-    second = _write_plugin(local, "second", bot_id="duplicate")
+    first = _write_plugin(included, "first", plugin_id="duplicate")
+    second = _write_plugin(local, "second", plugin_id="duplicate")
 
-    with pytest.raises(DuplicateBotIdError) as exc_info:
-        discover_bots(included, local)
+    with pytest.raises(DuplicatePluginIdError) as exc_info:
+        discover_plugins(included, local)
 
     message = str(exc_info.value)
-    assert "duplicate bot id 'duplicate'" in message
-    assert str((first / "bot.toml").resolve()) in message
-    assert str((second / "bot.toml").resolve()) in message
+    assert "duplicate plugin id 'duplicate'" in message
+    assert str((first / "plugin.toml").resolve()) in message
+    assert str((second / "plugin.toml").resolve()) in message
 
 
 def test_worker_validation_enforces_authoritative_manifest_metadata(tmp_path: Path) -> None:
     plugin = _write_plugin(tmp_path, "example", commands=("hello", "status"))
-    manifest = parse_manifest(plugin / "bot.toml")
-    bot = Bot(id="example", name="Example", version="1.0.0")
+    manifest = parse_manifest(plugin / "plugin.toml")
+    script = Script(id="example", name="Example", version="1.0.0")
 
-    @bot.command("hello")
+    @script.command("hello")
     def hello(ctx: object) -> None:
         return None
 
-    with pytest.raises(BotDefinitionError, match="missing command handlers: status"):
-        validate_bot_against_manifest(manifest, bot)
+    with pytest.raises(PluginDefinitionError, match="missing command handlers: status"):
+        validate_script_against_manifest(manifest, script)
 
-    @bot.command("status")
+    @script.command("status")
     def status(ctx: object) -> None:
         return None
 
-    assert validate_bot_against_manifest(manifest, bot) is bot
+    assert validate_script_against_manifest(manifest, script) is script
 
 
 def test_worker_validation_rejects_wrong_entrypoint_type_and_metadata(tmp_path: Path) -> None:
     plugin = _write_plugin(tmp_path, "example")
-    manifest = parse_manifest(plugin / "bot.toml")
-    with pytest.raises(BotDefinitionError, match="did not resolve to Bot"):
-        validate_bot_against_manifest(manifest, object())
+    manifest = parse_manifest(plugin / "plugin.toml")
+    with pytest.raises(PluginDefinitionError, match="did not resolve to Script"):
+        validate_script_against_manifest(manifest, object())
 
-    bot = Bot(id="other", name="Other", version="2")
+    script = Script(id="other", name="Other", version="2")
 
-    @bot.command("extra")
+    @script.command("extra")
     def extra(ctx: object) -> None:
         return None
 
-    with pytest.raises(BotDefinitionError) as exc_info:
-        validate_bot_against_manifest(manifest, bot)
+    with pytest.raises(PluginDefinitionError) as exc_info:
+        validate_script_against_manifest(manifest, script)
     assert "id is 'other'" in str(exc_info.value)
     assert "name is 'Other'" in str(exc_info.value)
     assert "version is '2'" in str(exc_info.value)

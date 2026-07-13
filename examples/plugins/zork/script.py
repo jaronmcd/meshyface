@@ -1,15 +1,15 @@
-"""Compatibility wrapper for the former built-in Meshyface Zork bot."""
+"""Compatibility wrapper for the former built-in Meshyface Zork script."""
 
 from __future__ import annotations
 
 import time
 
-from meshdash.bots import Bot
+from meshdash.plugins import Script
 from meshdash.games.zork import ZorkGame
 
 
-bot = Bot(id="zork", name="Zork", version="1.0.0")
-bot.ticker("activity", label="Zork", default_enabled=True)
+script = Script(id="zork", name="Zork", version="1.0.0")
+script.ticker("activity", label="Zork", default_enabled=True)
 
 _PUBLIC_START_TRIGGER = "zork"
 _game = ZorkGame()
@@ -52,7 +52,7 @@ def _publish_activity_ticker(ctx, now_unix: int) -> None:
     )
 
 
-@bot.on_start
+@script.on_start
 def zork_start(ctx):
     _publish_activity_ticker(ctx, int(time.time()))
 
@@ -68,7 +68,7 @@ def _run_zork(ctx, *, allow_public_start: bool):
     if message.is_broadcast:
         if not allow_public_start or text.casefold() != _PUBLIC_START_TRIGGER:
             return None
-        # The old bot accepted only an exact public "zork", then converted it
+        # The old script accepted only an exact public "zork", then converted it
         # into a private game keyed to the sender and replied directly.
         destination_id = message.local_node_id
     elif message.is_direct:
@@ -96,14 +96,14 @@ def _run_zork(ctx, *, allow_public_start: bool):
     return ctx.reply_long(reply) if reply else None
 
 
-@bot.command("zork")
+@script.command("zork")
 def zork_command(ctx):
-    # A public !zork was not an old-bot trigger; public starts remain exact
+    # A public !zork was not an old-script trigger; public starts remain exact
     # unprefixed "zork" messages. Direct !zork starts or restarts normally.
     return _run_zork(ctx, allow_public_start=False)
 
 
-@bot.on_message
+@script.on_message
 def zork_message(ctx):
     # Direct messages are offered to the game so an active peer can use its
     # normal unprefixed verbs. ZorkGame ignores unrelated direct messages.

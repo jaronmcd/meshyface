@@ -419,9 +419,9 @@ def _build_offline_runtime_context(
         started_at=started_at,
         utc_now_fn=utc_now_fn,
         history_store=history_store,
-        plugin_runtime_enabled=bool(getattr(args, "bots_enable", False)),
+        plugin_runtime_enabled=bool(getattr(args, "plugins_enable", False)),
     )
-    if not bool(getattr(args, "bots_enable", False)):
+    if not bool(getattr(args, "plugins_enable", False)):
         def _plugin_runtime_disabled(
             plugin_id: object,
             enabled: bool,

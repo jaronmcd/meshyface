@@ -8,11 +8,11 @@ import re
 import tomllib
 from typing import Literal, Mapping
 
-from .sdk import Bot
+from .sdk import Script
 
 
 SUPPORTED_API_VERSION = 1
-_BOT_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
+_PLUGIN_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 _COMMAND_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _REQUIRED_FIELDS = {
     "api_version",
@@ -23,23 +23,23 @@ _REQUIRED_FIELDS = {
     "commands",
     "default_enabled",
 }
-BotSource = Literal["included", "local"]
+PluginSource = Literal["included", "local"]
 
 
 class ManifestError(ValueError):
-    """A bot manifest or discovery directory is invalid."""
+    """A plugin manifest or discovery directory is invalid."""
 
 
-class DuplicateBotIdError(ManifestError):
-    """Two discovered manifests declare the same bot ID."""
+class DuplicatePluginIdError(ManifestError):
+    """Two discovered manifests declare the same plugin ID."""
 
 
-class BotDefinitionError(ValueError):
+class PluginDefinitionError(ValueError):
     """An imported worker entrypoint disagrees with its manifest."""
 
 
 @dataclass(frozen=True, slots=True)
-class BotManifest:
+class PluginManifest:
     api_version: int
     id: str
     name: str
@@ -51,23 +51,23 @@ class BotManifest:
     plugin_directory: Path
     entrypoint_path: Path
     entrypoint_object: str
-    source: BotSource
+    source: PluginSource
 
 
 def parse_manifest(
     manifest_path: str | Path,
     *,
-    source: BotSource = "local",
-) -> BotManifest:
-    """Parse one ``bot.toml`` without loading its Python entrypoint.
+    source: PluginSource = "local",
+) -> PluginManifest:
+    """Parse one ``plugin.toml`` without loading its Python entrypoint.
 
     Unknown fields are rejected so misspelled configuration cannot silently
     change runtime behavior.  The returned paths are absolute and resolved.
     """
 
     path = Path(manifest_path)
-    if path.name != "bot.toml":
-        raise ManifestError(f"{path}: manifest must be named bot.toml")
+    if path.name != "plugin.toml":
+        raise ManifestError(f"{path}: manifest must be named plugin.toml")
     try:
         with path.open("rb") as handle:
             raw = tomllib.load(handle)
@@ -91,8 +91,8 @@ def parse_manifest(
             f"expected {SUPPORTED_API_VERSION}"
         )
 
-    bot_id = _manifest_string(path, raw, "id", maximum=64)
-    if _BOT_ID_RE.fullmatch(bot_id) is None:
+    plugin_id = _manifest_string(path, raw, "id", maximum=64)
+    if _PLUGIN_ID_RE.fullmatch(plugin_id) is None:
         raise ManifestError(f"{path}: id must match [a-z][a-z0-9_-]{{0,63}}")
     name = _manifest_string(path, raw, "name", maximum=128)
     version = _manifest_string(path, raw, "version", maximum=64)
@@ -104,16 +104,16 @@ def parse_manifest(
 
     resolved_manifest = path.resolve()
     # Confinement is relative to the package containing the manifest path, not
-    # to a possible symlink target of bot.toml itself.
+    # to a possible symlink target of plugin.toml itself.
     plugin_directory = path.parent.resolve()
     entrypoint_path, entrypoint_object = _resolve_entrypoint(
         path,
         plugin_directory,
         entrypoint,
     )
-    return BotManifest(
+    return PluginManifest(
         api_version=api_version,
-        id=bot_id,
+        id=plugin_id,
         name=name,
         version=version,
         entrypoint=entrypoint,
@@ -127,20 +127,20 @@ def parse_manifest(
     )
 
 
-def discover_bots(
+def discover_plugins(
     included_directory: str | Path | None,
     local_directory: str | Path | None,
-) -> tuple[BotManifest, ...]:
+) -> tuple[PluginManifest, ...]:
     """Discover direct child plugin packages in deterministic source/name order.
 
-    Discovery only parses ``bot.toml`` files.  It never imports, compiles, or
+    Discovery only parses ``plugin.toml`` files.  It never imports, compiles, or
     otherwise executes an entrypoint.  Missing roots are treated as empty so a
     first-run local directory need not already exist.
     """
 
-    discovered: list[BotManifest] = []
-    by_id: dict[str, BotManifest] = {}
-    roots: tuple[tuple[BotSource, str | Path | None], ...] = (
+    discovered: list[PluginManifest] = []
+    by_id: dict[str, PluginManifest] = {}
+    roots: tuple[tuple[PluginSource, str | Path | None], ...] = (
         ("included", included_directory),
         ("local", local_directory),
     )
@@ -159,14 +159,14 @@ def discover_bots(
         for child in children:
             if not child.is_dir():
                 continue
-            manifest_path = child / "bot.toml"
+            manifest_path = child / "plugin.toml"
             if not manifest_path.is_file():
                 continue
             manifest = parse_manifest(manifest_path, source=source)
             previous = by_id.get(manifest.id)
             if previous is not None:
-                raise DuplicateBotIdError(
-                    f"duplicate bot id {manifest.id!r}: "
+                raise DuplicatePluginIdError(
+                    f"duplicate plugin id {manifest.id!r}: "
                     f"{previous.manifest_path} and {manifest.manifest_path}"
                 )
             by_id[manifest.id] = manifest
@@ -174,39 +174,39 @@ def discover_bots(
     return tuple(discovered)
 
 
-def validate_bot_against_manifest(manifest: BotManifest, bot: object) -> Bot:
+def validate_script_against_manifest(manifest: PluginManifest, script: object) -> Script:
     """Validate an imported entrypoint in the worker process.
 
     The parent-side discovery path must not call this function because doing so
     would require importing plugin Python.  Manifest identity and command
-    declarations are authoritative; the Bot object must agree exactly.
+    declarations are authoritative; the Script object must agree exactly.
     """
 
-    if not isinstance(bot, Bot):
-        raise BotDefinitionError(
-            f"bot {manifest.id!r} entrypoint {manifest.entrypoint!r} did not resolve to Bot"
+    if not isinstance(script, Script):
+        raise PluginDefinitionError(
+            f"script {manifest.id!r} entrypoint {manifest.entrypoint!r} did not resolve to Script"
         )
     mismatches: list[str] = []
-    if bot.id != manifest.id:
-        mismatches.append(f"id is {bot.id!r}, manifest declares {manifest.id!r}")
-    if bot.name != manifest.name:
-        mismatches.append(f"name is {bot.name!r}, manifest declares {manifest.name!r}")
-    if bot.version != manifest.version:
+    if script.id != manifest.id:
+        mismatches.append(f"id is {script.id!r}, manifest declares {manifest.id!r}")
+    if script.name != manifest.name:
+        mismatches.append(f"name is {script.name!r}, manifest declares {manifest.name!r}")
+    if script.version != manifest.version:
         mismatches.append(
-            f"version is {bot.version!r}, manifest declares {manifest.version!r}"
+            f"version is {script.version!r}, manifest declares {manifest.version!r}"
         )
-    bot_commands = set(bot.commands)
+    script_commands = set(script.commands)
     manifest_commands = set(manifest.commands)
-    if bot_commands != manifest_commands:
-        missing = sorted(manifest_commands - bot_commands)
-        undeclared = sorted(bot_commands - manifest_commands)
+    if script_commands != manifest_commands:
+        missing = sorted(manifest_commands - script_commands)
+        undeclared = sorted(script_commands - manifest_commands)
         if missing:
             mismatches.append(f"missing command handlers: {', '.join(missing)}")
         if undeclared:
             mismatches.append(f"undeclared command handlers: {', '.join(undeclared)}")
     if mismatches:
-        raise BotDefinitionError(f"bot {manifest.id!r} does not match manifest: {'; '.join(mismatches)}")
-    return bot
+        raise PluginDefinitionError(f"script {manifest.id!r} does not match manifest: {'; '.join(mismatches)}")
+    return script
 
 
 def _validate_fields(path: Path, raw: Mapping[str, object]) -> None:

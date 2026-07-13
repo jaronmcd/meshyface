@@ -6,12 +6,12 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from meshdash.bots import (
-    Bot,
+from meshdash.plugins import (
+    Script,
     MessageEvent,
     ReplyAction,
     parse_manifest,
-    validate_bot_against_manifest,
+    validate_script_against_manifest,
 )
 from meshdash.plugin_runtime import PluginRuntime, PluginRuntimeConfig
 from meshdash.plugin_state import PluginStateStore
@@ -86,19 +86,19 @@ def _context(
 
 
 def test_zork_example_matches_manifest_and_preserves_direct_gameplay() -> None:
-    manifest = parse_manifest(ZORK_EXAMPLE / "bot.toml")
+    manifest = parse_manifest(ZORK_EXAMPLE / "plugin.toml")
     namespace = runpy.run_path(str(manifest.entrypoint_path))
-    bot = namespace[manifest.entrypoint_object]
+    script = namespace[manifest.entrypoint_object]
 
-    assert isinstance(bot, Bot)
-    assert validate_bot_against_manifest(manifest, bot) is bot
+    assert isinstance(script, Script)
+    assert validate_script_against_manifest(manifest, script) is script
     assert manifest.id == "zork"
     assert manifest.commands == ("zork",)
     assert manifest.default_enabled is False
-    assert tuple(bot.tickers) == ("activity",)
+    assert tuple(script.tickers) == ("activity",)
 
     start_context = _context("zork")
-    start = bot.message_handler(start_context)
+    start = script.message_handler(start_context)
     assert isinstance(start, ReplyAction)
     assert start.long is True
     assert "zork: session started" in start.text
@@ -108,20 +108,20 @@ def test_zork_example_matches_manifest_and_preserves_direct_gameplay() -> None:
     assert start_context.tickers[-1]["rows"]["Game"] == "Zork"
     assert start_context.tickers[-1]["rows"]["Sess"] == "1 active"
 
-    look = bot.message_handler(_context("look"))
+    look = script.message_handler(_context("look"))
     assert isinstance(look, ReplyAction)
     assert "West of House" in look.text
 
-    quit_reply = bot.message_handler(_context("quit"))
+    quit_reply = script.message_handler(_context("quit"))
     assert isinstance(quit_reply, ReplyAction)
     assert "zork: session ended" in quit_reply.text
-    assert bot.message_handler(_context("look")) is None
+    assert script.message_handler(_context("look")) is None
 
 
 def test_zork_example_keeps_public_trigger_exact_and_replies_privately() -> None:
-    manifest = parse_manifest(ZORK_EXAMPLE / "bot.toml")
+    manifest = parse_manifest(ZORK_EXAMPLE / "plugin.toml")
     namespace = runpy.run_path(str(manifest.entrypoint_path))
-    bot = namespace[manifest.entrypoint_object]
+    script = namespace[manifest.entrypoint_object]
 
     unrelated = _context(
         "I am playing zork",
@@ -129,7 +129,7 @@ def test_zork_example_keeps_public_trigger_exact_and_replies_privately() -> None
         direct=False,
         broadcast=True,
     )
-    assert bot.message_handler(unrelated) is None
+    assert script.message_handler(unrelated) is None
     assert unrelated.replies == []
 
     public_start = _context(
@@ -138,12 +138,12 @@ def test_zork_example_keeps_public_trigger_exact_and_replies_privately() -> None
         direct=False,
         broadcast=True,
     )
-    start = bot.message_handler(public_start)
+    start = script.message_handler(public_start)
     assert isinstance(start, ReplyAction)
     assert "zork: session started" in start.text
 
     direct_follow_up = _context("look", sender_id="!00000003")
-    look = bot.message_handler(direct_follow_up)
+    look = script.message_handler(direct_follow_up)
     assert isinstance(look, ReplyAction)
     assert "West of House" in look.text
 
@@ -153,16 +153,16 @@ def test_zork_example_keeps_public_trigger_exact_and_replies_privately() -> None
         direct=False,
         broadcast=True,
     )
-    assert bot.commands["zork"](public_prefixed) is None
+    assert script.commands["zork"](public_prefixed) is None
 
     direct_prefixed = _context("!zork", sender_id="!00000004")
-    prefixed_start = bot.commands["zork"](direct_prefixed)
+    prefixed_start = script.commands["zork"](direct_prefixed)
     assert isinstance(prefixed_start, ReplyAction)
     assert "zork: session started" in prefixed_start.text
 
 
 def test_zork_example_runs_in_spawned_worker_and_routes_private_replies(tmp_path) -> None:
-    manifest = parse_manifest(ZORK_EXAMPLE / "bot.toml")
+    manifest = parse_manifest(ZORK_EXAMPLE / "plugin.toml")
     store = PluginStateStore(str(tmp_path / "plugin-state.sqlite3"))
     sends: list[dict[str, object]] = []
     sends_lock = threading.Lock()
@@ -228,10 +228,10 @@ def test_zork_example_documents_install_and_runtime_boundaries() -> None:
 
     for token in (
         "exact public `zork`",
-        "MESH_DASH_DEPLOY_BOT_ENABLE=zork",
+        "MESH_DASH_DEPLOY_PLUGIN_ENABLE=zork",
         "scp -r examples/plugins/zork",
         "/home/j/mesh/plugins/",
-        "--bots-enable",
+        "--plugins-enable",
         "does not require `--games-enable`",
     ):
         assert token in readme

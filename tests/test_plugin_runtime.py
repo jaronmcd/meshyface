@@ -3,7 +3,7 @@ import threading
 import time
 from pathlib import Path
 
-from meshdash.bots import MessageEvent, ReplyAction, parse_manifest
+from meshdash.plugins import MessageEvent, ReplyAction, parse_manifest
 from meshdash.plugin_runtime import (
     PluginRuntime,
     PluginRuntimeConfig,
@@ -24,22 +24,22 @@ def _write_plugin(
     directory = root / plugin_id
     directory.mkdir()
     command_toml = ", ".join(f'"{command}"' for command in commands)
-    (directory / "bot.toml").write_text(
+    (directory / "plugin.toml").write_text(
         "\n".join(
             (
                 "api_version = 1",
                 f'id = "{plugin_id}"',
                 f'name = "{plugin_id.title()}"',
                 'version = "1.0.0"',
-                'entrypoint = "bot.py:bot"',
+                'entrypoint = "script.py:script"',
                 f"commands = [{command_toml}]",
                 "default_enabled = true",
             )
         ),
         encoding="utf-8",
     )
-    (directory / "bot.py").write_text(source, encoding="utf-8")
-    return parse_manifest(directory / "bot.toml")
+    (directory / "script.py").write_text(source, encoding="utf-8")
+    return parse_manifest(directory / "plugin.toml")
 
 
 def _event(
@@ -80,11 +80,11 @@ def test_worker_import_handler_state_session_and_reply_are_isolated(tmp_path) ->
         commands=("hello",),
         source="""
 import os
-from meshdash.bots import Bot
+from meshdash.plugins import Script
 
-bot = Bot(id="example", name="Example", version="1.0.0")
+script = Script(id="example", name="Example", version="1.0.0")
 
-@bot.command("hello")
+@script.command("hello")
 def hello(ctx):
     ctx.state["worker_pid"] = os.getpid()
     ctx.peer_state["count"] = int(ctx.peer_state.get("count", 0)) + 1
@@ -133,9 +133,9 @@ def test_packet_handler_runs_inside_worker_with_raw_packet_context(tmp_path) -> 
         "packets",
         commands=(),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="packets", name="Packets", version="1.0.0")
-@bot.on_packet
+from meshdash.plugins import Script
+script = Script(id="packets", name="Packets", version="1.0.0")
+@script.on_packet
 def packet(ctx):
     ctx.peer_state["packet_id"] = ctx.message.packet_id
     ctx.peer_state["portnum"] = ctx.message.portnum
@@ -174,8 +174,8 @@ def test_quit_never_waits_for_sqlite_on_the_receive_callback(tmp_path) -> None:
         "sessions",
         commands=(),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="sessions", name="Sessions", version="1.0.0")
+from meshdash.plugins import Script
+script = Script(id="sessions", name="Sessions", version="1.0.0")
 """,
     )
     store = PluginStateStore(str(tmp_path / "state.sqlite3"))
@@ -211,8 +211,8 @@ def test_close_interrupts_an_unreleased_action_batch(tmp_path) -> None:
         "idle",
         commands=(),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="idle", name="Idle", version="1.0.0")
+from meshdash.plugins import Script
+script = Script(id="idle", name="Idle", version="1.0.0")
 """,
     )
     store = PluginStateStore(str(tmp_path / "state.sqlite3"))
@@ -241,9 +241,9 @@ def test_timeout_restarts_worker_drops_poison_event_and_runs_next_plugin(tmp_pat
         "hung",
         commands=("hang",),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="hung", name="Hung", version="1.0.0")
-@bot.command("hang")
+from meshdash.plugins import Script
+script = Script(id="hung", name="Hung", version="1.0.0")
+@script.command("hang")
 def hang(ctx):
     while True:
         pass
@@ -254,9 +254,9 @@ def hang(ctx):
         "healthy",
         commands=("ok",),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="healthy", name="Healthy", version="1.0.0")
-@bot.command("ok")
+from meshdash.plugins import Script
+script = Script(id="healthy", name="Healthy", version="1.0.0")
+@script.command("ok")
 def ok(ctx):
     return ctx.reply("still healthy")
 """,
@@ -293,9 +293,9 @@ def test_handler_exception_rolls_back_state_and_does_not_send(tmp_path) -> None:
         "broken",
         commands=("fail",),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="broken", name="Broken", version="1.0.0")
-@bot.command("fail")
+from meshdash.plugins import Script
+script = Script(id="broken", name="Broken", version="1.0.0")
+@script.command("fail")
 def fail(ctx):
     ctx.state["should_not_commit"] = True
     raise RuntimeError("boom")
@@ -330,9 +330,9 @@ def test_city_aware_plugin_uses_stable_node_and_atlas_facades(tmp_path) -> None:
         "city",
         commands=("where",),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="city", name="City", version="1.0.0")
-@bot.command("where")
+from meshdash.plugins import Script
+script = Script(id="city", name="City", version="1.0.0")
+@script.command("where")
 def where(ctx):
     location = ctx.mesh.get_node_location(ctx.message.sender_id)
     city = ctx.mesh.nearest_city(location["latitude"], location["longitude"])
@@ -367,12 +367,12 @@ def test_start_and_stop_lifecycle_handlers_are_best_effort_and_stateful(tmp_path
         "lifecycle",
         commands=(),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="lifecycle", name="Lifecycle", version="1.0.0")
-@bot.on_start
+from meshdash.plugins import Script
+script = Script(id="lifecycle", name="Lifecycle", version="1.0.0")
+@script.on_start
 def start(ctx):
     ctx.state["started"] = int(ctx.state.get("started", 0)) + 1
-@bot.on_stop
+@script.on_stop
 def stop(ctx):
     ctx.state["stopped"] = True
 """,
@@ -398,13 +398,13 @@ def test_declared_ticker_updates_runtime_status_without_radio_action(tmp_path) -
         "ticker",
         commands=("work",),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="ticker", name="Ticker", version="1.0.0")
-bot.ticker("activity", label="Activity", metric=True, default_enabled=True)
-@bot.on_start
+from meshdash.plugins import Script
+script = Script(id="ticker", name="Ticker", version="1.0.0")
+script.ticker("activity", label="Activity", metric=True, default_enabled=True)
+@script.on_start
 def start(ctx):
     ctx.set_ticker("activity", value="idle", rows={"Jobs": 0}, metric_value=0)
-@bot.command("work")
+@script.command("work")
 def work(ctx):
     ctx.set_ticker(
         "activity",
@@ -457,9 +457,9 @@ def test_full_event_queue_never_blocks_receive_side_enqueue(tmp_path) -> None:
         "slow",
         commands=("slow",),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="slow", name="Slow", version="1.0.0")
-@bot.command("slow")
+from meshdash.plugins import Script
+script = Script(id="slow", name="Slow", version="1.0.0")
+@script.command("slow")
 def slow(ctx):
     while True:
         pass
@@ -495,9 +495,9 @@ def test_invalid_session_action_rejects_entire_state_and_action_batch(tmp_path) 
         "public",
         commands=(),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="public", name="Public", version="1.0.0")
-@bot.on_message
+from meshdash.plugins import Script
+script = Script(id="public", name="Public", version="1.0.0")
+@script.on_message
 def message(ctx):
     ctx.state["must_rollback"] = True
     ctx.session.start()
@@ -540,9 +540,9 @@ def test_full_action_queue_rejects_state_commit_for_entire_result(tmp_path) -> N
         "effects",
         commands=("effect",),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="effects", name="Effects", version="1.0.0")
-@bot.command("effect")
+from meshdash.plugins import Script
+script = Script(id="effects", name="Effects", version="1.0.0")
+@script.command("effect")
 def effect(ctx):
     ctx.state["handled"] = int(ctx.state.get("handled", 0)) + 1
     return ctx.reply("effect")
@@ -591,9 +591,9 @@ while True:
         "afterhang",
         commands=("after",),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="afterhang", name="Afterhang", version="1.0.0")
-@bot.command("after")
+from meshdash.plugins import Script
+script = Script(id="afterhang", name="Afterhang", version="1.0.0")
+@script.command("after")
 def after(ctx):
     return ctx.reply("healthy loaded")
 """,
@@ -634,9 +634,9 @@ if not marker.exists():
     marker.write_text("attempted", encoding="utf-8")
     while True:
         pass
-from meshdash.bots import Bot
-bot = Bot(id="flaky", name="Flaky", version="1.0.0")
-@bot.command("flaky")
+from meshdash.plugins import Script
+script = Script(id="flaky", name="Flaky", version="1.0.0")
+@script.command("flaky")
 def flaky(ctx):
     return ctx.reply("flaky recovered")
 """,
@@ -646,9 +646,9 @@ def flaky(ctx):
         "steady",
         commands=("steady",),
         source="""
-from meshdash.bots import Bot
-bot = Bot(id="steady", name="Steady", version="1.0.0")
-@bot.command("steady")
+from meshdash.plugins import Script
+script = Script(id="steady", name="Steady", version="1.0.0")
+@script.command("steady")
 def steady(ctx):
     return ctx.reply("steady loaded")
 """,

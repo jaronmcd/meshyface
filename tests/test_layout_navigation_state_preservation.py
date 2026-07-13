@@ -22,7 +22,7 @@ def test_dashboard_js_keeps_layout_switches_in_app() -> None:
     assert "window.requestAnimationFrame(() => {" in switcher_block
 
 
-def test_dashboard_js_omits_removed_bbs_and_bots_views() -> None:
+def test_dashboard_js_omits_removed_bbs_and_legacy_bot_views() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
@@ -259,6 +259,8 @@ def test_dashboard_js_keeps_supported_gated_apps_in_channel_routing() -> None:
     assert 'if (fileTransferFeatureEnabled) {' in routing_block
     assert 'id: "files"' in routing_block
     assert 'label: "Files"' in routing_block
+    assert 'id: "scripts"' not in routing_block
+    assert 'label: "Scripts"' not in routing_block
     assert 'id: "bots"' not in routing_block
     assert 'label: "Bots"' not in routing_block
     assert 'id: "games"' in routing_block
@@ -281,6 +283,7 @@ def test_dashboard_js_exposes_files_in_app_channel_routing_when_enabled() -> Non
     assert 'id: "files"' in routing_block
     assert 'label: "Files"' in routing_block
     assert 'if (token === "files" && fileTransferFeatureEnabled) return "files";' in js
+    assert 'if (token === "scripts"' not in js
     assert 'if (token === "bots"' not in js
     assert 'id: "games"' in routing_block
     assert 'label: "Games"' in routing_block

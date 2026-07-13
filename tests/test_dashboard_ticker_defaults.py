@@ -30,7 +30,7 @@ def test_dashboard_js_uses_curated_default_ticker_layout() -> None:
     assert "prefs.enabled[id] = !!defaults.enabled[id];" in js
 
 
-def test_dashboard_omits_removed_bot_ticker_and_keeps_standalone_zork() -> None:
+def test_dashboard_omits_static_script_ticker_and_keeps_standalone_zork() -> None:
     html = render_html(
         refresh_ms=1000,
         packet_limit=200,
@@ -50,6 +50,8 @@ def test_dashboard_omits_removed_bot_ticker_and_keeps_standalone_zork() -> None:
     )
 
     for token in (
+        'id="summary-ticker-scripts"',
+        'data-ticker-id="scripts"',
         'id="summary-ticker-bots"',
         'data-ticker-id="bots"',
         'data-app-view="bots"',
@@ -57,6 +59,8 @@ def test_dashboard_omits_removed_bot_ticker_and_keeps_standalone_zork() -> None:
     ):
         assert token not in html
     for token in (
+        '{ id: "scripts", defaultLabel: "Scripts", metric: false }',
+        'if (id === "scripts") return "scripts";',
         '{ id: "bots", defaultLabel: "Bots", metric: false }',
         "botTickerAvailableForState",
         "buildBotTickerSummary",

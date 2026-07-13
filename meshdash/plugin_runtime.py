@@ -15,9 +15,9 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import cast
 
-from .bots import (
-    BotAction,
-    BotManifest,
+from .plugins import (
+    ScriptAction,
+    PluginManifest,
     MessageEvent,
     ReplyAction,
     SendChannelAction,
@@ -70,7 +70,7 @@ class _Invocation:
 class _QueuedAction:
     plugin_id: str
     event: MessageEvent
-    action: BotAction
+    action: ScriptAction
 
 
 @dataclass
@@ -82,18 +82,18 @@ class _QueuedActionBatch:
 
 @dataclass
 class _ReconfigureRequest:
-    manifests: tuple[BotManifest, ...]
-    manifest_by_id: dict[str, BotManifest]
+    manifests: tuple[PluginManifest, ...]
+    manifest_by_id: dict[str, PluginManifest]
     command_plugins: dict[str, str]
     ready: threading.Event
     error: str = ""
 
 
 def _validated_manifest_configuration(
-    manifests: Sequence[BotManifest],
+    manifests: Sequence[PluginManifest],
     *,
     allow_empty: bool = False,
-) -> tuple[tuple[BotManifest, ...], dict[str, BotManifest], dict[str, str]]:
+) -> tuple[tuple[PluginManifest, ...], dict[str, PluginManifest], dict[str, str]]:
     configured = tuple(manifests)
     if not configured and not allow_empty:
         raise ValueError("at least one enabled plugin manifest is required")
@@ -114,7 +114,7 @@ def _validated_manifest_configuration(
     return configured, manifest_by_id, command_plugins
 
 
-def _manifest_payload(manifest: BotManifest) -> dict[str, JsonValue]:
+def _manifest_payload(manifest: PluginManifest) -> dict[str, JsonValue]:
     return {
         "api_version": manifest.api_version,
         "id": manifest.id,
@@ -191,7 +191,7 @@ class PluginRuntime:
     def __init__(
         self,
         *,
-        manifests: Sequence[BotManifest],
+        manifests: Sequence[PluginManifest],
         state_store: PluginStateStore,
         send_chat_fn: Callable[..., object],
         node_snapshot_fn: Callable[[], Sequence[Mapping[str, object]]] = tuple,
@@ -295,7 +295,7 @@ class PluginRuntime:
                 self._dropped_events += 1
             return False
 
-    def reconfigure(self, manifests: Sequence[BotManifest]) -> None:
+    def reconfigure(self, manifests: Sequence[PluginManifest]) -> None:
         """Replace the enabled plugin set without restarting MeshyFace."""
 
         configured, manifest_by_id, command_plugins = _validated_manifest_configuration(
@@ -881,10 +881,10 @@ class PluginRuntime:
             with self._status_lock:
                 self._current_plugin = ""
 
-    def _validated_actions(self, raw: object) -> tuple[BotAction, ...]:
+    def _validated_actions(self, raw: object) -> tuple[ScriptAction, ...]:
         if not isinstance(raw, list) or len(raw) > 16:
             raise ValueError("plugin result has an invalid action list")
-        actions: list[BotAction] = []
+        actions: list[ScriptAction] = []
         for item in raw:
             if not isinstance(item, Mapping):
                 raise ValueError("plugin action must be an object")

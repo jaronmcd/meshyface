@@ -25,13 +25,13 @@ class _Tracker:
 
 def _args(tmp_path: Path, **overrides: object) -> SimpleNamespace:
     values: dict[str, object] = {
-        "bots_directory": str(tmp_path / "plugins"),
-        "bots_state_db": str(tmp_path / "plugin-state.sqlite3"),
-        "bots_files_directory": str(tmp_path / "files"),
-        "bots_event_queue_size": 8,
-        "bots_handler_timeout": 1.0,
-        "bot_enable": [],
-        "bot_disable": [],
+        "plugins_directory": str(tmp_path / "plugins"),
+        "plugins_state_db": str(tmp_path / "plugin-state.sqlite3"),
+        "plugins_files_directory": str(tmp_path / "files"),
+        "plugins_event_queue_size": 8,
+        "plugins_handler_timeout": 1.0,
+        "plugin_enable": [],
+        "plugin_disable": [],
         "file_transfer_enable": False,
         "file_transfer_max_bytes": 4096,
     }
@@ -42,25 +42,25 @@ def _args(tmp_path: Path, **overrides: object) -> SimpleNamespace:
 def _write_echo_plugin(root: Path, *, default_enabled: bool = False) -> None:
     directory = root / "echo"
     directory.mkdir(parents=True)
-    (directory / "bot.toml").write_text(
+    (directory / "plugin.toml").write_text(
         "\n".join(
             (
                 "api_version = 1",
                 'id = "echo"',
                 'name = "Echo"',
                 'version = "1.0.0"',
-                'entrypoint = "bot.py:bot"',
+                'entrypoint = "script.py:script"',
                 'commands = ["echo"]',
                 f"default_enabled = {str(default_enabled).lower()}",
             )
         ),
         encoding="utf-8",
     )
-    (directory / "bot.py").write_text(
+    (directory / "script.py").write_text(
         """
-from meshdash.bots import Bot
-bot = Bot(id="echo", name="Echo", version="1.0.0")
-@bot.command("echo")
+from meshdash.plugins import Script
+script = Script(id="echo", name="Echo", version="1.0.0")
+@script.command("echo")
 def echo(ctx):
     return ctx.reply("echo works")
 """,
@@ -104,7 +104,7 @@ def test_individual_enablement_loads_in_worker_and_routes_accepted_event(tmp_pat
     tracker = _Tracker()
     sends: list[dict[str, object]] = []
     subsystem = build_plugin_subsystem(
-        args=_args(tmp_path, bot_enable=["echo"]),
+        args=_args(tmp_path, plugin_enable=["echo"]),
         iface=SimpleNamespace(nodesByNum={}),
         tracker=tracker,
         send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)) or {"ok": True},
@@ -185,7 +185,7 @@ def test_individual_disable_stops_live_routing_and_the_last_worker(tmp_path) -> 
     tracker = _Tracker()
     sends: list[dict[str, object]] = []
     subsystem = build_plugin_subsystem(
-        args=_args(tmp_path, bots_handler_timeout=5.0),
+        args=_args(tmp_path, plugins_handler_timeout=5.0),
         iface=SimpleNamespace(nodesByNum={}),
         tracker=tracker,
         send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)) or {"ok": True},
@@ -234,21 +234,21 @@ def test_broken_plugin_is_reported_without_preventing_healthy_plugin(tmp_path) -
     _write_echo_plugin(root, default_enabled=True)
     broken = root / "broken"
     broken.mkdir()
-    (broken / "bot.toml").write_text(
+    (broken / "plugin.toml").write_text(
         "\n".join(
             (
                 "api_version = 1",
                 'id = "broken"',
                 'name = "Broken"',
                 'version = "1.0.0"',
-                'entrypoint = "bot.py:bot"',
+                'entrypoint = "script.py:script"',
                 "commands = []",
                 "default_enabled = true",
             )
         ),
         encoding="utf-8",
     )
-    (broken / "bot.py").write_text(
+    (broken / "script.py").write_text(
         "raise RuntimeError(f'import failed at {__file__}')\n",
         encoding="utf-8",
     )
@@ -286,25 +286,25 @@ def test_plugin_file_action_queues_host_managed_outbound_job(tmp_path) -> None:
     root = tmp_path / "plugins"
     directory = root / "files"
     directory.mkdir(parents=True)
-    (directory / "bot.toml").write_text(
+    (directory / "plugin.toml").write_text(
         "\n".join(
             (
                 "api_version = 1",
                 'id = "files"',
                 'name = "Files"',
                 'version = "1.0.0"',
-                'entrypoint = "bot.py:bot"',
+                'entrypoint = "script.py:script"',
                 'commands = ["file"]',
                 "default_enabled = true",
             )
         ),
         encoding="utf-8",
     )
-    (directory / "bot.py").write_text(
+    (directory / "script.py").write_text(
         """
-from meshdash.bots import Bot
-bot = Bot(id="files", name="Files", version="1.0.0")
-@bot.command("file")
+from meshdash.plugins import Script
+script = Script(id="files", name="Files", version="1.0.0")
+@script.command("file")
 def send_file(ctx):
     return ctx.mesh.send_file(ctx.message.sender_id, "sample.bin")
 """,
@@ -319,7 +319,7 @@ def send_file(ctx):
         args=_args(
             tmp_path,
             file_transfer_enable=True,
-            bots_files_directory=str(approved),
+            plugins_files_directory=str(approved),
         ),
         iface=SimpleNamespace(nodesByNum={}),
         tracker=tracker,

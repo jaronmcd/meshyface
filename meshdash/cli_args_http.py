@@ -40,14 +40,14 @@ def add_http_runtime_args(
     default_api_token: str | None = None,
     default_file_transfer_enable: bool = False,
     default_file_transfer_auto_accept: bool = False,
-    default_bots_enable: bool = False,
-    default_bots_directory: str = "mesh_dashboard_plugins",
-    default_bots_state_db: str = "mesh_dashboard_plugin_state.sqlite3",
-    default_bots_files_directory: str = "mesh_dashboard_plugin_files",
-    default_bots_handler_timeout: float = 5.0,
-    default_bots_event_queue_size: int = 128,
-    default_bot_enable: list[str] | None = None,
-    default_bot_disable: list[str] | None = None,
+    default_plugins_enable: bool = False,
+    default_plugins_directory: str = "mesh_dashboard_plugins",
+    default_plugins_state_db: str = "mesh_dashboard_plugin_state.sqlite3",
+    default_plugins_files_directory: str = "mesh_dashboard_plugin_files",
+    default_plugins_handler_timeout: float = 5.0,
+    default_plugins_event_queue_size: int = 128,
+    default_plugin_enable: list[str] | None = None,
+    default_plugin_disable: list[str] | None = None,
     default_games_enable: bool = False,
     default_file_transfer_max_bytes: int = 64 * 1024,
     default_accept_file_transfer_traffic_disclaimer: bool = False,
@@ -156,54 +156,54 @@ def add_http_runtime_args(
         ),
     )
     parser.add_argument(
-        "--bots-enable",
+        "--plugins-enable",
         action=argparse.BooleanOptionalAction,
-        default=default_bots_enable,
+        default=default_plugins_enable,
         help=(
             "Enable the trusted Python plugin subsystem "
-            f"(default: {default_bots_enable})"
+            f"(default: {default_plugins_enable})"
         ),
     )
     parser.add_argument(
-        "--bots-directory",
-        default=default_bots_directory,
-        help="Persistent directory containing local bot plugin packages.",
+        "--plugins-directory",
+        default=default_plugins_directory,
+        help="Persistent directory containing local script plugin packages.",
     )
     parser.add_argument(
-        "--bots-state-db",
-        default=default_bots_state_db,
-        help="Independent SQLite database for bot state, sessions, and enablement.",
+        "--plugins-state-db",
+        default=default_plugins_state_db,
+        help="Independent SQLite database for script state, sessions, and enablement.",
     )
     parser.add_argument(
-        "--bots-files-directory",
-        default=default_bots_files_directory,
-        help="Approved root for files requested through the bot API.",
+        "--plugins-files-directory",
+        default=default_plugins_files_directory,
+        help="Approved root for files requested through the script API.",
     )
     parser.add_argument(
-        "--bots-handler-timeout",
+        "--plugins-handler-timeout",
         type=float,
-        default=default_bots_handler_timeout,
-        help="Maximum seconds allowed for one bot handler.",
+        default=default_plugins_handler_timeout,
+        help="Maximum seconds allowed for one script handler.",
     )
     parser.add_argument(
-        "--bots-event-queue-size",
+        "--plugins-event-queue-size",
         type=int,
-        default=default_bots_event_queue_size,
-        help="Maximum pending normalized bot events.",
+        default=default_plugins_event_queue_size,
+        help="Maximum pending normalized script events.",
     )
     parser.add_argument(
-        "--bot-enable",
+        "--plugin-enable",
         action="append",
-        default=list(default_bot_enable or ()),
+        default=list(default_plugin_enable or ()),
         metavar="ID",
-        help="Enable one discovered bot ID; may be repeated.",
+        help="Enable one discovered plugin ID; may be repeated.",
     )
     parser.add_argument(
-        "--bot-disable",
+        "--plugin-disable",
         action="append",
-        default=list(default_bot_disable or ()),
+        default=list(default_plugin_disable or ()),
         metavar="ID",
-        help="Disable one discovered bot ID; may be repeated.",
+        help="Disable one discovered plugin ID; may be repeated.",
     )
     parser.add_argument(
         "--games-enable",

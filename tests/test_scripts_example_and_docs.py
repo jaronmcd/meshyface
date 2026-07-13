@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from meshdash.bots import Bot, ReplyAction, parse_manifest, validate_bot_against_manifest
+from meshdash.plugins import Script, ReplyAction, parse_manifest, validate_script_against_manifest
 from meshdash.plugin_composition import build_plugin_subsystem
 
 
@@ -36,13 +36,13 @@ def _wait_until(predicate, *, timeout: float = 5.0) -> None:
 
 def _example_args(tmp_path: Path, *, enable: bool) -> SimpleNamespace:
     return SimpleNamespace(
-        bots_directory=str(REPO_ROOT / "examples" / "plugins"),
-        bots_state_db=str(tmp_path / "plugin-state.sqlite3"),
-        bots_files_directory=str(tmp_path / "plugin-files"),
-        bots_event_queue_size=8,
-        bots_handler_timeout=2.0,
-        bot_enable=["hello"] if enable else [],
-        bot_disable=[],
+        plugins_directory=str(REPO_ROOT / "examples" / "plugins"),
+        plugins_state_db=str(tmp_path / "plugin-state.sqlite3"),
+        plugins_files_directory=str(tmp_path / "plugin-files"),
+        plugins_event_queue_size=8,
+        plugins_handler_timeout=2.0,
+        plugin_enable=["hello"] if enable else [],
+        plugin_disable=[],
         file_transfer_enable=False,
         file_transfer_max_bytes=4096,
     )
@@ -59,15 +59,15 @@ def _hello_packet(packet_id: int) -> dict[str, object]:
 
 
 def test_hello_example_is_copyable_and_matches_its_manifest(tmp_path: Path) -> None:
-    installed = tmp_path / "configured-scripts" / "hello"
+    installed = tmp_path / "configured-plugins" / "hello"
     shutil.copytree(HELLO_EXAMPLE, installed)
 
-    manifest = parse_manifest(installed / "bot.toml")
+    manifest = parse_manifest(installed / "plugin.toml")
     namespace = runpy.run_path(str(manifest.entrypoint_path))
-    bot = namespace[manifest.entrypoint_object]
+    script = namespace[manifest.entrypoint_object]
 
-    assert isinstance(bot, Bot)
-    assert validate_bot_against_manifest(manifest, bot) is bot
+    assert isinstance(script, Script)
+    assert validate_script_against_manifest(manifest, script) is script
     assert manifest.id == "hello"
     assert manifest.commands == ("hello",)
     assert manifest.default_enabled is False
@@ -77,8 +77,8 @@ def test_hello_example_is_copyable_and_matches_its_manifest(tmp_path: Path) -> N
         peer_state=peer_state,
         reply=lambda text: ReplyAction(text),
     )
-    first = bot.commands["hello"](context)
-    second = bot.commands["hello"](context)
+    first = script.commands["hello"](context)
+    second = script.commands["hello"](context)
 
     assert first == ReplyAction("Hello from Meshyface! Visit 1.")
     assert second == ReplyAction("Hello from Meshyface! Visit 2.")
@@ -89,7 +89,7 @@ def test_hello_example_is_documentation_not_an_included_runtime_package() -> Non
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
 
     assert HELLO_EXAMPLE.is_dir()
-    assert not (REPO_ROOT / "meshdash" / "bots" / "included" / "hello").exists()
+    assert not (REPO_ROOT / "meshdash" / "included_plugins" / "hello").exists()
     assert "COPY examples" not in dockerfile
 
 
@@ -132,23 +132,23 @@ def test_hello_example_runs_in_spawned_runtime_and_persists_peer_state(
     ]
 
 
-def test_scripts_docs_define_product_and_compatibility_vocabulary() -> None:
+def test_plugins_docs_define_package_and_script_vocabulary() -> None:
     docs = (REPO_ROOT / "docs" / "plugins.md").read_text(encoding="utf-8")
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
     for token in (
-        "# Scripts (Alpha)",
+        "# Plugins and Script API (Alpha)",
         "Apps → Scripts (Alpha)",
         "api_version = 1",
-        "meshdash.bots",
-        "--bots-*",
-        "MESH_DASH_BOTS_*",
+        "meshdash.plugins",
+        "--plugins-*",
+        "MESH_DASH_PLUGINS_*",
         "examples/plugins/hello",
         "one direct child",
         "## Troubleshooting",
         "There is no filesystem hot reload.",
     ):
         assert token in docs
-    assert "not a bundled or automatically discovered script" in docs
-    assert "--bot-enable hello" in docs
+    assert "not a bundled or automatically discovered plugin" in docs
+    assert "--plugin-enable hello" in docs
     assert "**Apps → Scripts (Alpha)**" in readme

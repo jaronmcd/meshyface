@@ -1,4 +1,4 @@
-"""Stable public SDK for trusted MeshyFace Python bots.
+"""Stable public SDK for trusted MeshyFace Python scripts.
 
 This module intentionally contains no dashboard, radio, storage, or worker
 objects.  A worker supplies implementations of the context protocols and the
@@ -17,7 +17,7 @@ from typing import Callable, Literal, Mapping, MutableMapping, Protocol, TypeAli
 from meshdash.helpers_json import JsonValue
 
 
-_BOT_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
+_SCRIPT_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 _COMMAND_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _TICKER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 
@@ -61,7 +61,7 @@ def _optional_number(value: object, field: str) -> float | None:
 
 @dataclass(frozen=True, slots=True)
 class TickerDefinition:
-    """One display-only dashboard ticker declared by a plugin."""
+    """One display-only dashboard ticker declared by a Script."""
 
     id: str
     label: str
@@ -88,7 +88,7 @@ class TickerDefinition:
 
 @dataclass(frozen=True, slots=True)
 class MessageEvent:
-    """Normalized, immutable message information delivered to a bot."""
+    """Normalized, immutable message information delivered to a script."""
 
     text: str
     sender_id: str
@@ -274,23 +274,23 @@ class SessionAction:
         return {"type": "session", "operation": self.operation}
 
 
-BotAction: TypeAlias = (
+ScriptAction: TypeAlias = (
     ReplyAction | SendTextAction | SendChannelAction | SendFileAction | SessionAction
 )
 
 
-def action_to_dict(action: BotAction) -> dict[str, JsonValue]:
+def action_to_dict(action: ScriptAction) -> dict[str, JsonValue]:
     """Convert one immutable SDK action to a JSON-compatible dictionary."""
 
     if not isinstance(
         action,
         (ReplyAction, SendTextAction, SendChannelAction, SendFileAction, SessionAction),
     ):
-        raise TypeError(f"unsupported bot action: {type(action).__name__}")
+        raise TypeError(f"unsupported script action: {type(action).__name__}")
     return action.to_dict()
 
 
-def action_from_dict(payload: Mapping[str, object]) -> BotAction:
+def action_from_dict(payload: Mapping[str, object]) -> ScriptAction:
     """Strictly reconstruct an SDK action from a decoded JSON object."""
 
     action_type = payload.get("type")
@@ -367,7 +367,7 @@ class MeshyFaceAPI(Protocol):
     def send_file(self, destination_id: str, path_or_file_id: str) -> SendFileAction: ...
 
 
-class BotContext(Protocol):
+class ScriptContext(Protocol):
     message: MessageEvent
     packet: Mapping[str, JsonValue] | None
     mesh: MeshyFaceAPI
@@ -394,32 +394,32 @@ class BotContext(Protocol):
     def debug(self, *values: object) -> None: ...
 
 
-BotHandler: TypeAlias = Callable[[BotContext], object]
+ScriptHandler: TypeAlias = Callable[[ScriptContext], object]
 
 
-class Bot:
+class Script:
     """Declarative registration object exported to plugin authors.
 
     Manifest metadata is authoritative.  After importing an entrypoint in the
-    worker, the runtime must call ``validate_bot_against_manifest`` before
+    worker, the runtime must call ``validate_script_against_manifest`` before
     invoking handlers.
     """
 
     def __init__(self, *, id: str, name: str, version: str) -> None:
-        if not isinstance(id, str) or _BOT_ID_RE.fullmatch(id) is None:
-            raise ValueError("bot id must match [a-z][a-z0-9_-]{0,63}")
+        if not isinstance(id, str) or _SCRIPT_ID_RE.fullmatch(id) is None:
+            raise ValueError("script id must match [a-z][a-z0-9_-]{0,63}")
         self._id = id
-        self._name = _nonempty_string(name, "bot name", maximum=128)
-        self._version = _nonempty_string(version, "bot version", maximum=64)
-        self._commands: dict[str, BotHandler] = {}
-        self._commands_view: Mapping[str, BotHandler] = MappingProxyType(self._commands)
+        self._name = _nonempty_string(name, "script name", maximum=128)
+        self._version = _nonempty_string(version, "script version", maximum=64)
+        self._commands: dict[str, ScriptHandler] = {}
+        self._commands_view: Mapping[str, ScriptHandler] = MappingProxyType(self._commands)
         self._tickers: dict[str, TickerDefinition] = {}
         self._tickers_view: Mapping[str, TickerDefinition] = MappingProxyType(self._tickers)
-        self._message_handler: BotHandler | None = None
-        self._packet_handler: BotHandler | None = None
-        self._session_handler: BotHandler | None = None
-        self._start_handler: BotHandler | None = None
-        self._stop_handler: BotHandler | None = None
+        self._message_handler: ScriptHandler | None = None
+        self._packet_handler: ScriptHandler | None = None
+        self._session_handler: ScriptHandler | None = None
+        self._start_handler: ScriptHandler | None = None
+        self._stop_handler: ScriptHandler | None = None
 
     @property
     def id(self) -> str:
@@ -434,7 +434,7 @@ class Bot:
         return self._version
 
     @property
-    def commands(self) -> Mapping[str, BotHandler]:
+    def commands(self) -> Mapping[str, ScriptHandler]:
         """Live, read-only view of command handlers for the worker runtime."""
 
         return self._commands_view
@@ -446,30 +446,30 @@ class Bot:
         return self._tickers_view
 
     @property
-    def message_handler(self) -> BotHandler | None:
+    def message_handler(self) -> ScriptHandler | None:
         return self._message_handler
 
     @property
-    def packet_handler(self) -> BotHandler | None:
+    def packet_handler(self) -> ScriptHandler | None:
         return self._packet_handler
 
     @property
-    def session_handler(self) -> BotHandler | None:
+    def session_handler(self) -> ScriptHandler | None:
         return self._session_handler
 
     @property
-    def start_handler(self) -> BotHandler | None:
+    def start_handler(self) -> ScriptHandler | None:
         return self._start_handler
 
     @property
-    def stop_handler(self) -> BotHandler | None:
+    def stop_handler(self) -> ScriptHandler | None:
         return self._stop_handler
 
-    def command(self, name: str) -> Callable[[BotHandler], BotHandler]:
+    def command(self, name: str) -> Callable[[ScriptHandler], ScriptHandler]:
         if not isinstance(name, str) or _COMMAND_RE.fullmatch(name) is None:
             raise ValueError("command name must match [a-z][a-z0-9_-]{0,31}")
 
-        def register(handler: BotHandler) -> BotHandler:
+        def register(handler: ScriptHandler) -> ScriptHandler:
             self._require_callable(handler, f"command {name!r}")
             if name in self._commands:
                 raise ValueError(f"command {name!r} is already registered")
@@ -486,7 +486,7 @@ class Bot:
         metric: bool = False,
         default_enabled: bool = True,
     ) -> TickerDefinition:
-        """Declare one optional dashboard ticker owned by this plugin."""
+        """Declare one optional dashboard ticker owned by this Script."""
 
         definition = TickerDefinition(
             id=ticker_id,
@@ -499,31 +499,31 @@ class Bot:
         self._tickers[definition.id] = definition
         return definition
 
-    def on_message(self, handler: BotHandler) -> BotHandler:
+    def on_message(self, handler: ScriptHandler) -> ScriptHandler:
         self._message_handler = self._register_single(
             "message handler", self._message_handler, handler
         )
         return handler
 
-    def on_packet(self, handler: BotHandler) -> BotHandler:
+    def on_packet(self, handler: ScriptHandler) -> ScriptHandler:
         self._packet_handler = self._register_single(
             "packet handler", self._packet_handler, handler
         )
         return handler
 
-    def session(self, handler: BotHandler) -> BotHandler:
+    def session(self, handler: ScriptHandler) -> ScriptHandler:
         self._session_handler = self._register_single(
             "session handler", self._session_handler, handler
         )
         return handler
 
-    def on_start(self, handler: BotHandler) -> BotHandler:
+    def on_start(self, handler: ScriptHandler) -> ScriptHandler:
         self._start_handler = self._register_single(
             "start handler", self._start_handler, handler
         )
         return handler
 
-    def on_stop(self, handler: BotHandler) -> BotHandler:
+    def on_stop(self, handler: ScriptHandler) -> ScriptHandler:
         self._stop_handler = self._register_single("stop handler", self._stop_handler, handler)
         return handler
 
@@ -531,9 +531,9 @@ class Bot:
     def _register_single(
         cls,
         label: str,
-        current: BotHandler | None,
-        handler: BotHandler,
-    ) -> BotHandler:
+        current: ScriptHandler | None,
+        handler: ScriptHandler,
+    ) -> ScriptHandler:
         cls._require_callable(handler, label)
         if current is not None:
             raise ValueError(f"{label} is already registered")

@@ -3,11 +3,11 @@
 import time
 from collections.abc import Mapping
 
-from meshdash.bots import Bot
+from meshdash.plugins import Script
 
 
-bot = Bot(id="packet_city", name="Packet & City Debug", version="1.0.0")
-bot.ticker("scoreboard", label="Packet City", default_enabled=True)
+script = Script(id="packet_city", name="Packet & City Debug", version="1.0.0")
+script.ticker("scoreboard", label="Packet City", default_enabled=True)
 _SECRET_KEYS = {"adminkey", "password", "pin", "privatekey", "psk", "sessionpasskey"}
 _city_counts = {}
 _unknown_count = 0
@@ -90,12 +90,12 @@ def _publish_scoreboard(ctx):
     )
 
 
-@bot.on_start
+@script.on_start
 def start_scoreboard(ctx):
     _publish_scoreboard(ctx)
 
 
-@bot.on_packet
+@script.on_packet
 def print_packet_and_city(ctx):
     global _last_seen_unix, _unknown_count
 

@@ -32,7 +32,7 @@ def _context(*, city="Minneapolis"):
 
 
 def test_packet_city_example_emits_city_and_redacted_packet() -> None:
-    module = runpy.run_path("examples/plugins/packet_city/bot.py")
+    module = runpy.run_path("examples/plugins/packet_city/script.py")
     handler = module["print_packet_and_city"]
     context = _context()
 
@@ -48,14 +48,14 @@ def test_packet_city_example_emits_city_and_redacted_packet() -> None:
 
 
 def test_packet_city_example_publishes_top_three_city_scoreboard() -> None:
-    module = runpy.run_path("examples/plugins/packet_city/bot.py")
-    bot = module["bot"]
+    module = runpy.run_path("examples/plugins/packet_city/script.py")
+    script = module["script"]
     handler = module["print_packet_and_city"]
 
-    assert tuple(bot.tickers) == ("scoreboard",)
+    assert tuple(script.tickers) == ("scoreboard",)
 
     starting = _context()
-    bot.start_handler(starting)
+    script.start_handler(starting)
     assert starting.tickers[-1] == {
         "id": "scoreboard",
         "value": "waiting",

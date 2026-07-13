@@ -38,7 +38,7 @@ def _args(tmp_path, *, no_history: bool = False):
         http_host="127.0.0.1",
         http_port=0,
         games_enable=False,
-        bots_enable=False,
+        plugins_enable=False,
         file_transfer_enable=False,
         file_transfer_auto_accept=False,
     )
@@ -103,20 +103,20 @@ def test_startup_receive_replay_waits_for_history_local_node_id(
     )
 
     args = _args(tmp_path)
-    args.bots_state_db = str(tmp_path / "must-not-exist.sqlite3")
+    args.plugins_state_db = str(tmp_path / "must-not-exist.sqlite3")
     plugin_directory = tmp_path / "plugins" / "must_not_import"
     plugin_directory.mkdir(parents=True)
     import_marker = tmp_path / "plugin-imported"
-    (plugin_directory / "bot.toml").write_text(
+    (plugin_directory / "plugin.toml").write_text(
         "api_version=1\nid='disabled'\nname='Disabled'\nversion='1'\n"
-        "entrypoint='bot.py:bot'\ncommands=[]\ndefault_enabled=true\n",
+        "entrypoint='script.py:script'\ncommands=[]\ndefault_enabled=true\n",
         encoding="utf-8",
     )
-    (plugin_directory / "bot.py").write_text(
+    (plugin_directory / "script.py").write_text(
         f"from pathlib import Path\nPath({str(import_marker)!r}).touch()\n",
         encoding="utf-8",
     )
-    args.bots_directory = str(tmp_path / "plugins")
+    args.plugins_directory = str(tmp_path / "plugins")
     context = build_dashboard_runtime_context(
         args,
         mesh_target_label_fn=lambda _args: "/dev/ttyUSB0 (serial)",
@@ -208,30 +208,30 @@ def test_startup_receive_buffer_is_bounded_and_keeps_latest_packets() -> None:
 def test_enabled_plugin_receives_packet_buffered_during_radio_open(tmp_path) -> None:
     plugin = tmp_path / "plugins" / "startup"
     plugin.mkdir(parents=True)
-    (plugin / "bot.toml").write_text(
+    (plugin / "plugin.toml").write_text(
         "api_version=1\nid='startup'\nname='Startup'\nversion='1'\n"
-        "entrypoint='bot.py:bot'\ncommands=['hello']\ndefault_enabled=true\n",
+        "entrypoint='script.py:script'\ncommands=['hello']\ndefault_enabled=true\n",
         encoding="utf-8",
     )
-    (plugin / "bot.py").write_text(
+    (plugin / "script.py").write_text(
         """
-from meshdash.bots import Bot
-bot = Bot(id="startup", name="Startup", version="1")
-@bot.command("hello")
+from meshdash.plugins import Script
+script = Script(id="startup", name="Startup", version="1")
+@script.command("hello")
 def hello(ctx):
     return ctx.reply("startup packet handled")
 """,
         encoding="utf-8",
     )
     args = _args(tmp_path, no_history=True)
-    args.bots_enable = True
-    args.bots_directory = str(tmp_path / "plugins")
-    args.bots_state_db = str(tmp_path / "plugin-state.sqlite3")
-    args.bots_files_directory = str(tmp_path / "plugin-files")
-    args.bots_handler_timeout = 2
-    args.bots_event_queue_size = 8
-    args.bot_enable = []
-    args.bot_disable = []
+    args.plugins_enable = True
+    args.plugins_directory = str(tmp_path / "plugins")
+    args.plugins_state_db = str(tmp_path / "plugin-state.sqlite3")
+    args.plugins_files_directory = str(tmp_path / "plugin-files")
+    args.plugins_handler_timeout = 2
+    args.plugins_event_queue_size = 8
+    args.plugin_enable = []
+    args.plugin_disable = []
     subscriptions: list[object] = []
     sends: list[dict[str, object]] = []
 

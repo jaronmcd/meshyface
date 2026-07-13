@@ -4,8 +4,8 @@ from dataclasses import FrozenInstanceError, fields
 
 import pytest
 
-from meshdash.bots import (
-    Bot,
+from meshdash.plugins import (
+    Script,
     MessageEvent,
     ReplyAction,
     SendChannelAction,
@@ -36,95 +36,95 @@ def _message() -> MessageEvent:
     )
 
 
-def test_bot_registers_commands_and_handlers_with_read_only_registry() -> None:
-    bot = Bot(id="example_bot", name="Example Bot", version="1.2.3")
+def test_script_registers_commands_and_handlers_with_read_only_registry() -> None:
+    script = Script(id="example_script", name="Example Script", version="1.2.3")
 
-    @bot.command("hello")
+    @script.command("hello")
     def hello(ctx: object) -> None:
         return None
 
-    @bot.on_message
+    @script.on_message
     def message(ctx: object) -> None:
         return None
 
-    @bot.on_packet
+    @script.on_packet
     def packet(ctx: object) -> None:
         return None
 
-    @bot.session
+    @script.session
     def session(ctx: object) -> None:
         return None
 
-    @bot.on_start
+    @script.on_start
     def start(ctx: object) -> None:
         return None
 
-    @bot.on_stop
+    @script.on_stop
     def stop(ctx: object) -> None:
         return None
 
-    ticker = bot.ticker("activity", label="Activity", default_enabled=True)
+    ticker = script.ticker("activity", label="Activity", default_enabled=True)
 
-    assert bot.id == "example_bot"
-    assert bot.name == "Example Bot"
-    assert bot.version == "1.2.3"
-    assert bot.commands == {"hello": hello}
-    assert bot.message_handler is message
-    assert bot.packet_handler is packet
-    assert bot.session_handler is session
-    assert bot.start_handler is start
-    assert bot.stop_handler is stop
+    assert script.id == "example_script"
+    assert script.name == "Example Script"
+    assert script.version == "1.2.3"
+    assert script.commands == {"hello": hello}
+    assert script.message_handler is message
+    assert script.packet_handler is packet
+    assert script.session_handler is session
+    assert script.start_handler is start
+    assert script.stop_handler is stop
     assert ticker == TickerDefinition("activity", "Activity")
-    assert bot.tickers == {"activity": ticker}
+    assert script.tickers == {"activity": ticker}
     with pytest.raises(TypeError):
-        bot.commands["other"] = hello  # type: ignore[index]
+        script.commands["other"] = hello  # type: ignore[index]
     with pytest.raises(TypeError):
-        bot.tickers["other"] = ticker  # type: ignore[index]
+        script.tickers["other"] = ticker  # type: ignore[index]
 
 
-def test_bot_validates_ticker_declarations() -> None:
-    bot = Bot(id="example", name="Example", version="1")
+def test_script_validates_ticker_declarations() -> None:
+    script = Script(id="example", name="Example", version="1")
 
-    bot.ticker("health", label="Health", metric=True, default_enabled=False)
+    script.ticker("health", label="Health", metric=True, default_enabled=False)
     with pytest.raises(ValueError, match="already registered"):
-        bot.ticker("health", label="Duplicate")
+        script.ticker("health", label="Duplicate")
     with pytest.raises(ValueError, match="ticker id"):
-        bot.ticker("Bad ticker", label="Bad")
+        script.ticker("Bad ticker", label="Bad")
     with pytest.raises(ValueError, match="ticker label"):
-        bot.ticker("other", label="x" * 27)
+        script.ticker("other", label="x" * 27)
 
 
 @pytest.mark.parametrize("name", ["Hello", "two words", "!hello", "", "a" * 33])
-def test_bot_rejects_invalid_command_names(name: str) -> None:
-    bot = Bot(id="example", name="Example", version="1")
+def test_script_rejects_invalid_command_names(name: str) -> None:
+    script = Script(id="example", name="Example", version="1")
 
     with pytest.raises(ValueError, match="command name"):
-        bot.command(name)
+        script.command(name)
 
 
-def test_bot_rejects_duplicate_registrations() -> None:
-    bot = Bot(id="example", name="Example", version="1")
+def test_script_rejects_duplicate_registrations() -> None:
+    script = Script(id="example", name="Example", version="1")
 
-    @bot.command("hello")
+    @script.command("hello")
     def hello(ctx: object) -> None:
         return None
 
     with pytest.raises(ValueError, match="already registered"):
-        bot.command("hello")(hello)
+        script.command("hello")(hello)
 
-    bot.on_message(hello)
+    script.on_message(hello)
     with pytest.raises(ValueError, match="already registered"):
-        bot.on_message(hello)
+        script.on_message(hello)
 
-    bot.on_packet(hello)
+    script.on_packet(hello)
     with pytest.raises(ValueError, match="already registered"):
-        bot.on_packet(hello)
+        script.on_packet(hello)
 
 
-@pytest.mark.parametrize("bot_id", ["Example", "two words", "-bad", "", "a" * 65])
-def test_bot_rejects_invalid_ids(bot_id: str) -> None:
-    with pytest.raises(ValueError, match="bot id"):
-        Bot(id=bot_id, name="Example", version="1")
+@pytest.mark.parametrize("plugin_id", ["Example", "two words", "-bad", "", "a" * 65])
+def test_script_rejects_invalid_ids(plugin_id: str) -> None:
+    with pytest.raises(ValueError, match="script id"):
+        Script(id=plugin_id, name="Example", version="1")
 
 
 def test_message_event_is_immutable_and_round_trips() -> None:

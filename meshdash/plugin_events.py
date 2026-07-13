@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from collections.abc import Mapping
 
-from .bots import MessageEvent
+from .plugins import MessageEvent
 from .helpers import calculate_hops, extract_reply_id, to_int
 from .helpers_json import to_jsonable
 
@@ -114,7 +114,7 @@ def normalize_plugin_packet_event(
     local_node_id: object,
     now_fn=time.time,
 ) -> MessageEvent | None:
-    """Wrap one accepted packet for ``@bot.on_packet`` handlers."""
+    """Wrap one accepted packet for ``@script.on_packet`` handlers."""
 
     if not isinstance(packet, Mapping):
         return None

@@ -83,8 +83,8 @@ def test_scripts_view_renders_master_off_offline_and_live_lifecycle_states() -> 
     assert "runtimeSummary.enabled === false" in js
     assert 'label: "Not inspected", message: scriptsMasterOffGuidance' in js
     assert '? "Not inspected"' in js
-    assert "--bots-directory path" in js
-    assert "--bots-enable or MESH_DASH_BOTS_ENABLE=true" in js
+    assert "--plugins-directory path" in js
+    assert "--plugins-enable or MESH_DASH_PLUGINS_ENABLE=true" in js
     assert "then restart MeshyFace" in js
     assert "runtimeSummary.available === false" in js
     assert 'label: "Waiting for runtime"' in js
@@ -132,30 +132,30 @@ class _Tracker:
 def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_path: Path) -> None:
     plugin_dir = tmp_path / "plugins" / "weather"
     plugin_dir.mkdir(parents=True)
-    (plugin_dir / "bot.toml").write_text(
+    (plugin_dir / "plugin.toml").write_text(
         "\n".join(
             (
                 "api_version = 1",
                 'id = "weather"',
                 'name = "Weather Alerts"',
                 'version = "2.1.0"',
-                'entrypoint = "bot.py:bot"',
+                'entrypoint = "script.py:script"',
                 'commands = ["weather", "forecast"]',
                 "default_enabled = false",
             )
         ),
         encoding="utf-8",
     )
-    (plugin_dir / "bot.py").write_text("bot = None\n", encoding="utf-8")
+    (plugin_dir / "script.py").write_text("script = None\n", encoding="utf-8")
     subsystem = build_plugin_subsystem(
         args=SimpleNamespace(
-            bots_directory=str(tmp_path / "plugins"),
-            bots_state_db=str(tmp_path / "plugin-state.sqlite3"),
-            bots_files_directory=str(tmp_path / "files"),
-            bots_event_queue_size=8,
-            bots_handler_timeout=1.0,
-            bot_enable=[],
-            bot_disable=[],
+            plugins_directory=str(tmp_path / "plugins"),
+            plugins_state_db=str(tmp_path / "plugin-state.sqlite3"),
+            plugins_files_directory=str(tmp_path / "files"),
+            plugins_event_queue_size=8,
+            plugins_handler_timeout=1.0,
+            plugin_enable=[],
+            plugin_disable=[],
             file_transfer_enable=False,
             file_transfer_max_bytes=4096,
         ),

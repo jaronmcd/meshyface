@@ -192,17 +192,17 @@ contributes to the same persisted packet, chat, node, and rollup history.
 Operational commands that inspect or repair local dashboard data are documented
 in [docs/maintenance.md](docs/maintenance.md).
 
-### Scripts (Alpha)
+### Plugins and Scripts (Alpha)
 
-Administrator-installed Python automations can run in an opt-in spawned
-worker with bounded dispatch, handler timeouts, durable JSON state, direct-message
-sessions, validated chat actions, node/location lookups, and host-managed file
-jobs. The subsystem is disabled by default. Script Python is trusted code, not
-sandboxed code. Its management surface is **Apps → Scripts (Alpha)**; it
-shows runtime and enablement status but does not edit or upload code. See
-[Scripts (Alpha)](docs/plugins.md) for the copyable Hello example, one-restart
-install flow, package format, compatibility names, trust model, and
-troubleshooting.
+Administrator-installed Python plugins can run in an opt-in spawned worker.
+Each plugin currently exports one `Script` with bounded dispatch, handler
+timeouts, durable JSON state, direct-message sessions, validated chat actions,
+node/location lookups, and host-managed file jobs. The subsystem is disabled by
+default. Script Python is trusted code, not sandboxed code. Its management
+surface is **Apps → Scripts (Alpha)**; it shows plugin runtime and enablement
+status but does not edit or upload code. See [Plugins and Script API
+(Alpha)](docs/plugins.md) for the copyable Hello example, one-restart install
+flow, package format, API names, trust model, and troubleshooting.
 
 ## Links View Semantics
 

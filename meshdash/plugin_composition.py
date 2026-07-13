@@ -6,7 +6,7 @@ import threading
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
-from .bots import BotManifest, discover_bots
+from .plugins import PluginManifest, discover_plugins
 from .file_transfer_protocol import decode_file_transfer_packet
 from .helpers import to_int, to_jsonable
 from .helpers_packet_position import extract_position_fields
@@ -110,13 +110,13 @@ class PluginSubsystem:
         state_store: PluginStateStore | None,
         runtime: PluginRuntime | None,
         outbound_files: OutboundFileTransferService | None,
-        manifests: Sequence[BotManifest] = (),
+        manifests: Sequence[PluginManifest] = (),
         enabled_plugin_ids: Sequence[str] = (),
         error: str = "",
         detach_receive_fn: Callable[[], object] | None = None,
         runtime_factory: (
             Callable[
-                [Sequence[BotManifest]],
+                [Sequence[PluginManifest]],
                 tuple[PluginRuntime, OutboundFileTransferService | None],
             ]
             | None
@@ -349,22 +349,22 @@ def build_plugin_subsystem(
     outbound: OutboundFileTransferService | None = None
     runtime: PluginRuntime | None = None
     try:
-        local_directory = str(getattr(args, "bots_directory", "mesh_dashboard_plugins"))
-        included_directory = Path(__file__).with_name("included_bots")
-        discovered = discover_bots(included_directory, local_directory)
+        local_directory = str(getattr(args, "plugins_directory", "mesh_dashboard_plugins"))
+        included_directory = Path(__file__).with_name("included_plugins")
+        discovered = discover_plugins(included_directory, local_directory)
         state_store = PluginStateStore(
-            str(getattr(args, "bots_state_db", "mesh_dashboard_plugin_state.sqlite3"))
+            str(getattr(args, "plugins_state_db", "mesh_dashboard_plugin_state.sqlite3"))
         )
         by_id = {manifest.id: manifest for manifest in discovered}
-        for raw_id in list(getattr(args, "bot_enable", []) or []):
+        for raw_id in list(getattr(args, "plugin_enable", []) or []):
             plugin_id = str(raw_id or "").strip().lower()
             if plugin_id not in by_id:
-                raise ValueError(f"--bot-enable references unknown plugin {plugin_id!r}")
+                raise ValueError(f"--plugin-enable references unknown plugin {plugin_id!r}")
             state_store.set_plugin_enabled(plugin_id, True)
-        for raw_id in list(getattr(args, "bot_disable", []) or []):
+        for raw_id in list(getattr(args, "plugin_disable", []) or []):
             plugin_id = str(raw_id or "").strip().lower()
             if plugin_id not in by_id:
-                raise ValueError(f"--bot-disable references unknown plugin {plugin_id!r}")
+                raise ValueError(f"--plugin-disable references unknown plugin {plugin_id!r}")
             state_store.set_plugin_enabled(plugin_id, False)
         enabled = tuple(
             manifest
@@ -374,11 +374,11 @@ def build_plugin_subsystem(
         runtime_config = PluginRuntimeConfig(
             event_queue_size=max(
                 1,
-                int(getattr(args, "bots_event_queue_size", 128)),
+                int(getattr(args, "plugins_event_queue_size", 128)),
             ),
             handler_timeout_seconds=max(
                 0.1,
-                float(getattr(args, "bots_handler_timeout", 5.0)),
+                float(getattr(args, "plugins_handler_timeout", 5.0)),
             ),
         )
 
@@ -386,7 +386,7 @@ def build_plugin_subsystem(
             tracker.state_revision = int(getattr(tracker, "state_revision", 0) or 0) + 1
 
         def _runtime_factory(
-            manifests: Sequence[BotManifest],
+            manifests: Sequence[PluginManifest],
         ) -> tuple[PluginRuntime, OutboundFileTransferService | None]:
             nonlocal outbound
             if outbound is None and bool(getattr(args, "file_transfer_enable", False)):
@@ -394,7 +394,7 @@ def build_plugin_subsystem(
                     str(
                         getattr(
                             args,
-                            "bots_files_directory",
+                            "plugins_files_directory",
                             "mesh_dashboard_plugin_files",
                         )
                     ),

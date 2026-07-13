@@ -689,7 +689,7 @@ def build_dashboard_runtime_context(
             except Exception:
                 pass
 
-    if bool(getattr(args, "bots_enable", False)):
+    if bool(getattr(args, "plugins_enable", False)):
         try:
             from .plugin_composition import build_plugin_subsystem
 

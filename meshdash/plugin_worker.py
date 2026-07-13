@@ -13,11 +13,11 @@ from pathlib import Path
 from types import ModuleType
 from typing import cast
 
-from .bots import (
-    Bot,
-    BotAction,
-    BotManifest,
-    BotSource,
+from .plugins import (
+    Script,
+    ScriptAction,
+    PluginManifest,
+    PluginSource,
     MessageEvent,
     ReplyAction,
     SendChannelAction,
@@ -25,7 +25,7 @@ from .bots import (
     SendTextAction,
     SessionAction,
     action_to_dict,
-    validate_bot_against_manifest,
+    validate_script_against_manifest,
 )
 from .helpers_json import JsonValue, to_jsonable
 from .offline_atlas import nearest_city
@@ -39,8 +39,8 @@ MAX_HANDLER_TICKER_UPDATES = 8
 MAX_TICKER_ROWS = 8
 
 
-def _manifest_from_payload(payload: Mapping[str, object]) -> BotManifest:
-    return BotManifest(
+def _manifest_from_payload(payload: Mapping[str, object]) -> PluginManifest:
+    return PluginManifest(
         api_version=int(payload["api_version"]),
         id=str(payload["id"]),
         name=str(payload["name"]),
@@ -52,11 +52,11 @@ def _manifest_from_payload(payload: Mapping[str, object]) -> BotManifest:
         plugin_directory=Path(str(payload["plugin_directory"])),
         entrypoint_path=Path(str(payload["entrypoint_path"])),
         entrypoint_object=str(payload["entrypoint_object"]),
-        source=cast(BotSource, str(payload["source"])),
+        source=cast(PluginSource, str(payload["source"])),
     )
 
 
-def _load_plugin_module(manifest: BotManifest) -> ModuleType:
+def _load_plugin_module(manifest: PluginManifest) -> ModuleType:
     package_name = f"_meshyface_plugin_{manifest.id}"
     package = ModuleType(package_name)
     package.__path__ = [str(manifest.plugin_directory)]  # type: ignore[attr-defined]
@@ -72,10 +72,10 @@ def _load_plugin_module(manifest: BotManifest) -> ModuleType:
     return module
 
 
-def _load_bot(manifest: BotManifest) -> Bot:
+def _load_script(manifest: PluginManifest) -> Script:
     module = _load_plugin_module(manifest)
-    bot = getattr(module, manifest.entrypoint_object, None)
-    return validate_bot_against_manifest(manifest, bot)
+    script = getattr(module, manifest.entrypoint_object, None)
+    return validate_script_against_manifest(manifest, script)
 
 
 @dataclass
@@ -265,9 +265,9 @@ def _normalize_handler_result(result: object) -> list[dict[str, JsonValue]]:
         result,
         (ReplyAction, SendTextAction, SendChannelAction, SendFileAction, SessionAction),
     ):
-        actions: Sequence[BotAction] = (result,)
+        actions: Sequence[ScriptAction] = (result,)
     elif isinstance(result, (list, tuple)):
-        actions = cast(Sequence[BotAction], result)
+        actions = cast(Sequence[ScriptAction], result)
     else:
         raise TypeError("plugin handler must return an action, a sequence of actions, or None")
     if len(actions) > MAX_HANDLER_ACTIONS:
@@ -275,12 +275,12 @@ def _normalize_handler_result(result: object) -> list[dict[str, JsonValue]]:
     return [action_to_dict(action) for action in actions]
 
 
-def _handle_invoke(bots: Mapping[str, Bot], message: Mapping[str, object]) -> dict[str, object]:
+def _handle_invoke(scripts: Mapping[str, Script], message: Mapping[str, object]) -> dict[str, object]:
     request_id = str(message.get("request_id") or "")
     plugin_id = str(message.get("plugin_id") or "")
     handler_kind = str(message.get("handler") or "")
-    bot = bots.get(plugin_id)
-    if bot is None:
+    script = scripts.get(plugin_id)
+    if script is None:
         raise ValueError(f"unknown plugin {plugin_id!r}")
     event_raw = message.get("event")
     if not isinstance(event_raw, Mapping):
@@ -307,22 +307,22 @@ def _handle_invoke(bots: Mapping[str, Bot], message: Mapping[str, object]) -> di
         mesh=_WorkerMesh(event, cast(Sequence[Mapping[str, object]], nodes_raw)),
         log=logging.getLogger(f"meshdash.plugin.{plugin_id}"),
         debug_entries=debug_entries,
-        declared_ticker_ids=frozenset(bot.tickers),
+        declared_ticker_ids=frozenset(script.tickers),
         ticker_updates=ticker_updates,
     )
     if handler_kind == "command":
         command = str(message.get("command") or "")
-        handler = bot.commands.get(command)
+        handler = script.commands.get(command)
     elif handler_kind == "message":
-        handler = bot.message_handler
+        handler = script.message_handler
     elif handler_kind == "packet":
-        handler = bot.packet_handler
+        handler = script.packet_handler
     elif handler_kind == "session":
-        handler = bot.session_handler
+        handler = script.session_handler
     elif handler_kind == "start":
-        handler = bot.start_handler
+        handler = script.start_handler
     elif handler_kind == "stop":
-        handler = bot.stop_handler
+        handler = script.stop_handler
     else:
         raise ValueError(f"unsupported handler kind {handler_kind!r}")
     if handler is None:
@@ -353,7 +353,7 @@ def plugin_worker_main(connection: object) -> None:
     recv_bytes = getattr(connection, "recv_bytes")
     send_bytes = getattr(connection, "send_bytes")
     close = getattr(connection, "close")
-    bots: dict[str, Bot] = {}
+    scripts: dict[str, Script] = {}
     try:
         init_message = decode_message(recv_bytes(MAX_PROTOCOL_FRAME_BYTES))
         if init_message.get("type") != "init":
@@ -372,7 +372,7 @@ def plugin_worker_main(connection: object) -> None:
                 )
             )
             try:
-                bot = _load_bot(manifest)
+                script = _load_script(manifest)
             except BaseException as exc:
                 registry.append(
                     {
@@ -388,17 +388,17 @@ def plugin_worker_main(connection: object) -> None:
                     }
                 )
             else:
-                bots[manifest.id] = bot
+                scripts[manifest.id] = script
                 registry.append(
                     {
                         "id": manifest.id,
-                        "commands": list(bot.commands),
-                        "on_message": bot.message_handler is not None,
-                        "on_packet": bot.packet_handler is not None,
-                        "session": bot.session_handler is not None,
-                        "on_start": bot.start_handler is not None,
-                        "on_stop": bot.stop_handler is not None,
-                        "tickers": [definition.to_dict() for definition in bot.tickers.values()],
+                        "commands": list(script.commands),
+                        "on_message": script.message_handler is not None,
+                        "on_packet": script.packet_handler is not None,
+                        "session": script.session_handler is not None,
+                        "on_start": script.start_handler is not None,
+                        "on_stop": script.stop_handler is not None,
+                        "tickers": [definition.to_dict() for definition in script.tickers.values()],
                     }
                 )
         send_bytes(encode_message({"type": "ready", "registry": registry}))
@@ -411,7 +411,7 @@ def plugin_worker_main(connection: object) -> None:
             if message_type != "invoke":
                 raise ValueError(f"unsupported worker message {message_type!r}")
             try:
-                result = _handle_invoke(bots, message)
+                result = _handle_invoke(scripts, message)
             except BaseException as exc:
                 result = {
                     "type": "handler_error",

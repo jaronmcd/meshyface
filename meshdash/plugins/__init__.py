@@ -1,10 +1,10 @@
-"""Public Python API for trusted MeshyFace bots."""
+"""Public Python API for trusted MeshyFace scripts."""
 
 from .sdk import (
-    Bot,
-    BotAction,
-    BotContext,
-    BotHandler,
+    Script,
+    ScriptAction,
+    ScriptContext,
+    ScriptHandler,
     MessageEvent,
     MeshyFaceAPI,
     ReplyAction,
@@ -19,21 +19,21 @@ from .sdk import (
 )
 from .manifest import (
     SUPPORTED_API_VERSION,
-    BotDefinitionError,
-    BotManifest,
-    BotSource,
-    DuplicateBotIdError,
+    PluginDefinitionError,
+    PluginManifest,
+    PluginSource,
+    DuplicatePluginIdError,
     ManifestError,
-    discover_bots,
+    discover_plugins,
     parse_manifest,
-    validate_bot_against_manifest,
+    validate_script_against_manifest,
 )
 
 __all__ = [
-    "Bot",
-    "BotAction",
-    "BotContext",
-    "BotHandler",
+    "Script",
+    "ScriptAction",
+    "ScriptContext",
+    "ScriptHandler",
     "MessageEvent",
     "MeshyFaceAPI",
     "ReplyAction",
@@ -46,12 +46,12 @@ __all__ = [
     "action_from_dict",
     "action_to_dict",
     "SUPPORTED_API_VERSION",
-    "BotDefinitionError",
-    "BotManifest",
-    "BotSource",
-    "DuplicateBotIdError",
+    "PluginDefinitionError",
+    "PluginManifest",
+    "PluginSource",
+    "DuplicatePluginIdError",
     "ManifestError",
-    "discover_bots",
+    "discover_plugins",
     "parse_manifest",
-    "validate_bot_against_manifest",
+    "validate_script_against_manifest",
 ]
