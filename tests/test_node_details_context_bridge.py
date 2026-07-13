@@ -39,6 +39,7 @@ def test_dashboard_has_noninteractive_promoted_node_context_bridge() -> None:
     assert 'class="chat-node-context-bridge-glow"' in html
     assert 'class="chat-node-context-bridge-offscreen-boundary"' in html
     assert 'class="chat-node-context-bridge-edge chat-node-context-bridge-edge-top"' in html
+    assert 'class="chat-node-context-bridge-edge chat-node-context-bridge-edge-target"' in html
     assert 'chat-node-context-bridge-anchor' not in html
 
 
@@ -74,8 +75,25 @@ def test_promoted_bridge_anchors_to_selected_row_without_scrolling() -> None:
     assert "listRect.right - workspaceRect.left" in js
     assert "anchorTopY.toFixed(1)" in js
     assert "anchorBottomY.toFixed(1)" in js
+    assert "const targetEdge =" in js
+    assert "hostRect.left - workspaceRect.left" in js
+    assert "hostRect.top - workspaceRect.top" in js
+    assert "hostRect.bottom - workspaceRect.top" in js
+    assert "window.getComputedStyle(promotedHost).borderTopLeftRadius" in js
+    assert "const targetRadius = Math.max(0, Math.min(" in js
+    assert "const targetCurveX = targetX + targetRadius;" in js
+    assert "const targetTopInner = targetTop + targetRadius;" in js
+    assert "const targetBottomInner = targetBottom - targetRadius;" in js
+    assert " Q " in js
+    assert 'bridge.querySelector(".chat-node-context-bridge-edge-target")' in js
+    assert 'target.setAttribute("d", targetEdge)' in js
     assert 'row.classList.remove("chat-node-context-bridge-source")' in js
     assert 'geometry.row.classList.add("chat-node-context-bridge-source")' in js
+    assert 'rowStyle.getPropertyValue("--node-profile-theme-base").trim()' in js
+    assert 'rowStyle.getPropertyValue("--chat-member-node-bg").trim()' not in js
+    assert 'CSS.supports("color", profileBridgeColor)' in js
+    assert 'bridge.style.setProperty("--chat-node-context-bridge-fill-color", bridgeColor)' in js
+    assert 'geometry.row.style.setProperty("--chat-node-context-bridge-fill-color", bridgeColor)' in js
     assert "chat-node-context-bridge-anchor" not in js
     assert "((rowRect.left + rowRect.right) / 2) - workspaceRect.left" in js
     assert "centerChatNodeNavigatorRow" not in js
@@ -90,7 +108,8 @@ def test_promoted_node_context_bridge_is_lightweight_and_click_through() -> None
     assert ".chat-node-context-bridge {" in css
     assert "pointer-events: none;" in css
     assert "filter: blur(12px);" in css
-    assert "var(--ui-accent) 5.5%" in css
+    assert "var(--chat-node-context-bridge-fill-color, var(--ui-accent)) 5.5%" in css
+    assert "stroke: color-mix(in srgb, var(--ui-accent) 42%, transparent);" in css
     assert ".chat-node-context-bridge-offscreen-boundary" in css
     assert ".chat-member-item.chat-node-context-bridge-source" in css
     assert "inset 0 0 0 999px" in css

@@ -858,7 +858,6 @@ def test_node_details_drawer_follows_workspace_shell_tokens() -> None:
     tab_section = css.split("[data-theme=\"dark\"] .chat-node-details-tab-btn {", 1)[1].split("}", 1)[0]
     active_tab_section = css.split("[data-theme=\"dark\"] .chat-node-details-tab-btn.is-active {", 1)[1].split("}", 1)[0]
     action_section = css.split("[data-theme=\"dark\"] .chat-node-details-action-btn {", 1)[1].split("}", 1)[0]
-    saved_details_section = css.split("[data-theme=\"dark\"] .chat-node-details-drawer .node-details {", 1)[1].split("}", 1)[0]
     saved_section = css.split("[data-theme=\"dark\"] .node-details-section {", 1)[1].split("}", 1)[0]
     saved_stat_section = css.split("[data-theme=\"dark\"] .node-details-stat {", 1)[1].split("}", 1)[0]
     splitter_section = css.split("[data-theme=\"dark\"] .chat-node-details-splitter {", 1)[1].split("}", 1)[0]
@@ -871,7 +870,6 @@ def test_node_details_drawer_follows_workspace_shell_tokens() -> None:
     assert "var(--workspace-shell-active-bg)" in active_tab_section
     assert "var(--workspace-shell-active-text)" in active_tab_section
     assert "var(--workspace-shell-border-muted)" in action_section
-    assert "var(--workspace-shell-bg)" in saved_details_section
     assert "var(--workspace-shell-bg-alt)" in saved_section
     assert "var(--workspace-shell-border-muted)" in saved_stat_section
     assert "var(--workspace-shell-border)" in splitter_section

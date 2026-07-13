@@ -381,7 +381,7 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
     )
     node_details_theme_preview = _last_css_rule(
         css,
-        ".chat-node-details-footer-actions.has-shared-theme-preview",
+        ".chat-node-details-footer-actions.has-node-theme",
     )
     roster_watermark = _css_rule(
         css,
@@ -438,16 +438,15 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
     assert "is-trace-result" in css
     assert "border-color: var(--node-profile-identity-edge);" in map_marker
     assert "background-image: var(--node-profile-theme-surface) !important;" in node_details_theme_preview
+    assert "border-top-color: var(--node-profile-identity-edge);" in node_details_theme_preview
     assert "--node-profile-theme-contrast" not in node_details_theme_preview
-    preview_button = _last_css_rule(
-        css,
-        ".chat-node-details-footer-actions.has-shared-theme-preview .chat-node-details-footer-tag-btn",
-    )
-    assert ".chat-node-details-footer-actions.has-shared-theme-preview .chat-node-details-action-btn," in css
-    assert "color: var(--node-profile-theme-text, var(--workspace-shell-text));" in preview_button
-    assert "background: var(--node-profile-theme-shell-hover, var(--workspace-shell-bg-alt));" in preview_button
-    assert ".chat-node-details-footer-actions.has-shared-theme-preview .chat-node-details-footer-tag-btn {" in css
-    assert ".chat-node-details-footer-actions.has-shared-theme-preview::after" not in css
+    assert "font-family: var(--node-profile-theme-font-family, inherit);" not in node_details_theme_preview
+    assert ".chat-node-details-footer-actions.has-node-theme .chat-node-details-action-btn" not in css
+    assert ".chat-node-details-footer-actions.has-node-theme .chat-node-details-footer-label" not in css
+    assert ".chat-node-details-tabs.has-node-theme .chat-node-details-tab-btn" not in css
+    themed_tabs = _last_css_rule(css, ".chat-node-details-tabs.has-node-theme")
+    assert "border-bottom-color: var(--node-profile-identity-edge);" in themed_tabs
+    assert ".chat-node-details-footer-actions.has-node-theme::after" not in css
     assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" in css
     assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head {" in css
     themed_head = _last_css_rule(
@@ -456,6 +455,8 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
     )
     assert "background-image: var(--node-profile-theme-surface) !important;" in themed_head
     assert "\n    .node-details.profiled-node {\n" not in css
+    assert ".node-details.profiled-node .node-details-section:first-child {" not in css
+    assert ".node-details.profiled-node .node-details-section:first-child::after," not in css
     assert 'content: var(--node-profile-ghost-text, "");' in roster_watermark
     assert "left: var(--node-profile-ghost-anchor-x, 50%);" in roster_watermark
     assert "opacity: var(--node-profile-ghost-opacity, 0);" in roster_watermark

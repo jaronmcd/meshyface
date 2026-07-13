@@ -148,6 +148,9 @@ def test_dashboard_js_centers_theme_actions_in_existing_drawer_footer() -> None:
     assert 'class="chat-node-details-footer-theme-actions"' in footer_markup
     assert 'id="chat-node-details-theme-try-btn"' in footer_markup
     assert 'id="chat-node-details-theme-save-btn"' in footer_markup
+    assert 'const detailsTabs = drawer.querySelector(".chat-node-details-tabs");' in js
+    assert 'detailsTabs.classList.toggle("has-node-theme", profileAppearance);' in js
+    assert 'detailsTabs.classList.remove("has-node-theme");' in js
     assert (
         head_index
         < status_index
@@ -446,6 +449,15 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     assert "display: inline-flex;" in promoted_actions_section
     assert ".chat-node-details-promoted-host .chat-node-details-head-actions > :not(.chat-node-details-promote-btn) {" in css
     assert ".chat-node-details-promoted-host .chat-node-details-tabs {" in css
+    assert ".chat-node-details-tabs.has-node-theme {" in css
+    assert ".chat-node-details-tabs.has-node-theme .chat-node-details-tab-btn" not in css
+    assert ".chat-node-details-drawer.profiled-node .chat-node-details-panel {" in css
+    history_plate_section = css.split(
+        '[data-theme="dark"] .chat-node-details-history-host #map-data-node {',
+        1,
+    )[1].split("}", 1)[0]
+    assert "border-color: var(--workspace-shell-border);" in history_plate_section
+    assert "background:" not in history_plate_section
     assert "padding-right: 38px;" in css
     assert ".chat-node-details-promoted-host .node-details.profiled-node::after," not in css
     assert "var(--workspace-shell-bg, var(--ui-panel))" in promoted_host_section
@@ -634,9 +646,10 @@ def test_selected_node_inspector_uses_effective_profile_appearance() -> None:
 
     assert "function applyNodeAppearanceElementStyle(target, appearanceEntry)" in js
     assert "function clearNodeAppearanceElementStyle(target)" in js
-    assert 'host.classList.toggle("has-node-appearance", hasNodeAppearance);' in js
+    assert '!host.closest("#chat-node-details-drawer")' in js
+    assert 'host.classList.toggle("has-node-appearance", renderNodeAppearance);' in js
     assert 'host.classList.toggle("profiled-node", profileAppearance);' in js
-    assert "applyNodeAppearanceElementStyle(host, appearanceEntry);" in js
+    assert "if (renderNodeAppearance && typeof applyNodeAppearanceElementStyle" in js
     assert 'drawer.classList.toggle("has-node-appearance", hasNodeAppearance);' in js
     assert 'drawer.classList.toggle("profiled-node", profileAppearance);' in js
     assert "applyNodeAppearanceElementStyle(drawer, appearanceEntry);" in js
@@ -647,4 +660,6 @@ def test_selected_node_inspector_uses_effective_profile_appearance() -> None:
     assert ".node-details.has-node-appearance .node-details-section:first-child {" in css
     assert "\n    .node-details.profiled-node {\n" not in css
     assert "\n    .node-details.profiled-node::after,\n" not in css
-    assert "\n    .node-details.profiled-node .node-details-section:first-child::after {\n" not in css
+    assert ".node-details.profiled-node .node-details-section:first-child {" not in css
+    assert ".node-details.profiled-node .node-details-section:first-child::after," not in css
+    assert ".node-details.profiled-node .node-details-section:first-child > *," not in css

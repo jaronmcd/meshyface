@@ -2127,12 +2127,12 @@
       overflow: visible;
     }}
     .chat-node-context-bridge-glow {{
-      fill: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+      fill: color-mix(in srgb, var(--chat-node-context-bridge-fill-color, var(--ui-accent)) 10%, transparent);
       stroke: none;
       filter: blur(12px);
     }}
     .chat-node-context-bridge-wash {{
-      fill: color-mix(in srgb, var(--ui-accent) 5.5%, transparent);
+      fill: color-mix(in srgb, var(--chat-node-context-bridge-fill-color, var(--ui-accent)) 5.5%, transparent);
       stroke: none;
     }}
     .chat-node-context-bridge-edge {{
@@ -2143,6 +2143,10 @@
     }}
     .chat-node-context-bridge-edge-bottom {{
       opacity: 0.58;
+    }}
+    .chat-node-context-bridge-edge-target {{
+      opacity: 0.72;
+      filter: drop-shadow(0 0 4px color-mix(in srgb, var(--ui-accent) 32%, transparent));
     }}
     .chat-node-context-bridge-offscreen-boundary {{
       fill: none;
@@ -2155,7 +2159,7 @@
       box-shadow:
         inset 0 1px 0 color-mix(in srgb, var(--ui-accent) 42%, transparent),
         inset 0 -1px 0 color-mix(in srgb, var(--ui-accent) 42%, transparent),
-        inset 0 0 0 999px color-mix(in srgb, var(--ui-accent) 5.5%, transparent) !important;
+        inset 0 0 0 999px color-mix(in srgb, var(--chat-node-context-bridge-fill-color, var(--ui-accent)) 5.5%, transparent) !important;
     }}
     @media (prefers-reduced-motion: reduce) {{
       .chat-node-context-bridge {{
@@ -2173,7 +2177,6 @@
     .chat-node-details-promoted-host .chat-node-details-tag-host {{
       padding: 9px 10px 10px 10px;
       gap: 8px;
-      background: var(--workspace-shell-bg, var(--ui-panel));
     }}
     .chat-node-details-promoted-host .chat-node-details-drawer .node-details {{
       padding: 10px;
@@ -2763,9 +2766,7 @@
       display: flex;
       flex: 1 1 auto;
       min-height: 0;
-      border-color: var(--surface-tint-border);
       border-radius: 8px;
-      background: var(--surface-tint-bg-soft);
       padding: 8px;
       overflow: hidden;
     }}
