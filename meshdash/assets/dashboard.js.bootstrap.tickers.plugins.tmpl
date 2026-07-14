@@ -146,7 +146,6 @@
 
       item.classList.remove("metric-state-neutral", "metric-state-good", "metric-state-warn", "metric-state-bad");
       item.classList.add(`metric-state-${{state}}`);
-      item.classList.toggle("has-plugin-activity", state === "good");
       item.title = detail;
 
       const metricContainer = document.getElementById(`ticker-plugin-${{token}}`);

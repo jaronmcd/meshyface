@@ -102,9 +102,18 @@ def test_dashboard_builds_opt_in_script_tickers_from_runtime_state() -> None:
         "pluginTickerAvailableIds.clear();",
         "syncPluginTickers(state);",
         'item.dataset.pluginTicker = "1";',
-        'item.classList.toggle("has-plugin-activity", state === "good");',
     ):
         assert token in js
+    assert "has-plugin-activity" not in js
+
+
+def test_plugin_tickers_use_standard_metric_state_styling() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    assert "summary-ticker-item-plugin" not in css
+    assert "has-plugin-activity" not in css
+    assert "#75d7ff" not in css
+    assert "#f2d072" not in css
 
 
 
