@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import shlex
 import subprocess
 import sys
+import time
 import zipfile
 from pathlib import Path
 
@@ -194,8 +196,10 @@ def test_status_payload_tracks_only_local_sideload_and_installed(packs_dir: Path
     assert payload["packs"] == []
     assert "install_map_pack.py" in payload["install_command_prefix"]
     assert "build_map_pack.py" in payload["build_command_prefix"]
-    assert not Path(shlex.split(payload["install_command_prefix"])[0]).is_absolute()
-    assert not Path(shlex.split(payload["install_command_prefix"])[1]).is_absolute()
+    install_prefix_parts = shlex.split(payload["install_command_prefix"])
+    assert install_prefix_parts[0] == "cd"
+    assert Path(install_prefix_parts[1]).is_absolute()
+    assert install_prefix_parts[2] == "&&"
     assert payload["packs_dir_resolved"] == str(packs_dir.resolve())
     assert payload["packs_dir_command"] == str(packs_dir)
 
@@ -241,6 +245,135 @@ def test_status_payload_install_command_uses_portable_default_packs_dir(
     assert payload["packs_dir_command"] == "map_packs"
     assert payload["packs_dir_command_arg"] == "map_packs"
     assert payload["packs_dir_resolved"] == str((tmp_path / "map_packs").resolve())
+
+
+def test_status_payload_commands_enter_dashboard_working_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dashboard_root = tmp_path / "dashboard root"
+    app_dir = dashboard_root / "app"
+    app_dir.mkdir(parents=True)
+    monkeypatch.chdir(dashboard_root)
+    monkeypatch.setattr(map_packs, "_app_dir", lambda: app_dir)
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python3")
+    monkeypatch.delenv("MESH_DASHBOARD_MAP_PACKS_DIR", raising=False)
+
+    payload = map_packs.map_pack_status_payload()
+    build_parts = shlex.split(payload["build_command_prefix"])
+    install_parts = shlex.split(payload["install_command_prefix"])
+
+    assert build_parts[:3] == ["cd", str(dashboard_root.resolve()), "&&"]
+    assert build_parts[-1] == "app/scripts/build_map_pack.py"
+    assert install_parts[:3] == ["cd", str(dashboard_root.resolve()), "&&"]
+    assert install_parts[-1] == "app/scripts/install_map_pack.py"
+    assert payload["packs_dir_command_arg"] == "map_packs"
+
+
+def test_map_pack_build_argv_uses_typed_args_without_shell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    monkeypatch.setattr(map_packs, "_app_dir", lambda: app_dir)
+    monkeypatch.setattr(sys, "executable", "/venv/bin/python")
+
+    argv, detail = map_packs._map_pack_build_argv(
+        {
+            "mode": "center",
+            "center": "44.9577,-93.2446",
+            "radius": 77,
+            "layers": ["cities", "roads", "cities"],
+            "pack_id": "mymesh",
+        }
+    )
+
+    assert argv[0] == "/venv/bin/python"
+    assert argv[1] == str(app_dir / "scripts" / "build_map_pack.py")
+    assert "--center" in argv
+    assert argv[argv.index("--center") + 1] == "44.9577,-93.2446"
+    assert argv[argv.index("--radius-km") + 1] == "77"
+    assert argv[argv.index("--layers") + 1] == "cities,roads"
+    assert argv[-4:] == ["--pack-id", "mymesh", "--zip", "mymesh.zip"]
+    assert "&&" not in argv
+    assert detail["mode"] == "center"
+
+
+def test_map_pack_build_argv_rejects_bad_inputs() -> None:
+    with pytest.raises(ValueError, match="unknown layers"):
+        map_packs._map_pack_build_argv(
+            {"mode": "center", "center": "44.9,-93.2", "radius": 77, "layers": ["bogus"]}
+        )
+    with pytest.raises(ValueError, match="pack_id"):
+        map_packs._map_pack_build_argv(
+            {"mode": "history", "pack_id": "../bad"}
+        )
+    with pytest.raises(ValueError, match="center cannot be 0,0"):
+        map_packs._map_pack_build_argv(
+            {"mode": "center", "center": "0,0", "radius": 77}
+        )
+
+
+def test_start_map_pack_build_job_tracks_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(map_packs, "_app_dir", lambda: app_dir)
+    monkeypatch.setattr(map_packs, "_MAP_PACK_BUILD_JOB", None)
+
+    popen_calls: list[tuple[list[str], dict[str, object]]] = []
+
+    class _FakeStdout:
+        def __iter__(self):
+            return iter(["downloaded source\n", "wrote pack\n"])
+
+    class _FakePopen:
+        stdout = _FakeStdout()
+
+        def __init__(self, argv, **kwargs):
+            popen_calls.append((list(argv), dict(kwargs)))
+
+        def wait(self, timeout=None):
+            return 0
+
+        def terminate(self):
+            pass
+
+        def kill(self):
+            pass
+
+    monkeypatch.setattr(map_packs.subprocess, "Popen", _FakePopen)
+
+    payload = map_packs.start_map_pack_build_job({"mode": "history", "pack_id": "mymesh"})
+
+    assert payload["ok"] is True
+    for _ in range(50):
+        status = map_packs.map_pack_build_status_payload()
+        if status["job"]["status"] != "running":
+            break
+        time.sleep(0.01)
+    status = map_packs.map_pack_build_status_payload()
+
+    assert popen_calls
+    assert popen_calls[0][1]["cwd"] == str(tmp_path)
+    assert status["job"]["status"] == "succeeded"
+    assert status["job"]["returncode"] == 0
+    assert "wrote pack" in status["job"]["lines"]
+
+
+def test_install_built_map_pack_installs_default_zip(
+    tmp_path: Path, packs_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _build_pack_zip(tmp_path / "mymesh.zip", pack_id="mymesh")
+
+    payload = map_packs.install_built_map_pack({"pack_id": "mymesh"})
+
+    assert payload["ok"] is True
+    assert payload["installed"] is True
+    assert payload["pack_id"] == "mymesh"
+    assert map_packs.load_installed_manifest("mymesh") is not None
 
 
 def test_remove_installed_pack(packs_dir: Path) -> None:
@@ -804,6 +937,16 @@ def test_dashboard_js_renders_mesh_sized_map_pack_commands() -> None:
     assert "function settingsMapsMeshSummary(state = latestState)" in js
     assert 'const host = document.getElementById("settings-maps-build-command");' in js
     assert "Mesh-sized map pack" in js
+    assert "function consoleMappacksBuild(ctx, options)" in js
+    assert 'usage: "mappacks [build|install|status|cancel]' in js
+    assert '"/api/maps/packs/build"' in js
+    assert '"/api/maps/packs/install"' in js
+    assert "[mappacks] please wait: checking live GPS and node history..." in js
+    assert 'run "mappacks install" to replace the installed' in js
+    assert "function mapPackChunkCacheKey(manifest, chunkEntry)" in js
+    assert "const chunkVersion = encodeURIComponent(mapPackChunkCacheKey(manifest, chunkEntry));" in js
+    assert 'if (typeof refreshMapPackData === "function")' in js
+    assert "dashboardLivemapPackChunks.clear();" in js
     assert "nodes with GPS. Center" in js
     assert (
         "buildCommand = `${buildPrefix} --source-dir map_sources --download "
@@ -1221,6 +1364,71 @@ def test_python_command_path_fallbacks(
     assert map_packs._python_command_path() == "venvx/python"
 
 
+def test_dashboard_post_starts_map_pack_build_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    from meshdash.helpers import to_int
+    from meshdash.http_api_post import build_post_route_dependencies
+    import meshdash.http_routes_post as routes_post
+
+    body = json.dumps({"mode": "history", "pack_id": "mymesh"}).encode("utf-8")
+    captured: list[tuple[int, object]] = []
+    received: list[object] = []
+
+    class _FakeHandler:
+        headers = {"Content-Length": str(len(body))}
+        rfile = io.BytesIO(body)
+
+    def _write_json(_handler, *, status_code, payload_obj, **_kwargs):
+        captured.append((status_code, payload_obj))
+
+    monkeypatch.setattr(
+        routes_post,
+        "_start_map_pack_build_job_helper",
+        lambda request: received.append(request) or {"ok": True, "job": {"status": "running"}},
+    )
+    deps = build_post_route_dependencies(send_chat_fn=None, to_int_fn=to_int)
+    deps = type(deps)(**{**deps.__dict__, "write_json_response_fn": _write_json})
+
+    routes_post.handle_dashboard_post(
+        _FakeHandler(),
+        path="/api/maps/packs/build",
+        deps=deps,
+    )
+
+    assert received == [{"mode": "history", "pack_id": "mymesh"}]
+    assert captured == [(200, {"ok": True, "job": {"status": "running"}})]
+
+
+def test_dashboard_post_map_pack_build_requires_api_token() -> None:
+    from meshdash.helpers import to_int
+    from meshdash.http_api_post import build_post_route_dependencies
+    from meshdash.http_routes_post import handle_dashboard_post
+
+    body = b"{}"
+    captured: list[tuple[int, object]] = []
+
+    class _FakeHandler:
+        headers = {"Content-Length": str(len(body))}
+        rfile = io.BytesIO(body)
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda _handler, *, status_code, payload_obj, **_kwargs: (
+                captured.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(_FakeHandler(), path="/api/maps/packs/build", deps=deps)
+
+    assert captured == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
 def test_dashboard_routes_serve_pack_endpoints(packs_dir: Path) -> None:
     zip_path = packs_dir / "global_detail.zip"
     _build_pack_zip(zip_path)
@@ -1268,6 +1476,12 @@ def test_dashboard_routes_serve_pack_endpoints(packs_dir: Path) -> None:
     handle_dashboard_get(handler, path="/api/maps/packs", query="", deps=_Deps())
     assert captured["status"] == 200
     assert captured["json"]["ok"] is True
+
+    captured.clear()
+    handle_dashboard_get(handler, path="/api/maps/packs/build", query="", deps=_Deps())
+    assert captured["status"] == 200
+    assert captured["json"]["ok"] is True
+    assert "job" in captured["json"]
 
     handle_dashboard_get(handler, path="/api/maps/pack/global_detail/manifest", query="", deps=_Deps())
     assert captured["status"] == 200

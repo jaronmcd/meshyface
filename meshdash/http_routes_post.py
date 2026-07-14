@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from importlib import import_module
 import json
 from hmac import compare_digest
@@ -9,6 +10,11 @@ from .api_system_update import (
     rollback_update_to_commit as _rollback_update_to_commit_helper,
     run_update_from_github as _run_update_from_github_helper,
     sync_update_branches_from_github as _sync_update_branches_from_github_helper,
+)
+from .map_packs import (
+    cancel_map_pack_build_job as _cancel_map_pack_build_job_helper,
+    install_built_map_pack as _install_built_map_pack_helper,
+    start_map_pack_build_job as _start_map_pack_build_job_helper,
 )
 
 
@@ -25,6 +31,9 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/settings/custom_telemetry",
     "/api/settings/raw_packets",
     "/api/settings/file_transfer",
+    "/api/maps/packs/build",
+    "/api/maps/packs/build/cancel",
+    "/api/maps/packs/install",
     "/api/system/update",
     "/api/system/update/rollback-cleanup",
     "/api/system/update/sync",
@@ -36,6 +45,9 @@ _PRIVATE_MODE_BLOCKED_POST_PATHS = {
     "/api/meshyface/profile/theme",
     "/api/games/zork",
     "/api/tools/network",
+    "/api/maps/packs/build",
+    "/api/maps/packs/build/cancel",
+    "/api/maps/packs/install",
 }
 
 
@@ -136,6 +148,34 @@ def _read_system_update_request(handler: DashboardHttpHandler) -> dict[str, obje
     return parsed
 
 
+def _read_json_object_request(
+    handler: DashboardHttpHandler,
+    *,
+    max_bytes: int,
+    missing_ok: bool = False,
+) -> dict[str, object]:
+    raw_length = _header_value(getattr(handler, "headers", None), "Content-Length").strip()
+    if not raw_length:
+        if missing_ok:
+            return {}
+        raise ValueError("missing Content-Length")
+    try:
+        length = int(raw_length)
+    except ValueError as exc:
+        raise ValueError("invalid Content-Length") from exc
+    if length < 0 or length > max_bytes:
+        raise ValueError("invalid request size")
+    if length == 0:
+        return {}
+    try:
+        parsed = json.loads(handler.rfile.read(length).decode("utf-8"))
+    except Exception as exc:
+        raise ValueError("invalid JSON request body") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("request body must be an object")
+    return parsed
+
+
 def _read_file_transfer_settings_request(
     handler: DashboardHttpHandler,
 ) -> dict[str, object]:
@@ -183,6 +223,13 @@ def _write_request_is_authorized(
     return compare_digest(supplied_token, required_token)
 
 
+def _map_pack_response_status(payload_obj: Mapping[str, object]) -> int:
+    try:
+        return int(payload_obj.get("http_status") or 200)
+    except (TypeError, ValueError):
+        return 200
+
+
 def handle_dashboard_post(
     handler: DashboardHttpHandler,
     *,
@@ -207,6 +254,64 @@ def handle_dashboard_post(
             payload_obj={"ok": False, "error": "API token required for write endpoint"},
             no_store=True,
             extra_headers={"WWW-Authenticate": "Bearer"},
+        )
+        return
+
+    if path == "/api/maps/packs/build":
+        try:
+            request_payload = _read_json_object_request(
+                handler,
+                max_bytes=4096,
+                missing_ok=True,
+            )
+            response_obj = _start_map_pack_build_job_helper(request_payload)
+        except ValueError as exc:
+            response_obj = {
+                "ok": False,
+                "error": {"code": "invalid_request", "message": str(exc)},
+                "http_status": 400,
+            }
+        status_code = _map_pack_response_status(response_obj)
+        response_obj.pop("http_status", None)
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
+            payload_obj=response_obj,
+            no_store=True,
+        )
+        return
+
+    if path == "/api/maps/packs/build/cancel":
+        response_obj = _cancel_map_pack_build_job_helper()
+        deps.write_json_response_fn(
+            handler,
+            status_code=200,
+            payload_obj=response_obj,
+            no_store=True,
+        )
+        return
+
+    if path == "/api/maps/packs/install":
+        try:
+            request_payload = _read_json_object_request(
+                handler,
+                max_bytes=2048,
+                missing_ok=True,
+            )
+            response_obj = _install_built_map_pack_helper(request_payload)
+        except ValueError as exc:
+            response_obj = {
+                "ok": False,
+                "error": {"code": "invalid_request", "message": str(exc)},
+                "http_status": 400,
+            }
+        status_code = _map_pack_response_status(response_obj)
+        response_obj.pop("http_status", None)
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
+            payload_obj=response_obj,
+            no_store=True,
         )
         return
 

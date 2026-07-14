@@ -100,6 +100,14 @@
       return {{ color: "#6f8fb2", weight: 0.9, opacity: 0.5 }};
     }}
 
+    function mapPackChunkCacheKey(manifest, chunkEntry) {{
+      const sha = String(chunkEntry && chunkEntry.sha256 || "").trim();
+      if (sha) return sha.slice(0, 16);
+      const version = Number(manifest && manifest.version) || 0;
+      const totalBytes = Number(manifest && manifest.total_bytes) || 0;
+      return `${{version}}-${{totalBytes}}`;
+    }}
+
     async function fetchMapPackManifests() {{
       if (mapPackManifestChecked) {{
         return mapPackManifests;
@@ -316,9 +324,9 @@
       }}
       mapPackChunkFetchesInFlight.add(key);
       try {{
-        const version = Number(manifest && manifest.version) || 0;
+        const chunkVersion = encodeURIComponent(mapPackChunkCacheKey(manifest, chunkEntry));
         const resp = await fetch(
-          `${{mapPackBaseEndpoint}}/${{packId}}/${{relPath}}?v=${{version}}`,
+          `${{mapPackBaseEndpoint}}/${{packId}}/${{relPath}}?v=${{chunkVersion}}`,
           {{ cache: "force-cache" }}
         );
         if (!resp.ok) {{
@@ -699,9 +707,27 @@
       mapPackManifests = new Map();
       mapPackManifestChecked = false;
       mapPackManifestFetchPromise = null;
+      if (typeof dashboardLivemapPackChunks !== "undefined" && dashboardLivemapPackChunks instanceof Map) {{
+        dashboardLivemapPackChunks.clear();
+      }}
+      if (typeof dashboardLivemapPackFetches !== "undefined" && dashboardLivemapPackFetches instanceof Set) {{
+        dashboardLivemapPackFetches.clear();
+      }}
+      if (typeof dashboardLivemapPackCityRows !== "undefined") {{
+        dashboardLivemapPackCityRows = [];
+      }}
+      if (typeof dashboardLivemapActivePackLayers !== "undefined" && dashboardLivemapActivePackLayers instanceof Set) {{
+        dashboardLivemapActivePackLayers.clear();
+      }}
+      if (typeof refreshDashboardLivemapCities === "function") {{
+        refreshDashboardLivemapCities();
+      }}
     }}
 
     function refreshMapPackData() {{
       resetMapPackRuntime();
       syncMapPackLayers();
+      if (typeof requestDashboardLivemapRefit === "function") {{
+        requestDashboardLivemapRefit();
+      }}
     }}

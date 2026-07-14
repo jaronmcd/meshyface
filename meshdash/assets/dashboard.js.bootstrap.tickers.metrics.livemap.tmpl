@@ -597,9 +597,9 @@
       if (!relPath) return;
       dashboardLivemapPackFetches.add(key);
       try {{
-        const version = Number(manifest && manifest.version) || 0;
+        const chunkVersion = encodeURIComponent(mapPackChunkCacheKey(manifest, chunkEntry));
         const resp = await fetch(
-          `${{mapPackBaseEndpoint}}/${{packId}}/${{relPath}}?v=${{version}}`,
+          `${{mapPackBaseEndpoint}}/${{packId}}/${{relPath}}?v=${{chunkVersion}}`,
           {{ cache: "force-cache" }}
         );
         if (!resp.ok) {{

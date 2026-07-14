@@ -38,6 +38,7 @@ from .http_route_contracts import DashboardGetRouteDependencies
 from .http_responses import _gzip_if_accepted, _send_no_store_headers
 from .map_packs import (
     load_map_pack_manifest_payload as _load_map_pack_manifest_payload_helper,
+    map_pack_build_status_payload as _map_pack_build_status_payload_helper,
     map_pack_status_payload as _map_pack_status_payload_helper,
     read_map_pack_chunk as _read_map_pack_chunk_helper,
 )
@@ -1098,6 +1099,15 @@ def handle_dashboard_get(
             handler,
             status_code=200,
             payload_obj=_map_pack_status_payload_helper(),
+            no_store=True,
+        )
+        return
+
+    if path == "/api/maps/packs/build":
+        deps.write_json_response_fn(
+            handler,
+            status_code=200,
+            payload_obj=_map_pack_build_status_payload_helper(),
             no_store=True,
         )
         return
