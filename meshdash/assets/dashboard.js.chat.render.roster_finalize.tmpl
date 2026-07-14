@@ -419,13 +419,17 @@
         }};
 
         if (!isCanonicalNodeId(peerId) || isSelfNodeId(peerId)) {{
-          host.innerHTML = unavailableMessage && !isPopout
+          const nextUnavailableHtml = unavailableMessage && !isPopout
             ? `<section class="peer-dm-popout-window is-embedded">
               <div class="peer-dm-popout-body">
                 <div class="peer-dm-popout-empty">${{escAttr(unavailableMessage)}}</div>
               </div>
             </section>`
             : "";
+          if (host.__meshPeerDmThreadHtml !== nextUnavailableHtml) {{
+            host.innerHTML = nextUnavailableHtml;
+            host.__meshPeerDmThreadHtml = nextUnavailableHtml;
+          }}
           return;
         }}
 
@@ -622,7 +626,7 @@
         const actionsHtml = actionButtons.length > 0
           ? `<div class="peer-dm-popout-actions">${{actionButtons.join("")}}</div>`
           : "";
-        host.innerHTML = `<section
+        const nextThreadHtml = `<section
           class="peer-dm-popout-window${{isPopout ? "" : " is-embedded"}}"
           data-peer-node-id="${{escAttr(peerId)}}"
           data-peer-dm-channel-index="${{escAttr(threadChannelIndex)}}"
@@ -647,7 +651,6 @@
               type="text"
               autocomplete="off"
               placeholder="Direct message to ${{escAttr(peerId)}}..."
-              value="${{escAttr(draft)}}"
             />
             <button
               type="button"
@@ -691,9 +694,15 @@
             ></div>
           </div>
         </section>`;
+        const threadMarkupChanged = host.__meshPeerDmThreadHtml !== nextThreadHtml;
+        if (threadMarkupChanged) {{
+          host.innerHTML = nextThreadHtml;
+          host.__meshPeerDmThreadHtml = nextThreadHtml;
+        }}
 
         const focusBtn = host.querySelector('[data-peer-dm-action="focus"]');
-        if (focusBtn instanceof HTMLButtonElement) {{
+        if (focusBtn instanceof HTMLButtonElement && focusBtn.dataset.bound !== "1") {{
+          focusBtn.dataset.bound = "1";
           focusBtn.addEventListener("click", (ev) => {{
             ev.preventDefault();
             setPeerDmMenuOpen(false);
@@ -703,7 +712,8 @@
           }});
         }}
         const popoutBtn = host.querySelector('[data-peer-dm-action="popout"]');
-        if (popoutBtn instanceof HTMLButtonElement) {{
+        if (popoutBtn instanceof HTMLButtonElement && popoutBtn.dataset.bound !== "1") {{
+          popoutBtn.dataset.bound = "1";
           popoutBtn.addEventListener("click", (ev) => {{
             ev.preventDefault();
             const activePeerId = normalizeNodeId(peerDmActivePeerId || "");
@@ -742,7 +752,8 @@
           }});
         }}
         const closeBtn = host.querySelector('[data-peer-dm-action="close"]');
-        if (closeBtn instanceof HTMLButtonElement) {{
+        if (closeBtn instanceof HTMLButtonElement && closeBtn.dataset.bound !== "1") {{
+          closeBtn.dataset.bound = "1";
           closeBtn.addEventListener("click", (ev) => {{
             ev.preventDefault();
             if (isPopout && typeof setPeerDmPopoutStatusDisplay === "function") {{
@@ -752,6 +763,7 @@
               peerDmActivePeerId = "";
             }}
             host.innerHTML = "";
+            host.__meshPeerDmThreadHtml = "";
           }});
         }}
 
@@ -843,6 +855,12 @@
             fileProgressFill.style.width = `${{pct}}%`;
           }}
         }};
+        if (input instanceof HTMLInputElement) {{
+          const inputHasFocus = document.activeElement === input;
+          if (threadMarkupChanged || (!inputHasFocus && input.value !== draft)) {{
+            input.value = draft;
+          }}
+        }}
         const latestOwnDirectEcho = (() => {{
           for (let idx = bucket.length - 1; idx >= 0; idx -= 1) {{
             const msg = bucket[idx];
@@ -951,7 +969,8 @@
             renderChat(latestState);
           }}
         }};
-        if (input instanceof HTMLInputElement) {{
+        if (input instanceof HTMLInputElement && input.dataset.bound !== "1") {{
+          input.dataset.bound = "1";
           input.addEventListener("focus", acknowledgeUnreadThreadNotices);
           input.addEventListener("click", acknowledgeUnreadThreadNotices);
           input.addEventListener("input", () => {{
@@ -967,6 +986,8 @@
             ev.preventDefault();
             void submitMessage();
           }});
+        }}
+        if (input instanceof HTMLInputElement) {{
           if (preserveInputFocus && priorPeerId === peerId) {{
             const valueLen = String(input.value || "").length;
             const nextSelectionStart = Number.isFinite(priorSelectionStart)
@@ -989,14 +1010,15 @@
             }});
           }}
         }}
-        if (sendBtn instanceof HTMLButtonElement) {{
+        if (sendBtn instanceof HTMLButtonElement && sendBtn.dataset.bound !== "1") {{
+          sendBtn.dataset.bound = "1";
           sendBtn.addEventListener("click", (ev) => {{
             ev.preventDefault();
             void submitMessage();
           }});
         }}
         const bodyEl = host.querySelector('[data-peer-dm-role="body"]');
-        if (bodyEl instanceof HTMLElement) {{
+        if (bodyEl instanceof HTMLElement && threadMarkupChanged) {{
           scheduleBodyScroll(bodyEl, unreadFocusKeys);
         }}
       }};
