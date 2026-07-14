@@ -1768,7 +1768,8 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "data-reply-node-id=\"${escAttr(replyParentNodeId)}\"" in js
     assert "peer-dm-popout-head${peerProfileClass}" in js
     assert "peer-dm-popout-msg${isOwn ? \" is-own\" : \"\"}${alertClass}${messageProfileClass}" in js
-    assert 'const renderProfileAppearance = mode !== "drawer";' in js
+    assert "const renderProfileAppearance = false;" in js
+    assert 'const renderProfileAppearance = mode !== "drawer";' not in js
     assert "renderProfileAppearance && peerProfileAppearanceActive" in js
     assert "renderProfileAppearance && messageProfileAppearanceActive" in js
     assert 'meshChannelEffectiveSendIndexForApp("profiles")' in js

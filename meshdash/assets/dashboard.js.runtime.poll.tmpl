@@ -771,10 +771,7 @@
         }});
         const shouldBackgroundRenderDirectChat = (
           !isChatWorkspaceLayoutView(activeLayoutView)
-          && (
-            hasFreshDirectEntry
-            || isCanonicalNodeId(peerDmActivePeerId || "")
-          )
+          && hasFreshDirectEntry
         );
         let chatRenderedThisPoll = false;
         if (shouldBackgroundRenderDirectChat) {{

@@ -238,10 +238,16 @@
           if (targetChatChannel === "direct") {{
             if (!chatMainDirectModeEnabled) {{
               if (isCanonicalNodeId(peerNodeId) && !isSelfNodeId(peerNodeId)) {{
-                peerDmActivePeerId = peerNodeId;
                 setPeerDmMenuOpen(false);
-                if (latestState) {{
-                  renderChat(latestState);
+                if (typeof selectNode === "function") {{
+                  selectNode(peerNodeId, false, false);
+                }}
+                if (typeof setChatNodeDetailsDrawerExpanded === "function") {{
+                  setChatNodeDetailsDrawerExpanded(true, {{
+                    tab: "messages",
+                    fetchHistory: false,
+                    rerender: true,
+                  }});
                 }}
               }} else {{
                 setPeerDmMenuOpen(false);
@@ -387,12 +393,6 @@
           if (peerDmMenuOpen) {{
             setPeerDmMenuOpen(false);
             return;
-          }}
-          if (isCanonicalNodeId(peerDmActivePeerId || "")) {{
-            peerDmActivePeerId = "";
-            if (latestState) {{
-              renderChat(latestState);
-            }}
           }}
         }});
       }}

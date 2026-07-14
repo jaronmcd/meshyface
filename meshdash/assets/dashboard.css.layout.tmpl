@@ -4214,19 +4214,6 @@
       white-space: nowrap;
       flex: 0 0 auto;
     }}
-    .peer-dm-popout-host {{
-      position: fixed;
-      right: max(12px, env(safe-area-inset-right));
-      bottom: max(12px, env(safe-area-inset-bottom));
-      z-index: 1300;
-      pointer-events: none;
-      display: flex;
-      align-items: flex-end;
-      justify-content: flex-end;
-      width: min(420px, calc(100vw - 24px));
-      max-width: calc(100vw - 24px);
-      min-height: 0;
-    }}
     .peer-dm-popout-window {{
       --peer-dm-channel-fill: #8da3b1;
       --peer-dm-channel-rgb: 141, 163, 177;
@@ -4311,27 +4298,6 @@
       font-weight: 700;
       letter-spacing: 0.02em;
       white-space: nowrap;
-    }}
-    .peer-dm-popout-actions {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      flex: 0 0 auto;
-    }}
-    .peer-dm-popout-btn {{
-      border: 1px solid #bfd4c3;
-      background: #ffffff;
-      color: #28533c;
-      border-radius: 999px;
-      padding: 3px 9px;
-      font-size: 10px;
-      line-height: 1.2;
-      cursor: pointer;
-      white-space: nowrap;
-    }}
-    .peer-dm-popout-btn:hover {{
-      background: #eaf5ed;
-      border-color: #94b7a0;
     }}
     .peer-dm-popout-body {{
       flex: 0 1 auto;
@@ -4569,16 +4535,6 @@
     }}
     .peer-dm-popout-status.is-error {{
       color: #8d3a3a;
-    }}
-    @media (max-width: 900px) {{
-      .peer-dm-popout-host {{
-        right: 8px;
-        bottom: max(8px, env(safe-area-inset-bottom));
-        width: calc(100vw - 16px);
-      }}
-      .peer-dm-popout-window {{
-        width: calc(100vw - 16px);
-      }}
     }}
     .chat-log-scroll {{
       grid-row: 1;
