@@ -30,6 +30,7 @@ def _load_fixture_script() -> Script:
 
 def _context(*, sender_id: str, direct: bool = True, portnum: str = "258"):
     return SimpleNamespace(
+        config={"allowed_sender_ids": ("!01020304",)},
         message=SimpleNamespace(
             sender_id=sender_id,
             is_direct=direct,
@@ -53,6 +54,7 @@ def test_file_auto_accept_is_a_disabled_development_fixture() -> None:
     assert manifest.id == "file_auto_accept"
     assert manifest.commands == ("filetest",)
     assert manifest.default_enabled is False
+    assert [setting.key for setting in manifest.settings] == ["allowed_sender_ids"]
     assert "examples" not in manifest.plugin_directory.parts
     assert validate_script_against_manifest(manifest, script) is script
 

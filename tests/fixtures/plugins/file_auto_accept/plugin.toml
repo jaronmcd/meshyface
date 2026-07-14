@@ -5,3 +5,10 @@ version = "1.0.0"
 entrypoint = "script.py:script"
 commands = ["filetest"]
 default_enabled = false
+
+[[settings]]
+key = "allowed_sender_ids"
+label = "Allowed sender IDs"
+type = "node_ids"
+default = []
+description = "Canonical node IDs allowed to auto-accept files and request the test file."

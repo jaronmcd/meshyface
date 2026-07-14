@@ -1,7 +1,8 @@
 # File auto-accept development fixture
 
 This plugin is for local file-transfer testing and is disabled by default.
-Edit `ALLOWED_SENDER_IDS` in `script.py` before enabling it.
+Configure `Allowed sender IDs` from the Script card before enabling it. The
+allowlist is empty by default and accepts canonical IDs such as `!01020304`.
 
 To test outbound file sending, copy `tests/fixtures/file_transfer_1k.png` into
 the directory configured by
