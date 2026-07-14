@@ -3960,6 +3960,21 @@
       background: var(--workspace-shell-hover-bg);
       color: var(--workspace-shell-text);
     }}
+    [data-theme="dark"] .chat-node-details-window-btn {{
+      border-color: var(--workspace-shell-border-muted);
+      background: var(--workspace-shell-bg-alt);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .chat-node-details-window-btn:hover {{
+      border-color: var(--workspace-shell-border-strong);
+      background: var(--workspace-shell-hover-bg);
+      color: var(--workspace-shell-text);
+    }}
+    [data-theme="dark"] .chat-node-details-close-btn:hover {{
+      border-color: rgba(214, 126, 126, 0.82);
+      background: rgba(164, 60, 60, 0.24);
+      color: #ffc8c8;
+    }}
     [data-theme="dark"] .chat-node-details-mute-btn.active {{
       border-color: rgba(214, 126, 126, 0.82);
       background: rgba(164, 60, 60, 0.24);
@@ -7906,10 +7921,6 @@
     }}
     #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-title {{
       color: var(--node-profile-theme-text-strong, var(--workspace-shell-text)) !important;
-    }}
-    #chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head-main:hover {{
-      background: var(--node-profile-theme-shell-hover, transparent);
-      box-shadow: inset 0 0 0 1px var(--node-profile-theme-border-muted, var(--node-profile-identity-edge));
     }}
     .chat-node-details-drawer.profiled-node .chat-node-details-panel {{
       position: relative;
