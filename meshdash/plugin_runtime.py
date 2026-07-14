@@ -26,6 +26,7 @@ from .plugins import (
     SendTextAction,
     SessionAction,
     action_from_dict,
+    normalize_plugin_settings,
 )
 from .helpers_json import JsonValue, to_jsonable
 from .plugin_protocol import MAX_PROTOCOL_FRAME_BYTES, decode_message, encode_message
@@ -724,6 +725,16 @@ class PluginRuntime:
         if registration.get("error"):
             return True
         state = self._state_store.snapshot(invocation.plugin_id, invocation.event.sender_id)
+        manifest = self._manifest_by_id[invocation.plugin_id]
+        stored_settings = self._state_store.plugin_settings(invocation.plugin_id)
+        try:
+            plugin_config = normalize_plugin_settings(
+                manifest,
+                stored_settings,
+                require_all=False,
+            )
+        except ValueError:
+            plugin_config = normalize_plugin_settings(manifest, {}, require_all=False)
         with self._session_lock:
             session_key = (
                 invocation.event.local_node_id,
@@ -751,6 +762,7 @@ class PluginRuntime:
             "state_revision": state.state_revision,
             "peer_state": state.peer_state,
             "peer_state_revision": state.peer_state_revision,
+            "config": plugin_config,
             "session_active": session_active,
             "nodes": nodes,
         }

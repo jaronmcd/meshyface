@@ -14,6 +14,8 @@ from .sdk import Script
 SUPPORTED_API_VERSION = 1
 _PLUGIN_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 _COMMAND_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_SETTING_KEY_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_NODE_ID_RE = re.compile(r"![0-9a-f]{8}\Z")
 _REQUIRED_FIELDS = {
     "api_version",
     "id",
@@ -23,7 +25,9 @@ _REQUIRED_FIELDS = {
     "commands",
     "default_enabled",
 }
+_OPTIONAL_FIELDS = {"settings"}
 PluginSource = Literal["included", "local"]
+PluginSettingType = Literal["text", "boolean", "integer", "node_ids"]
 
 
 class ManifestError(ValueError):
@@ -36,6 +40,33 @@ class DuplicatePluginIdError(ManifestError):
 
 class PluginDefinitionError(ValueError):
     """An imported worker entrypoint disagrees with its manifest."""
+
+
+@dataclass(frozen=True, slots=True)
+class PluginSettingDefinition:
+    key: str
+    label: str
+    type: PluginSettingType
+    default: object
+    description: str = ""
+    placeholder: str = ""
+    minimum: int | None = None
+    maximum: int | None = None
+    max_length: int | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        default = list(self.default) if isinstance(self.default, tuple) else self.default
+        return {
+            "key": self.key,
+            "label": self.label,
+            "type": self.type,
+            "default": default,
+            "description": self.description,
+            "placeholder": self.placeholder,
+            "minimum": self.minimum,
+            "maximum": self.maximum,
+            "max_length": self.max_length,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +83,7 @@ class PluginManifest:
     entrypoint_path: Path
     entrypoint_object: str
     source: PluginSource
+    settings: tuple[PluginSettingDefinition, ...] = ()
 
 
 def parse_manifest(
@@ -98,6 +130,7 @@ def parse_manifest(
     version = _manifest_string(path, raw, "version", maximum=64)
     entrypoint = _manifest_string(path, raw, "entrypoint")
     commands = _manifest_commands(path, raw["commands"])
+    settings = _manifest_settings(path, raw.get("settings", []))
     default_enabled = raw["default_enabled"]
     if not isinstance(default_enabled, bool):
         raise ManifestError(f"{path}: default_enabled must be a boolean")
@@ -124,6 +157,7 @@ def parse_manifest(
         entrypoint_path=entrypoint_path,
         entrypoint_object=entrypoint_object,
         source=source,
+        settings=settings,
     )
 
 
@@ -212,7 +246,7 @@ def validate_script_against_manifest(manifest: PluginManifest, script: object) -
 def _validate_fields(path: Path, raw: Mapping[str, object]) -> None:
     fields = set(raw)
     missing = _REQUIRED_FIELDS - fields
-    unknown = fields - _REQUIRED_FIELDS
+    unknown = fields - _REQUIRED_FIELDS - _OPTIONAL_FIELDS
     if missing:
         raise ManifestError(f"{path}: missing fields: {', '.join(sorted(missing))}")
     if unknown:
@@ -249,6 +283,210 @@ def _manifest_commands(path: Path, value: object) -> tuple[str, ...]:
         seen.add(command_value)
         commands.append(command_value)
     return tuple(commands)
+
+
+def _manifest_settings(path: Path, value: object) -> tuple[PluginSettingDefinition, ...]:
+    if not isinstance(value, list):
+        raise ManifestError(f"{path}: settings must be an array of tables")
+    if len(value) > 32:
+        raise ManifestError(f"{path}: settings may contain at most 32 entries")
+    definitions: list[PluginSettingDefinition] = []
+    seen: set[str] = set()
+    for index, raw_setting in enumerate(value):
+        prefix = f"{path}: settings[{index}]"
+        if not isinstance(raw_setting, Mapping):
+            raise ManifestError(f"{prefix} must be a table")
+        setting_type = raw_setting.get("type")
+        if setting_type not in {"text", "boolean", "integer", "node_ids"}:
+            raise ManifestError(
+                f"{prefix}.type must be text, boolean, integer, or node_ids"
+            )
+        allowed = {"key", "label", "type", "default", "description"}
+        if setting_type == "text":
+            allowed.update({"placeholder", "max_length"})
+        elif setting_type == "integer":
+            allowed.update({"minimum", "maximum"})
+        missing = {"key", "label", "type", "default"} - set(raw_setting)
+        unknown = set(raw_setting) - allowed
+        if missing:
+            raise ManifestError(f"{prefix} missing fields: {', '.join(sorted(missing))}")
+        if unknown:
+            raise ManifestError(f"{prefix} unknown fields: {', '.join(sorted(unknown))}")
+        key = _setting_string(prefix, raw_setting.get("key"), "key", maximum=32)
+        if _SETTING_KEY_RE.fullmatch(key) is None:
+            raise ManifestError(f"{prefix}.key must match [a-z][a-z0-9_-]{{0,31}}")
+        if key in seen:
+            raise ManifestError(f"{path}: duplicate setting key {key!r}")
+        seen.add(key)
+        label = _setting_string(prefix, raw_setting.get("label"), "label", maximum=64)
+        description = _setting_optional_string(
+            prefix,
+            raw_setting.get("description", ""),
+            "description",
+            maximum=256,
+        )
+        placeholder = ""
+        minimum: int | None = None
+        maximum: int | None = None
+        max_length: int | None = None
+        if setting_type == "text":
+            placeholder = _setting_optional_string(
+                prefix,
+                raw_setting.get("placeholder", ""),
+                "placeholder",
+                maximum=128,
+            )
+            max_length = _setting_integer(
+                prefix,
+                raw_setting.get("max_length", 256),
+                "max_length",
+                minimum=1,
+                maximum=4096,
+            )
+        elif setting_type == "integer":
+            if "minimum" in raw_setting:
+                minimum = _setting_integer(prefix, raw_setting["minimum"], "minimum")
+            if "maximum" in raw_setting:
+                maximum = _setting_integer(prefix, raw_setting["maximum"], "maximum")
+            if minimum is not None and maximum is not None and minimum > maximum:
+                raise ManifestError(f"{prefix}.minimum must not exceed maximum")
+        definition = PluginSettingDefinition(
+            key=key,
+            label=label,
+            type=setting_type,
+            default=(),
+            description=description,
+            placeholder=placeholder,
+            minimum=minimum,
+            maximum=maximum,
+            max_length=max_length,
+        )
+        try:
+            default = normalize_plugin_setting_value(
+                definition,
+                raw_setting.get("default"),
+                label=f"{prefix}.default",
+            )
+        except ValueError as exc:
+            raise ManifestError(str(exc)) from exc
+        definitions.append(
+            PluginSettingDefinition(
+                key=key,
+                label=label,
+                type=setting_type,
+                default=tuple(default) if isinstance(default, list) else default,
+                description=description,
+                placeholder=placeholder,
+                minimum=minimum,
+                maximum=maximum,
+                max_length=max_length,
+            )
+        )
+    return tuple(definitions)
+
+
+def _setting_string(prefix: str, value: object, field: str, *, maximum: int) -> str:
+    if not isinstance(value, str) or not value or value != value.strip():
+        raise ManifestError(f"{prefix}.{field} must be a non-empty, trimmed string")
+    if len(value) > maximum:
+        raise ManifestError(f"{prefix}.{field} must be at most {maximum} characters")
+    return value
+
+
+def _setting_optional_string(
+    prefix: str,
+    value: object,
+    field: str,
+    *,
+    maximum: int,
+) -> str:
+    if not isinstance(value, str) or value != value.strip():
+        raise ManifestError(f"{prefix}.{field} must be a trimmed string")
+    if len(value) > maximum:
+        raise ManifestError(f"{prefix}.{field} must be at most {maximum} characters")
+    return value
+
+
+def _setting_integer(
+    prefix: str,
+    value: object,
+    field: str,
+    *,
+    minimum: int | None = None,
+    maximum: int | None = None,
+) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ManifestError(f"{prefix}.{field} must be an integer")
+    if minimum is not None and value < minimum:
+        raise ManifestError(f"{prefix}.{field} must be at least {minimum}")
+    if maximum is not None and value > maximum:
+        raise ManifestError(f"{prefix}.{field} must be at most {maximum}")
+    return value
+
+
+def normalize_plugin_setting_value(
+    definition: PluginSettingDefinition,
+    value: object,
+    *,
+    label: str | None = None,
+) -> object:
+    field = label or definition.label
+    if definition.type == "text":
+        if not isinstance(value, str):
+            raise ValueError(f"{field} must be text")
+        if len(value) > int(definition.max_length or 256):
+            raise ValueError(
+                f"{field} must be at most {int(definition.max_length or 256)} characters"
+            )
+        return value
+    if definition.type == "boolean":
+        if not isinstance(value, bool):
+            raise ValueError(f"{field} must be a boolean")
+        return value
+    if definition.type == "integer":
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"{field} must be an integer")
+        if definition.minimum is not None and value < definition.minimum:
+            raise ValueError(f"{field} must be at least {definition.minimum}")
+        if definition.maximum is not None and value > definition.maximum:
+            raise ValueError(f"{field} must be at most {definition.maximum}")
+        return value
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{field} must be an array of node IDs")
+    if len(value) > 64:
+        raise ValueError(f"{field} may contain at most 64 node IDs")
+    node_ids: list[str] = []
+    seen: set[str] = set()
+    for index, raw_node_id in enumerate(value):
+        if not isinstance(raw_node_id, str):
+            raise ValueError(f"{field}[{index}] must be a node ID")
+        node_id = raw_node_id.strip().lower()
+        if _NODE_ID_RE.fullmatch(node_id) is None:
+            raise ValueError(f"{field}[{index}] must match !00000000")
+        if node_id not in seen:
+            seen.add(node_id)
+            node_ids.append(node_id)
+    return node_ids
+
+
+def normalize_plugin_settings(
+    manifest: PluginManifest,
+    values: Mapping[str, object],
+    *,
+    require_all: bool,
+) -> dict[str, object]:
+    definitions = {definition.key: definition for definition in manifest.settings}
+    unknown = set(values) - set(definitions)
+    missing = set(definitions) - set(values) if require_all else set()
+    if unknown:
+        raise ValueError(f"unknown settings: {', '.join(sorted(unknown))}")
+    if missing:
+        raise ValueError(f"missing settings: {', '.join(sorted(missing))}")
+    normalized: dict[str, object] = {}
+    for key, definition in definitions.items():
+        raw_value = values[key] if key in values else definition.default
+        normalized[key] = normalize_plugin_setting_value(definition, raw_value)
+    return normalized
 
 
 def _resolve_entrypoint(

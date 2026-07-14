@@ -272,6 +272,77 @@ def test_plugin_management_returns_structured_invalid_request_error() -> None:
     ]
 
 
+def test_plugin_configuration_applies_validated_settings() -> None:
+    body = json.dumps(
+        {"plugin_id": "configured", "settings": {"allowed_nodes": ["!01020304"]}}
+    ).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    received: list[tuple[object, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_settings_fn=lambda plugin_id, settings: (
+            received.append((plugin_id, settings))
+            or {"ok": True, "plugin_id": plugin_id, "settings": settings}
+        ),
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins/config", deps=deps)
+
+    assert received == [("configured", {"allowed_nodes": ["!01020304"]})]
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "plugin_id": "configured",
+                "settings": {"allowed_nodes": ["!01020304"]},
+            },
+        )
+    ]
+
+
+def test_plugin_configuration_requires_api_token_when_configured() -> None:
+    body = json.dumps({"plugin_id": "configured", "settings": {}}).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    updates = 0
+
+    def _setter(_plugin_id: object, _settings: object) -> dict[str, object]:
+        nonlocal updates
+        updates += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_settings_fn=_setter,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins/config", deps=deps)
+
+    assert updates == 0
+    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
 def test_make_http_handler_wires_plugin_management_hook(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -295,11 +366,16 @@ def test_make_http_handler_wires_plugin_management_hook(
     def _set_plugin_enabled(plugin_id: object, enabled: bool) -> dict[str, object]:
         return {"ok": True, "plugin_id": plugin_id, "enabled": enabled}
 
+    def _set_plugin_settings(plugin_id: object, settings: object) -> dict[str, object]:
+        return {"ok": True, "plugin_id": plugin_id, "settings": settings}
+
     setattr(_state_fn, "set_plugin_enabled_fn", _set_plugin_enabled)
+    setattr(_state_fn, "set_plugin_settings_fn", _set_plugin_settings)
 
     make_http_handler("<html></html>", _state_fn)
 
     assert captured["set_plugin_enabled_fn"] is _set_plugin_enabled
+    assert captured["set_plugin_settings_fn"] is _set_plugin_settings
 
 
 def test_handle_dashboard_post_requires_token_for_raw_packet_capture_settings() -> None:

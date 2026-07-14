@@ -74,3 +74,22 @@ def test_plugin_sessions_and_enablement_are_host_owned(tmp_path) -> None:
     store.set_plugin_enabled("example", True)
     assert store.plugin_enabled("example", default=False) is True
     store.close()
+
+
+def test_plugin_settings_are_host_owned_and_durable(tmp_path) -> None:
+    path = tmp_path / "state.sqlite3"
+    store = PluginStateStore(str(path), now_fn=lambda: 123)
+    assert store.plugin_settings("example") == {}
+    assert store.set_plugin_settings(
+        "example",
+        {"label": "hello", "enabled": True, "node_ids": ["!01020304"]},
+    ) == {"label": "hello", "enabled": True, "node_ids": ["!01020304"]}
+    store.close()
+
+    reopened = PluginStateStore(str(path))
+    assert reopened.plugin_settings("example") == {
+        "label": "hello",
+        "enabled": True,
+        "node_ids": ["!01020304"],
+    }
+    reopened.close()

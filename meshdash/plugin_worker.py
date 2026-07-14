@@ -10,7 +10,7 @@ import sys
 from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from types import ModuleType
+from types import MappingProxyType, ModuleType
 from typing import cast
 
 from .plugins import (
@@ -156,6 +156,7 @@ class _WorkerContext:
     message: MessageEvent
     state: MutableMapping[str, JsonValue]
     peer_state: MutableMapping[str, JsonValue]
+    config: Mapping[str, JsonValue]
     session: _WorkerSession
     mesh: _WorkerMesh
     log: logging.Logger
@@ -286,6 +287,16 @@ def _normalize_handler_result(result: object) -> list[dict[str, JsonValue]]:
     return [action_to_dict(action) for action in actions]
 
 
+def _freeze_config_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return MappingProxyType(
+            {str(key): _freeze_config_value(item) for key, item in value.items()}
+        )
+    if isinstance(value, list):
+        return tuple(_freeze_config_value(item) for item in value)
+    return value
+
+
 def _handle_invoke(scripts: Mapping[str, Script], message: Mapping[str, object]) -> dict[str, object]:
     request_id = str(message.get("request_id") or "")
     plugin_id = str(message.get("plugin_id") or "")
@@ -299,13 +310,22 @@ def _handle_invoke(scripts: Mapping[str, Script], message: Mapping[str, object])
     event = MessageEvent.from_dict(event_raw)
     state_raw = message.get("state")
     peer_state_raw = message.get("peer_state")
-    if not isinstance(state_raw, Mapping) or not isinstance(peer_state_raw, Mapping):
+    config_raw = message.get("config")
+    if (
+        not isinstance(state_raw, Mapping)
+        or not isinstance(peer_state_raw, Mapping)
+        or not isinstance(config_raw, Mapping)
+    ):
         raise ValueError("invoke state must be JSON objects")
     nodes_raw = message.get("nodes", [])
     if not isinstance(nodes_raw, list) or not all(isinstance(row, Mapping) for row in nodes_raw):
         raise ValueError("invoke nodes must be an array of objects")
     state = cast(MutableMapping[str, JsonValue], dict(state_raw))
     peer_state = cast(MutableMapping[str, JsonValue], dict(peer_state_raw))
+    config = cast(
+        Mapping[str, JsonValue],
+        _freeze_config_value(config_raw),
+    )
     initial_session_active = bool(message.get("session_active", False))
     session = _WorkerSession(initial_session_active)
     debug_entries: list[list[JsonValue]] = []
@@ -314,6 +334,7 @@ def _handle_invoke(scripts: Mapping[str, Script], message: Mapping[str, object])
         message=event,
         state=state,
         peer_state=peer_state,
+        config=config,
         session=session,
         mesh=_WorkerMesh(event, cast(Sequence[Mapping[str, object]], nodes_raw)),
         log=logging.getLogger(f"meshdash.plugin.{plugin_id}"),

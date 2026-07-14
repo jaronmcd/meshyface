@@ -4,7 +4,8 @@ Meshyface can run administrator-installed Python plugins in a spawned worker.
 Each plugin is an installed, versioned package that currently exports one
 executable `Script`. The runtime is disabled by default. Its management surface is
 **Apps → Scripts (Alpha)**, where an administrator can inspect installed
-plugins, inspect their scripts, and save plugin enablement changes.
+plugins, inspect their scripts, save plugin enablement changes, and edit any
+configuration fields declared by their manifests.
 
 The word **Alpha** describes this management UI. Plugins use the versioned
 `api_version = 1` host/worker protocol. Package discovery and administration use
@@ -82,10 +83,12 @@ The path options also accept `MESH_DASH_PLUGINS_DIRECTORY`,
 per-plugin overrides may be supplied as comma-separated
 `MESH_DASH_PLUGIN_ENABLE` and `MESH_DASH_PLUGIN_DISABLE` values.
 
-Individual enablement is persisted when it is changed in the Scripts workspace
-and is not deleted when the master switch is off. Install, code, manifest,
-dependency, and enablement changes take effect after a dashboard restart.
-Runtime status appears in the normal state response under `summary.plugins`.
+Individual enablement and Script configuration are persisted when changed in
+the Scripts workspace and are not deleted when the master switch is off.
+Enablement changes apply live. Configuration changes are visible to the next
+handler invocation without restarting the worker. Install, code, manifest, and
+dependency changes take effect after a dashboard restart. Runtime status appears
+in the normal state response under `summary.plugins`.
 
 The alpha workspace intentionally has no code editor, package installer, or
 upload surface. Administrators install and review plugin packages through the
@@ -111,12 +114,25 @@ version = "1.0.0"
 entrypoint = "script.py:script"
 commands = ["hello"]
 default_enabled = false
+
+[[settings]]
+key = "allowed_sender_ids"
+label = "Allowed sender IDs"
+type = "node_ids"
+default = []
+description = "Nodes allowed to use this Script."
 ```
 
 Manifest identity and commands are authoritative. The exported `Script` must match
 them exactly. Entrypoints are confined to their plugin directory, duplicate IDs
 and commands are rejected, and only enabled entrypoints are imported in the
 spawned worker. Merely discovering a manifest never imports its Python module.
+
+Settings are optional. Supported `type` values are `text`, `boolean`, `integer`,
+and `node_ids`. Text fields may declare `placeholder` and `max_length`; integer
+fields may declare `minimum` and `maximum`. Every setting requires a typed
+`default`. The host rejects unknown fields and invalid values before saving the
+complete configuration in the plugin state database.
 
 Dependencies are not installed automatically. Install them in the Meshyface
 virtual environment, or rebuild a container image containing them. For
@@ -145,12 +161,18 @@ return one action, a list or tuple of actions, or `None`. Supported decorators
 are `@script.command(...)`, `@script.on_message`, `@script.on_packet`, `@script.session`,
 `@script.on_start`, and `@script.on_stop`.
 
-The context exposes immutable normalized message information, global `state`,
-sender-scoped `peer_state`, session controls, logging, and a stable service
-facade. Text sends, channel sends, long replies, and file sends are requests;
+The context exposes immutable normalized message information, read-only
+`config`, global `state`, sender-scoped `peer_state`, session controls, logging,
+and a stable service facade. Text sends, channel sends, long replies, and file sends are requests;
 the host validates and schedules them after the handler completes. Node and
 position lookups use a normalized snapshot, while nearest-city lookup uses the
 bundled offline atlas.
+
+`ctx.config` contains the manifest defaults merged with the administrator's
+saved settings. It is a deeply read-only snapshot for the current invocation;
+lists such as `node_ids` are delivered as tuples. A later invocation receives
+newly saved values without a worker restart. Use `ctx.state` or
+`ctx.peer_state` for Script-owned mutable data instead.
 
 Packet handlers receive the accepted JSON-safe packet as `ctx.packet`.
 `ctx.debug(...)` writes a bounded entry to Apps → Scripts → Script debug output
@@ -218,8 +240,6 @@ and `on_stop` cannot run when a hung or crashed worker must be terminated.
 - **The workspace shows zero scripts:** verify `--plugins-directory`, confirm each
   plugin is one direct child containing `plugin.toml`, and restart after copying it.
   The repository `examples/` directory is never discovered automatically.
-- **A plugin says Restart pending:** its desired setting was saved, but the
-  running worker intentionally did not hot reload. Restart Meshyface once.
 - **A plugin reports an import or definition error:** check Python syntax,
   install dependencies into the same virtual environment or container, and
   make the manifest ID, name, version, and command list exactly match the

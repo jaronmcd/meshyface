@@ -35,6 +35,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/maps/packs/build/cancel",
     "/api/maps/packs/install",
     "/api/settings/plugins",
+    "/api/settings/plugins/config",
     "/api/system/update",
     "/api/system/update/repair",
     "/api/system/update/rollback-cleanup",
@@ -200,6 +201,31 @@ def _read_plugin_settings_request(
     if not isinstance(parsed.get("enabled"), bool):
         raise ValueError("enabled must be a boolean")
     return {"plugin_id": plugin_id.strip().lower(), "enabled": parsed["enabled"]}
+
+
+def _read_plugin_config_request(handler: DashboardHttpHandler) -> dict[str, object]:
+    raw_length = _header_value(getattr(handler, "headers", None), "Content-Length").strip()
+    try:
+        length = int(raw_length)
+    except ValueError as exc:
+        raise ValueError("invalid Content-Length") from exc
+    if length <= 0 or length > 65536:
+        raise ValueError("invalid request size")
+    try:
+        parsed = json.loads(handler.rfile.read(length).decode("utf-8"))
+    except Exception as exc:
+        raise ValueError("invalid JSON request body") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("request body must be an object")
+    if set(parsed) != {"plugin_id", "settings"}:
+        raise ValueError("request body must contain only plugin_id and settings")
+    plugin_id = parsed.get("plugin_id")
+    if not isinstance(plugin_id, str) or not plugin_id.strip():
+        raise ValueError("plugin_id must be a non-empty string")
+    settings = parsed.get("settings")
+    if not isinstance(settings, dict):
+        raise ValueError("settings must be an object")
+    return {"plugin_id": plugin_id.strip().lower(), "settings": settings}
 
 
 def _record_write_auth_denied(deps: DashboardPostRouteDependencies) -> None:
@@ -585,6 +611,78 @@ def handle_dashboard_post(
                     "error": {
                         "code": "plugin_settings_update_failed",
                         "message": "Plugin settings update returned an invalid response",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        error = response_obj.get("error")
+        error_code = str(error.get("code") or "") if isinstance(error, Mapping) else ""
+        status_code = 200
+        if response_obj.get("ok") is False:
+            status_code = 404 if error_code == "unknown_plugin" else 503
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
+            payload_obj=response_obj,
+            no_store=True,
+        )
+        return
+
+    if path == "/api/settings/plugins/config":
+        setter = deps.set_plugin_settings_fn
+        if not callable(setter):
+            response_obj = {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": "Plugin configuration management is unavailable",
+                },
+            }
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj=response_obj,
+                no_store=True,
+            )
+            return
+        try:
+            request = _read_plugin_config_request(handler)
+            response_obj = setter(request["plugin_id"], request["settings"])
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={
+                    "ok": False,
+                    "error": {"code": "invalid_request", "message": str(exc)},
+                },
+                no_store=True,
+            )
+            return
+        except Exception as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_config_update_failed",
+                        "message": f"Plugin configuration update failed: {exc}",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        if not isinstance(response_obj, Mapping):
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_config_update_failed",
+                        "message": "Plugin configuration update returned an invalid response",
                     },
                 },
                 no_store=True,

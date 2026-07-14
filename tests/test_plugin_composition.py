@@ -68,6 +68,52 @@ def echo(ctx):
     )
 
 
+def _write_config_plugin(root: Path) -> None:
+    directory = root / "configured"
+    directory.mkdir(parents=True)
+    (directory / "plugin.toml").write_text(
+        """api_version = 1
+id = "configured"
+name = "Configured"
+version = "1.0.0"
+entrypoint = "script.py:script"
+commands = ["configured"]
+default_enabled = true
+
+[[settings]]
+key = "greeting"
+label = "Greeting"
+type = "text"
+default = "hello"
+max_length = 20
+
+[[settings]]
+key = "allowed_nodes"
+label = "Allowed nodes"
+type = "node_ids"
+default = []
+""",
+        encoding="utf-8",
+    )
+    (directory / "script.py").write_text(
+        """
+from meshdash.plugins import Script
+script = Script(id="configured", name="Configured", version="1.0.0")
+@script.command("configured")
+def configured(ctx):
+    locked = False
+    try:
+        ctx.config["greeting"] = "changed"
+    except TypeError:
+        locked = True
+    return ctx.reply(
+        f"{ctx.config['greeting']}|locked={locked}|tuple={isinstance(ctx.config['allowed_nodes'], tuple)}"
+    )
+""",
+        encoding="utf-8",
+    )
+
+
 def _wait_until(predicate, timeout: float = 4.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -177,6 +223,77 @@ def test_individual_enablement_starts_live_and_persists_for_the_next_runtime(tmp
         assert second.status()["enabled_plugins"] == ["echo"]
     finally:
         second.close()
+
+
+def test_plugin_configuration_is_validated_persisted_and_live_on_next_event(tmp_path) -> None:
+    plugin_root = tmp_path / "plugins"
+    _write_config_plugin(plugin_root)
+    tracker = _Tracker()
+    sends: list[dict[str, object]] = []
+    subsystem = build_plugin_subsystem(
+        args=_args(tmp_path),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=tracker,
+        send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)) or {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+
+    def _send(packet_id: int) -> None:
+        tracker.listeners[0](
+            {
+                "from": 1,
+                "to": 2,
+                "id": packet_id,
+                "channel": 0,
+                "decoded": {"portnum": "TEXT_MESSAGE_APP", "text": "!configured"},
+            },
+            object(),
+        )
+
+    try:
+        _wait_until(
+            lambda: subsystem.status()["scripts"][0]["runtime_status"] == "running"  # type: ignore[index]
+        )
+        script_status = subsystem.status()["scripts"][0]  # type: ignore[index]
+        assert script_status["settings"] == {"greeting": "hello", "allowed_nodes": []}
+        assert [row["type"] for row in script_status["settings_schema"]] == [  # type: ignore[index]
+            "text",
+            "node_ids",
+        ]
+
+        _send(1)
+        _wait_until(lambda: len(sends) == 1)
+        assert sends[-1]["text"] == "hello|locked=True|tuple=True"
+
+        assert subsystem.set_plugin_settings(
+            "configured",
+            {"greeting": "updated", "allowed_nodes": ["!AABBCCDD"]},
+        ) == {
+            "ok": True,
+            "plugin_id": "configured",
+            "settings": {"greeting": "updated", "allowed_nodes": ["!aabbccdd"]},
+        }
+        assert tracker.state_revision == 1
+        _send(2)
+        _wait_until(lambda: len(sends) == 2)
+        assert sends[-1]["text"] == "updated|locked=True|tuple=True"
+    finally:
+        subsystem.close()
+
+    reopened = build_plugin_subsystem(
+        args=_args(tmp_path),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        assert reopened.status()["scripts"][0]["settings"] == {  # type: ignore[index]
+            "greeting": "updated",
+            "allowed_nodes": ["!aabbccdd"],
+        }
+    finally:
+        reopened.close()
 
 
 def test_individual_disable_stops_live_routing_and_the_last_worker(tmp_path) -> None:

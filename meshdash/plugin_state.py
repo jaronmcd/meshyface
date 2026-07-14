@@ -99,6 +99,11 @@ class PluginStateStore:
                 enabled INTEGER NOT NULL,
                 updated_unix INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS plugin_settings (
+                plugin_id TEXT PRIMARY KEY,
+                settings_json TEXT NOT NULL,
+                updated_unix INTEGER NOT NULL
+            );
             """
         )
         self._connection.commit()
@@ -276,6 +281,36 @@ class PluginStateStore:
                 (clean_plugin, 1 if enabled else 0, max(0, int(self._now_fn()))),
             )
             self._connection.commit()
+
+    def plugin_settings(self, plugin_id: object) -> dict[str, object]:
+        clean_plugin = _canonical_id(plugin_id, label="plugin id")
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT settings_json FROM plugin_settings WHERE plugin_id=?",
+                (clean_plugin,),
+            ).fetchone()
+        return _decode_state(row[0]) if row else {}
+
+    def set_plugin_settings(
+        self,
+        plugin_id: object,
+        settings: Mapping[str, object],
+    ) -> dict[str, object]:
+        clean_plugin = _canonical_id(plugin_id, label="plugin id")
+        settings_json = _encode_state(settings)
+        with self._lock:
+            self._connection.execute(
+                """
+                INSERT INTO plugin_settings(plugin_id, settings_json, updated_unix)
+                VALUES (?, ?, ?)
+                ON CONFLICT(plugin_id) DO UPDATE SET
+                    settings_json=excluded.settings_json,
+                    updated_unix=excluded.updated_unix
+                """,
+                (clean_plugin, settings_json, max(0, int(self._now_fn()))),
+            )
+            self._connection.commit()
+        return dict(settings)
 
 
 __all__ = [

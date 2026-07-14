@@ -396,6 +396,7 @@ class ScriptContext(Protocol):
     mesh: MeshyFaceAPI
     state: MutableMapping[str, JsonValue]
     peer_state: MutableMapping[str, JsonValue]
+    config: Mapping[str, JsonValue]
     session: SessionAPI
     log: Logger
 

@@ -114,6 +114,11 @@ class SetPluginEnabledFn(Protocol):
         ...
 
 
+class SetPluginSettingsFn(Protocol):
+    def __call__(self, plugin_id: object, settings: object) -> dict[str, object]:
+        ...
+
+
 class ToIntFn(Protocol):
     def __call__(self, value: object) -> Optional[int]:
         ...
@@ -349,6 +354,7 @@ class DashboardPostRouteDependencies:
     parse_custom_telemetry_settings_request_fn: Optional[ParseCustomTelemetrySettingsRequestFn] = None
     set_raw_packet_capture_settings_fn: Optional[SetRawPacketCaptureSettingsFn] = None
     set_plugin_enabled_fn: Optional[SetPluginEnabledFn] = None
+    set_plugin_settings_fn: Optional[SetPluginSettingsFn] = None
     parse_raw_packet_capture_settings_request_fn: Optional[ParseRawPacketCaptureSettingsRequestFn] = None
     apply_radio_settings_fn: Optional[ApplyRadioSettingsFn] = None
     parse_radio_settings_request_fn: Optional[ParseRadioSettingsRequestFn] = None

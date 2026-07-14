@@ -22,11 +22,13 @@ from .manifest import (
     SUPPORTED_API_VERSION,
     PluginDefinitionError,
     PluginManifest,
+    PluginSettingDefinition,
     PluginSource,
     DuplicatePluginIdError,
     ManifestError,
     discover_plugins,
     parse_manifest,
+    normalize_plugin_settings,
     validate_script_against_manifest,
 )
 
@@ -50,10 +52,12 @@ __all__ = [
     "SUPPORTED_API_VERSION",
     "PluginDefinitionError",
     "PluginManifest",
+    "PluginSettingDefinition",
     "PluginSource",
     "DuplicatePluginIdError",
     "ManifestError",
     "discover_plugins",
     "parse_manifest",
+    "normalize_plugin_settings",
     "validate_script_against_manifest",
 ]

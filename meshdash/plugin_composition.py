@@ -6,7 +6,7 @@ import threading
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
-from .plugins import PluginManifest, discover_plugins
+from .plugins import PluginManifest, discover_plugins, normalize_plugin_settings
 from .file_transfer_protocol import decode_file_transfer_packet
 from .helpers import to_int, to_jsonable
 from .helpers_packet_position import extract_position_fields
@@ -204,6 +204,19 @@ class PluginSubsystem:
                 active=is_active,
                 runtime_status=runtime_status,
             )
+            stored_settings = (
+                self._state_store.plugin_settings(manifest.id)
+                if self._state_store is not None
+                else {}
+            )
+            try:
+                settings = normalize_plugin_settings(
+                    manifest,
+                    stored_settings,
+                    require_all=False,
+                )
+            except ValueError:
+                settings = normalize_plugin_settings(manifest, {}, require_all=False)
             scripts.append(
                 {
                     "id": manifest.id,
@@ -217,6 +230,10 @@ class PluginSubsystem:
                     "runtime_status": health,
                     "runtime_error": runtime_error,
                     "restart_required": restart_required,
+                    "settings_schema": [
+                        definition.to_dict() for definition in manifest.settings
+                    ],
+                    "settings": settings,
                 }
             )
         return {
@@ -314,6 +331,65 @@ class PluginSubsystem:
                 "active": requested_enabled,
                 "restart_required": False,
             }
+
+    def set_plugin_settings(
+        self,
+        plugin_id: object,
+        settings: object,
+    ) -> dict[str, object]:
+        if self._state_store is None:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": self._error or "Plugin runtime is unavailable",
+                },
+            }
+        clean_id = str(plugin_id or "").strip().lower()
+        manifest = next(
+            (candidate for candidate in self._manifests if candidate.id == clean_id),
+            None,
+        )
+        if manifest is None:
+            return {
+                "ok": False,
+                "error": {"code": "unknown_plugin", "message": "Unknown plugin ID"},
+            }
+        if not isinstance(settings, Mapping):
+            raise ValueError("settings must be an object")
+        if not manifest.settings:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_has_no_settings",
+                    "message": "This plugin does not declare any settings",
+                },
+            }
+        normalized = normalize_plugin_settings(
+            manifest,
+            settings,
+            require_all=True,
+        )
+        with self._lifecycle_lock:
+            if self._closed:
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_unavailable",
+                        "message": "Plugin runtime is closed",
+                    },
+                }
+            self._state_store.set_plugin_settings(clean_id, normalized)
+        if self._state_changed_fn is not None:
+            try:
+                self._state_changed_fn()
+            except Exception:
+                pass
+        return {
+            "ok": True,
+            "plugin_id": clean_id,
+            "settings": normalized,
+        }
 
     def close(self) -> None:
         with self._lifecycle_lock:

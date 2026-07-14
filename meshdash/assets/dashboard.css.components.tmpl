@@ -6702,9 +6702,74 @@
       font-size: 9px;
       line-height: 1.3;
     }}
+    .scripts-item-buttons,
+    .scripts-config-actions {{
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      flex: 0 0 auto;
+    }}
     .scripts-toggle-btn {{
       flex: 0 0 auto;
       min-width: 72px;
+    }}
+    .scripts-configure-btn {{
+      flex: 0 0 auto;
+      min-width: 78px;
+    }}
+    .scripts-config-form {{
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      margin-top: 2px;
+      padding-top: 9px;
+      border-top: 1px solid var(--surface-tint-border);
+    }}
+    .scripts-config-fields {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+      gap: 9px;
+    }}
+    .scripts-config-field {{
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }}
+    .scripts-config-label,
+    .scripts-config-check {{
+      color: var(--surface-tint-text, var(--ui-text));
+      font-size: 10px;
+      font-weight: 700;
+    }}
+    .scripts-config-check {{
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 28px;
+    }}
+    .scripts-config-input {{
+      box-sizing: border-box;
+      width: 100%;
+      min-height: 30px;
+      padding: 5px 7px;
+      border: 1px solid var(--surface-tint-border);
+      border-radius: 7px;
+      background: var(--surface-tint-bg-soft);
+      color: var(--surface-tint-text, var(--ui-text));
+      font: inherit;
+      font-size: 10px;
+    }}
+    .scripts-config-node-ids {{
+      min-height: 62px;
+      resize: vertical;
+      font-family: var(--theme-monospace-font, ui-monospace, SFMono-Regular, Consolas, monospace);
+    }}
+    .scripts-config-help {{
+      color: var(--surface-tint-text-soft, var(--ui-text-soft));
+      font-size: 9px;
+      line-height: 1.35;
     }}
     @media (max-width: 620px) {{
       .scripts-head,
@@ -6721,6 +6786,12 @@
       }}
       .scripts-toggle-btn {{
         width: 100%;
+      }}
+      .scripts-item-buttons {{
+        width: 100%;
+      }}
+      .scripts-item-buttons .btn {{
+        flex: 1 1 0;
       }}
     }}
     .card.workspace-app-shell,

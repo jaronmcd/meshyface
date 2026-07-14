@@ -94,6 +94,11 @@ def test_scripts_view_renders_master_off_offline_and_live_lifecycle_states() -> 
     assert 'label: "Running"' in js
     assert 'label: "Error"' in js
     assert 'fetch("/api/settings/plugins"' in js
+    assert 'fetch("/api/settings/plugins/config"' in js
+    assert "data-script-configure" in js
+    assert "data-script-config-form" in js
+    assert 'data-setting-type="node_ids"' in js
+    assert ".scripts-config-form {" in build_dashboard_css(theme_css="")
     assert "JSON.stringify({ plugin_id: cleanId, enabled: !!enabled })" in js
     assert "scriptsUpdateCachedEnabled(cleanId, !!payload.enabled, !!payload.active)" in js
     assert "Restart MeshyFace to apply the change." not in _html()
@@ -179,6 +184,8 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
                 "runtime_status": "disabled",
                 "runtime_error": "",
                 "restart_required": False,
+                "settings_schema": [],
+                "settings": {},
             }
         ]
         assert str(tmp_path) not in json.dumps(status["scripts"])

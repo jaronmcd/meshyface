@@ -684,12 +684,22 @@ def build_dashboard_runtime_context(
                 "set_plugin_enabled_fn",
                 plugin_subsystem.set_plugin_enabled,
             )
+            setattr(
+                loaders.state_fn,
+                "set_plugin_settings_fn",
+                plugin_subsystem.set_plugin_settings,
+            )
             state_lite_fn = getattr(loaders.state_fn, "lite", None)
             if callable(state_lite_fn):
                 setattr(
                     state_lite_fn,
                     "set_plugin_enabled_fn",
                     plugin_subsystem.set_plugin_enabled,
+                )
+                setattr(
+                    state_lite_fn,
+                    "set_plugin_settings_fn",
+                    plugin_subsystem.set_plugin_settings,
                 )
         except Exception as exc:
             plugin_error = f"{type(exc).__name__}: {exc}"
@@ -715,10 +725,25 @@ def build_dashboard_runtime_context(
                 },
             }
 
+        def _plugin_settings_disabled(
+            plugin_id: object,
+            settings: object,
+        ) -> dict[str, object]:
+            del plugin_id, settings
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
         setattr(loaders.state_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
+        setattr(loaders.state_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
         state_lite_fn = getattr(loaders.state_fn, "lite", None)
         if callable(state_lite_fn):
             setattr(state_lite_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
+            setattr(state_lite_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
 
     # Activate only after optional post-accept consumers are attached so text
     # packets buffered while the radio identity was resolving are not lost.

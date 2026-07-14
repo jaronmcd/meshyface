@@ -70,6 +70,91 @@ def test_parse_valid_manifest_resolves_entrypoint_without_importing(tmp_path: Pa
     assert manifest.source == "included"
 
 
+def test_manifest_declares_and_normalizes_typed_settings(tmp_path: Path) -> None:
+    plugin = _write_plugin(
+        tmp_path,
+        "configured",
+        extra_toml="""
+[[settings]]
+key = "greeting"
+label = "Greeting"
+type = "text"
+default = "hello"
+placeholder = "Type a greeting"
+max_length = 20
+
+[[settings]]
+key = "enabled"
+label = "Enabled"
+type = "boolean"
+default = true
+
+[[settings]]
+key = "limit"
+label = "Limit"
+type = "integer"
+default = 3
+minimum = 1
+maximum = 10
+
+[[settings]]
+key = "allowed_nodes"
+label = "Allowed nodes"
+type = "node_ids"
+default = ["!AABBCCDD", "!aabbccdd", "!01020304"]
+""",
+    )
+
+    manifest = parse_manifest(plugin / "plugin.toml")
+
+    assert [definition.type for definition in manifest.settings] == [
+        "text",
+        "boolean",
+        "integer",
+        "node_ids",
+    ]
+    assert manifest.settings[0].max_length == 20
+    assert manifest.settings[2].minimum == 1
+    assert manifest.settings[2].maximum == 10
+    assert manifest.settings[3].default == ("!aabbccdd", "!01020304")
+
+
+@pytest.mark.parametrize(
+    ("setting_toml", "message"),
+    [
+        (
+            'key = "Bad Key"\nlabel = "Bad"\ntype = "text"\ndefault = "x"',
+            "key must match",
+        ),
+        (
+            'key = "flag"\nlabel = "Flag"\ntype = "boolean"\ndefault = "yes"',
+            "must be a boolean",
+        ),
+        (
+            'key = "limit"\nlabel = "Limit"\ntype = "integer"\ndefault = 0\nminimum = 1',
+            "must be at least 1",
+        ),
+        (
+            'key = "nodes"\nlabel = "Nodes"\ntype = "node_ids"\ndefault = ["bad"]',
+            "must match !00000000",
+        ),
+    ],
+)
+def test_manifest_rejects_invalid_setting_definitions(
+    tmp_path: Path,
+    setting_toml: str,
+    message: str,
+) -> None:
+    plugin = _write_plugin(
+        tmp_path,
+        "configured",
+        extra_toml=f"[[settings]]\n{setting_toml}",
+    )
+
+    with pytest.raises(ManifestError, match=message):
+        parse_manifest(plugin / "plugin.toml")
+
+
 @pytest.mark.parametrize(
     ("replacement", "message"),
     [

@@ -2,7 +2,10 @@
     let scriptsLastDebugSignature = "";
     let scriptsDebugClearedThrough = 0;
     let scriptsTransientErrorMessage = "";
+    let scriptsOpenConfigId = "";
     const scriptsPendingRequests = new Map();
+    const scriptsPendingConfigRequests = new Set();
+    const scriptsConfigDrafts = new Map();
     const scriptsMasterOffGuidance = (
       "Not inspected. Install script packages in the --plugins-directory path, enable Scripts with "
       + "--plugins-enable or MESH_DASH_PLUGINS_ENABLE=true, then restart MeshyFace."
@@ -287,6 +290,113 @@
       return "Not started by this runtime.";
     }}
 
+    function scriptsSettingValue(row, definition) {{
+      const scriptId = String(row.id || "").trim();
+      const draft = scriptsConfigDrafts.get(scriptId);
+      const settings = draft && typeof draft === "object"
+        ? draft
+        : (row.settings && typeof row.settings === "object" ? row.settings : {{}});
+      const key = String(definition.key || "");
+      if (Object.prototype.hasOwnProperty.call(settings, key)) return settings[key];
+      return definition.default;
+    }}
+
+    function scriptsSettingHtml(row, definition) {{
+      const key = String(definition.key || "").trim();
+      const label = String(definition.label || key).trim();
+      const type = String(definition.type || "text").trim();
+      const description = String(definition.description || "").trim();
+      const value = scriptsSettingValue(row, definition);
+      let control = "";
+      if (type === "boolean") {{
+        control = `
+          <label class="scripts-config-check">
+            <input
+              type="checkbox"
+              data-script-setting="${{escAttr(key)}}"
+              data-setting-type="boolean"
+              ${{value === true ? "checked" : ""}}
+            >
+            <span>${{escAttr(label)}}</span>
+          </label>
+        `;
+      }} else if (type === "integer") {{
+        const minimum = Number.isInteger(definition.minimum)
+          ? ` min="${{escAttr(definition.minimum)}}"`
+          : "";
+        const maximum = Number.isInteger(definition.maximum)
+          ? ` max="${{escAttr(definition.maximum)}}"`
+          : "";
+        control = `
+          <label class="scripts-config-label" for="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}">${{escAttr(label)}}</label>
+          <input
+            id="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}"
+            class="scripts-config-input"
+            type="number"
+            step="1"
+            required
+            value="${{escAttr(value)}}"
+            data-script-setting="${{escAttr(key)}}"
+            data-setting-type="integer"
+            ${{minimum}}${{maximum}}
+          >
+        `;
+      }} else if (type === "node_ids") {{
+        const nodeIds = Array.isArray(value) ? value : [];
+        control = `
+          <label class="scripts-config-label" for="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}">${{escAttr(label)}}</label>
+          <textarea
+            id="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}"
+            class="scripts-config-input scripts-config-node-ids"
+            rows="3"
+            placeholder="!01020304, one node ID per line"
+            data-script-setting="${{escAttr(key)}}"
+            data-setting-type="node_ids"
+          >${{escAttr(nodeIds.join("\n"))}}</textarea>
+        `;
+      }} else {{
+        const maxLength = Number.isInteger(definition.max_length)
+          ? ` maxlength="${{escAttr(definition.max_length)}}"`
+          : "";
+        control = `
+          <label class="scripts-config-label" for="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}">${{escAttr(label)}}</label>
+          <input
+            id="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}"
+            class="scripts-config-input"
+            type="text"
+            value="${{escAttr(value == null ? "" : value)}}"
+            placeholder="${{escAttr(definition.placeholder || "")}}"
+            data-script-setting="${{escAttr(key)}}"
+            data-setting-type="text"
+            ${{maxLength}}
+          >
+        `;
+      }}
+      return `
+        <div class="scripts-config-field">
+          ${{control}}
+          ${{description ? `<div class="scripts-config-help">${{escAttr(description)}}</div>` : ""}}
+        </div>
+      `;
+    }}
+
+    function scriptsConfigHtml(row, schema) {{
+      const scriptId = String(row.id || "").trim();
+      if (scriptsOpenConfigId !== scriptId) return "";
+      const pending = scriptsPendingConfigRequests.has(scriptId);
+      return `
+        <form class="scripts-config-form" data-script-config-form="${{escAttr(scriptId)}}">
+          <div class="scripts-config-fields">
+            ${{schema.map((definition) => scriptsSettingHtml(row, definition)).join("")}}
+          </div>
+          <div class="scripts-config-actions">
+            <button class="btn btn-secondary" type="button" data-script-config-cancel="${{escAttr(scriptId)}}" ${{pending ? "disabled" : ""}}>Cancel</button>
+            <button class="btn btn-primary" type="submit" ${{pending ? "disabled" : ""}}>${{pending ? "Saving…" : "Save"}}</button>
+          </div>
+        </form>
+      `;
+    }}
+
     function scriptsItemHtml(row, runtimeSummary, runtimeEnabled) {{
       const scriptId = String(row.id || "").trim();
       const scriptName = String(row.name || scriptId || "Unnamed script").trim();
@@ -296,6 +406,9 @@
         : "Local";
       const enabled = row.enabled === true;
       const commands = Array.isArray(row.commands) ? row.commands : [];
+      const settingsSchema = Array.isArray(row.settings_schema)
+        ? row.settings_schema.filter((definition) => definition && typeof definition === "object")
+        : [];
       const commandHtml = commands.length > 0
         ? commands.map((command) => `<span class="scripts-command">!${{escAttr(command)}}</span>`).join("")
         : '<span class="scripts-command">No commands</span>';
@@ -305,6 +418,7 @@
       const buttonLabel = pending
         ? (pendingRequest.enabled ? "Enabling…" : "Disabling…")
         : (enabled ? "Disable" : "Enable");
+      const configPending = scriptsPendingConfigRequests.has(scriptId);
       return `
         <article class="scripts-item" data-script-id="${{escAttr(scriptId)}}">
           <div class="scripts-item-head">
@@ -321,14 +435,25 @@
           <div class="scripts-commands" aria-label="Declared commands">${{commandHtml}}</div>
           <div class="scripts-item-actions">
             <span class="scripts-item-action-copy">${{escAttr(scriptsItemActionCopy(row, itemState))}}</span>
-            <button
-              class="btn btn-secondary scripts-toggle-btn"
-              type="button"
-              data-script-toggle="${{escAttr(scriptId)}}"
-              data-next-enabled="${{enabled ? "false" : "true"}}"
-              ${{runtimeEnabled && !pending ? "" : "disabled"}}
-            >${{escAttr(buttonLabel)}}</button>
+            <div class="scripts-item-buttons">
+              ${{settingsSchema.length > 0 ? `
+                <button
+                  class="btn btn-secondary scripts-configure-btn"
+                  type="button"
+                  data-script-configure="${{escAttr(scriptId)}}"
+                  ${{runtimeEnabled && !configPending ? "" : "disabled"}}
+                >${{scriptsOpenConfigId === scriptId ? "Close" : "Configure"}}</button>
+              ` : ""}}
+              <button
+                class="btn btn-secondary scripts-toggle-btn"
+                type="button"
+                data-script-toggle="${{escAttr(scriptId)}}"
+                data-next-enabled="${{enabled ? "false" : "true"}}"
+                ${{runtimeEnabled && !pending ? "" : "disabled"}}
+              >${{escAttr(buttonLabel)}}</button>
+            </div>
           </div>
+          ${{scriptsConfigHtml(row, settingsSchema)}}
         </article>
       `;
     }}
@@ -378,6 +503,20 @@
       if (signature === scriptsLastRenderSignature) return false;
 
       const activeElement = document.activeElement;
+      const activeConfigForm = activeElement instanceof Element
+        ? activeElement.closest("[data-script-config-form]")
+        : null;
+      if (
+        activeConfigForm instanceof HTMLFormElement
+        && !scriptsPendingConfigRequests.has(
+          String(activeConfigForm.dataset.scriptConfigForm || "").trim()
+        )
+      ) {{
+        scriptsSetRuntimeStatus(presentation.kind, presentation.label);
+        scriptsSetRuntimeMessage(runtimeMessage);
+        if (count instanceof HTMLElement) count.textContent = countText;
+        return false;
+      }}
       const focusedScriptId = activeElement instanceof HTMLElement
         ? String(activeElement.dataset.scriptToggle || "").trim()
         : "";
@@ -425,6 +564,87 @@
         match.enabled = !!enabled;
         match.active = !!active;
         match.restart_required = false;
+      }}
+    }}
+
+    function scriptsUpdateCachedSettings(scriptId, settings) {{
+      const runtimeSummary = scriptsRuntimeSummary(latestState);
+      const rows = scriptsRuntimeEntries(runtimeSummary);
+      const match = rows.find((row) => String(row.id || "") === scriptId);
+      if (match && settings && typeof settings === "object") {{
+        match.settings = {{ ...settings }};
+      }}
+    }}
+
+    function scriptsReadConfigForm(form) {{
+      const settings = {{}};
+      form.querySelectorAll("[data-script-setting]").forEach((input) => {{
+        const key = String(input.dataset.scriptSetting || "").trim();
+        const type = String(input.dataset.settingType || "text");
+        if (!key) return;
+        if (type === "boolean" && input instanceof HTMLInputElement) {{
+          settings[key] = input.checked;
+          return;
+        }}
+        const rawValue = "value" in input ? String(input.value || "") : "";
+        if (type === "integer") {{
+          if (!rawValue.trim()) throw new Error(`${{key}} is required`);
+          const value = Number(rawValue);
+          if (!Number.isInteger(value)) throw new Error(`${{key}} must be an integer`);
+          settings[key] = value;
+        }} else if (type === "node_ids") {{
+          settings[key] = rawValue.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean);
+        }} else {{
+          settings[key] = rawValue;
+        }}
+      }});
+      return settings;
+    }}
+
+    async function saveScriptConfig(scriptId, settings) {{
+      const cleanId = String(scriptId || "").trim();
+      if (!cleanId || scriptsPendingConfigRequests.has(cleanId)) return false;
+      scriptsPendingConfigRequests.add(cleanId);
+      scriptsConfigDrafts.set(cleanId, {{ ...settings }});
+      scriptsTransientErrorMessage = "";
+      scriptsLastRenderSignature = "";
+      renderScriptsViewSafely(latestState, "scripts.config.pending");
+      try {{
+        const response = await fetch("/api/settings/plugins/config", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ plugin_id: cleanId, settings }}),
+          cache: "no-store",
+        }});
+        const text = await response.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const error = payload && payload.error;
+        const errorMessage = error && typeof error === "object"
+          ? String(error.message || error.code || "")
+          : String(error || (payload && payload.message) || text || `HTTP ${{response.status}}`);
+        if (!response.ok || !payload || payload.ok !== true) {{
+          throw new Error(errorMessage || `HTTP ${{response.status}}`);
+        }}
+        scriptsUpdateCachedSettings(cleanId, payload.settings);
+        scriptsConfigDrafts.delete(cleanId);
+        scriptsOpenConfigId = "";
+        if (typeof forceNextStatePollFresh === "function") {{
+          forceNextStatePollFresh("script-config");
+        }}
+        if (typeof requestImmediatePoll === "function") requestImmediatePoll(0);
+        return true;
+      }} catch (err) {{
+        const message = err instanceof Error ? err.message : String(err || "Unknown error");
+        scriptsTransientErrorMessage = `Could not configure ${{cleanId}}: ${{message}}`;
+        return false;
+      }} finally {{
+        scriptsPendingConfigRequests.delete(cleanId);
+        scriptsLastRenderSignature = "";
+        renderScriptsViewSafely(latestState, "scripts.config.complete");
       }}
     }}
 
@@ -478,6 +698,28 @@
       if (!(list instanceof HTMLElement) || list.dataset.bound === "1") return;
       list.dataset.bound = "1";
       list.addEventListener("click", (event) => {{
+        const configure = event.target instanceof Element
+          ? event.target.closest("[data-script-configure]")
+          : null;
+        if (configure instanceof HTMLButtonElement && !configure.disabled) {{
+          const scriptId = String(configure.dataset.scriptConfigure || "").trim();
+          scriptsOpenConfigId = scriptsOpenConfigId === scriptId ? "" : scriptId;
+          scriptsConfigDrafts.delete(scriptId);
+          scriptsLastRenderSignature = "";
+          renderScriptsViewSafely(latestState, "scripts.config.toggle");
+          return;
+        }}
+        const cancel = event.target instanceof Element
+          ? event.target.closest("[data-script-config-cancel]")
+          : null;
+        if (cancel instanceof HTMLButtonElement && !cancel.disabled) {{
+          const scriptId = String(cancel.dataset.scriptConfigCancel || "").trim();
+          scriptsConfigDrafts.delete(scriptId);
+          scriptsOpenConfigId = "";
+          scriptsLastRenderSignature = "";
+          renderScriptsViewSafely(latestState, "scripts.config.cancel");
+          return;
+        }}
         const target = event.target instanceof Element
           ? event.target.closest("[data-script-toggle]")
           : null;
@@ -485,6 +727,21 @@
         const scriptId = String(target.dataset.scriptToggle || "").trim();
         const enabled = String(target.dataset.nextEnabled || "false") === "true";
         void setScriptEnabled(scriptId, enabled, target);
+      }});
+      list.addEventListener("submit", (event) => {{
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.dataset.scriptConfigForm) return;
+        event.preventDefault();
+        const scriptId = String(form.dataset.scriptConfigForm || "").trim();
+        try {{
+          const settings = scriptsReadConfigForm(form);
+          scriptsConfigDrafts.set(scriptId, settings);
+          void saveScriptConfig(scriptId, settings);
+        }} catch (err) {{
+          const message = err instanceof Error ? err.message : String(err || "Invalid settings");
+          scriptsTransientErrorMessage = `Could not configure ${{scriptId}}: ${{message}}`;
+          scriptsSetRuntimeMessage(scriptsTransientErrorMessage);
+        }}
       }});
       const clearButton = document.getElementById("scripts-debug-clear");
       if (clearButton instanceof HTMLButtonElement) {{
