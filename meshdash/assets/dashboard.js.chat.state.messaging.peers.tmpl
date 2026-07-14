@@ -3757,15 +3757,16 @@
       drawer.className = "chat-node-details-drawer";
       drawer.hidden = true;
       drawer.innerHTML = [
-        '<div class="chat-node-details-head"><div class="chat-node-details-head-main" tabindex="0" title="Collapse node details" aria-label="Collapse node details">',
+        '<div class="chat-node-details-head"><div class="chat-node-details-head-main">',
         '<button id="chat-node-details-icon-btn" class="chat-node-details-icon-btn" type="button" title="Set node icon" aria-label="Set node icon"><span id="chat-node-details-icon-chip" class="chat-node-details-icon-chip is-empty" aria-hidden="true">+</span></button>',
         '<input id="chat-node-details-head-icon-input" type="text" hidden aria-hidden="true" tabindex="-1" />',
         '<span id="chat-node-details-status-chip" class="chat-node-details-status-chip" hidden></span>',
         '<button id="chat-node-details-reset-btn" class="chat-node-details-action-btn chat-node-details-reset-btn" type="button" title="Clear saved tag and custom icon" aria-label="Clear saved tag and custom icon" hidden>Reset</button>',
-        '<button id="chat-node-details-title" class="chat-node-details-title" type="button" title="Collapse node details" aria-label="Collapse node details">Node Details</button>',
+        '<span id="chat-node-details-title" class="chat-node-details-title">Node Details</span>',
         '</div>',
-        '<div class="chat-node-details-head-actions">',
-        '<button id="chat-node-details-promote-btn" class="chat-node-details-action-btn chat-node-details-promote-btn" type="button" title="Expand node details over the workspace" aria-label="Expand node details over the workspace" aria-pressed="false" hidden><span class="chat-node-details-promote-label">Expand</span></button>',
+        '<div class="chat-node-details-head-actions" aria-label="Node details window controls">',
+        '<button id="chat-node-details-promote-btn" class="chat-node-details-window-btn chat-node-details-promote-btn" type="button" title="Maximize node details over the workspace" aria-label="Maximize node details over the workspace" aria-pressed="false" hidden><span class="chat-node-details-window-label chat-node-details-promote-label">Maximize</span></button>',
+        '<button id="chat-node-details-close-btn" class="chat-node-details-window-btn chat-node-details-close-btn" type="button" title="Close node details" aria-label="Close node details" hidden><span class="chat-node-details-window-label">Close</span></button>',
         '</div>',
         '</div>',
         '<div class="chat-node-details-tabs" role="tablist" aria-label="Selected node detail tabs">',
@@ -3919,6 +3920,7 @@
       const pinBtn = document.getElementById("chat-node-details-pin-btn");
       const muteBtn = document.getElementById("chat-node-details-mute-btn");
       const promoteBtn = document.getElementById("chat-node-details-promote-btn");
+      const closeBtn = document.getElementById("chat-node-details-close-btn");
       const themeTryBtn = document.getElementById("chat-node-details-theme-try-btn");
       const themeSaveBtn = document.getElementById("chat-node-details-theme-save-btn");
       const footerActions = document.getElementById("chat-node-details-footer-actions");
@@ -3984,6 +3986,7 @@
         }}
         if (titleEl instanceof HTMLElement) {{
           setDrawerElementTextIfChanged(titleEl, "Node Details");
+          titleEl.removeAttribute("title");
         }}
         if (tagTabLabel instanceof HTMLElement) {{
           setDrawerElementTextIfChanged(tagTabLabel, "+tag");
@@ -4019,7 +4022,11 @@
           promoteBtn.disabled = true;
           promoteBtn.classList.remove("active");
           promoteBtn.setAttribute("aria-pressed", "false");
-          setDrawerElementTextIfChanged(promoteBtn.querySelector(".chat-node-details-promote-label"), "Expand");
+          setDrawerElementTextIfChanged(promoteBtn.querySelector(".chat-node-details-promote-label"), "Maximize");
+        }}
+        if (closeBtn instanceof HTMLButtonElement) {{
+          closeBtn.hidden = true;
+          closeBtn.disabled = true;
         }}
         if (themeTryBtn instanceof HTMLButtonElement) {{
           themeTryBtn.hidden = true;
@@ -4306,7 +4313,9 @@
       const fallbackName = nodeNameCache.get(selectedId) || selectedId;
       const titleName = String(resolvedName || fallbackName || selectedId);
       if (titleEl instanceof HTMLElement) {{
-        setDrawerElementTextIfChanged(titleEl, `${{titleName}} (${selectedId})`);
+        const fullTitle = `${{titleName}} (${selectedId})`;
+        setDrawerElementTextIfChanged(titleEl, fullTitle);
+        titleEl.title = fullTitle;
       }}
       scheduleChatNodeContextBridgeSync();
       const sharedProfileTheme = (
@@ -4391,14 +4400,21 @@
         promoteBtn.classList.toggle("active", promotedVisible);
         promoteBtn.setAttribute("aria-pressed", promotedVisible ? "true" : "false");
         const promoteTitle = promotedVisible
-          ? `Collapse ${{titleName}} details back into the node list`
-          : `Expand ${{titleName}} details over the workspace`;
+          ? `Minimize ${{titleName}} details back to the node list`
+          : `Maximize ${{titleName}} details over the workspace`;
         promoteBtn.title = promoteTitle;
         promoteBtn.setAttribute("aria-label", promoteTitle);
         setDrawerElementTextIfChanged(
           promoteBtn.querySelector(".chat-node-details-promote-label"),
-          promotedVisible ? "Collapse" : "Expand"
+          promotedVisible ? "Minimize" : "Maximize"
         );
+      }}
+      if (closeBtn instanceof HTMLButtonElement) {{
+        closeBtn.hidden = false;
+        closeBtn.disabled = false;
+        const closeTitle = `Close ${{titleName}} details`;
+        closeBtn.title = closeTitle;
+        closeBtn.setAttribute("aria-label", closeTitle);
       }}
 
       const cachedHistory = cachedNodeHistory(selectedId);
@@ -4546,28 +4562,18 @@
 
     function bindChatNodeDetailsDrawerControls(options = null) {{
       const opts = options && typeof options === "object" ? options : {{}};
-      const headMain = document.querySelector("#chat-node-details-drawer .chat-node-details-head-main");
       const promoteBtn = document.getElementById("chat-node-details-promote-btn");
+      const closeBtn = document.getElementById("chat-node-details-close-btn");
       const themeTryBtn = document.getElementById("chat-node-details-theme-try-btn");
       const themeSaveBtn = document.getElementById("chat-node-details-theme-save-btn");
       const drawer = document.getElementById("chat-node-details-drawer");
-      if (headMain instanceof HTMLElement && headMain.dataset.collapseBound !== "1") {{
-        headMain.dataset.collapseBound = "1";
-        const collapseFromHead = () => {{
+      if (closeBtn instanceof HTMLButtonElement && closeBtn.dataset.bound !== "1") {{
+        closeBtn.dataset.bound = "1";
+        closeBtn.addEventListener("click", () => {{
           setChatNodeDetailsDrawerExpanded(false, {{
             fetchHistory: false,
             rerender: false,
           }});
-        }};
-        headMain.addEventListener("click", (event) => {{
-          event.preventDefault();
-          event.stopPropagation();
-          collapseFromHead();
-        }}, true);
-        headMain.addEventListener("keydown", (event) => {{
-          if (event.target !== headMain || (event.key !== "Enter" && event.key !== " ")) return;
-          event.preventDefault();
-          collapseFromHead();
         }});
       }}
       if (promoteBtn instanceof HTMLButtonElement && promoteBtn.dataset.bound !== "1") {{

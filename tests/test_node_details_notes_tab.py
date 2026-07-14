@@ -42,17 +42,20 @@ def test_render_html_defers_chat_node_details_drawer_until_needed() -> None:
     assert 'id="chat-node-details-tab-notes"' not in initial_dom_html
 
 
-def test_dashboard_js_omits_redundant_close_button_for_node_details_drawer() -> None:
+def test_dashboard_js_uses_titlebar_close_button_for_node_details_drawer() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
+    css = build_dashboard_css(theme_css="")
 
-    assert 'id="chat-node-details-close-btn"' not in js
-    assert 'class="chat-node-details-close-btn"' not in js
-    assert 'const closeBtn = document.getElementById("chat-node-details-close-btn");' not in js
-    assert ".chat-node-details-close-btn {" not in build_dashboard_css(theme_css="")
+    assert 'id="chat-node-details-close-btn"' in js
+    assert 'class="chat-node-details-window-btn chat-node-details-close-btn"' in js
+    assert 'const closeBtn = document.getElementById("chat-node-details-close-btn");' in js
+    assert 'closeBtn.addEventListener("click", () => {' in js
+    assert ".chat-node-details-close-btn::before," in css
+    assert ".chat-node-details-close-btn:hover {" in css
 
 
 def test_dashboard_js_includes_chat_node_details_location_chat_and_links_tabs() -> None:
@@ -166,7 +169,7 @@ def test_dashboard_js_centers_theme_actions_in_existing_drawer_footer() -> None:
     )
 
 
-def test_entire_node_details_title_strip_is_an_inviting_collapse_control() -> None:
+def test_node_details_header_uses_app_style_titlebar_controls() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
@@ -175,35 +178,27 @@ def test_entire_node_details_title_strip_is_an_inviting_collapse_control() -> No
     css = build_dashboard_css(theme_css="")
 
     assert (
-        '<button id="chat-node-details-title" class="chat-node-details-title" '
-        'type="button" title="Collapse node details" aria-label="Collapse node details">'
+        '<span id="chat-node-details-title" class="chat-node-details-title">Node Details</span>'
     ) in js
-    assert (
-        '<div class="chat-node-details-head-main" tabindex="0" '
-        'title="Collapse node details" aria-label="Collapse node details">'
-    ) in js
-    assert 'const headMain = document.querySelector("#chat-node-details-drawer .chat-node-details-head-main");' in js
-    assert 'headMain.addEventListener("click", (event) => {' in js
-    head_binding = js.split('headMain.addEventListener("click", (event) => {', 1)[1].split("}, true);", 1)[0]
+    assert '<div class="chat-node-details-head"><div class="chat-node-details-head-main">' in js
+    assert 'id="chat-node-details-promote-btn"' in js
+    assert 'id="chat-node-details-close-btn"' in js
+    assert 'const headMain = document.querySelector("#chat-node-details-drawer .chat-node-details-head-main");' not in js
+    assert 'headMain.addEventListener("click", (event) => {' not in js
     assert "setChatNodeDetailsDrawerExpanded(false" in js
-    assert "event.preventDefault();" in head_binding
-    assert "event.stopPropagation();" in head_binding
-    assert 'closest(".chat-node-details-reset-btn")' not in head_binding
-    assert 'headMain.addEventListener("keydown", (event) => {' in js
+    assert 'closeBtn.addEventListener("click", () => {' in js
+    assert 'headMain.addEventListener("keydown", (event) => {' not in js
     head_style = css.rsplit(".chat-node-details-head-main {", 1)[1].split("}", 1)[0]
-    head_close_hint = css.split(".chat-node-details-head-main::after {", 1)[1].split("}", 1)[0]
-    assert "cursor: pointer;" in head_style
-    assert "transition: background-color 120ms ease" in head_style
-    assert 'content: "×";' in head_close_hint
-    assert "right: 8px;" in head_close_hint
-    assert "opacity: 0.38;" in head_close_hint
-    assert "pointer-events: none;" in head_close_hint
+    assert "cursor: pointer;" not in head_style
+    assert "grid-template-columns: auto auto auto minmax(0, 1fr);" in head_style
+    assert ".chat-node-details-head-main::after {" not in css
     assert "#chat-node-details-inline-host > .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" not in css
     assert 'content: var(--node-profile-ghost-text, "");' in css
     assert ".chat-node-details-promoted-host .chat-node-details-drawer.profiled-node .chat-node-details-head::after {" not in css
-    assert ".chat-node-details-head-main:hover {" in css
-    assert ".chat-node-details-head-main:hover::after," in css
-    assert ".chat-node-details-head-main:focus-visible," in css
+    assert ".chat-node-details-window-btn {" in css
+    assert ".chat-node-details-promote-btn::before {" in css
+    assert ".chat-node-details-promote-btn.active::before {" in css
+    assert ".chat-node-details-close-btn::after {" in css
 
 
 def test_render_html_includes_promoted_node_details_host() -> None:
@@ -228,10 +223,10 @@ def test_render_html_includes_promoted_node_details_host() -> None:
     assert 'id="chat-node-details-inline-host"' in html
     assert 'id="chat-node-details-drawer"' not in html
     assert 'id="chat-node-details-promote-btn"' in js
-    assert 'class="chat-node-details-action-btn chat-node-details-promote-btn"' in js
+    assert 'class="chat-node-details-window-btn chat-node-details-promote-btn"' in js
     assert 'id="chat-node-details-promoted-shell"' in html
     assert 'id="chat-node-details-promoted-host"' in html
-    assert 'id="chat-node-details-close-btn"' not in js
+    assert 'id="chat-node-details-close-btn"' in js
     assert html.index('class="workspace-main"') < html.index('id="chat-node-details-promoted-shell"')
 
 
@@ -387,8 +382,8 @@ def test_dashboard_js_promotes_node_details_without_duplicate_drawer_state() -> 
     assert "promoteBtn.disabled = false;" in js
     assert 'promoteBtn.classList.toggle("active", promotedVisible);' in js
     assert 'promoteBtn.setAttribute("aria-pressed", promotedVisible ? "true" : "false");' in js
-    assert "? `Collapse ${titleName} details back into the node list`" in js
-    assert 'promotedVisible ? "Collapse" : "Expand"' in js
+    assert "? `Minimize ${titleName} details back to the node list`" in js
+    assert 'promotedVisible ? "Minimize" : "Maximize"' in js
     assert '"Dock"' not in js
     assert "Return ${titleName} details to the left node list" not in js
     assert "function setChatNodeDetailsPromoted(promoted, options = null) {" in js
@@ -444,7 +439,6 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
         ".chat-node-details-promoted-host .chat-node-details-head-actions {", 1
     )[1].split("}", 1)[0]
     assert "display: inline-flex;" in promoted_actions_section
-    assert ".chat-node-details-promoted-host .chat-node-details-head-actions > :not(.chat-node-details-promote-btn) {" in css
     assert ".chat-node-details-promoted-host .chat-node-details-tabs {" in css
     assert ".chat-node-details-tabs.has-node-theme {" in css
     assert ".chat-node-details-tabs.has-node-theme .chat-node-details-tab-btn" not in css
@@ -455,7 +449,7 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     )[1].split("}", 1)[0]
     assert "border-color: var(--workspace-shell-border);" in history_plate_section
     assert "background:" not in history_plate_section
-    assert "padding-right: 38px;" in css
+    assert "padding-right: 8px;" in css
     assert ".chat-node-details-promoted-host .node-details.profiled-node::after," not in css
     assert "var(--workspace-shell-bg, var(--ui-panel))" in promoted_host_section
     assert ".chat-node-details-promoted-host .chat-node-details-drawer {" in css
@@ -468,6 +462,7 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     assert "width: 100%;" in head_main_section
     assert "grid-template-columns: auto auto auto minmax(0, 1fr);" in head_main_section
     assert "justify-self: stretch;" in head_main_section
+    assert ".chat-node-details-window-btn {" in css
     assert ".chat-node-details-footer-actions {" in css
     footer_section = css.split(".chat-node-details-footer-actions {", 1)[1].split("}", 1)[0]
     assert "flex: 0 0 auto;" in footer_section
