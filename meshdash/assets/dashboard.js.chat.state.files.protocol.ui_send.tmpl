@@ -131,66 +131,6 @@
       el.classList.toggle("error", !!isError);
     }}
 
-    function clearPeerDmPopoutStatusAutoHide(expectedPeerIdRaw = "") {{
-      const expectedPeerId = normalizeNodeId(expectedPeerIdRaw || "");
-      if (
-        expectedPeerId
-        && String(peerDmPopoutStatusHideToken || "").trim()
-        && !String(peerDmPopoutStatusHideToken).startsWith(`${{expectedPeerId}}|`)
-      ) {{
-        return;
-      }}
-      if (peerDmPopoutStatusHideTimer !== null) {{
-        clearTimeout(peerDmPopoutStatusHideTimer);
-        peerDmPopoutStatusHideTimer = null;
-      }}
-      peerDmPopoutStatusHideToken = "";
-    }}
-
-    function setPeerDmPopoutStatusDisplay(peerIdRaw, message, options = null) {{
-      const peerId = normalizeNodeId(peerIdRaw || peerDmActivePeerId || "");
-      const statusEl = document.getElementById("peer-dm-popout-status");
-      if (!(statusEl instanceof HTMLElement) || !isCanonicalNodeId(peerId)) return false;
-      const activePeerId = normalizeNodeId(peerDmActivePeerId || "");
-      if (activePeerId !== peerId) return false;
-
-      const opts = options && typeof options === "object" ? options : {{}};
-      const label = String(message || "").trim();
-      if (!label) {{
-        clearPeerDmPopoutStatusAutoHide(peerId);
-        statusEl.textContent = "";
-        statusEl.classList.remove("is-error");
-        statusEl.hidden = true;
-        return true;
-      }}
-
-      statusEl.textContent = label;
-      statusEl.classList.toggle("is-error", !!opts.isError);
-      statusEl.hidden = false;
-
-      const ttlMs = Math.max(0, Math.trunc(Number(opts.ttlMs) || 0));
-      if (ttlMs > 0) {{
-        clearPeerDmPopoutStatusAutoHide();
-        const token = `${{peerId}}|${{String(opts.statusToken || label).trim() || "status"}}|${{Date.now()}}`;
-        peerDmPopoutStatusHideToken = token;
-        peerDmPopoutStatusHideTimer = window.setTimeout(() => {{
-          if (peerDmPopoutStatusHideToken !== token) return;
-          peerDmPopoutStatusHideTimer = null;
-          peerDmPopoutStatusHideToken = "";
-          const livePeerId = normalizeNodeId(peerDmActivePeerId || "");
-          if (livePeerId !== peerId) return;
-          const liveStatusEl = document.getElementById("peer-dm-popout-status");
-          if (!(liveStatusEl instanceof HTMLElement)) return;
-          liveStatusEl.textContent = "";
-          liveStatusEl.classList.remove("is-error");
-          liveStatusEl.hidden = true;
-        }}, ttlMs);
-      }} else {{
-        clearPeerDmPopoutStatusAutoHide(peerId);
-      }}
-      return true;
-    }}
-
     function fileTransferClampPercent(rawPercent) {{
       const num = Number(rawPercent);
       if (!Number.isFinite(num)) return 0;

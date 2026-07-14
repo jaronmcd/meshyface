@@ -290,9 +290,6 @@
         if (activeChatChannel === "direct" && isSelectableNodeId(selectedNodeId) && normalizeNodeId(selectedNodeId) === peerId) {{
           return true;
         }}
-        if (isCanonicalNodeId(peerDmActivePeerId) && normalizeNodeId(peerDmActivePeerId) === peerId) {{
-          return true;
-        }}
         return false;
       }};
       const directConversationPeerIds = new Set();
@@ -333,12 +330,7 @@
       const renderPeerDmThreadHost = (host, peerIdRaw, options = null) => {{
         if (!(host instanceof HTMLElement)) return;
         const opts = options && typeof options === "object" ? options : {{}};
-        const mode = String(opts.mode || "drawer").trim().toLowerCase();
-        const isPopout = mode === "popout";
-        const renderProfileAppearance = mode !== "drawer";
-        const showPopoutAction = !!opts.showPopoutAction;
-        const showFocusAction = !!opts.showFocusAction;
-        const showCloseAction = !!opts.showCloseAction;
+        const renderProfileAppearance = false;
         const unavailableMessage = String(opts.unavailableMessage || "").trim();
         const peerId = normalizeNodeId(peerIdRaw || "");
         const priorWindow = host.querySelector(".peer-dm-popout-window");
@@ -419,7 +411,7 @@
         }};
 
         if (!isCanonicalNodeId(peerId) || isSelfNodeId(peerId)) {{
-          const nextUnavailableHtml = unavailableMessage && !isPopout
+          const nextUnavailableHtml = unavailableMessage
             ? `<section class="peer-dm-popout-window is-embedded">
               <div class="peer-dm-popout-body">
                 <div class="peer-dm-popout-empty">${{escAttr(unavailableMessage)}}</div>
@@ -604,30 +596,8 @@
               </div>`;
             }}).join("")
           : '<div class="peer-dm-popout-empty">No messages in this peer thread yet.</div>';
-        const popoutActiveForPeer = (
-          !isPopout
-          && isCanonicalNodeId(peerDmActivePeerId)
-          && normalizeNodeId(peerDmActivePeerId) === peerId
-        );
-        const actionButtons = [];
-        if (showPopoutAction) {{
-          const popoutActionLabel = popoutActiveForPeer ? "Pop in" : "Pop out";
-          const popoutActionTitle = popoutActiveForPeer
-            ? "Close the floating peer thread and keep chatting here"
-            : "Open this peer thread in a floating window";
-          actionButtons.push(`<button type="button" class="peer-dm-popout-btn" data-peer-dm-action="popout" title="${{escAttr(popoutActionTitle)}}">${{escAttr(popoutActionLabel)}}</button>`);
-        }}
-        if (showFocusAction) {{
-          actionButtons.push(`<button type="button" class="peer-dm-popout-btn" data-peer-dm-action="focus"${{isPopout ? ' id="peer-dm-popout-open-main-btn"' : ""}} title="Focus this peer in the node list">Focus node</button>`);
-        }}
-        if (showCloseAction) {{
-          actionButtons.push(`<button type="button" class="peer-dm-popout-btn" data-peer-dm-action="close"${{isPopout ? ' id="peer-dm-popout-close-btn"' : ""}} title="Close this peer window">&times;</button>`);
-        }}
-        const actionsHtml = actionButtons.length > 0
-          ? `<div class="peer-dm-popout-actions">${{actionButtons.join("")}}</div>`
-          : "";
         const nextThreadHtml = `<section
-          class="peer-dm-popout-window${{isPopout ? "" : " is-embedded"}}"
+          class="peer-dm-popout-window is-embedded"
           data-peer-node-id="${{escAttr(peerId)}}"
           data-peer-dm-channel-index="${{escAttr(threadChannelIndex)}}"
           style="${{escAttr(threadChannelStyle)}}"
@@ -640,14 +610,12 @@
                 <span class="peer-dm-popout-channel" title="Thread channel">${{escAttr(threadChannelLabel)}}</span>
               </span>
             </div>
-            ${{actionsHtml}}
           </header>
-          <div class="peer-dm-popout-body" data-peer-dm-role="body"${{isPopout ? ' id="peer-dm-popout-body"' : ""}}>${{messageRows}}</div>
+          <div class="peer-dm-popout-body" data-peer-dm-role="body">${{messageRows}}</div>
           <div class="peer-dm-popout-composer">
             <input
               class="peer-dm-popout-input"
               data-peer-dm-role="input"
-              ${{isPopout ? 'id="peer-dm-popout-input"' : ""}}
               type="text"
               autocomplete="off"
               placeholder="Direct message to ${{escAttr(peerId)}}..."
@@ -656,13 +624,11 @@
               type="button"
               class="peer-dm-popout-send-btn"
               data-peer-dm-role="send"
-              ${{isPopout ? 'id="peer-dm-popout-send-btn"' : ""}}
               ${{chatSendInFlight ? "disabled" : ""}}
             >Send</button>
             <div
               class="peer-dm-popout-file-progress${{fileState && fileState.isError ? " is-error" : ""}}${{filePhase === "delivered" ? " is-success" : ""}}"
               data-peer-dm-role="file-progress"
-              ${{isPopout ? 'id="peer-dm-popout-file-progress"' : ""}}
               title="${{escAttr(fileProgressTitle)}}"
               ${{fileState ? "" : "hidden"}}
             >
@@ -670,18 +636,15 @@
                 <span
                   class="peer-dm-popout-file-progress-text"
                   data-peer-dm-role="file-progress-text"
-                  ${{isPopout ? 'id="peer-dm-popout-file-progress-text"' : ""}}
                 >${{escAttr(fileText || "No file transfer activity yet.")}}</span>
                 <span
                   class="peer-dm-popout-file-progress-pct"
                   data-peer-dm-role="file-progress-pct"
-                  ${{isPopout ? 'id="peer-dm-popout-file-progress-pct"' : ""}}
                 >${{escAttr(`${{filePercent}}%`)}}</span>
               </div>
               <div class="peer-dm-popout-file-progress-meter">
                 <span
                   data-peer-dm-role="file-progress-fill"
-                  ${{isPopout ? 'id="peer-dm-popout-file-progress-fill"' : ""}}
                   style="width:${{escAttr(String(filePercent))}}%;"
                 ></span>
               </div>
@@ -689,7 +652,6 @@
             <div
               class="peer-dm-popout-status"
               data-peer-dm-role="status"
-              ${{isPopout ? 'id="peer-dm-popout-status"' : ""}}
               hidden
             ></div>
           </div>
@@ -698,73 +660,6 @@
         if (threadMarkupChanged) {{
           host.innerHTML = nextThreadHtml;
           host.__meshPeerDmThreadHtml = nextThreadHtml;
-        }}
-
-        const focusBtn = host.querySelector('[data-peer-dm-action="focus"]');
-        if (focusBtn instanceof HTMLButtonElement && focusBtn.dataset.bound !== "1") {{
-          focusBtn.dataset.bound = "1";
-          focusBtn.addEventListener("click", (ev) => {{
-            ev.preventDefault();
-            setPeerDmMenuOpen(false);
-            applyLayoutView("chat", true);
-            applyChatChannel("all", true);
-            selectNode(peerId, true, false);
-          }});
-        }}
-        const popoutBtn = host.querySelector('[data-peer-dm-action="popout"]');
-        if (popoutBtn instanceof HTMLButtonElement && popoutBtn.dataset.bound !== "1") {{
-          popoutBtn.dataset.bound = "1";
-          popoutBtn.addEventListener("click", (ev) => {{
-            ev.preventDefault();
-            const activePeerId = normalizeNodeId(peerDmActivePeerId || "");
-            const activeForPeer = isCanonicalNodeId(activePeerId) && activePeerId === peerId;
-            if (activeForPeer) {{
-              if (typeof setPeerDmPopoutStatusDisplay === "function") {{
-                setPeerDmPopoutStatusDisplay(peerId, "");
-              }}
-              peerDmActivePeerId = "";
-              if (latestState) {{
-                renderChat(latestState);
-              }}
-              window.requestAnimationFrame(() => {{
-                const drawerInput = host.querySelector('[data-peer-dm-role="input"]');
-                if (drawerInput instanceof HTMLInputElement) {{
-                  drawerInput.focus({{ preventScroll: true }});
-                }}
-              }});
-              return;
-            }}
-            peerDmActivePeerId = peerId;
-            setPeerDmMenuOpen(false);
-            if (latestState) {{
-              renderChat(latestState);
-            }}
-            window.requestAnimationFrame(() => {{
-              const popoutInput = document.getElementById("peer-dm-popout-input");
-              if (!(popoutInput instanceof HTMLInputElement)) return;
-              popoutInput.focus({{ preventScroll: true }});
-              const tail = popoutInput.value.length;
-              try {{
-                popoutInput.setSelectionRange(tail, tail);
-              }} catch (_err) {{
-              }}
-            }});
-          }});
-        }}
-        const closeBtn = host.querySelector('[data-peer-dm-action="close"]');
-        if (closeBtn instanceof HTMLButtonElement && closeBtn.dataset.bound !== "1") {{
-          closeBtn.dataset.bound = "1";
-          closeBtn.addEventListener("click", (ev) => {{
-            ev.preventDefault();
-            if (isPopout && typeof setPeerDmPopoutStatusDisplay === "function") {{
-              setPeerDmPopoutStatusDisplay(peerId, "");
-            }}
-            if (isPopout) {{
-              peerDmActivePeerId = "";
-            }}
-            host.innerHTML = "";
-            host.__meshPeerDmThreadHtml = "";
-          }});
         }}
 
         const input = host.querySelector('[data-peer-dm-role="input"]');
@@ -795,16 +690,7 @@
           if (!Number.isFinite(stamp) || stamp <= 0) return 0;
           return Math.max(0, Math.round((ttlSec - Math.max(0, nowUnix - stamp)) * 1000));
         }};
-        const setStatus = (text, isError = false, statusOptions = null) => {{
-          const localOptions = statusOptions && typeof statusOptions === "object" ? statusOptions : {{}};
-          if (isPopout && typeof setPeerDmPopoutStatusDisplay === "function") {{
-            const handled = setPeerDmPopoutStatusDisplay(peerId, text, {{
-              isError,
-              ttlMs: localOptions.ttlMs,
-              statusToken: localOptions.statusToken,
-            }});
-            if (handled) return;
-          }}
+        const setStatus = (text, isError = false) => {{
           if (!(statusEl instanceof HTMLElement)) return;
           const label = String(text || "").trim();
           if (!label) {{
@@ -1023,40 +909,6 @@
         }}
       }};
 
-      const peerDmHost = document.getElementById("peer-dm-popout-host");
-      const priorPopoutWindow = document.querySelector("#peer-dm-popout-host .peer-dm-popout-window");
-      const priorPopoutPeerId = normalizeNodeId(
-        priorPopoutWindow instanceof HTMLElement
-          ? (priorPopoutWindow.dataset.peerNodeId || "")
-          : (peerDmActivePeerId || "")
-      );
-      let activePopoutPeerId = normalizeNodeId(peerDmActivePeerId || "");
-      const activePopoutBucketRaw = directMessagesByPeer.get(activePopoutPeerId);
-      const activePopoutHasMessages = (
-        Array.isArray(activePopoutBucketRaw)
-        && activePopoutBucketRaw.length > 0
-      );
-      const activePopoutIsKnownPeer = isKnownPeerNode(activePopoutPeerId);
-      if (
-        !isCanonicalNodeId(activePopoutPeerId)
-        || (
-          !activePopoutIsKnownPeer
-          && !directConversationPeerIds.has(activePopoutPeerId)
-          && !activePopoutHasMessages
-        )
-      ) {{
-        if (typeof setPeerDmPopoutStatusDisplay === "function") {{
-          setPeerDmPopoutStatusDisplay(priorPopoutPeerId || peerDmActivePeerId || "", "");
-        }}
-        activePopoutPeerId = "";
-        peerDmActivePeerId = "";
-      }}
-      renderPeerDmThreadHost(peerDmHost, activePopoutPeerId, {{
-        mode: "popout",
-        showFocusAction: true,
-        showCloseAction: true,
-      }});
-
       const drawerMessagesHost = document.getElementById("chat-node-details-messages-host");
       const drawerMessagesActive = (
         drawerMessagesHost instanceof HTMLElement
@@ -1069,8 +921,6 @@
           drawerMessagesHost,
           chatNodeDetailsDrawerTargetNodeId(selectedNodeId),
           {{
-            mode: "drawer",
-            showPopoutAction: true,
             unavailableMessage: "Direct messaging is unavailable for this node.",
           }}
         );
