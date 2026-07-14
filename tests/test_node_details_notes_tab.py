@@ -456,7 +456,11 @@ def test_dashboard_css_promoted_node_details_overlays_workspace() -> None:
     assert "height: 100%;" in css
     assert ".chat-node-details-head {" in css
     head_section = css.split("\n    .chat-node-details-head {", 1)[1].split("}", 1)[0]
+    assert "flex: 0 0 auto;" in head_section
     assert "grid-template-columns: minmax(0, 1fr) auto;" in head_section
+    tabs_section = css.split("\n    .chat-node-details-tabs {", 1)[1].split("}", 1)[0]
+    assert "flex: 0 0 auto;" in tabs_section
+    assert "flex-wrap: wrap;" in tabs_section
     assert ".chat-node-details-head-main {" in css
     head_main_section = css.rsplit(".chat-node-details-head-main {", 1)[1].split("}", 1)[0]
     assert "width: 100%;" in head_main_section
