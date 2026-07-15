@@ -92,10 +92,220 @@
           distances,
         }};
       }}
+
+      function consoleMappacksPayloadError(payload, fallback = "request failed") {{
+        const error = payload && payload.error;
+        if (error && typeof error === "object") {{
+          return String(error.message || error.code || fallback);
+        }}
+        if (typeof error === "string" && error.trim()) {{
+          return error.trim();
+        }}
+        return fallback;
+      }}
+
+      function consoleMappacksBoolOption(value, defaultValue = false) {{
+        if (value === true || value === false) return value;
+        const text = String(value == null ? "" : value).trim().toLowerCase();
+        if (!text) return defaultValue;
+        if (["1", "true", "yes", "y", "on"].includes(text)) return true;
+        if (["0", "false", "no", "n", "off"].includes(text)) return false;
+        return defaultValue;
+      }}
+
+      function consoleMappacksSelectedLayers(options) {{
+        const rawLayers = String(options.layers || "").trim();
+        const requested = rawLayers
+          ? rawLayers.split(",").map((item) => item.trim()).filter(Boolean)
+          : mapPackLayerPrefKeys.slice();
+        const invalid = requested.filter((name) => !mapPackLayerPrefKeys.includes(name));
+        if (invalid.length) {{
+          return {{
+            ok: false,
+            lines: [
+              `[mappacks] unknown layers: ${{invalid.join(", ")}}`,
+              `[mappacks] valid layers: ${{mapPackLayerPrefKeys.join(",")}}`,
+            ],
+          }};
+        }}
+        return {{ ok: true, layers: requested }};
+      }}
+
+      async function consoleMappacksPostJson(endpoint, body, opts = null) {{
+        const options = (opts && typeof opts === "object") ? opts : {{}};
+        const resp = await fetch(endpoint, {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify(body || {{}}),
+          signal: options.signal,
+        }});
+        const payload = await resp.json().catch(() => ({{}}));
+        if (!resp.ok || !(payload && payload.ok !== false)) {{
+          throw new Error(consoleMappacksPayloadError(payload, `API ${{resp.status}}`));
+        }}
+        return payload;
+      }}
+
+      function consoleMappacksFormatJobLine(line) {{
+        const text = String(line == null ? "" : line).trim();
+        if (!text) return "";
+        return text.startsWith("[") ? text : `[mappacks] ${{text}}`;
+      }}
+
+      async function consoleMappacksInstall(options, append) {{
+        const packId = String(options.pack_id || options.pack || "mymesh").trim() || "mymesh";
+        append("[mappacks] please wait: installing map pack...");
+        const payload = await consoleMappacksPostJson("/api/maps/packs/install", {{
+          pack_id: packId,
+        }});
+        const installed = payload.installed_pack && typeof payload.installed_pack === "object"
+          ? payload.installed_pack
+          : {{}};
+        const size = formatMapPackBytes(installed.total_bytes) || "unknown size";
+        if (typeof refreshMapPackData === "function") {{
+          refreshMapPackData();
+        }}
+        if (typeof refreshMapsPackStatus === "function") {{
+          void refreshMapsPackStatus();
+        }}
+        return `[mappacks] installed ${{payload.pack_id || packId}} (${{size}}).`;
+      }}
+
+      async function consoleMappacksBuild(ctx, options) {{
+        const append = typeof ctx.append === "function"
+          ? ctx.append
+          : (msg) => appendConsoleEventLine(msg);
+        const selected = consoleMappacksSelectedLayers(options);
+        if (!selected.ok) return selected.lines;
+
+        const packId = String(options.pack_id || options.pack || "mymesh").trim() || "mymesh";
+        const radiusOverride = Number(options.radius_km ?? options.radius);
+        const hasRadiusOverride = Number.isFinite(radiusOverride) && radiusOverride > 0;
+        const request = {{
+          pack_id: packId,
+          layers: selected.layers,
+        }};
+        append("[mappacks] please wait: checking live GPS and node history...");
+
+        const regionText = String(options.region || options.city || "").trim();
+        const centerText = String(options.center || "").trim();
+        if (regionText) {{
+          request.mode = "region";
+          request.region = regionText;
+          append(`[mappacks] using region "${{regionText}}".`);
+          if (hasRadiusOverride) {{
+            append("[mappacks] radius is only used with center/history builds; region lookup chooses its own coverage.");
+          }}
+        }} else if (centerText) {{
+          if (!hasRadiusOverride) {{
+            return "[mappacks] center requires radius=<km>.";
+          }}
+          request.mode = "center";
+          request.center = centerText;
+          request.radius_km = Math.round(radiusOverride);
+          append(`[mappacks] using center ${{centerText}}, radius ${{request.radius_km}} km.`);
+        }} else {{
+          const forceHistory = consoleMappacksBoolOption(options.history ?? options["from-history"], false);
+          const mesh = consoleMappacksMeshSummary(latestState);
+          if (!forceHistory && mesh.center) {{
+            const radius = hasRadiusOverride ? Math.round(radiusOverride) : mesh.suggested;
+            const covered = mesh.distances.filter((distance) => distance <= radius).length;
+            request.mode = "center";
+            request.center = mesh.center;
+            request.radius_km = radius;
+            append(
+              `[mappacks] using ${{mesh.pointCount}} live GPS nodes, `
+              + `center ${{mesh.center}}, radius ${{radius}} km covers ${{covered}}.`
+            );
+          }} else {{
+            request.mode = "history";
+            if (hasRadiusOverride) request.radius_km = Math.round(radiusOverride);
+            append("[mappacks] live GPS is thin; using saved node history.");
+          }}
+        }}
+
+        const installAfter = consoleMappacksBoolOption(options.install, false);
+        const aborter = new AbortController();
+        let finished = false;
+        let cancelRequested = false;
+        startConsoleRunningCommand("mappacks", (_reason, emitStatus) => {{
+          if (finished) return;
+          cancelRequested = true;
+          try {{
+            aborter.abort();
+          }} catch (_err) {{
+          }}
+          fetch("/api/maps/packs/build/cancel", {{ method: "POST" }}).catch(() => {{}});
+          if (emitStatus) append("[mappacks] cancellation requested.");
+        }});
+
+        try {{
+          const started = await consoleMappacksPostJson(
+            "/api/maps/packs/build",
+            request,
+            {{ signal: aborter.signal }},
+          );
+          let seenLines = 0;
+          let statusPayload = started;
+          while (!cancelRequested) {{
+            const job = statusPayload && statusPayload.job && typeof statusPayload.job === "object"
+              ? statusPayload.job
+              : null;
+            const lines = job && Array.isArray(job.lines) ? job.lines : [];
+            for (const line of lines.slice(seenLines)) {{
+              const rendered = consoleMappacksFormatJobLine(line);
+              if (rendered) append(rendered);
+            }}
+            seenLines = lines.length;
+            const status = String((job && job.status) || "");
+            if (["succeeded", "failed", "cancelled"].includes(status)) {{
+              if (status === "succeeded") {{
+                append(`[mappacks] build finished for ${{packId}}.`);
+                if (installAfter) {{
+                  append(await consoleMappacksInstall({{ pack_id: packId }}, append));
+                }} else {{
+                  append(`[mappacks] run "mappacks install" to replace the installed ${{packId}} pack.`);
+                }}
+              }} else if (status === "cancelled") {{
+                append("[mappacks] build cancelled.");
+              }} else {{
+                const allText = lines.join("\n");
+                append("[mappacks] build failed.");
+                if (/not enough node positions/i.test(allText)) {{
+                  append("[mappacks] not enough location data to choose a pack. Pass center/radius or region.");
+                  append('[mappacks] example: mappacks build center=44.9577,-93.2446 radius=77');
+                  append('[mappacks] example: mappacks build region="Minnesota"');
+                }}
+              }}
+              return "";
+            }}
+            await new Promise((resolve) => window.setTimeout(resolve, 1500));
+            const resp = await fetch("/api/maps/packs/build", {{
+              cache: "no-store",
+              signal: aborter.signal,
+            }});
+            statusPayload = await resp.json().catch(() => ({{}}));
+          }}
+          return "[mappacks] build cancelled.";
+        }} catch (err) {{
+          if (cancelRequested) return "[mappacks] build cancelled.";
+          const msg = err instanceof Error ? err.message : String(err || "request failed");
+          return `[mappacks] build failed: ${{msg}}`;
+        }} finally {{
+          finished = true;
+          if (
+            consoleRunningCommand
+            && String(consoleRunningCommand.name || "").trim().toLowerCase() === "mappacks"
+          ) {{
+            stopConsoleRunningCommand("done", false);
+          }}
+        }}
+      }}
+
       registerConsoleCommand({{
         name: "mappacks",
-        usage: "mappacks [layers=<a,b,c>] [radius=<km>]",
-        description: "Local map pack commands sized to your mesh; installed packs work offline.",
+        usage: "mappacks [build|install|status|cancel] [city=<name>|region=<name>|center=<lat,lon>] [radius=<km>] [install=true]",
+        description: "Build and install local map packs sized to your mesh.",
         supportsVerbosity: false,
         paramGhost: (state, ctx) => {{
           const line = String(ctx && ctx.draft ? ctx.draft : "");
@@ -115,6 +325,36 @@
           const options = (ctx && ctx.options && typeof ctx.options === "object")
             ? ctx.options
             : {{}};
+          const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+          const subcommand = String(args[0] || "").trim().toLowerCase();
+          if (subcommand === "build") {{
+            return await consoleMappacksBuild(ctx, options);
+          }}
+          if (subcommand === "install") {{
+            const append = typeof ctx.append === "function"
+              ? ctx.append
+              : (msg) => appendConsoleEventLine(msg);
+            try {{
+              return await consoleMappacksInstall(options, append);
+            }} catch (err) {{
+              const msg = err instanceof Error ? err.message : String(err || "request failed");
+              return `[mappacks] install failed: ${{msg}}`;
+            }}
+          }}
+          if (subcommand === "cancel") {{
+            try {{
+              const payload = await consoleMappacksPostJson("/api/maps/packs/build/cancel", {{}});
+              return payload.cancelled
+                ? "[mappacks] cancellation requested."
+                : "[mappacks] no map-pack build is running.";
+            }} catch (err) {{
+              const msg = err instanceof Error ? err.message : String(err || "request failed");
+              return `[mappacks] cancel failed: ${{msg}}`;
+            }}
+          }}
+          if (subcommand && subcommand !== "status") {{
+            return `[mappacks] unknown subcommand: ${{subcommand}}`;
+          }}
           const lines = [];
           let layersArg = "";
           const rawLayers = String(options.layers || "").trim();
@@ -164,7 +404,7 @@
               + `center ${{mesh.center}}, radius ${{radius}} km covers ${{covered}} of them`
               + (hasOverride ? "" : ` (suggested; pass radius=<km> for more or less map)`)
             );
-            lines.push("[mappacks] build this pack on the dashboard computer (from the app directory):");
+            lines.push("[mappacks] build this pack on the dashboard computer:");
             lines.push(
               `  ${{buildPrefix}} --source-dir map_sources --download`
               + ` --center ${{mesh.center}} --radius-km ${{radius}}${{layersArg}}`
