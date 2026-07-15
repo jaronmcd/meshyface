@@ -627,7 +627,10 @@
           if (nextOpen) {{
             setChatChangeMenuOpen(false);
             setChatSettingsMenuOpen(false);
-            renderStarredNodeSelect(latestState || {{}});
+            scheduleMenuHydrationAfterPaint(() => {{
+              if (!favoriteMenuOpen) return;
+              renderStarredNodeSelect(latestState || {{}});
+            }});
           }}
         }});
       }}

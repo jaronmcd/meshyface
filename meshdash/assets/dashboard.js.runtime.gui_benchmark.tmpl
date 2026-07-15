@@ -1012,6 +1012,47 @@
       }};
     }}
 
+    async function meshGuiBenchmarkOpenButtonMenu(buttonId, panelId) {{
+      const button = document.getElementById(buttonId);
+      const panel = document.getElementById(panelId);
+      if (!(button instanceof HTMLElement) || !(panel instanceof HTMLElement)) {{
+        return {{ skipped: true, reason: `${{buttonId}} or ${{panelId}} missing` }};
+      }}
+      if (!panel.hidden) {{
+        button.click();
+        await meshGuiBenchmarkNextFrame();
+      }}
+      const startedAtMs = meshGuiBenchmarkNowMs();
+      button.click();
+      const actionSyncMs = meshGuiBenchmarkNowMs() - startedAtMs;
+      const panelVisible = !panel.hidden;
+      await meshGuiBenchmarkNextFrame();
+      if (!panel.hidden) {{
+        button.click();
+      }}
+      return {{
+        skipped: false,
+        actionSyncMs: meshGuiBenchmarkRoundMs(actionSyncMs),
+        panelVisible,
+      }};
+    }}
+
+    function meshGuiBenchmarkOpenLayoutMenu() {{
+      return meshGuiBenchmarkOpenButtonMenu("layout-view-menu-btn", "layout-view-menu");
+    }}
+
+    function meshGuiBenchmarkOpenChatSettingsMenu() {{
+      return meshGuiBenchmarkOpenButtonMenu("chat-settings-toggle-btn", "chat-settings-menu");
+    }}
+
+    function meshGuiBenchmarkOpenFavoriteMenu() {{
+      return meshGuiBenchmarkOpenButtonMenu("favorite-menu-toggle-btn", "favorite-menu");
+    }}
+
+    function meshGuiBenchmarkOpenChatChangeMenu() {{
+      return meshGuiBenchmarkOpenButtonMenu("chat-change-toggle-btn", "chat-change-summary");
+    }}
+
     async function meshGuiBenchmarkSwitchView(viewName, subviewName = "") {{
       const view = normalizeLayoutView(viewName || activeLayoutView);
       const subview = view === "network" ? normalizeNetworkSubview(subviewName || activeNetworkSubview) : "";
@@ -1253,6 +1294,10 @@
             ["interact:roster-search", meshGuiBenchmarkSearchChatRoster],
             ["interact:reply-open", meshGuiBenchmarkClickChatReply],
             ["interact:reaction-open", meshGuiBenchmarkOpenReactionPopover],
+            ["interact:layout-menu-open", meshGuiBenchmarkOpenLayoutMenu],
+            ["interact:chat-settings-menu-open", meshGuiBenchmarkOpenChatSettingsMenu],
+            ["interact:favorite-menu-open", meshGuiBenchmarkOpenFavoriteMenu],
+            ["interact:chat-alerts-menu-open", meshGuiBenchmarkOpenChatChangeMenu],
           ];
           for (let iteration = 0; iteration < interactionIterations; iteration += 1) {{
             for (const [label, action] of interactionActions) {{

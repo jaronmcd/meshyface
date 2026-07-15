@@ -10290,20 +10290,17 @@
       closeLayoutViewSubmenus();
       syncAppsTabBar(activeLayoutView);
 
-      submenu.hidden = false;
-      submenu.style.visibility = "hidden";
       trigger.setAttribute("aria-expanded", "true");
       const viewportWidth = Math.max(0, window.innerWidth || document.documentElement.clientWidth || 0);
       const menuRect = menu.getBoundingClientRect();
-      const submenuRect = submenu.getBoundingClientRect();
-      const submenuWidth = Math.max(0, Math.ceil(submenuRect.width));
+      const submenuWidth = 260;
       const gap = 10;
       const margin = 8;
       const canOpenRight = viewportWidth <= 0
         ? true
         : ((menuRect.right + gap + submenuWidth + margin) <= viewportWidth);
       submenu.dataset.side = canOpenRight ? "" : "overlay";
-      submenu.style.visibility = "";
+      submenu.hidden = false;
     }}
 
     function toggleLayoutViewSubmenu(name = "") {{
@@ -10632,7 +10629,23 @@
       syncLayoutViewLauncherButtonState(viewName);
     }}
 
+    let layoutViewMenuSyncToken = 0;
+
+    function scheduleLayoutViewMenuSync(viewName = activeLayoutView) {{
+      const token = layoutViewMenuSyncToken + 1;
+      layoutViewMenuSyncToken = token;
+      scheduleMenuHydrationAfterPaint(() => {{
+        if (token !== layoutViewMenuSyncToken) return;
+        const launcherBtn = document.getElementById("layout-view-menu-btn");
+        const menu = document.getElementById("layout-view-menu");
+        if (!(launcherBtn instanceof HTMLButtonElement) || !(menu instanceof HTMLElement)) return;
+        if (menu.hidden || launcherBtn.getAttribute("aria-expanded") !== "true") return;
+        syncLayoutViewMenu(viewName);
+      }});
+    }}
+
     function closeLayoutViewMenu(options = {{}}) {{
+      layoutViewMenuSyncToken += 1;
       const restoreFocus = !!(options && options.restoreFocus);
       const launcherBtn = document.getElementById("layout-view-menu-btn");
       const menu = document.getElementById("layout-view-menu");
@@ -10641,6 +10654,7 @@
         menu.style.removeProperty("left");
         menu.style.removeProperty("top");
         menu.style.removeProperty("min-width");
+        menu.style.removeProperty("max-height");
         menu.style.removeProperty("visibility");
       }}
       closeLayoutViewSubmenus();
@@ -10657,31 +10671,25 @@
       const menu = document.getElementById("layout-view-menu");
       if (!(launcherBtn instanceof HTMLButtonElement) || !(menu instanceof HTMLElement)) return;
 
-      syncLayoutViewMenu(activeLayoutView);
       closeLayoutViewSubmenus();
-      menu.hidden = false;
-      menu.style.visibility = "hidden";
-      launcherBtn.setAttribute("aria-expanded", "true");
-
       const btnRect = launcherBtn.getBoundingClientRect();
-      menu.style.minWidth = `${{Math.max(260, Math.ceil(btnRect.width))}}px`;
-      menu.style.left = "8px";
-      menu.style.top = "8px";
-
-      const menuRect = menu.getBoundingClientRect();
       const viewportWidth = Math.max(0, window.innerWidth || document.documentElement.clientWidth || 0);
-      const viewportHeight = Math.max(0, window.innerHeight || document.documentElement.clientHeight || 0);
+      const menuWidth = Math.min(
+        Math.max(260, Math.ceil(btnRect.width)),
+        Math.max(260, viewportWidth - 24)
+      );
       let left = Math.max(8, Math.round(btnRect.left));
       if (viewportWidth > 0) {{
-        left = Math.min(left, Math.max(8, viewportWidth - Math.ceil(menuRect.width) - 8));
+        left = Math.min(left, Math.max(8, viewportWidth - menuWidth - 8));
       }}
-      let top = Math.round(btnRect.bottom + 8);
-      if (viewportHeight > 0 && (top + menuRect.height) > (viewportHeight - 8)) {{
-        top = Math.max(8, Math.round(btnRect.top - menuRect.height - 8));
-      }}
+      const top = Math.max(8, Math.round(btnRect.bottom + 8));
+      menu.style.minWidth = `${{Math.max(260, Math.ceil(btnRect.width))}}px`;
       menu.style.left = `${{left}}px`;
       menu.style.top = `${{top}}px`;
-      menu.style.visibility = "";
+      menu.style.maxHeight = `calc(100vh - ${{top + 8}}px)`;
+      menu.hidden = false;
+      launcherBtn.setAttribute("aria-expanded", "true");
+      scheduleLayoutViewMenuSync(activeLayoutView);
     }}
 
     function toggleLayoutViewMenu() {{
