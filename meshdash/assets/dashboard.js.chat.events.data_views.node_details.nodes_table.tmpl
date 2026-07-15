@@ -94,14 +94,9 @@
       const view = (typeof normalizeLayoutView === "function")
         ? normalizeLayoutView(viewName)
         : String(viewName || "").trim().toLowerCase();
-      if (view !== "network") return false;
-      const subview = (typeof normalizeNetworkSubview === "function")
-        ? normalizeNetworkSubview(subviewName)
-        : String(subviewName || "map").trim().toLowerCase();
-      const mapSubview = (typeof networkSubviewUsesMap === "function")
-        ? networkSubviewUsesMap(subview)
-        : subview === "map";
-      return mapSubview || subview === "overview";
+      // Public workspace views hide the legacy Nodes card. Keep its expensive
+      // table unmounted so invisible rows do not tax style/layout work.
+      return !["chat", "network", "console", "games", "files", "settings"].includes(view);
     }}
 
     function syncNodesTableForView(viewName = activeLayoutView, subviewName = activeNetworkSubview, nodes = null) {{

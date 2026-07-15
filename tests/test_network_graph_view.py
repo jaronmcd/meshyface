@@ -538,7 +538,7 @@ def test_network_tool_post_requests_are_serialized() -> None:
     assert 'if (shouldRefreshSelectedNodeHistoryForView) {' in js
     assert 'function clearHiddenNodesTable(message = "Node list is hidden in this view.") {' in js
     assert 'function shouldMountNodesTableForView(viewName = activeLayoutView, subviewName = activeNetworkSubview) {' in js
-    assert 'return mapSubview || subview === "overview";' in js
+    assert 'return !["chat", "network", "console", "games", "files", "settings"].includes(view);' in js
     assert 'function syncNodesTableForView(viewName = activeLayoutView, subviewName = activeNetworkSubview, nodes = null) {' in js
     assert 'tbody.dataset.meshHiddenNodesPlaceholder === "1"' in js
     assert 'delete tbody.dataset.meshHiddenNodesPlaceholder;' in js
