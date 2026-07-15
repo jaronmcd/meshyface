@@ -376,9 +376,7 @@
         if (typeof renderChatNodeNavigatorList === "function") {{
           renderChatNodeNavigatorList(latestState);
         }}
-        if (typeof renderNodes === "function") {{
-          renderNodes(latestState.nodes || []);
-        }}
+        syncNodesTableForView(activeLayoutView, activeNetworkSubview, latestState.nodes || []);
         if (activeNetworkSubview === "graph" && typeof renderNetworkGraphView === "function") {{
           renderNetworkGraphView(latestState);
         }}

@@ -110,7 +110,7 @@
         }} else if (isChannelsViewActive()) {{
           renderChannelsView(safeState);
         }} else if (activeLayoutView === "network") {{
-          renderNodes(Array.isArray(safeState.nodes) ? safeState.nodes : []);
+          syncNodesTableForView(activeLayoutView, activeNetworkSubview, safeState.nodes || []);
         }} else if (activeLayoutView === "games") {{
           renderGamesView(safeState);
         }}

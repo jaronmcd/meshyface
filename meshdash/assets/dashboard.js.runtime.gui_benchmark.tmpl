@@ -817,6 +817,38 @@
       }}
     }}
 
+    function meshGuiBenchmarkDispatchTextKeyEvent(el, type, ch) {{
+      if (!(el instanceof HTMLElement)) return false;
+      try {{
+        const event = new KeyboardEvent(type, {{
+          bubbles: true,
+          cancelable: true,
+          key: ch,
+          code: ch === " " ? "Space" : `Key${{String(ch || "").toUpperCase()}}`,
+        }});
+        return el.dispatchEvent(event);
+      }} catch (_err) {{
+        return true;
+      }}
+    }}
+
+    function meshGuiBenchmarkDispatchBeforeInput(el, ch) {{
+      if (!(el instanceof HTMLElement)) return false;
+      try {{
+        const event = typeof InputEvent === "function"
+          ? new InputEvent("beforeinput", {{
+              bubbles: true,
+              cancelable: true,
+              inputType: "insertText",
+              data: ch,
+            }})
+          : new Event("beforeinput", {{ bubbles: true, cancelable: true }});
+        return el.dispatchEvent(event);
+      }} catch (_err) {{
+        return true;
+      }}
+    }}
+
     async function meshGuiBenchmarkTypeChatInput() {{
       const input = document.getElementById("chat-input");
       if (!(input instanceof HTMLTextAreaElement) && !(input instanceof HTMLInputElement)) {{
@@ -828,9 +860,17 @@
       input.value = "";
       meshGuiBenchmarkDispatchInput(input);
       const startedAtMs = meshGuiBenchmarkNowMs();
+      let maxCharSyncMs = 0;
+      let eventsDispatched = 0;
       for (const ch of text) {{
+        const charStartedAtMs = meshGuiBenchmarkNowMs();
+        if (meshGuiBenchmarkDispatchTextKeyEvent(input, "keydown", ch) !== false) eventsDispatched += 1;
+        if (meshGuiBenchmarkDispatchBeforeInput(input, ch) !== false) eventsDispatched += 1;
         input.value += ch;
         meshGuiBenchmarkDispatchInput(input);
+        eventsDispatched += 2;
+        if (meshGuiBenchmarkDispatchTextKeyEvent(input, "keyup", ch) !== false) eventsDispatched += 1;
+        maxCharSyncMs = Math.max(maxCharSyncMs, meshGuiBenchmarkNowMs() - charStartedAtMs);
       }}
       const actionSyncMs = meshGuiBenchmarkNowMs() - startedAtMs;
       await meshGuiBenchmarkNextFrame();
@@ -842,6 +882,8 @@
         typedLength,
         actionSyncMs: meshGuiBenchmarkRoundMs(actionSyncMs),
         inputLoopMs: meshGuiBenchmarkRoundMs(actionSyncMs),
+        maxCharSyncMs: meshGuiBenchmarkRoundMs(maxCharSyncMs),
+        eventsDispatched,
         restoredLength: previousValue.length,
       }};
     }}

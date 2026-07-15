@@ -201,3 +201,36 @@ def test_dashboard_js_suppresses_stale_startup_state_before_accepting_payload(
     accept_idx = poll_dashboard_js.index("latestRawState = rawState;", guard_idx)
 
     assert json_idx < normalize_idx < guard_idx < accept_idx
+
+
+def test_dashboard_js_defers_heavy_poll_renders_while_text_entry_is_active(
+    poll_dashboard_js: str,
+    assert_tokens_present: Callable[[str, Sequence[str]], None],
+) -> None:
+    assert_tokens_present(
+        poll_dashboard_js,
+        (
+            "const dashboardTextEntryRenderIdleMs = 900;",
+            "function isDashboardTextEntryTarget(target) {",
+            "function bindDashboardTextEntryActivityTracking() {",
+            'for (const eventName of ["beforeinput", "input", "keydown", "paste", "compositionstart", "compositionupdate", "compositionend"]) {',
+            "function shouldDeferDashboardRenderForTextEntry(run, phaseName) {",
+            'markPollPerfPhase(run, phaseName || "text-entry-defer"',
+            "requestImmediatePoll(Math.ceil(remainingMs) + 80);",
+            'shouldDeferDashboardRenderForTextEntry(pollPerfRun, "text-entry-defer-not-modified")',
+            'pollPerfStatus = "text-entry-deferred-not-modified";',
+            'shouldDeferDashboardRenderForTextEntry(pollPerfRun, "text-entry-defer-render")',
+            'pollPerfStatus = "text-entry-deferred";',
+        ),
+    )
+
+    full_defer_idx = poll_dashboard_js.index(
+        'shouldDeferDashboardRenderForTextEntry(pollPerfRun, "text-entry-defer-render")'
+    )
+    render_chat_idx = poll_dashboard_js.index('runPollStep("renderChat.workspace"', full_defer_idx)
+    render_settings_idx = poll_dashboard_js.index("renderSettings(state);", full_defer_idx)
+    render_console_idx = poll_dashboard_js.index("renderConsole(state.traffic || {});", full_defer_idx)
+
+    assert full_defer_idx < render_chat_idx
+    assert full_defer_idx < render_settings_idx
+    assert full_defer_idx < render_console_idx

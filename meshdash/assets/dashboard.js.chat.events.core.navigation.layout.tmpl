@@ -10895,7 +10895,7 @@
         updateGamesFullscreenControl(next);
       }}
       const networkMapSubviewActive = next === "network" && networkSubviewUsesMap(activeNetworkSubview);
-      const networkNodesTableActive = next === "network" && (networkMapSubviewActive || activeNetworkSubview === "overview");
+      const networkNodesTableActive = shouldMountNodesTableForView(next, activeNetworkSubview);
       if (latestState) {{
         const networkGraphActive = next === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);
         const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";
@@ -10921,12 +10921,8 @@
         if (networkMapSubviewActive) {{
           renderMap(latestState.nodes || [], (latestState.traffic || {{}}).edges || [], cachedNodeHistory);
         }}
+        syncNodesTableForView(next, activeNetworkSubview, latestState.nodes || []);
         if (next === "network") {{
-          if (networkNodesTableActive) {{
-            renderNodes(latestState.nodes || []);
-          }} else if (typeof clearHiddenNodesTable === "function") {{
-            clearHiddenNodesTable();
-          }}
           if (networkGraphActive && latestStatePollProfile === "network-graph" && typeof renderNetworkGraphView === "function") {{
             renderNetworkGraphView(latestState);
           }} else if (networkGraphActive && typeof requestImmediatePoll === "function") {{
@@ -10979,12 +10975,14 @@
         if (next === "console") {{
           renderConsole(latestState.traffic || {{}});
         }}
-      }} else if (next === "network") {{
+      }} else if (networkNodesTableActive) {{
         renderNodesPlaceholder("Syncing nodes...");
       }} else if (next === "files") {{
         renderFilesView(latestState);
       }} else if (next === "games") {{
         renderGamesView(latestState);
+      }} else if (typeof clearHiddenNodesTable === "function") {{
+        clearHiddenNodesTable();
       }}
       if (next === "console") {{
         window.requestAnimationFrame(() => {{
