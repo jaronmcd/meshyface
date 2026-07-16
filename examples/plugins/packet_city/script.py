@@ -49,18 +49,29 @@ def _total_counts():
     return sum(int(count or 0) for count in _city_counts.values()) + _no_city_count
 
 
-def _leaders():
-    return sorted(_city_counts.items(), key=lambda item: (-item[1], item[0].casefold()))[:3]
+def _ranked_cities():
+    return sorted(_city_counts.items(), key=lambda item: (-item[1], item[0].casefold()))
+
+
+def _clip_detail(text, limit=256):
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 3)].rstrip() + "..."
 
 
 def _publish_scoreboard(ctx):
-    leaders = _leaders()
+    ranked_cities = _ranked_cities()
+    leaders = ranked_cities[:3]
+    other_cities = ranked_cities[3:]
+    other_count = sum(count for _name, count in other_cities)
     counted = _total_counts()
     rows = {}
     for rank, (name, count) in enumerate(leaders, 1):
         rows[f"{rank}. {name}"] = count
     if not rows:
         rows["Leaders"] = "Waiting for city packets"
+    if other_count:
+        rows["Other"] = other_count
     rows["Packets"] = counted
     if _no_city_count:
         rows["No city"] = _no_city_count
@@ -69,12 +80,20 @@ def _publish_scoreboard(ctx):
         rows["Seen"] = last_seen
     leader_value = f"{leaders[0][0]} · {leaders[0][1]}" if leaders else "waiting"
     leader_detail = " · ".join(f"{name} {count}" for name, count in leaders) or "none yet"
+    other_detail = ", ".join(f"{name} {count}" for name, count in other_cities[:6]) or "none"
+    if len(other_cities) > 6:
+        other_detail = f"{other_detail}, +{len(other_cities) - 6} more"
+    detail_parts = ["Packet City top cities", leader_detail]
+    if other_count:
+        detail_parts.append(f"other {other_detail}")
+    detail_parts.append(f"no city {_no_city_count}")
+    detail_parts.append(f"seen {last_seen}")
     ctx.set_ticker(
         "scoreboard",
         value=leader_value,
         rows=rows,
         state="neutral",
-        detail=f"Packet City top cities · {leader_detail} · no city {_no_city_count} · seen {last_seen}",
+        detail=_clip_detail(" · ".join(detail_parts)),
     )
 
 

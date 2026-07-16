@@ -87,9 +87,11 @@ def test_packet_city_example_publishes_top_three_city_scoreboard() -> None:
         "1. Roseville": 2,
         "2. Saint Paul": 2,
         "3. Blaine": 1,
+        "Other": 2,
         "Packets": 7,
     }
     assert rows["Seen"] != "none"
+    assert "other Duluth 1, Minneapolis 1" in blaine.tickers[-1]["detail"]
 
     unknown = _context(city=None)
     handler(unknown)
