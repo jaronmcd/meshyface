@@ -42,6 +42,88 @@
       }}
     }}
 
+    const dashboardTextEntryRenderIdleMs = 900;
+    let dashboardTextEntryLastActivityMs = 0;
+    let dashboardTextEntryLastTargetKey = "";
+
+    function dashboardTextEntryTargetKey(target) {{
+      if (!(target instanceof Element)) return "";
+      const id = String(target.id || "").trim();
+      if (id) return `id:${{id}}`;
+      const name = String(target.getAttribute("name") || "").trim();
+      if (name) return `name:${{name}}`;
+      const role = String(target.getAttribute("role") || "").trim();
+      const tag = String(target.tagName || "").toLowerCase();
+      return `${{tag}}:${{role}}`;
+    }}
+
+    function isDashboardTextEntryTarget(target) {{
+      if (!(target instanceof Element)) return false;
+      if (target instanceof HTMLTextAreaElement) return true;
+      if (target instanceof HTMLInputElement) {{
+        const type = String(target.type || "text").trim().toLowerCase();
+        return ![
+          "button",
+          "checkbox",
+          "color",
+          "file",
+          "hidden",
+          "image",
+          "radio",
+          "range",
+          "reset",
+          "submit",
+        ].includes(type);
+      }}
+      if (target instanceof HTMLElement && target.isContentEditable) return true;
+      const editableHost = target.closest("[contenteditable=''], [contenteditable='true'], [contenteditable='plaintext-only']");
+      return editableHost instanceof HTMLElement;
+    }}
+
+    function noteDashboardTextEntryActivity(event = null) {{
+      const target = event && event.target instanceof Element
+        ? event.target
+        : ((typeof document !== "undefined" && document.activeElement instanceof Element) ? document.activeElement : null);
+      if (!isDashboardTextEntryTarget(target)) return;
+      dashboardTextEntryLastActivityMs = Date.now();
+      dashboardTextEntryLastTargetKey = dashboardTextEntryTargetKey(target);
+    }}
+
+    function bindDashboardTextEntryActivityTracking() {{
+      if (typeof document === "undefined" || !document.body) return;
+      if (document.body.dataset.dashboardTextEntryTrackingBound === "1") return;
+      document.body.dataset.dashboardTextEntryTrackingBound = "1";
+      for (const eventName of ["beforeinput", "input", "keydown", "paste", "compositionstart", "compositionupdate", "compositionend"]) {{
+        document.addEventListener(eventName, noteDashboardTextEntryActivity, true);
+      }}
+    }}
+
+    bindDashboardTextEntryActivityTracking();
+
+    function dashboardTextEntryRenderDeferRemainingMs(nowMs = Date.now()) {{
+      if (typeof document === "undefined") return 0;
+      const active = document.activeElement instanceof Element ? document.activeElement : null;
+      if (!isDashboardTextEntryTarget(active)) return 0;
+      if (dashboardTextEntryLastActivityMs <= 0) return 0;
+      const activeKey = dashboardTextEntryTargetKey(active);
+      if (dashboardTextEntryLastTargetKey && activeKey && activeKey !== dashboardTextEntryLastTargetKey) return 0;
+      const elapsedMs = Math.max(0, nowMs - dashboardTextEntryLastActivityMs);
+      return Math.max(0, dashboardTextEntryRenderIdleMs - elapsedMs);
+    }}
+
+    function shouldDeferDashboardRenderForTextEntry(run, phaseName) {{
+      const remainingMs = dashboardTextEntryRenderDeferRemainingMs();
+      if (remainingMs <= 0) return false;
+      markPollPerfPhase(run, phaseName || "text-entry-defer", {{
+        remainingMs: Math.ceil(remainingMs),
+        activeElement: document.activeElement instanceof Element
+          ? String(document.activeElement.id || document.activeElement.tagName || "")
+          : "",
+      }});
+      requestImmediatePoll(Math.ceil(remainingMs) + 80);
+      return true;
+    }}
+
     function refreshUnchangedChatWorkspace(state = latestState, nowUnix = Math.floor(Date.now() / 1000)) {{
       const safeState = state && typeof state === "object" ? state : (latestState || {{}});
       runPollStep("refreshUnchangedChatWorkspace.syncTopbar", () => {{
@@ -442,6 +524,12 @@
             pollPerfExtra = {{ httpStatus: resp.status, profile: pollProfile }};
             return;
           }}
+          if (shouldDeferDashboardRenderForTextEntry(pollPerfRun, "text-entry-defer-not-modified")) {{
+            scheduleFileTransferMaintenance(latestState);
+            pollPerfStatus = "text-entry-deferred-not-modified";
+            pollPerfExtra = {{ httpStatus: resp.status, profile: pollProfile }};
+            return;
+          }}
           if (
             activeLayoutView === "network"
             && !networkSubviewUsesMap(activeNetworkSubview)
@@ -464,13 +552,8 @@
           const networkOverviewActive304 = activeLayoutView === "network" && activeNetworkSubview === "overview";
           const networkRoutesActive304 = activeLayoutView === "network" && activeNetworkSubview === "routes";
           const networkTopNodesActive304 = activeLayoutView === "network" && activeNetworkSubview === "top10";
-          const networkNodesTableActive304 = activeLayoutView === "network" && (networkMapActive304 || networkOverviewActive304);
+          const networkNodesTableActive304 = syncNodesTableForView(activeLayoutView, activeNetworkSubview, nodes304);
           if (activeLayoutView === "network") {{
-            if (networkNodesTableActive304) {{
-              renderNodes(nodes304);
-            }} else if (typeof clearHiddenNodesTable === "function") {{
-              clearHiddenNodesTable();
-            }}
             if (networkGraphActive304 && latestStatePollProfile === "network-graph" && typeof renderNetworkGraphView === "function") {{
               renderNetworkGraphView(latestState);
             }}
@@ -481,7 +564,9 @@
               renderNetworkTopNodes(latestState);
             }}
           }}
-          markPollPerfPhase(pollPerfRun, "not-modified-network");
+          markPollPerfPhase(pollPerfRun, "not-modified-network", {{
+            nodesTableActive: networkNodesTableActive304,
+          }});
           if (trafficVisible304) {{
             renderTraffic(traffic304, nodes304, cachedHistory304);
           }}
@@ -632,6 +717,12 @@
           pollPerfExtra = {{ httpStatus: resp.status, profile: pollProfile }};
           return;
         }}
+        if (shouldDeferDashboardRenderForTextEntry(pollPerfRun, "text-entry-defer-render")) {{
+          scheduleFileTransferMaintenance(state);
+          pollPerfStatus = "text-entry-deferred";
+          pollPerfExtra = {{ httpStatus: resp.status, profile: pollProfile }};
+          return;
+        }}
         if (!summaryMetricsHydrated && !summaryMetricsHydrateInFlight) {{
           summaryMetricsHydrateInFlight = hydrateSummaryMetricTickers()
             .finally(() => {{
@@ -662,7 +753,7 @@
         const networkOverviewActive = activeLayoutView === "network" && activeNetworkSubview === "overview";
         const networkRoutesActive = activeLayoutView === "network" && activeNetworkSubview === "routes";
         const networkTopNodesActive = activeLayoutView === "network" && activeNetworkSubview === "top10";
-        const networkNodesTableActive = activeLayoutView === "network" && (networkMapActive || networkOverviewActive);
+        const networkNodesTableActive = shouldMountNodesTableForView(activeLayoutView, activeNetworkSubview);
 
         if (mapVisible && !mapBootstrapFocusDone) {{
           const bootstrap = applyMapBootstrapFocus(state.nodes || [], state);
@@ -707,12 +798,8 @@
         }}
         markPollPerfPhase(pollPerfRun, "render-map", {{ mapVisible }});
 
+        syncNodesTableForView(activeLayoutView, activeNetworkSubview, state.nodes || []);
         if (activeLayoutView === "network") {{
-          if (networkNodesTableActive) {{
-            renderNodes(state.nodes || []);
-          }} else if (typeof clearHiddenNodesTable === "function") {{
-            clearHiddenNodesTable();
-          }}
           if (networkGraphActive && typeof renderNetworkGraphView === "function") {{
             renderNetworkGraphView(state);
           }}
@@ -726,6 +813,7 @@
         markPollPerfPhase(pollPerfRun, "render-network", {{
           networkGraphActive,
           networkMapActive,
+          nodesTableActive: networkNodesTableActive,
         }});
 
         let weeklySummary = null;

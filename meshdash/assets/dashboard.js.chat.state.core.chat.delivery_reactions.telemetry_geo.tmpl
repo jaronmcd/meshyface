@@ -538,8 +538,8 @@
           && activeLayoutView === "map"
         ) {{
           renderMap(latestState.nodes || [], ((latestState.traffic || {{}}).edges || []), null);
-        }} else if (typeof renderNodes === "function") {{
-          renderNodes(latestState.nodes || []);
+        }} else if (typeof syncNodesTableForView === "function") {{
+          syncNodesTableForView(activeLayoutView, activeNetworkSubview, latestState.nodes || []);
         }}
       }} catch (_err) {{}}
     }}

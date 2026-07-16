@@ -522,23 +522,24 @@ def test_network_tool_post_requests_are_serialized() -> None:
     assert 'const networkGraphActive304 = activeLayoutView === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);' in js
     assert 'const networkOverviewActive304 = activeLayoutView === "network" && activeNetworkSubview === "overview";' in js
     assert 'const networkRoutesActive304 = activeLayoutView === "network" && activeNetworkSubview === "routes";' in js
-    assert 'const networkNodesTableActive304 = activeLayoutView === "network" && (networkMapActive304 || networkOverviewActive304);' in js
+    assert 'const networkNodesTableActive304 = syncNodesTableForView(activeLayoutView, activeNetworkSubview, nodes304);' in js
     assert 'const historyRelevant304 = (networkMapActive304 || drawerHistoryVisible304)' in js
-    assert 'if (networkNodesTableActive304) {' in js
-    assert 'clearHiddenNodesTable();' in js
+    assert 'nodesTableActive: networkNodesTableActive304,' in js
     assert 'return "network-graph";' in js
-    assert '|| networkOverviewActive' in js
     assert 'if (weeklySummaryPromise) {' in js
     assert 'const networkGraphActive = next === "network" && activeNetworkSubview === "graph" && !networkSubviewUsesMap(activeNetworkSubview);' in js
     assert 'const networkRoutesActive = next === "network" && activeNetworkSubview === "routes";' in js
     assert 'const networkMapSubviewActive = next === "network" && networkSubviewUsesMap(activeNetworkSubview);' in js
-    assert 'const networkNodesTableActive = next === "network" && (networkMapSubviewActive || activeNetworkSubview === "overview");' in js
+    assert 'const networkNodesTableActive = shouldMountNodesTableForView(next, activeNetworkSubview);' in js
     assert 'const historyRelevant = (networkMapActive || drawerHistoryVisible)' in js
     assert 'if (networkMapSubviewActive) {' in js
-    assert 'if (networkNodesTableActive) {' in js
+    assert 'syncNodesTableForView(next, activeNetworkSubview, latestState.nodes || []);' in js
     assert 'const shouldRefreshSelectedNodeHistoryForView = !!(' in js
     assert 'if (shouldRefreshSelectedNodeHistoryForView) {' in js
     assert 'function clearHiddenNodesTable(message = "Node list is hidden in this view.") {' in js
+    assert 'function shouldMountNodesTableForView(viewName = activeLayoutView, subviewName = activeNetworkSubview) {' in js
+    assert 'return !["chat", "network", "console", "games", "files", "settings"].includes(view);' in js
+    assert 'function syncNodesTableForView(viewName = activeLayoutView, subviewName = activeNetworkSubview, nodes = null) {' in js
     assert 'tbody.dataset.meshHiddenNodesPlaceholder === "1"' in js
     assert 'delete tbody.dataset.meshHiddenNodesPlaceholder;' in js
     assert 'const rootChanged = networkGraphViewState.lastRootId !== rootId;' in js

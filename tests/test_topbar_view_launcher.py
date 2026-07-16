@@ -274,6 +274,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "topbarUpdateTicker" not in js
     assert "topbar-update-ticker" not in js
     assert "function shouldCloseLayoutViewMenuForScrollTarget(target = null) {" in js
+    assert "function scheduleLayoutViewMenuSync(viewName = activeLayoutView) {" in js
+    assert "scheduleMenuHydrationAfterPaint(() => {" in js
+    assert "menu.style.maxHeight = `calc(100vh - ${top + 8}px)`;" in js
+    assert "overflow-y: auto;" in css
     assert 'document.getElementById("settings-about-version")' not in js
     assert 'document.getElementById("settings-about-commit")' not in js
     assert 'document.getElementById("settings-software-revision")' in js
@@ -426,6 +430,7 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'target.closest(\'#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]\')' in js
     assert 'return `Apps · ${currentAppsLauncherLabel(viewName)}`;' in js
     assert 'Math.max(260, Math.ceil(btnRect.width))' in js
+    assert "const submenuWidth = 260;" in js
     assert 'if (!shouldCloseLayoutViewMenuForScrollTarget(ev ? ev.target : null)) {' in js
     assert 'return target === document.body || target === document.documentElement;' in js
     assert "let topbarCornerReservePx = 0;" in js

@@ -90,6 +90,24 @@
       }}
     }}
 
+    function shouldMountNodesTableForView(viewName = activeLayoutView, subviewName = activeNetworkSubview) {{
+      const view = (typeof normalizeLayoutView === "function")
+        ? normalizeLayoutView(viewName)
+        : String(viewName || "").trim().toLowerCase();
+      // Public workspace views hide the legacy Nodes card. Keep its expensive
+      // table unmounted so invisible rows do not tax style/layout work.
+      return !["chat", "network", "console", "games", "files", "settings"].includes(view);
+    }}
+
+    function syncNodesTableForView(viewName = activeLayoutView, subviewName = activeNetworkSubview, nodes = null) {{
+      if (shouldMountNodesTableForView(viewName, subviewName)) {{
+        renderNodes(Array.isArray(nodes) ? nodes : []);
+        return true;
+      }}
+      clearHiddenNodesTable();
+      return false;
+    }}
+
     function nodesTableSortRaw(entry, colIndex) {{
       const node = (entry && typeof entry === "object" && entry.node) ? entry.node : entry;
       const projection = (entry && typeof entry === "object" && entry.projection)

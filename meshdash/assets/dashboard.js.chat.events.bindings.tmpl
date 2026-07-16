@@ -627,7 +627,10 @@
           if (nextOpen) {{
             setChatChangeMenuOpen(false);
             setChatSettingsMenuOpen(false);
-            renderStarredNodeSelect(latestState || {{}});
+            scheduleMenuHydrationAfterPaint(() => {{
+              if (!favoriteMenuOpen) return;
+              renderStarredNodeSelect(latestState || {{}});
+            }});
           }}
         }});
       }}
@@ -724,7 +727,7 @@
         renderChatNodeNavigatorList(safeState);
       }}
       if (activeLayoutView === "network") {{
-        renderNodes(safeState.nodes || []);
+        syncNodesTableForView(activeLayoutView, activeNetworkSubview, safeState.nodes || []);
         const subview = (typeof normalizeNetworkSubview === "function")
           ? normalizeNetworkSubview(activeNetworkSubview)
           : String(activeNetworkSubview || "").trim().toLowerCase();
