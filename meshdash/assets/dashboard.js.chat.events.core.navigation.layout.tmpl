@@ -10810,7 +10810,9 @@
       const launcherBtn = target.closest("#layout-view-menu .topbar-view-menu-item");
       if (launcherBtn instanceof HTMLButtonElement) {{
         if (launcherBtn.disabled) return "";
-        if (String(launcherBtn.dataset.submenu || "").trim()) return "";
+        const submenuName = String(launcherBtn.dataset.submenu || "").trim().toLowerCase();
+        if (submenuName === "apps") return currentAppsLauncherViewName(activeLayoutView);
+        if (submenuName) return "";
         return String(launcherBtn.dataset.view || "chat");
       }}
 
@@ -11194,6 +11196,23 @@
     function bindLayoutViewLauncher() {{
       if (window.__meshLayoutViewLauncherBound === true) return;
       window.__meshLayoutViewLauncherBound = true;
+      const syncAppsSubmenuIntent = (ev) => {{
+        const rawTarget = ev && ev.target;
+        const target = rawTarget instanceof Element
+          ? rawTarget
+          : ((rawTarget instanceof Node) ? rawTarget.parentElement : null);
+        if (!(target instanceof Element)) return;
+        const launcherBtn = document.getElementById("layout-view-menu-btn");
+        if (!(launcherBtn instanceof HTMLButtonElement)) return;
+        if (launcherBtn.getAttribute("aria-expanded") !== "true") return;
+        const launcherItem = target.closest("#layout-view-menu .topbar-view-menu-item");
+        if (!(launcherItem instanceof HTMLButtonElement)) return;
+        if (launcherItem.matches('[data-submenu="apps"]')) {{
+          openLayoutViewSubmenu("apps");
+        }} else {{
+          closeLayoutViewSubmenus();
+        }}
+      }};
       document.addEventListener("click", (ev) => {{
         const rawTarget = ev && ev.target;
         const target = rawTarget instanceof Element
@@ -11212,7 +11231,7 @@
         const submenuToggle = target.closest('#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]');
         if (submenuToggle instanceof HTMLButtonElement) {{
           ev.preventDefault();
-          toggleLayoutViewSubmenu("apps");
+          closeLayoutViewMenu();
           return;
         }}
         const submenuItem = target.closest("#layout-view-menu-apps-submenu .topbar-view-submenu-item");
@@ -11229,6 +11248,8 @@
           closeLayoutViewMenu();
         }}
       }});
+      document.addEventListener("mouseover", syncAppsSubmenuIntent);
+      document.addEventListener("focusin", syncAppsSubmenuIntent);
       document.addEventListener("keydown", (ev) => {{
         if (!ev || ev.key !== "Escape") return;
         const launcherBtn = document.getElementById("layout-view-menu-btn");

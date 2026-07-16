@@ -439,6 +439,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function currentWorkspaceLauncherLabel(viewName = activeLayoutView) {" in js
     assert 'target.closest("#layout-view-menu-apps-submenu .topbar-view-submenu-item")' in js
     assert 'target.closest(\'#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]\')' in js
+    assert "if (submenuName === \"apps\") return currentAppsLauncherViewName(activeLayoutView);" in js
+    assert "const syncAppsSubmenuIntent = (ev) => {" in js
+    assert "document.addEventListener(\"mouseover\", syncAppsSubmenuIntent);" in js
+    assert "closeLayoutViewMenu();" in js
     assert 'return `Apps · ${currentAppsLauncherLabel(viewName)}`;' in js
     assert 'Math.max(260, Math.ceil(btnRect.width))' in js
     assert "document.body.appendChild(submenu);" in js

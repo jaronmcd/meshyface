@@ -17,13 +17,13 @@ class _Mesh:
         return {"name": self.city, "state": "Minnesota", "distance_km": 1.2}
 
 
-def _context(*, city="Minneapolis"):
+def _context(*, city="Minneapolis", packet=None):
     entries = []
     tickers = []
     return SimpleNamespace(
         message=SimpleNamespace(sender_id="!00000001"),
         mesh=_Mesh(city),
-        packet={"decoded": {"admin": {"session_passkey": "secret", "pin": "123456"}}},
+        packet=packet or {"decoded": {"portnum": "ADMIN_APP"}},
         debug=lambda *values: entries.append(values),
         set_ticker=lambda ticker_id, **values: tickers.append({"id": ticker_id, **values}),
         entries=entries,
@@ -31,20 +31,16 @@ def _context(*, city="Minneapolis"):
     )
 
 
-def test_packet_city_example_emits_city_and_redacted_packet() -> None:
+def test_packet_city_example_emits_city_packet_summary() -> None:
     module = runpy.run_path("examples/plugins/packet_city/script.py")
     handler = module["print_packet_and_city"]
     context = _context()
 
     handler(context)
 
-    assert context.entries[0][0] == "packet&city:"
+    assert context.entries[0][0] == "packet_city"
     payload = context.entries[0][1]
-    assert payload["city"] == "Minneapolis, Minnesota (1.2 km)"
-    assert payload["packet"]["decoded"]["admin"] == {
-        "pin": "<redacted>",
-        "session_passkey": "<redacted>",
-    }
+    assert payload == {"city": "Minneapolis, Minnesota (1.2 km)"}
 
 
 def test_packet_city_example_publishes_top_three_city_scoreboard() -> None:
@@ -61,12 +57,10 @@ def test_packet_city_example_publishes_top_three_city_scoreboard() -> None:
         "value": "waiting",
         "rows": {
             "Leaders": "Waiting for city packets",
-            "Counted": 0,
-            "Unknown": 0,
-            "Last seen": "none",
+            "Packets": 0,
         },
         "state": "neutral",
-        "detail": "Packet City top 3 · none yet · 0 unknown",
+        "detail": "Packet City top cities · none yet · no city 0 · seen none",
     }
 
     minneapolis = _context(city="Minneapolis")
@@ -89,15 +83,34 @@ def test_packet_city_example_publishes_top_three_city_scoreboard() -> None:
     blaine = _context(city="Blaine")
     handler(blaine)
     rows = blaine.tickers[-1]["rows"]
-    assert {key: value for key, value in rows.items() if key != "Last seen"} == {
+    assert {key: value for key, value in rows.items() if key != "Seen"} == {
         "1. Roseville": 2,
         "2. Saint Paul": 2,
         "3. Blaine": 1,
-        "Counted": 7,
-        "Unknown": 0,
+        "Packets": 7,
     }
-    assert rows["Last seen"] != "none"
+    assert rows["Seen"] != "none"
 
     unknown = _context(city=None)
     handler(unknown)
-    assert unknown.tickers[-1]["rows"]["Unknown"] == 1
+    assert unknown.tickers[-1]["rows"]["No city"] == 1
+    assert unknown.tickers[-1]["rows"]["Packets"] == 8
+
+
+def test_packet_city_example_counts_no_city_packets_in_total() -> None:
+    module = runpy.run_path("examples/plugins/packet_city/script.py")
+    handler = module["print_packet_and_city"]
+
+    handler(_context(city="Saint Paul"))
+    handler(_context(city="Saint Paul"))
+    handler(_context(city=None))
+
+    context = _context(city="Bloomington")
+    handler(context)
+    rows = context.tickers[-1]["rows"]
+
+    assert rows["1. Saint Paul"] == 2
+    assert rows["2. Bloomington"] == 1
+    assert rows["Packets"] == 4
+    assert rows["No city"] == 1
+    assert context.tickers[-1]["value"] == "Saint Paul · 2"
