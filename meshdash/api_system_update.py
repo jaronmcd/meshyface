@@ -793,6 +793,9 @@ def build_update_status_payload(
         ahead=ahead,
         behind=behind,
     )
+    can_repair_checkout = bool(
+        dirty and branch and current_upstream and current_remote and current_remote_branch
+    )
     return {
         "ok": True,
         "available": True,
@@ -828,6 +831,9 @@ def build_update_status_payload(
         "running_commit": commit,
         "running_commit_short": commit[:8] if commit else "",
         "dirty": dirty,
+        "can_repair_checkout": can_repair_checkout,
+        "repair_checkout_branch": branch if can_repair_checkout else "",
+        "repair_checkout_upstream": current_upstream if can_repair_checkout else "",
         "ahead": ahead,
         "behind": behind,
         "can_update": can_update,
@@ -863,6 +869,7 @@ def _failure_payload(
     payload.update(
         {
             "ok": False,
+            "repaired": False,
             "updated": False,
             "state": state,
             "message": message,
@@ -1012,7 +1019,6 @@ def refresh_update_status_from_github(
     try:
         status = build_update_status_payload(
             repo_dir=repo_dir,
-            target_branch=target_branch,
             runner=runner,
         )
         if not bool(status.get("available")):
@@ -1088,6 +1094,160 @@ def refresh_update_status_from_github(
             {
                 "connection_ok": True,
                 "refreshed": True,
+                "http_status": 200,
+            }
+        )
+        return payload
+    finally:
+        _UPDATE_LOCK.release()
+
+
+def repair_dirty_update_checkout(
+    *,
+    repo_dir: str | os.PathLike[str] | None = None,
+    target_branch: object = None,
+    runner: GitRunner = _run_git,
+    fetch_timeout: float = 60.0,
+    reset_timeout: float = 20.0,
+) -> dict[str, object]:
+    if not _UPDATE_LOCK.acquire(blocking=False):
+        return {
+            "ok": False,
+            "repaired": False,
+            "updated": False,
+            "available": True,
+            "state": "busy",
+            "message": "Software update is already running.",
+            "error": "software update is already running",
+            "http_status": 409,
+        }
+
+    try:
+        status = build_update_status_payload(
+            repo_dir=repo_dir,
+            target_branch=target_branch,
+            runner=runner,
+        )
+        if not bool(status.get("available")):
+            return _failure_payload(
+                status,
+                state="unavailable",
+                message=str(status.get("message") or "Software update is unavailable."),
+                http_status=409,
+            )
+        if not bool(status.get("dirty")):
+            payload = dict(status)
+            payload.update(
+                {
+                    "ok": True,
+                    "repaired": False,
+                    "updated": False,
+                    "message": "Software checkout is already clean.",
+                    "http_status": 200,
+                }
+            )
+            return payload
+
+        repo_root = Path(str(status.get("repo_root") or "."))
+        branch = str(status.get("branch") or "").strip()
+        remote = str(status.get("current_remote") or "").strip()
+        remote_branch = str(status.get("current_remote_branch") or "").strip()
+        upstream = str(status.get("current_upstream") or "").strip()
+        if not branch or not remote or not remote_branch or not upstream:
+            return _failure_payload(
+                status,
+                state="repair_unavailable",
+                message="Dirty checkout repair needs a configured upstream for the current branch.",
+                http_status=409,
+                error="current branch has no configured upstream",
+            )
+
+        fetch_result, _prune_error, _used_prune_fallback = _fetch_remote_with_prune_fallback(
+            repo_root,
+            remote,
+            runner,
+            fetch_timeout,
+            selected_branch=remote_branch,
+            fetch_selected_only=True,
+        )
+        if fetch_result.returncode != 0:
+            error = _short_text(_git_text(fetch_result))
+            message = "Could not reach GitHub or fetch the current branch before repair."
+            if fetch_result.timed_out:
+                message = "GitHub repair fetch timed out."
+            return _failure_payload(
+                status,
+                state="fetch_failed",
+                message=message,
+                http_status=503,
+                error=error or message,
+            )
+
+        after_fetch = build_update_status_payload(
+            repo_dir=repo_root,
+            runner=runner,
+        )
+        ahead = after_fetch.get("ahead")
+        if ahead is None:
+            return _failure_payload(
+                after_fetch,
+                state="compare_failed",
+                message="Fetched current branch, but could not compare this checkout with its upstream branch.",
+                http_status=409,
+            )
+        if int(ahead or 0) > 0:
+            return _failure_payload(
+                after_fetch,
+                state="local_ahead",
+                message=(
+                    "Repair is blocked because this checkout has local-only commits. "
+                    "Use Git manually to save or discard those commits."
+                ),
+                http_status=409,
+            )
+
+        old_commit = str(after_fetch.get("current_commit") or status.get("current_commit") or "")
+        reset_result = runner(["reset", "--hard", upstream], repo_root, reset_timeout)
+        if reset_result.returncode != 0:
+            error = _short_text(_git_text(reset_result))
+            return _failure_payload(
+                after_fetch,
+                state="repair_failed",
+                message="Could not discard local changes and restore the checkout.",
+                http_status=409,
+                error=error or "git reset --hard failed",
+            )
+
+        final_status = build_update_status_payload(
+            repo_dir=repo_root,
+            runner=runner,
+        )
+        new_commit = str(final_status.get("current_commit") or "")
+        changed_files = _changed_files(repo_root, old_commit, new_commit, runner)
+        requirements_changed = any(
+            path == "requirements.txt" or path == "requirements-dev.txt"
+            for path in changed_files
+        )
+        restart_required = bool(old_commit and new_commit and old_commit != new_commit)
+        message = f"Local uncommitted changes were discarded. Checkout is clean on {branch}."
+        if restart_required:
+            message = (
+                f"Local uncommitted changes were discarded and {branch} moved to its upstream. "
+                "Reload the backend to use the repaired checkout."
+            )
+        payload = dict(final_status)
+        payload.update(
+            {
+                "ok": True,
+                "repaired": True,
+                "updated": restart_required,
+                "connection_ok": True,
+                "previous_commit": old_commit,
+                "new_commit": new_commit,
+                "changed_files": changed_files,
+                "requirements_changed": requirements_changed,
+                "restart_required": restart_required,
+                "message": message,
                 "http_status": 200,
             }
         )

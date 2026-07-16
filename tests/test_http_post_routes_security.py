@@ -288,6 +288,40 @@ def test_handle_dashboard_post_syncs_system_update_branches(monkeypatch: pytest.
     assert calls == [(200, {"ok": True, "synced": True, "updated": False, "state": "update_available"})]
 
 
+def test_handle_dashboard_post_repairs_dirty_checkout(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _repair_checkout(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {
+            "ok": True,
+            "repaired": True,
+            "updated": False,
+            "state": "up_to_date",
+            "http_status": 200,
+        }
+
+    monkeypatch.setattr(
+        "meshdash.http_routes_post._repair_dirty_update_checkout_helper",
+        _repair_checkout,
+    )
+    body = b'{"branch":"main"}'
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(send_chat_fn=None, to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/system/update/repair", deps=deps)
+
+    assert captured["target_branch"] == "main"
+    assert calls == [(200, {"ok": True, "repaired": True, "updated": False, "state": "up_to_date"})]
+
+
 def test_handle_dashboard_post_cleans_rollback_branches(monkeypatch: pytest.MonkeyPatch) -> None:
     cleanup_calls = 0
 
@@ -379,6 +413,34 @@ def test_handle_dashboard_post_requires_token_for_system_update_sync(monkeypatch
     handle_dashboard_post(handler, path="/api/system/update/sync", deps=deps)
 
     assert sync_calls == 0
+    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
+def test_handle_dashboard_post_requires_token_for_checkout_repair(monkeypatch: pytest.MonkeyPatch) -> None:
+    repair_calls = 0
+
+    def _repair_checkout(**kwargs: object) -> dict[str, object]:
+        nonlocal repair_calls
+        repair_calls += 1
+        return {"ok": True}
+
+    monkeypatch.setattr(
+        "meshdash.http_routes_post._repair_dirty_update_checkout_helper",
+        _repair_checkout,
+    )
+    handler = _FakeHandler()
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/system/update/repair", deps=deps)
+
+    assert repair_calls == 0
     assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
 
 

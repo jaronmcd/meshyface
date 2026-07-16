@@ -1090,6 +1090,7 @@
         settingsUpdateStatusFetchInFlight
         || settingsUpdateApplyInFlight
         || settingsBackendReloadInFlight
+        || settingsUpdateRepairInFlight
         || settingsUpdateRollbackCleanupInFlight
       ) return;
       const commit = row && typeof row === "object" ? String(row.commit || "").trim() : "";
@@ -1292,11 +1293,13 @@
       const renderInfo = Object.assign({{}}, optionInfo, info);
       const statusEl = document.getElementById("settings-update-status");
       const checkBtn = document.getElementById("settings-update-check");
+      const repairBtn = document.getElementById("settings-update-repair");
       const cleanupBtn = document.getElementById("settings-update-cleanup-rollbacks");
       const reloadBtn = document.getElementById("settings-update-reload");
       const inFlight = !!settingsUpdateStatusFetchInFlight
         || !!settingsUpdateApplyInFlight
         || !!settingsBackendReloadInFlight
+        || !!settingsUpdateRepairInFlight
         || !!settingsUpdateRollbackCleanupInFlight;
       const cleanupRollbackBranches = settingsUpdateCleanupRollbackBranches(renderInfo);
       const cleanupRollbackCount = cleanupRollbackBranches.length;
@@ -1319,6 +1322,8 @@
             : "Updating from GitHub...");
       }} else if (settingsUpdateRollbackCleanupInFlight) {{
         text = "Cleaning rollback branches...";
+      }} else if (settingsUpdateRepairInFlight) {{
+        text = "Repairing checkout...";
       }} else if (settingsBackendReloadInFlight) {{
         text = "Reloading backend...";
       }} else if (inFlight) {{
@@ -1352,6 +1357,17 @@
         checkBtn.title = updateActionReady
           ? (localSwitchReady ? "Switch to this local branch" : "Fetch and run the latest commit on this branch")
           : settingsUpdateStatusText(info);
+      }}
+      if (repairBtn instanceof HTMLButtonElement) {{
+        const canRepair = !!renderInfo.can_repair_checkout;
+        repairBtn.hidden = !settingsUpdateRepairInFlight && !canRepair;
+        repairBtn.disabled = inFlight || !canRepair;
+        repairBtn.textContent = settingsUpdateRepairInFlight ? "Repairing..." : "Discard Changes";
+        const repairBranch = String(renderInfo.repair_checkout_branch || renderInfo.branch || "").trim();
+        const repairUpstream = String(renderInfo.repair_checkout_upstream || renderInfo.current_upstream || "").trim();
+        repairBtn.title = repairBranch && repairUpstream
+          ? `Discard local uncommitted changes and restore ${{repairBranch}} from ${{repairUpstream}}`
+          : "Discard local uncommitted changes and restore the current branch from upstream";
       }}
       if (cleanupBtn instanceof HTMLButtonElement) {{
         cleanupBtn.hidden = !settingsUpdateRollbackCleanupInFlight && cleanupRollbackCount <= 0;
@@ -1449,6 +1465,7 @@
         settingsUpdateStatusFetchInFlight
         || settingsUpdateApplyInFlight
         || settingsBackendReloadInFlight
+        || settingsUpdateRepairInFlight
         || settingsUpdateRollbackCleanupInFlight
       ) return;
       const info = settingsUpdatePayloadObject(settingsUpdateStatusCache);
@@ -1465,7 +1482,7 @@
     }}
 
     async function runSettingsGithubUpdate() {{
-      if (settingsUpdateApplyInFlight || settingsUpdateRollbackCleanupInFlight) return;
+      if (settingsUpdateApplyInFlight || settingsUpdateRepairInFlight || settingsUpdateRollbackCleanupInFlight) return;
       const selectedBranch = readSettingsUpdateBranchSelection();
       const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
       const targetSource = String(cachedInfo.target_source || "").trim();
@@ -1541,11 +1558,94 @@
       }}
     }}
 
+    async function runSettingsCheckoutRepair() {{
+      if (
+        settingsUpdateStatusFetchInFlight
+        || settingsUpdateApplyInFlight
+        || settingsBackendReloadInFlight
+        || settingsUpdateRepairInFlight
+        || settingsUpdateRollbackCleanupInFlight
+      ) return;
+      const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
+      const canRepair = !!cachedInfo.can_repair_checkout;
+      if (!canRepair) {{
+        renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+          message: "Checkout repair is not available.",
+        }}));
+        return;
+      }}
+      const repairBranch = String(cachedInfo.repair_checkout_branch || cachedInfo.branch || "").trim();
+      const repairUpstream = String(cachedInfo.repair_checkout_upstream || cachedInfo.current_upstream || "").trim();
+      const confirmMessage = repairBranch && repairUpstream
+        ? `Discard local uncommitted changes in ${{repairBranch}} and restore it from ${{repairUpstream}}?`
+        : "Discard local uncommitted changes and restore the current branch from upstream?";
+      if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(confirmMessage)) {{
+        return;
+      }}
+
+      settingsUpdateRepairInFlight = true;
+      renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+        message: "Repairing checkout...",
+      }}));
+      try {{
+        const selectedBranch = readSettingsUpdateBranchSelection();
+        const resp = await fetch("/api/system/update/repair", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ branch: selectedBranch }}),
+          cache: "no-store",
+        }});
+        const text = await resp.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const info = settingsUpdatePayloadObject(payload);
+        if (!resp.ok || info.ok === false) {{
+          const errMsg = String(info.error || info.message || text || `HTTP ${{resp.status}}`).trim();
+          settingsUpdateStatusCache = Object.assign({{}}, settingsUpdateStatusCache || {{}}, info, {{
+            ok: false,
+            message: `Checkout repair failed: ${{errMsg}}`,
+          }});
+          settingsUpdateStatusFetchedAt = Date.now();
+          renderSettingsUpdateStatus(settingsUpdateStatusCache);
+          return;
+        }}
+        settingsUpdateStatusCache = info;
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(info);
+        if (info.repaired) {{
+          appendConsoleLine(
+            `system-checkout-repair|${{Date.now()}}|ok`,
+            `[system] checkout repaired on ${{String(info.branch || repairBranch || "").trim() || "current branch"}}`
+          );
+        }}
+      }} catch (err) {{
+        const msg = err && err.message ? err.message : String(err || "unknown error");
+        settingsUpdateStatusCache = Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+          ok: false,
+          message: `Checkout repair failed: ${{msg}}`,
+        }});
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+      }} finally {{
+        settingsUpdateRepairInFlight = false;
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+        if (!settingsUpdatePayloadObject(settingsUpdateStatusCache).restart_required) {{
+          setTimeout(() => {{
+            void hydrateSettingsUpdateStatus(true);
+          }}, 1200);
+        }}
+      }}
+    }}
+
     async function runSettingsRollbackCleanup() {{
       if (
         settingsUpdateStatusFetchInFlight
         || settingsUpdateApplyInFlight
         || settingsBackendReloadInFlight
+        || settingsUpdateRepairInFlight
         || settingsUpdateRollbackCleanupInFlight
       ) return;
       const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
@@ -1729,7 +1829,13 @@
     }}
 
     async function runSettingsBackendReload() {{
-      if (settingsBackendReloadInFlight) return;
+      if (
+        settingsBackendReloadInFlight
+        || settingsUpdateStatusFetchInFlight
+        || settingsUpdateApplyInFlight
+        || settingsUpdateRepairInFlight
+        || settingsUpdateRollbackCleanupInFlight
+      ) return;
       settingsBackendReloadInFlight = true;
       renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
         message: "Reloading backend..."

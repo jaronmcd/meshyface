@@ -7,6 +7,7 @@ from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import DashboardPostRouteDependencies
 from .api_system_update import (
     cleanup_update_rollback_branches as _cleanup_update_rollback_branches_helper,
+    repair_dirty_update_checkout as _repair_dirty_update_checkout_helper,
     rollback_update_to_commit as _rollback_update_to_commit_helper,
     run_update_from_github as _run_update_from_github_helper,
     sync_update_branches_from_github as _sync_update_branches_from_github_helper,
@@ -35,6 +36,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/maps/packs/build/cancel",
     "/api/maps/packs/install",
     "/api/system/update",
+    "/api/system/update/repair",
     "/api/system/update/rollback-cleanup",
     "/api/system/update/sync",
     "/api/system/restart",
@@ -645,6 +647,50 @@ def handle_dashboard_post(
                 "state": "error",
                 "error": str(exc or "software branch sync failed"),
                 "message": "Software branch sync failed.",
+                "http_status": 500,
+            }
+        status_code = 200
+        try:
+            status_code = int(response_obj.get("http_status") or (200 if response_obj.get("ok") else 409))
+        except Exception:
+            status_code = 200 if response_obj.get("ok") else 409
+        payload_obj = dict(response_obj)
+        payload_obj.pop("http_status", None)
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
+            payload_obj=payload_obj,
+            no_store=True,
+        )
+        return
+
+    if path == "/api/system/update/repair":
+        try:
+            request_payload = _read_system_update_request(handler)
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={"ok": False, "repaired": False, "updated": False, "error": str(exc)},
+                no_store=True,
+            )
+            return
+        try:
+            response_obj = _repair_dirty_update_checkout_helper(
+                target_branch=(
+                    request_payload.get("branch")
+                    or request_payload.get("target_branch")
+                    or ""
+                ),
+            )
+        except Exception as exc:
+            response_obj = {
+                "ok": False,
+                "repaired": False,
+                "updated": False,
+                "state": "error",
+                "error": str(exc or "software checkout repair failed"),
+                "message": "Software checkout repair failed.",
                 "http_status": 500,
             }
         status_code = 200
