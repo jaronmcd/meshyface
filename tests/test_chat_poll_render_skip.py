@@ -186,6 +186,28 @@ def test_dashboard_js_limits_history_only_roster_seeding_to_direct_chat(
     )
 
 
+def test_dashboard_js_keeps_non_direct_node_selection_out_of_full_chat_render(
+    poll_dashboard_js: str,
+) -> None:
+    select_start = poll_dashboard_js.index(
+        "function selectNode(nodeId, shouldFocus = true, toggleIfSelected = true) {"
+    )
+    clear_start = poll_dashboard_js.index("function clearNodeSelection()", select_start)
+    select_block = poll_dashboard_js[select_start:clear_start]
+    mark_dispatch_start = select_block.index('markNodeSelectionPerf(perfToken, "selection.dispatch"')
+    chat_workspace_start = select_block.index("if (chatWorkspaceSelection) {", mark_dispatch_start)
+    schedule_start = select_block.index("scheduleNodeSelectionSummaryRefresh();")
+    direct_gate_start = select_block.index('if (activeChatChannel === "direct") {', chat_workspace_start)
+    direct_apply_start = select_block.index("applyChatChannel(activeChatChannel, false);", direct_gate_start)
+    lightweight_sync_start = select_block.index("syncChatWorkspaceNodeSelectionUi(latestState);", direct_apply_start)
+
+    assert "function scheduleNodeSelectionSummaryRefresh() {" in poll_dashboard_js
+    assert "function syncChatWorkspaceNodeSelectionUi(state = latestState) {" in poll_dashboard_js
+    assert "const chatWorkspaceSelection = isChatWorkspaceLayoutView(activeLayoutView);" in select_block
+    assert schedule_start < mark_dispatch_start < chat_workspace_start
+    assert chat_workspace_start < direct_gate_start < direct_apply_start < lightweight_sync_start
+
+
 def test_dashboard_js_suppresses_stale_startup_state_before_accepting_payload(
     poll_dashboard_js: str,
 ) -> None:

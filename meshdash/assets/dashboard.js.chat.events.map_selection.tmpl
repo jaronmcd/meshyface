@@ -4,6 +4,10 @@
       pendingPerfToken: 0,
     }};
 
+    const nodeSelectionSummaryState = {{
+      frame: null,
+    }};
+
     const nodeSelectionPerfState = {{
       nextToken: 0,
       activeToken: 0,
@@ -299,6 +303,27 @@
       nodeSelectionUiState.frame = window.requestAnimationFrame(() => {{
         flushNodeSelectionUiRefresh();
       }});
+    }}
+
+    function scheduleNodeSelectionSummaryRefresh() {{
+      if (nodeSelectionSummaryState.frame !== null) return;
+      nodeSelectionSummaryState.frame = window.requestAnimationFrame(() => {{
+        nodeSelectionSummaryState.frame = window.requestAnimationFrame(() => {{
+          nodeSelectionSummaryState.frame = null;
+          if (latestState) {{
+            renderSummary(latestState);
+          }}
+        }});
+      }});
+    }}
+
+    function syncChatWorkspaceNodeSelectionUi(state = latestState) {{
+      syncTopbarChatContext(state);
+      syncMeshChannelViewControl();
+      updateChatInputPlaceholder();
+      renderChatReplyContext();
+      renderChatPeerAddPanel(state);
+      requestImmediatePoll(0);
     }}
 
     function isVisibleForSelectionScroll(el) {{
@@ -930,8 +955,13 @@
       persistSelection();
       renderSelectionStatus();
       highlightNodeSelection(previousSelectedId, normalized);
+      const chatWorkspaceSelection = isChatWorkspaceLayoutView(activeLayoutView);
       if (latestState) {{
-        renderSummary(latestState);
+        if (chatWorkspaceSelection) {{
+          scheduleNodeSelectionSummaryRefresh();
+        }} else {{
+          renderSummary(latestState);
+        }}
       }}
       if (
         typeof renderEnvironmentMetricsView === "function"
@@ -952,7 +982,7 @@
       markNodeSelectionPerf(perfToken, "selection.dispatch", dispatchStartedAtMs, {{
         previousSelectedId,
       }});
-      if (isChatWorkspaceLayoutView(activeLayoutView)) {{
+      if (chatWorkspaceSelection) {{
         pendingMapHistoryFocus = false;
         const shouldOpenDrawer = (
           shouldFocus
@@ -964,8 +994,12 @@
             rerender: false,
           }});
         }}
-        // Chat-only selection should not trigger map/history work.
-        applyChatChannel(activeChatChannel, false);
+        // Chat-only selection should not trigger map/history work or rebuild an unchanged channel.
+        if (activeChatChannel === "direct") {{
+          applyChatChannel(activeChatChannel, false);
+        }} else {{
+          syncChatWorkspaceNodeSelectionUi(latestState);
+        }}
         if (!shouldOpenDrawer && typeof syncChatNodeDetailsDrawer === "function") {{
           syncChatNodeDetailsDrawer(latestState, {{
             fetchHistory: true,
