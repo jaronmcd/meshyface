@@ -4,6 +4,7 @@ from meshdash.api_system_update import (
     GitCommandResult,
     build_update_status_payload,
     cleanup_update_rollback_branches,
+    repair_dirty_update_checkout,
     refresh_update_status_from_github,
     rollback_update_to_commit,
     run_update_from_github,
@@ -252,6 +253,15 @@ class _FakeGitRunner:
             self.branch_behind = 0
             return GitCommandResult(0, "branch 'beta' reset")
         if command == ("reset", "--hard", "origin/beta"):
+            self.dirty = False
+            self.commit = self.new_commit
+            self.ahead = 0
+            self.behind = 0
+            self.branch_ahead = 0
+            self.branch_behind = 0
+            return GitCommandResult(0, "HEAD is now at bbbbbbb")
+        if command == ("reset", "--hard", "origin/main"):
+            self.dirty = False
             self.commit = self.new_commit
             self.ahead = 0
             self.behind = 0
@@ -883,6 +893,53 @@ def test_run_update_blocks_dirty_checkout(tmp_path: Path) -> None:
     assert payload["updated"] is False
     assert payload["state"] == "dirty"
     assert ("fetch", "--prune", "origin") not in runner.commands
+
+
+def test_update_status_marks_dirty_checkout_repairable(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(dirty=True)
+
+    payload = build_update_status_payload(repo_dir=tmp_path, runner=runner)
+
+    assert payload["state"] == "dirty"
+    assert payload["can_repair_checkout"] is True
+    assert payload["repair_checkout_branch"] == "main"
+    assert payload["repair_checkout_upstream"] == "origin/main"
+
+
+def test_repair_dirty_update_checkout_resets_current_branch(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(dirty=True)
+
+    payload = repair_dirty_update_checkout(repo_dir=tmp_path, runner=runner)
+
+    assert payload["ok"] is True
+    assert payload["repaired"] is True
+    assert payload["dirty"] is False
+    assert payload["previous_commit"] == "aaaaaaaa11111111222222223333333344444444"
+    assert payload["new_commit"] == "bbbbbbbb11111111222222223333333344444444"
+    assert ("fetch", "--prune", "origin") in runner.commands
+    assert ("reset", "--hard", "origin/main") in runner.commands
+
+
+def test_repair_dirty_update_checkout_noops_when_clean(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(dirty=False)
+
+    payload = repair_dirty_update_checkout(repo_dir=tmp_path, runner=runner)
+
+    assert payload["ok"] is True
+    assert payload["repaired"] is False
+    assert payload["message"] == "Software checkout is already clean."
+    assert ("reset", "--hard", "origin/main") not in runner.commands
+
+
+def test_repair_dirty_update_checkout_blocks_local_commits(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(dirty=True, ahead=1)
+
+    payload = repair_dirty_update_checkout(repo_dir=tmp_path, runner=runner)
+
+    assert payload["ok"] is False
+    assert payload["repaired"] is False
+    assert payload["state"] == "local_ahead"
+    assert ("reset", "--hard", "origin/main") not in runner.commands
 
 
 def test_run_update_reports_fetch_failures(tmp_path: Path) -> None:

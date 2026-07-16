@@ -321,14 +321,20 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'full.className = "settings-update-pr-full";' in js
     assert 'activeSettingsTab === "update"' in js
     assert "async function runSettingsGithubUpdate() {" in js
+    assert "async function runSettingsCheckoutRepair() {" in js
     assert "async function runSettingsRollbackCleanup() {" in js
     assert "async function runSettingsUpdateBranchSync() {" not in js
     assert 'fetch("/api/system/update/sync"' not in js
+    assert 'fetch("/api/system/update/repair"' in js
     assert 'fetch("/api/system/update/rollback-cleanup"' in js
     assert "settingsUpdateSyncInFlight" not in js
     assert 'document.getElementById("settings-update-sync")' not in js
+    assert 'document.getElementById("settings-update-repair")' in js
     assert 'document.getElementById("settings-update-cleanup-rollbacks")' in js
+    assert "settingsUpdateRepairInFlight" in js
     assert "settingsUpdateRollbackCleanupInFlight" in js
+    assert "runSettingsCheckoutRepair();" in js
+    assert "Discard Changes" in html
     assert "settingsUpdateCleanupRollbackBranches(renderInfo)" in js
     assert "Clean Rollbacks" in js
     assert "fetchSettingsDeviceInfoJson(statusUrl)" in js

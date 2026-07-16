@@ -349,6 +349,13 @@
         }});
       }}
 
+      const updateRepairBtn = document.getElementById("settings-update-repair");
+      if (updateRepairBtn instanceof HTMLButtonElement) {{
+        updateRepairBtn.addEventListener("click", () => {{
+          void runSettingsCheckoutRepair();
+        }});
+      }}
+
       const updateCleanupRollbacksBtn = document.getElementById("settings-update-cleanup-rollbacks");
       if (updateCleanupRollbacksBtn instanceof HTMLButtonElement) {{
         updateCleanupRollbacksBtn.addEventListener("click", () => {{
