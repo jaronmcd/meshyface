@@ -50,6 +50,11 @@ For a container installation, place the directory under the persistent
 installation, use writable paths under `/var/lib/meshyface` rather than placing
 local plugins inside the update-managed application checkout.
 
+More examples are available under `examples/plugins/`. `test_reply` shows a
+configurable bot that replies to wildcard-matched messages like `*test*` and
+`*ping*` with response-template macros such as `{hops}`, `{nearest_city}`, and
+`{sender}`.
+
 ## Runtime Configuration
 
 The end-to-end master switch is off by default:
