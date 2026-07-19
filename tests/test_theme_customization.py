@@ -1465,6 +1465,7 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "const dashboardLivemapNodeDriftEasing = 0.00035;" in js
     assert "const dashboardLivemapNodeDriftWanderRatio = 0.004;" in js
     assert "const dashboardLivemapNodeDriftPeriodMs = 420000;" in js
+    assert "const dashboardLivemapNodeRefitDeltaRatio = 0.02;" in js
     assert "dashboardLivemapNodeCatchupEasing" not in js
     assert "dashboardLivemapNodeGrossEasing" not in js
     assert "dashboardLivemapNodeGrossMissRatio" not in js
@@ -1475,6 +1476,26 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "const dashboardLivemapLinkFadeInEasing = 0.025;" in js
     assert "const dashboardLivemapLinkFadeOutEasing = 0.012;" in js
     assert "const dashboardLivemapLinkPruneOpacity = 0.004;" in js
+    assert "let dashboardLivemapAnimTimer = null;" in js
+    assert "let dashboardLivemapInteractionBound = false;" in js
+    assert "let dashboardLivemapLastInteractionMs = 0;" in js
+    assert "const dashboardLivemapActiveDrawMs = 33;" in js
+    assert "const dashboardLivemapIdleDrawMs = 1000;" in js
+    assert "const dashboardLivemapInteractionWindowMs = 5000;" in js
+    assert "const dashboardLivemapInteractionThrottleDelayMs = 250;" in js
+    assert "const dashboardLivemapInputThrottleDelayMs = 250;" in js
+    assert "const dashboardLivemapInputThrottleDrawMs = 1000;" in js
+    assert "const dashboardLivemapHiddenThrottleDelayMs = 1000;" in js
+    assert "function dashboardLivemapTextInputActive() {" in js
+    assert "function bindDashboardLivemapInteractionTracking() {" in js
+    assert "function dashboardLivemapInteractionActive(nowMs = dashboardLivemapNowMs()) {" in js
+    assert "function dashboardLivemapContinuousAnimationActive(nowMs = dashboardLivemapNowMs()) {" in js
+    assert "function dashboardLivemapDrawIntervalMs(nowMs = dashboardLivemapNowMs()) {" in js
+    assert "function dashboardLivemapFrameDelayMs(nowMs = dashboardLivemapNowMs()) {" in js
+    assert "function cancelDashboardLivemapScheduledFrame() {" in js
+    assert "function scheduleDashboardLivemapFrame(delayMs = 0) {" in js
+    assert "dashboardLivemapAnimTimer = window.setTimeout(() => {" in js
+    assert "cancelDashboardLivemapScheduledFrame();" in js
     assert "function dashboardLivemapSyncLinkTransitions(geometry, nowMs = null) {" in js
     assert "function dashboardLivemapEaseLinkTransitions() {" in js
     assert "function dashboardLivemapTransitionLinks(type) {" in js
@@ -1492,6 +1513,8 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "function loadDashboardLivemapCachedNodeView() {" in js
     assert "function storeDashboardLivemapCachedNodeView(view) {" in js
     assert "function dashboardLivemapViewMissRatio(view, target) {" not in js
+    assert "function dashboardLivemapViewDeltaRatio(view, target) {" in js
+    assert "function dashboardLivemapNodeRefitNeeded(nodeTargetView) {" in js
     assert "function dashboardLivemapDriftViewForTarget(target, nowMs) {" in js
     assert "function dashboardLivemapFallbackView() {" not in js
     assert "function dashboardLivemapPanViewForTarget(target, sourceView = null) {" not in js
@@ -1516,8 +1539,14 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert 'mapLayerOpacity("labels:cities");' in js
     assert "function maybeStartDashboardLivemapNodePan(nowMs) {" in js
     assert "function updateDashboardLivemapDriftTarget(nowMs) {" in js
+    assert (
+        "if (dashboardLivemapIntroPending || dashboardLivemapPendingNodeTarget || "
+        "dashboardLivemapNodePanActive) return;"
+    ) in js
     assert "updateDashboardLivemapDriftTarget(now);" in js
+    assert "const easing = dashboardLivemapNodePanActive" in js
     assert "drawDashboardLivemap(now);" in js
+    assert "bindDashboardLivemapInteractionTracking();" in js
     assert 'if (typeof requestDashboardLivemapRefit === "function") {' in js
     assert "function requestDashboardLivemapRefit() {" in js
     assert "function dashboardLivemapCollectCityPoints(collection) {" in js

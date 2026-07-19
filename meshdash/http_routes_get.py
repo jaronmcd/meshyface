@@ -368,6 +368,7 @@ def _summary_from_state_payload(payload: object) -> Mapping[str, object]:
 def _runtime_revision_state_payload() -> dict[str, object]:
     project_root = str(Path(__file__).resolve().parents[1])
     cwd = os.getcwd()
+    pr_number_raw = os.environ.get("MESH_DASH_PR_NUMBER")
     revision = _revision_info_helper(
         version_raw=os.environ.get("MESH_DASH_VERSION"),
         default_version=_PACKAGE_VERSION,
@@ -378,8 +379,12 @@ def _runtime_revision_state_payload() -> dict[str, object]:
             cwd,
             "nogit",
         ),
-        pr_number_raw=os.environ.get("MESH_DASH_PR_NUMBER", ""),
-        detect_pr_number=lambda: _detect_git_pr_number_helper("", project_root, cwd),
+        pr_number_raw=pr_number_raw or "",
+        detect_pr_number=(
+            None
+            if pr_number_raw is not None
+            else lambda: _detect_git_pr_number_helper("", project_root, cwd)
+        ),
     )
     return {"summary": {"revision": revision.as_dict()}}
 

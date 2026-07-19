@@ -39,12 +39,18 @@ POLL_RENDER_SKIP_TOKEN_GROUPS: tuple[tuple[str, Sequence[str]], ...] = (
             "requestImmediatePoll(Math.min(Math.max(refreshMs, 1000), 3000));",
             'markPollPerfPhase(pollPerfRun, "suppress-stale-startup-state"',
             'pollPerfStatus = "suppressed-stale-startup-state";',
-            "function requestFreshStateAfterPageActivation(reason = \"page-activation\") {",
+            "const pageActivationPollThrottleMs = Math.max(",
+            "let lastPageActivationPollMs = 0;",
+            "let pageHiddenAtMs = 0;",
+            "function requestFreshStateAfterPageActivation(reason = \"page-activation\", options = null) {",
+            "const forceFresh = opts.force === true || !latestState;",
+            "if (!forceFresh && lastPageActivationPollMs > 0 && (nowMs - lastPageActivationPollMs) < pageActivationPollThrottleMs) {",
             'forceNextStatePollFresh("initial-load");',
-            "requestFreshStateAfterPageActivation(\"visibility\");",
+            "requestFreshStateAfterPageActivation(\"visibility\", {",
             "requestFreshStateAfterPageActivation(\"focus\");",
             'window.addEventListener("pageshow", (event) => {',
             'event && event.persisted ? "pageshow-persisted" : "pageshow"',
+            "force: !!(event && event.persisted)",
             'networkGraphActive304 && latestStatePollProfile === "network-graph"',
             'return "network-map";',
             'return "network-graph";',
@@ -235,7 +241,7 @@ def test_dashboard_js_defers_heavy_poll_renders_while_text_entry_is_active(
             "const dashboardTextEntryRenderIdleMs = 900;",
             "function isDashboardTextEntryTarget(target) {",
             "function bindDashboardTextEntryActivityTracking() {",
-            'for (const eventName of ["beforeinput", "input", "keydown", "paste", "compositionstart", "compositionupdate", "compositionend"]) {',
+            'for (const eventName of ["focusin", "pointerdown", "beforeinput", "input", "keydown", "paste", "compositionstart", "compositionupdate", "compositionend"]) {',
             "function shouldDeferDashboardRenderForTextEntry(run, phaseName) {",
             'markPollPerfPhase(run, phaseName || "text-entry-defer"',
             "requestImmediatePoll(Math.ceil(remainingMs) + 80);",
@@ -256,3 +262,87 @@ def test_dashboard_js_defers_heavy_poll_renders_while_text_entry_is_active(
     assert full_defer_idx < render_chat_idx
     assert full_defer_idx < render_settings_idx
     assert full_defer_idx < render_console_idx
+
+
+def test_dashboard_js_debounces_node_search_dependent_renders(
+    dashboard_js: str,
+    assert_tokens_present: Callable[[str, Sequence[str]], None],
+) -> None:
+    assert_tokens_present(
+        dashboard_js,
+        (
+            "let nodeSearchDependentsRenderTimer = null;",
+            "let nodeSearchDependentsPendingState = null;",
+            "function rerenderNodeSearchDependentsNow(state = latestState) {",
+            "function rerenderNodeSearchDependents(state = latestState, options = null) {",
+            "const delayMs = Math.max(0, Number(opts.delayMs == null ? 140 : opts.delayMs) || 0);",
+            "nodeSearchDependentsPendingState = safeState;",
+            "if (nodeSearchDependentsRenderTimer !== null) return;",
+            "nodeSearchDependentsRenderTimer = window.setTimeout(() => {",
+            "rerenderNodeSearchDependentsNow(pendingState);",
+        ),
+    )
+
+    debounce_idx = dashboard_js.index("function rerenderNodeSearchDependents(state = latestState")
+    bind_idx = dashboard_js.index("function bindNodeListSearchControls()", debounce_idx)
+    on_input_idx = dashboard_js.index("rerenderNodeSearchDependents(latestState);", bind_idx)
+
+    assert debounce_idx < bind_idx < on_input_idx
+
+
+def test_dashboard_js_immediate_polls_respect_text_entry_deferral(
+    dashboard_js: str,
+    assert_tokens_present: Callable[[str, Sequence[str]], None],
+) -> None:
+    assert_tokens_present(
+        dashboard_js,
+        (
+            "function requestImmediatePoll(delayMs = 0) {",
+            "let waitMs = Math.max(0, Math.trunc(Number(delayMs) || 0));",
+            'if (waitMs <= 0 && typeof dashboardTextEntryRenderDeferRemainingMs === "function") {',
+            "const textEntryRemainingMs = dashboardTextEntryRenderDeferRemainingMs();",
+            "waitMs = Math.ceil(textEntryRemainingMs) + 80;",
+        ),
+    )
+
+    guard_idx = dashboard_js.index('if (waitMs <= 0 && typeof dashboardTextEntryRenderDeferRemainingMs === "function")')
+    timer_idx = dashboard_js.index("chatImmediatePollTimer = window.setTimeout", guard_idx)
+
+    assert guard_idx < timer_idx
+
+
+def test_dashboard_js_network_graph_profile_switches_do_not_force_cache_busted_poll(
+    dashboard_js: str,
+) -> None:
+    graph_control_idx = dashboard_js.index('if (normalizedView === "network" && next === "graph")')
+    graph_poll_idx = dashboard_js.index("requestImmediatePoll(0);", graph_control_idx)
+    graph_poll_block = dashboard_js[graph_control_idx:graph_poll_idx]
+    assert 'stateEtag = "";' not in graph_poll_block
+    assert "forceStateReloadOnce = true;" not in graph_poll_block
+
+    view_switch_idx = dashboard_js.index("const networkMapSubviewActive = next === \"network\"")
+    view_switch_graph_idx = dashboard_js.index("networkGraphActive && typeof requestImmediatePoll", view_switch_idx)
+    view_switch_poll_idx = dashboard_js.index("requestImmediatePoll(0);", view_switch_graph_idx)
+    view_switch_block = dashboard_js[view_switch_graph_idx:view_switch_poll_idx]
+    assert 'stateEtag = "";' not in view_switch_block
+    assert "forceStateReloadOnce = true;" not in view_switch_block
+
+
+def test_dashboard_js_bounds_long_lived_client_caches(
+    dashboard_js: str,
+    assert_tokens_present: Callable[[str, Sequence[str]], None],
+) -> None:
+    assert_tokens_present(
+        dashboard_js,
+        (
+            "const envMetricsCatalogCacheMaxEntries = 4;",
+            "const envMetricsSeriesCacheMaxEntries = 8;",
+            "function pruneEnvironmentMetricsCache(cache, ttlMs, maxEntriesRaw, nowMs = Date.now()) {",
+            "while (cache.size > maxEntries) {",
+            "setEnvironmentMetricsCacheEntry(envMetricsSeriesCache, cacheKey, payload, envMetricsSeriesCacheMaxEntries, ttlMs);",
+            "const chatEmojiSearchCacheMaxEntries = 96;",
+            "function setBoundedChatEmojiSearchCacheEntry(queryRaw, matches) {",
+            "while (chatEmojiSearchCache.size > chatEmojiSearchCacheMaxEntries) {",
+            "setBoundedChatEmojiSearchCacheEntry(query, matches);",
+        ),
+    )

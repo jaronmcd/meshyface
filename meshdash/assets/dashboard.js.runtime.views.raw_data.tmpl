@@ -24,6 +24,8 @@
     const envMetricsSeriesCache = new Map();
     const envMetricsCatalogInflight = new Map();
     const envMetricsSeriesInflight = new Map();
+    const envMetricsCatalogCacheMaxEntries = 4;
+    const envMetricsSeriesCacheMaxEntries = 8;
     const envMetricColorPalette = [
       "#2f855a",
       "#2b6cb0",
@@ -212,6 +214,36 @@
         && entry.data
         && (nowMs - (Number(entry.fetchedAt) || 0)) < Math.max(0, Number(ttlMs) || 0)
       );
+    }}
+
+    function pruneEnvironmentMetricsCache(cache, ttlMs, maxEntriesRaw, nowMs = Date.now()) {{
+      if (!(cache instanceof Map)) return;
+      const maxEntries = Math.max(1, Math.trunc(Number(maxEntriesRaw) || 1));
+      const safeTtlMs = Math.max(0, Number(ttlMs) || 0);
+      for (const [key, entry] of cache.entries()) {{
+        if (!environmentMetricsCacheEntryFresh(entry, safeTtlMs, nowMs)) {{
+          cache.delete(key);
+        }}
+      }}
+      while (cache.size > maxEntries) {{
+        const oldest = cache.keys().next();
+        if (!oldest || oldest.done) break;
+        cache.delete(oldest.value);
+      }}
+    }}
+
+    function setEnvironmentMetricsCacheEntry(cache, cacheKeyRaw, payload, maxEntriesRaw, ttlMs) {{
+      if (!(cache instanceof Map)) return;
+      const cacheKey = String(cacheKeyRaw || "").trim();
+      if (!cacheKey) return;
+      if (cache.has(cacheKey)) {{
+        cache.delete(cacheKey);
+      }}
+      cache.set(cacheKey, {{
+        fetchedAt: Date.now(),
+        data: payload,
+      }});
+      pruneEnvironmentMetricsCache(cache, ttlMs, maxEntriesRaw);
     }}
 
     function environmentMetricsSeriesCacheKey(windowHours, metricKey, nodeId) {{
@@ -1451,8 +1483,9 @@
       const cleanHours = normalizeEnvHistoryHours(windowHours);
       const cacheKey = String(cleanHours);
       const nowMs = Date.now();
-      const cached = envMetricsCatalogCache.get(cacheKey);
       const ttlMs = environmentMetricsCatalogTtlMs();
+      pruneEnvironmentMetricsCache(envMetricsCatalogCache, ttlMs, envMetricsCatalogCacheMaxEntries, nowMs);
+      const cached = envMetricsCatalogCache.get(cacheKey);
       if (!forceRefresh && environmentMetricsCacheEntryFresh(cached, ttlMs, nowMs)) {{
         return cached.data;
       }}
@@ -1474,10 +1507,7 @@
           if (payload.ok === false) {{
             throw new Error(String(payload.error || "sensor history unavailable"));
           }}
-          envMetricsCatalogCache.set(cacheKey, {{
-            fetchedAt: Date.now(),
-            data: payload,
-          }});
+          setEnvironmentMetricsCacheEntry(envMetricsCatalogCache, cacheKey, payload, envMetricsCatalogCacheMaxEntries, ttlMs);
           return payload;
         }})
         .finally(() => {{
@@ -1497,8 +1527,9 @@
       const cleanNodeId = normalizeNodeId(nodeId || "");
       const cacheKey = environmentMetricsSeriesCacheKey(cleanHours, cleanMetric, cleanNodeId);
       const nowMs = Date.now();
-      const cached = envMetricsSeriesCache.get(cacheKey);
       const ttlMs = environmentMetricsSeriesTtlMs();
+      pruneEnvironmentMetricsCache(envMetricsSeriesCache, ttlMs, envMetricsSeriesCacheMaxEntries, nowMs);
+      const cached = envMetricsSeriesCache.get(cacheKey);
       if (!forceRefresh && environmentMetricsCacheEntryFresh(cached, ttlMs, nowMs)) {{
         return cached.data;
       }}
@@ -1526,10 +1557,7 @@
           if (payload.ok === false) {{
             throw new Error(String(payload.error || "sensor history unavailable"));
           }}
-          envMetricsSeriesCache.set(cacheKey, {{
-            fetchedAt: Date.now(),
-            data: payload,
-          }});
+          setEnvironmentMetricsCacheEntry(envMetricsSeriesCache, cacheKey, payload, envMetricsSeriesCacheMaxEntries, ttlMs);
           return payload;
         }})
         .finally(() => {{

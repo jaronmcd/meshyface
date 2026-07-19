@@ -4651,7 +4651,13 @@
     // channel index. Default is channel 0.
 
     function requestImmediatePoll(delayMs = 0) {{
-      const waitMs = Math.max(0, Math.trunc(Number(delayMs) || 0));
+      let waitMs = Math.max(0, Math.trunc(Number(delayMs) || 0));
+      if (waitMs <= 0 && typeof dashboardTextEntryRenderDeferRemainingMs === "function") {{
+        const textEntryRemainingMs = dashboardTextEntryRenderDeferRemainingMs();
+        if (textEntryRemainingMs > 0) {{
+          waitMs = Math.ceil(textEntryRemainingMs) + 80;
+        }}
+      }}
       if (chatImmediatePollTimer !== null) {{
         clearTimeout(chatImmediatePollTimer);
         chatImmediatePollTimer = null;

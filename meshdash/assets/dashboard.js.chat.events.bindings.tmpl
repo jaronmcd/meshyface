@@ -718,7 +718,10 @@
       }}, true);
     }}
 
-    function rerenderNodeSearchDependents(state = latestState) {{
+    let nodeSearchDependentsRenderTimer = null;
+    let nodeSearchDependentsPendingState = null;
+
+    function rerenderNodeSearchDependentsNow(state = latestState) {{
       const safeState = state && typeof state === "object" ? state : null;
       if (!safeState) return;
       if (isChatWorkspaceLayoutView(activeLayoutView)) {{
@@ -744,6 +747,30 @@
         }}
       }}
       renderFavoriteMenuNodeSearchDropdown(safeState);
+    }}
+
+    function rerenderNodeSearchDependents(state = latestState, options = null) {{
+      const safeState = state && typeof state === "object" ? state : null;
+      if (!safeState) return;
+      const opts = options && typeof options === "object" ? options : {{}};
+      const delayMs = Math.max(0, Number(opts.delayMs == null ? 140 : opts.delayMs) || 0);
+      if (delayMs <= 0 || typeof window === "undefined" || typeof window.setTimeout !== "function") {{
+        if (nodeSearchDependentsRenderTimer !== null && typeof window !== "undefined" && typeof window.clearTimeout === "function") {{
+          window.clearTimeout(nodeSearchDependentsRenderTimer);
+          nodeSearchDependentsRenderTimer = null;
+        }}
+        nodeSearchDependentsPendingState = null;
+        rerenderNodeSearchDependentsNow(safeState);
+        return;
+      }}
+      nodeSearchDependentsPendingState = safeState;
+      if (nodeSearchDependentsRenderTimer !== null) return;
+      nodeSearchDependentsRenderTimer = window.setTimeout(() => {{
+        nodeSearchDependentsRenderTimer = null;
+        const pendingState = nodeSearchDependentsPendingState || latestState;
+        nodeSearchDependentsPendingState = null;
+        rerenderNodeSearchDependentsNow(pendingState);
+      }}, delayMs);
     }}
 
     function bindFavoriteMenuNodeSearchControls() {{

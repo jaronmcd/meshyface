@@ -239,6 +239,18 @@ def _load_tracker_node_packet_trends_safe(
     return dict(payload)
 
 
+def _lite_profile_includes_node_packet_trends(profile_name: str) -> bool:
+    clean = str(profile_name or "").strip().lower()
+    return clean not in {
+        "network-graph",
+        "network_graph",
+        "network-map",
+        "network_map",
+        "status",
+        "console",
+    }
+
+
 def _load_meshyface_profiles_safe(tracker: object) -> dict[str, dict[str, object]]:
     load_fn = getattr(tracker, "meshyface_profiles_snapshot", None)
     try:
@@ -1185,6 +1197,7 @@ def build_dashboard_state_typed(
     utc_now_fn: UtcNowFn = _utc_now,
     include_debug: bool = True,
     include_nodes_full: bool = True,
+    include_node_packet_trends: bool = True,
 ) -> DashboardStatePayload:
     local_node_id = "local"
     try:
@@ -1383,9 +1396,13 @@ def build_dashboard_state_typed(
         recent_chat=tracker_data.recent_chat,
         recent_packets=tracker_data.recent_packets,
     )
-    node_packet_trends = _load_tracker_node_packet_trends_safe(
-        tracker,
-        local_node_id=local_node_id,
+    node_packet_trends = (
+        _load_tracker_node_packet_trends_safe(
+            tracker,
+            local_node_id=local_node_id,
+        )
+        if include_node_packet_trends
+        else {}
     )
     meshyface_profiles = _load_meshyface_profiles_safe(tracker)
     meshyface_profile_processing_enabled = (
@@ -1505,6 +1522,7 @@ def build_dashboard_state_lite(
     also be paired with a nodes collector that avoids building the full node
     payload list.
     """
+    profile_name = str(profile or "").strip().lower()
     state_payload = build_dashboard_state_typed(
         iface=iface,
         tracker=tracker,
@@ -1526,8 +1544,8 @@ def build_dashboard_state_lite(
         utc_now_fn=utc_now_fn,
         include_debug=False,
         include_nodes_full=False,
+        include_node_packet_trends=_lite_profile_includes_node_packet_trends(profile_name),
     )
-    profile_name = str(profile or "").strip().lower()
     if profile_name == "status":
         slim_recent_packets = []
     elif profile_name in {"network-graph", "network_graph"}:

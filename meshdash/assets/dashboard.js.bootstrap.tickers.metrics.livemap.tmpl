@@ -9,6 +9,7 @@
     let dashboardLivemapCityPoints = null;
     let dashboardLivemapVisibleCities = [];
     let dashboardLivemapAnimFrame = null;
+    let dashboardLivemapAnimTimer = null;
     let dashboardLivemapView = null;
     let dashboardLivemapTargetView = null;
     let dashboardLivemapGeometry = null;
@@ -16,6 +17,8 @@
     let dashboardLivemapLinkTransitions = new Map();
     let dashboardLivemapLastDrawMs = 0;
     let dashboardLivemapResizeBound = false;
+    let dashboardLivemapInteractionBound = false;
+    let dashboardLivemapLastInteractionMs = 0;
     let dashboardLivemapIntroPending = false;
     let dashboardLivemapPendingNodeTarget = null;
     let dashboardLivemapNodePanActive = false;
@@ -32,6 +35,7 @@
     const dashboardLivemapNodeDriftEasing = 0.00035;
     const dashboardLivemapNodeDriftWanderRatio = 0.004;
     const dashboardLivemapNodeDriftPeriodMs = 420000;
+    const dashboardLivemapNodeRefitDeltaRatio = 0.02;
     const dashboardLivemapViewSnapEpsilon = 0.000004;
     const dashboardLivemapMapFadeMs = 1600;
     const dashboardLivemapMeshFadeMs = 2800;
@@ -40,6 +44,13 @@
     const dashboardLivemapLinkPruneOpacity = 0.004;
     const dashboardLivemapNodePanAfterMapDelayMs = 450;
     const dashboardLivemapNodePanFallbackMapWaitMs = 2400;
+    const dashboardLivemapActiveDrawMs = 33;
+    const dashboardLivemapIdleDrawMs = 1000;
+    const dashboardLivemapInteractionWindowMs = 5000;
+    const dashboardLivemapInteractionThrottleDelayMs = 250;
+    const dashboardLivemapInputThrottleDelayMs = 250;
+    const dashboardLivemapInputThrottleDrawMs = 1000;
+    const dashboardLivemapHiddenThrottleDelayMs = 1000;
     const dashboardLivemapCachedViewStorageKey = "meshyface.dashboard.livemap.lastGpsView.v1";
     const dashboardLivemapCachedViewMaxAgeMs = 24 * 60 * 60 * 1000;
     const dashboardLivemapEstimatedRangeFallbackPreset = "LONG_FAST";
@@ -102,6 +113,129 @@
     function dashboardLivemapHost() {{
       const host = document.getElementById("dashboard-livemap-bg");
       return host instanceof HTMLElement ? host : null;
+    }}
+
+    function dashboardLivemapTextInputActive() {{
+      if (typeof document === "undefined") return false;
+      const active = document.activeElement;
+      if (!active) return false;
+      if (active instanceof HTMLTextAreaElement) return true;
+      if (active instanceof HTMLInputElement) {{
+        const type = String(active.type || "text").toLowerCase();
+        return !["button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit"].includes(type);
+      }}
+      if (active instanceof HTMLElement) {{
+        if (active.isContentEditable) return true;
+        return !!active.closest("[contenteditable='true'],[contenteditable='']");
+      }}
+      return false;
+    }}
+
+    function noteDashboardLivemapInteractionActivity() {{
+      dashboardLivemapLastInteractionMs = dashboardLivemapNowMs();
+    }}
+
+    function bindDashboardLivemapInteractionTracking() {{
+      if (dashboardLivemapInteractionBound || typeof document === "undefined") return;
+      dashboardLivemapInteractionBound = true;
+      const opts = {{ capture: true, passive: true }};
+      for (const eventName of ["pointerdown", "focusin", "keydown", "wheel"]) {{
+        document.addEventListener(eventName, noteDashboardLivemapInteractionActivity, opts);
+      }}
+    }}
+
+    function dashboardLivemapInteractionActive(nowMs = dashboardLivemapNowMs()) {{
+      const last = Number(dashboardLivemapLastInteractionMs);
+      return Number.isFinite(last) && last > 0 && (nowMs - last) < dashboardLivemapInteractionWindowMs;
+    }}
+
+    function dashboardLivemapContinuousAnimationActive(nowMs = dashboardLivemapNowMs()) {{
+      if (dashboardLivemapIntroPending || dashboardLivemapPendingNodeTarget || dashboardLivemapNodePanActive) {{
+        return true;
+      }}
+      const mapLayerFadeStartedAt = Number(dashboardLivemapFirstMapLayerFadeStartedAt);
+      if (
+        Number.isFinite(mapLayerFadeStartedAt) &&
+        mapLayerFadeStartedAt > 0 &&
+        nowMs < (mapLayerFadeStartedAt + dashboardLivemapMapFadeMs)
+      ) {{
+        return true;
+      }}
+      const meshFadeStartedAt = Number(dashboardLivemapMeshFadeStartedAt);
+      if (
+        Number.isFinite(meshFadeStartedAt) &&
+        meshFadeStartedAt > 0 &&
+        nowMs < (meshFadeStartedAt + dashboardLivemapMeshFadeMs)
+      ) {{
+        return true;
+      }}
+      for (const transition of dashboardLivemapLinkTransitions.values()) {{
+        const opacity = Math.max(0, Math.min(1, Number(transition && transition.opacity) || 0));
+        const targetOpacity = Number(transition && transition.targetOpacity) > 0 ? 1 : 0;
+        const fade = Math.max(0, Math.min(1, Number(transition && transition.fade) || 0));
+        const fadeTarget = Math.max(0, Math.min(1, Number(transition && transition.fadeTarget) || 0));
+        if (
+          Math.abs(targetOpacity - opacity) > dashboardLivemapLinkPruneOpacity ||
+          Math.abs(fadeTarget - fade) > dashboardLivemapLinkPruneOpacity
+        ) {{
+          return true;
+        }}
+      }}
+      return false;
+    }}
+
+    function dashboardLivemapDrawIntervalMs(nowMs = dashboardLivemapNowMs()) {{
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {{
+        return dashboardLivemapHiddenThrottleDelayMs;
+      }}
+      if (dashboardLivemapTextInputActive() || dashboardLivemapInteractionActive(nowMs)) {{
+        return dashboardLivemapInputThrottleDrawMs;
+      }}
+      return dashboardLivemapContinuousAnimationActive(nowMs)
+        ? dashboardLivemapActiveDrawMs
+        : dashboardLivemapIdleDrawMs;
+    }}
+
+    function dashboardLivemapFrameDelayMs(nowMs = dashboardLivemapNowMs()) {{
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {{
+        return dashboardLivemapHiddenThrottleDelayMs;
+      }}
+      if (dashboardLivemapTextInputActive()) {{
+        return dashboardLivemapInputThrottleDelayMs;
+      }}
+      if (dashboardLivemapInteractionActive(nowMs)) {{
+        return dashboardLivemapInteractionThrottleDelayMs;
+      }}
+      return dashboardLivemapContinuousAnimationActive(nowMs) ? 0 : dashboardLivemapIdleDrawMs;
+    }}
+
+    function cancelDashboardLivemapScheduledFrame() {{
+      if (dashboardLivemapAnimFrame !== null && typeof window.cancelAnimationFrame === "function") {{
+        window.cancelAnimationFrame(dashboardLivemapAnimFrame);
+        dashboardLivemapAnimFrame = null;
+      }}
+      if (dashboardLivemapAnimTimer !== null && typeof window.clearTimeout === "function") {{
+        window.clearTimeout(dashboardLivemapAnimTimer);
+        dashboardLivemapAnimTimer = null;
+      }}
+    }}
+
+    function scheduleDashboardLivemapFrame(delayMs = 0) {{
+      if (!dashboardLivemapActive) return;
+      if (dashboardLivemapAnimFrame !== null || dashboardLivemapAnimTimer !== null) return;
+      const safeDelayMs = Math.max(0, Number(delayMs) || 0);
+      const requestFrame = () => {{
+        if (!dashboardLivemapActive || dashboardLivemapAnimFrame !== null) return;
+        dashboardLivemapAnimFrame = window.requestAnimationFrame(dashboardLivemapFrame);
+      }};
+      if (safeDelayMs > 0 && typeof window.setTimeout === "function") {{
+        dashboardLivemapAnimTimer = window.setTimeout(() => {{
+          dashboardLivemapAnimTimer = null;
+          requestFrame();
+        }}, safeDelayMs);
+      }} else {{
+        requestFrame();
+      }}
     }}
 
     function dashboardLivemapLayerSettingKey(layerName) {{
@@ -912,6 +1046,31 @@
       }};
     }}
 
+    function dashboardLivemapViewDeltaRatio(view, target) {{
+      const cleanView = dashboardLivemapClampView(view);
+      const cleanTarget = dashboardLivemapClampView(target);
+      if (!cleanView || !cleanTarget) return Infinity;
+      const span = Math.max(
+        dashboardLivemapMinViewSpan,
+        cleanTarget.maxX - cleanTarget.minX,
+        cleanTarget.maxY - cleanTarget.minY,
+        cleanView.maxX - cleanView.minX,
+        cleanView.maxY - cleanView.minY
+      );
+      const delta = Math.max(
+        Math.abs(cleanTarget.minX - cleanView.minX),
+        Math.abs(cleanTarget.maxX - cleanView.maxX),
+        Math.abs(cleanTarget.minY - cleanView.minY),
+        Math.abs(cleanTarget.maxY - cleanView.maxY)
+      );
+      return delta / span;
+    }}
+
+    function dashboardLivemapNodeRefitNeeded(nodeTargetView) {{
+      const currentView = dashboardLivemapTargetView || dashboardLivemapView;
+      return dashboardLivemapViewDeltaRatio(currentView, nodeTargetView) > dashboardLivemapNodeRefitDeltaRatio;
+    }}
+
     function dashboardLivemapDriftViewForTarget(target, nowMs) {{
       const cleanTarget = dashboardLivemapClampView(target);
       if (!cleanTarget) return null;
@@ -1067,10 +1226,16 @@
         }} else if (dashboardLivemapIntroPending) {{
           dashboardLivemapPendingNodeTarget = {{ ...nodeTargetView }};
           dashboardLivemapTargetView = {{ ...dashboardLivemapView }};
-        }} else {{
+        }} else if (dashboardLivemapNodeRefitNeeded(nodeTargetView)) {{
           dashboardLivemapPendingNodeTarget = null;
           dashboardLivemapTargetView = {{ ...nodeTargetView }};
           dashboardLivemapNodePanActive = true;
+        }} else {{
+          dashboardLivemapPendingNodeTarget = null;
+          dashboardLivemapNodePanActive = false;
+          if (!dashboardLivemapTargetView) {{
+            dashboardLivemapTargetView = {{ ...nodeTargetView }};
+          }}
         }}
       }} else {{
         dashboardLivemapBestNodeView = null;
@@ -1144,7 +1309,7 @@
     }}
 
     function updateDashboardLivemapDriftTarget(nowMs) {{
-      if (dashboardLivemapIntroPending || dashboardLivemapPendingNodeTarget) return;
+      if (dashboardLivemapIntroPending || dashboardLivemapPendingNodeTarget || dashboardLivemapNodePanActive) return;
       const bestNodeView = dashboardLivemapClampView(dashboardLivemapBestNodeView);
       if (!bestNodeView) return;
       const driftView = dashboardLivemapDriftViewForTarget(bestNodeView, nowMs);
@@ -1172,9 +1337,9 @@
         dashboardLivemapNodePanActive = false;
         return;
       }}
-      const easing = dashboardLivemapBestNodeView
-        ? dashboardLivemapNodeDriftEasing
-        : dashboardLivemapViewEasing;
+      const easing = dashboardLivemapNodePanActive
+        ? dashboardLivemapViewEasing
+        : (dashboardLivemapBestNodeView ? dashboardLivemapNodeDriftEasing : dashboardLivemapViewEasing);
       view.minX += (target.minX - view.minX) * easing;
       view.maxX += (target.maxX - view.maxX) * easing;
       view.minY += (target.minY - view.minY) * easing;
@@ -1472,20 +1637,25 @@
       dashboardLivemapAnimFrame = null;
       if (!dashboardLivemapActive) return;
       const now = Number.isFinite(frameMs) ? frameMs : performance.now();
-      if ((now - dashboardLivemapGeometryRefreshedAt) >= dashboardLivemapGeometryRefreshMs) {{
+      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+      const frameDelayMs = dashboardLivemapFrameDelayMs(now);
+      const drawIntervalMs = dashboardLivemapDrawIntervalMs(now);
+      if (!hidden && (now - dashboardLivemapGeometryRefreshedAt) >= dashboardLivemapGeometryRefreshMs) {{
         dashboardLivemapGeometryRefreshedAt = now;
         refreshDashboardLivemapGeometry();
         ensureDashboardLivemapAtlas();
         ensureDashboardLivemapPacks();
       }}
-      maybeStartDashboardLivemapNodePan(now);
-      updateDashboardLivemapDriftTarget(now);
-      easeDashboardLivemapView();
-      if ((now - dashboardLivemapLastDrawMs) >= 33) {{
+      if (!hidden) {{
+        maybeStartDashboardLivemapNodePan(now);
+        updateDashboardLivemapDriftTarget(now);
+        easeDashboardLivemapView();
+      }}
+      if (!hidden && (now - dashboardLivemapLastDrawMs) >= drawIntervalMs) {{
         dashboardLivemapLastDrawMs = now;
         drawDashboardLivemap(now);
       }}
-      dashboardLivemapAnimFrame = window.requestAnimationFrame(dashboardLivemapFrame);
+      scheduleDashboardLivemapFrame(frameDelayMs);
     }}
 
     function requestDashboardLivemapRefit() {{
@@ -1511,6 +1681,7 @@
           if (dashboardLivemapActive) resizeDashboardLivemapCanvas();
         }});
       }}
+      bindDashboardLivemapInteractionTracking();
       resizeDashboardLivemapCanvas();
       const now = performance.now();
       if (!wasActive) {{
@@ -1533,9 +1704,7 @@
       ensureDashboardLivemapPacks();
       dashboardLivemapLastDrawMs = now;
       drawDashboardLivemap(now);
-      if (dashboardLivemapAnimFrame === null) {{
-        dashboardLivemapAnimFrame = window.requestAnimationFrame(dashboardLivemapFrame);
-      }}
+      scheduleDashboardLivemapFrame();
       return true;
     }}
 
@@ -1547,10 +1716,7 @@
       dashboardLivemapMeshFadeStartedAt = null;
       dashboardLivemapBestNodeView = null;
       dashboardLivemapLinkTransitions = new Map();
-      if (dashboardLivemapAnimFrame !== null) {{
-        window.cancelAnimationFrame(dashboardLivemapAnimFrame);
-        dashboardLivemapAnimFrame = null;
-      }}
+      cancelDashboardLivemapScheduledFrame();
       if (dashboardLivemapCanvas instanceof HTMLCanvasElement) {{
         const ctx = dashboardLivemapCanvas.getContext("2d");
         if (ctx) {{

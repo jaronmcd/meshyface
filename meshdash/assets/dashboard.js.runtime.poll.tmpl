@@ -93,7 +93,7 @@
       if (typeof document === "undefined" || !document.body) return;
       if (document.body.dataset.dashboardTextEntryTrackingBound === "1") return;
       document.body.dataset.dashboardTextEntryTrackingBound = "1";
-      for (const eventName of ["beforeinput", "input", "keydown", "paste", "compositionstart", "compositionupdate", "compositionend"]) {{
+      for (const eventName of ["focusin", "pointerdown", "beforeinput", "input", "keydown", "paste", "compositionstart", "compositionupdate", "compositionend"]) {{
         document.addEventListener(eventName, noteDashboardTextEntryActivity, true);
       }}
     }}

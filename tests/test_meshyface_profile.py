@@ -1555,6 +1555,10 @@ def test_render_html_includes_theme_only_profile_controls() -> None:
 
 def test_dashboard_css_keeps_ghost_overlay_off_compact_node_rows() -> None:
     css = build_dashboard_css(theme_css="")
+    feed_profile_rule = css.rsplit(
+        ".card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert):not(.has-change-marker) {",
+        1,
+    )[1].split("}", 1)[0]
 
     assert "--node-profile-ghost-text" in css
     assert "--node-profile-ghost-font-size" in css
@@ -1565,8 +1569,8 @@ def test_dashboard_css_keeps_ghost_overlay_off_compact_node_rows() -> None:
     assert ".chat-feed-item.profiled-node::after" in css
     assert ".chat-member-item.profiled-node::after" not in css
     assert ".self-node-identity-slot.profiled-node::after" not in css
-    assert "min-width: min(220px, 84%);" in css
-    assert "min-height: 54px;" in css
+    assert "min-width:" not in feed_profile_rule
+    assert "min-height:" not in feed_profile_rule
     assert ".settings-meshyface-share-row" in css
 
 

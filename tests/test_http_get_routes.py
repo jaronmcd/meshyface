@@ -136,6 +136,28 @@ def test_dashboard_get_revision_falls_back_when_state_fails(
     assert deps.recorder.json[1][1]["status"] == "error"
 
 
+def test_dashboard_get_revision_fallback_respects_explicit_empty_pr_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failing_state() -> dict[str, object]:
+        raise RuntimeError("state unavailable")
+
+    monkeypatch.setenv("MESH_DASH_VERSION", "9.8.7")
+    monkeypatch.setenv("MESH_DASH_GIT_COMMIT", "fallback123456")
+    monkeypatch.setenv("MESH_DASH_PR_NUMBER", "")
+    monkeypatch.setattr(
+        "meshdash.http_routes_get._detect_git_pr_number_helper",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not infer PR number")),
+    )
+    deps = _make_deps(state_fn=failing_state)
+
+    handle_dashboard_get(object(), path="/api/revision", query="", deps=deps)
+
+    assert deps.recorder.json[0][0] == 200
+    assert deps.recorder.json[0][1]["revision"] == "fallback1234"
+    assert deps.recorder.json[0][1]["pr_number"] is None
+
+
 def test_dashboard_get_version_falls_back_to_short_commit_ref() -> None:
     deps = _make_deps()
     deps.state_fn.payload["summary"]["revision"] = {  # type: ignore[index]

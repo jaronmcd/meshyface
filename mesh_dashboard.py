@@ -212,13 +212,14 @@ def _detect_git_pr_number() -> Optional[str]:
 
 
 def _revision_info() -> RevisionInfo:
+    pr_number_raw = os.environ.get("MESH_DASH_PR_NUMBER")
     return _build_revision_info_helper(
         version_raw=os.environ.get("MESH_DASH_VERSION"),
         default_version=DEFAULT_APP_VERSION,
         unknown_git_commit=UNKNOWN_GIT_COMMIT,
         detect_commit=_detect_git_commit,
-        pr_number_raw=os.environ.get("MESH_DASH_PR_NUMBER", ""),
-        detect_pr_number=_detect_git_pr_number,
+        pr_number_raw=pr_number_raw or "",
+        detect_pr_number=None if pr_number_raw is not None else _detect_git_pr_number,
     )
 
 
