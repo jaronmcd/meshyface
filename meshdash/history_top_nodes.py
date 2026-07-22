@@ -16,6 +16,7 @@ _ALL_CATEGORY_META = {
     "unit": "",
     "source": "history",
 }
+_DEVICE_UPTIME_METRIC_KEYS = ("uptimeseconds", "uptime_seconds", "uptime", "device_uptime")
 
 TOP_NODE_CATEGORIES: tuple[dict[str, str], ...] = (
     {
@@ -25,8 +26,14 @@ TOP_NODE_CATEGORIES: tuple[dict[str, str], ...] = (
         "source": "node_saved_counts",
     },
     {
+        "id": "device_uptime",
+        "label": "Device Uptime",
+        "unit": "seconds",
+        "source": "environment_metrics_1m",
+    },
+    {
         "id": "active_hours",
-        "label": "Active Hours",
+        "label": "Seen Hours",
         "unit": "hours",
         "source": "node_hour_seen",
     },
@@ -138,8 +145,15 @@ def normalize_top_node_category(raw_category: object) -> str:
         "packets": "saved_packets",
         "stored_packets": "saved_packets",
         "saved": "saved_packets",
-        "uptime": "active_hours",
+        "uptime": "device_uptime",
+        "uptime_seconds": "device_uptime",
+        "uptimeseconds": "device_uptime",
+        "device_uptime_seconds": "device_uptime",
         "active": "active_hours",
+        "seen": "active_hours",
+        "seen_hours": "active_hours",
+        "presence": "active_hours",
+        "presence_hours": "active_hours",
         "chats": "chat_packets",
         "chat": "chat_packets",
         "gps": "gps_positions",
@@ -233,6 +247,51 @@ def _fetch_active_hour_rows(conn: SqlConnection, limit: int) -> SqlRows:
         LIMIT ?
         """,
         (limit,),
+    ).fetchall()
+
+
+def _fetch_device_uptime_rows(conn: SqlConnection, limit: int) -> SqlRows:
+    placeholders = ", ".join("?" for _ in _DEVICE_UPTIME_METRIC_KEYS)
+    return conn.execute(
+        f"""
+        WITH uptime_rows AS (
+          SELECT node_id,
+                 sample_count,
+                 last_value,
+                 last_seen_unix
+          FROM environment_metrics_1m
+          WHERE {_valid_node_clause("node_id")}
+            AND lower(trim(COALESCE(metric_key, ''))) IN ({placeholders})
+            AND COALESCE(last_value, 0) > 0
+        ),
+        latest_rows AS (
+          SELECT node_id,
+                 MAX(last_seen_unix) AS last_seen_unix
+          FROM uptime_rows
+          GROUP BY node_id
+        ),
+        sample_counts AS (
+          SELECT node_id,
+                 SUM(sample_count) AS sample_count
+          FROM uptime_rows
+          GROUP BY node_id
+        )
+        SELECT latest.node_id,
+               CAST(MAX(latest.last_value) AS INTEGER) AS value,
+               counts.sample_count AS secondary_value,
+               latest_seen.last_seen_unix AS last_seen_unix
+        FROM uptime_rows latest
+        JOIN latest_rows latest_seen
+          ON latest_seen.node_id = latest.node_id
+         AND latest_seen.last_seen_unix = latest.last_seen_unix
+        JOIN sample_counts counts
+          ON counts.node_id = latest.node_id
+        GROUP BY latest.node_id
+        HAVING value > 0
+        ORDER BY value DESC, last_seen_unix DESC, latest.node_id ASC
+        LIMIT ?
+        """,
+        (*_DEVICE_UPTIME_METRIC_KEYS, limit),
     ).fetchall()
 
 
@@ -397,6 +456,8 @@ def _fetch_packet_category_rows(conn: SqlConnection, *, category: str, limit: in
 def _fetch_category_rows(conn: SqlConnection, category: str, limit: int) -> SqlRows:
     if category == "saved_packets":
         return _fetch_saved_packet_rows(conn, limit)
+    if category == "device_uptime":
+        return _fetch_device_uptime_rows(conn, limit)
     if category == "active_hours":
         return _fetch_active_hour_rows(conn, limit)
     if category == "gps_positions":

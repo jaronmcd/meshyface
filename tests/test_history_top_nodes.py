@@ -112,6 +112,44 @@ def test_top_nodes_all_category_returns_grouped_ranked_lists() -> None:
     assert payload["item_count"] >= 3
 
 
+def test_top_nodes_uptime_uses_latest_device_telemetry_seconds() -> None:
+    conn = sqlite3.connect(":memory:")
+    initialize_history_schema(conn)
+    store = _make_store(conn)
+
+    conn.executemany(
+        """
+        INSERT INTO environment_metrics_1m(
+          bucket_unix, node_id, node_label, metric_key, metric_label, sample_count,
+          value_sum, value_min, value_max, last_value, last_seen_unix
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (60, "!11111111", "Alpha", "uptimeSeconds", "Uptime Seconds", 2, 7320, 3600, 3720, 3720, 100),
+            (120, "!11111111", "Alpha", "uptimeSeconds", "Uptime Seconds", 1, 30, 30, 30, 30, 200),
+            (60, "!22222222", "Bravo", "uptime_seconds", "Uptime Seconds", 1, 3600, 3600, 3600, 3600, 150),
+            (60, "!33333333", "Charlie", "temperature", "Temperature", 1, 72, 72, 72, 72, 150),
+            (60, "^all", "All", "uptimeSeconds", "Uptime Seconds", 1, 9999, 9999, 9999, 9999, 150),
+        ],
+    )
+    conn.commit()
+
+    payload = load_top_nodes(store, category="uptime", limit=10)
+
+    assert payload["category"] == "device_uptime"
+    assert payload["category_label"] == "Device Uptime"
+    assert payload["unit"] == "seconds"
+    assert [item["node_id"] for item in payload["items"]] == ["!22222222", "!11111111"]
+    assert payload["items"][0]["value"] == 3600
+    assert payload["items"][1]["value"] == 30
+    assert payload["items"][1]["secondary_value"] == 3
+    assert payload["items"][1]["last_seen_unix"] == 200
+
+    categories = {entry["id"]: entry for entry in payload["categories"]}
+    assert categories["device_uptime"]["label"] == "Device Uptime"
+    assert categories["active_hours"]["label"] == "Seen Hours"
+
+
 def test_top_nodes_can_exclude_local_node_from_rankings() -> None:
     conn = sqlite3.connect(":memory:")
     initialize_history_schema(conn)
@@ -236,6 +274,9 @@ def test_dashboard_js_wires_network_top_nodes_fetch_and_render() -> None:
     assert 'let networkTopNodesCategory = "all";' in js
     assert 'let nodeCityHintCache = new Map();' in js
     assert '{ id: "all", label: "All Categories", unit: "" }' in js
+    assert '{ id: "device_uptime", label: "Device Uptime", unit: "seconds" }' in js
+    assert '{ id: "active_hours", label: "Seen Hours", unit: "hours" }' in js
+    assert 'uptime: "device_uptime"' in js
     assert 'function normalizeNetworkTopNodesCategory(raw) {' in js
     assert 'function networkTopNodesExcludedLocalIds(state = latestState) {' in js
     assert 'items: networkTopNodesItemsFromMap(counts, 10, excludedNodeIds)' in js
@@ -243,6 +284,9 @@ def test_dashboard_js_wires_network_top_nodes_fetch_and_render() -> None:
     assert 'function hydrateNetworkTopNodeCities(root) {' in js
     assert 'function networkTopNodesPayloadHasItems(payload) {' in js
     assert 'function networkTopNodesVisualEmoji(nodeId, state = latestState) {' in js
+    assert 'function networkTopNodesValueText(value, unit, category = networkTopNodesCategory) {' in js
+    assert 'return formatUptimeHms(parsed);' in js
+    assert 'uptime samples' in js
     assert 'function networkTopNodesRowsHtml(items, payload, state = latestState) {' in js
     assert 'class="network-top-node-city${citySource === "estimated" ? " is-estimated" : ""}"' in js
     assert 'const nodeEmojiClass = nodeEmoji ? ` has-node-emoji${nodeWatermarkTextClass}` : "";' in js

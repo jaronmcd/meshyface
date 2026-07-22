@@ -633,7 +633,8 @@
     const networkTopNodesCategoryDefs = Object.freeze([
       {{ id: "all", label: "All Categories", unit: "" }},
       {{ id: "saved_packets", label: "Saved Packets", unit: "packets" }},
-      {{ id: "active_hours", label: "Active Hours", unit: "hours" }},
+      {{ id: "device_uptime", label: "Device Uptime", unit: "seconds" }},
+      {{ id: "active_hours", label: "Seen Hours", unit: "hours" }},
       {{ id: "chat_packets", label: "Chats", unit: "chats" }},
       {{ id: "gps_positions", label: "GPS Positions", unit: "positions" }},
       {{ id: "environment_metrics", label: "Metrics", unit: "samples" }},
@@ -662,8 +663,15 @@
         packets: "saved_packets",
         stored_packets: "saved_packets",
         saved: "saved_packets",
-        uptime: "active_hours",
+        uptime: "device_uptime",
+        uptime_seconds: "device_uptime",
+        uptimeseconds: "device_uptime",
+        device_uptime_seconds: "device_uptime",
         active: "active_hours",
+        seen: "active_hours",
+        seen_hours: "active_hours",
+        presence: "active_hours",
+        presence_hours: "active_hours",
         chat: "chat_packets",
         chats: "chat_packets",
         gps: "gps_positions",
@@ -1166,9 +1174,27 @@
       }}
     }}
 
-    function networkTopNodesUnitText(unit, value) {{
+    function networkTopNodesValueText(value, unit, category = networkTopNodesCategory) {{
+      const cleanCategory = normalizeNetworkTopNodesCategory(category);
+      const cleanUnit = String(unit || "").trim();
+      if (cleanCategory === "device_uptime" || cleanUnit === "seconds") {{
+        const parsed = Math.max(0, Math.trunc(Number(value) || 0));
+        if (typeof formatUptimeHms === "function") {{
+          return formatUptimeHms(parsed);
+        }}
+        const hours = Math.floor(parsed / 3600);
+        const minutes = Math.floor((parsed % 3600) / 60);
+        const seconds = parsed % 60;
+        return `${{String(hours).padStart(2, "0")}}:${{String(minutes).padStart(2, "0")}}:${{String(seconds).padStart(2, "0")}}`;
+      }}
+      return networkTopNodesNumberText(value);
+    }}
+
+    function networkTopNodesUnitText(unit, value, category = networkTopNodesCategory) {{
+      const cleanCategory = normalizeNetworkTopNodesCategory(category);
       const clean = String(unit || "").trim();
       if (!clean) return "";
+      if (cleanCategory === "device_uptime" || clean === "seconds") return "uptime";
       const count = Math.trunc(Number(value) || 0);
       if (count === 1) {{
         if (clean === "hours") return "hour";
@@ -1188,6 +1214,8 @@
       if (secondary > 0) {{
         if (category === "saved_packets") {{
           pieces.push(`${{networkTopNodesNumberText(secondary)}} metric points`);
+        }} else if (category === "device_uptime") {{
+          pieces.push(`${{networkTopNodesNumberText(secondary)}} uptime samples`);
         }} else if (category === "links") {{
           pieces.push(`${{networkTopNodesNumberText(secondary)}} link packets`);
         }} else if (category === "link_packets") {{
@@ -1244,7 +1272,8 @@
         const pct = maxValue > 0 ? Math.max(3, Math.min(100, (value / maxValue) * 100)) : 0;
         const name = networkTopNodesDisplayName(nodeId, state);
         const meta = networkTopNodesMetaText(item, safePayload);
-        const unitText = networkTopNodesUnitText(unit, value);
+        const unitText = networkTopNodesUnitText(unit, value, category);
+        const valueText = networkTopNodesValueText(value, unit, category);
         const locationMeta = networkTopNodesNodeLocationMeta(nodeId, state, item);
         const location = locationMeta ? locationMeta.location : null;
         const citySource = String(locationMeta && locationMeta.source || "gps").trim().toLowerCase() === "estimated"
@@ -1277,7 +1306,7 @@
             <span class="network-top-node-bar" aria-hidden="true"><span style="--top-node-bar:${{pct.toFixed(1)}}%;"></span></span>
           </span>
           <span class="network-top-node-value">
-            <strong>${{escAttr(networkTopNodesNumberText(value))}}</strong>
+            <strong>${{escAttr(valueText)}}</strong>
             <span class="network-top-node-unit">${{escAttr(unitText)}}</span>
           </span>
         </button>`;
