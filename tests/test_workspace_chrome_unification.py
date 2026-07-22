@@ -207,9 +207,12 @@ def test_apps_views_move_app_switching_into_launcher_submenu() -> None:
     assert "function toggleLayoutViewSubmenu(name = \"\") {" in js
     assert 'document.getElementById("layout-view-menu-apps-current")' in js
     assert 'document.getElementById("layout-view-menu-apps-submenu")' in js
-    assert 'submenu.dataset.side = canOpenRight ? "" : "overlay";' in js
-    assert 'positionFloatingPanelNearAnchor(submenu, trigger' not in js
-    assert 'target.closest("#layout-view-menu .topbar-view-submenu-item")' in js
+    assert "document.body.appendChild(submenu);" in js
+    assert 'positionFloatingPanelNearAnchor(submenu, trigger' in js
+    assert 'alignX: "after",' in js
+    assert 'alignY: "top",' in js
+    assert "zIndex: 1360," in js
+    assert 'target.closest("#layout-view-menu-apps-submenu .topbar-view-submenu-item")' in js
     assert 'target.closest(\'#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]\')' in js
     assert 'return `Apps · ${currentAppsLauncherLabel(viewName)}`;' in js
 
