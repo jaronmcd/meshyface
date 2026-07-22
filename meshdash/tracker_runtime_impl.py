@@ -41,6 +41,12 @@ from .tracker_seed import (
 from .tracker_history_edges import (
     build_historical_edges as _build_historical_edges_helper,
 )
+from .tracker_live_retention import (
+    DEFAULT_LIVE_STATE_RETENTION_SECONDS,
+    LIVE_STATE_PURGE_INTERVAL_SECONDS,
+    LiveStatePurgeResult,
+    purge_live_state as _purge_live_state_helper,
+)
 from .tracker_bootstrap import (
     load_tracker_history_bootstrap as _load_tracker_history_bootstrap_helper,
 )
@@ -98,6 +104,9 @@ class DashboardTracker:
             to_int_fn=_to_int,
             now_unix_fn=time.time,
         )
+        self._live_state_retention_seconds = DEFAULT_LIVE_STATE_RETENTION_SECONDS
+        self._live_state_purge_interval_seconds = LIVE_STATE_PURGE_INTERVAL_SECONDS
+        self._last_live_state_purge_unix = 0
         self.radio_link_connected: Optional[bool] = None
         self.radio_link_changed_unix: Optional[int] = None
         self.radio_link_error: Optional[str] = None
@@ -111,6 +120,53 @@ class DashboardTracker:
 
     def _bump_state_revision_unlocked(self) -> None:
         self.state_revision = int(getattr(self, "state_revision", 0) or 0) + 1
+
+    def _purge_live_state_unlocked(
+        self,
+        *,
+        now_unix: Optional[int] = None,
+        force: bool = False,
+        bump_revision: bool = True,
+    ) -> LiveStatePurgeResult:
+        clean_now = _to_int(now_unix)
+        if clean_now is None or clean_now <= 0:
+            clean_now = int(time.time())
+        interval_seconds = (
+            _to_int(getattr(self, "_live_state_purge_interval_seconds", None))
+            or LIVE_STATE_PURGE_INTERVAL_SECONDS
+        )
+        last_purge_unix = _to_int(getattr(self, "_last_live_state_purge_unix", 0)) or 0
+        if (
+            not force
+            and last_purge_unix > 0
+            and clean_now < last_purge_unix + max(1, interval_seconds)
+        ):
+            return LiveStatePurgeResult()
+        result = _purge_live_state_helper(
+            recent_packets=self.recent_packets,
+            recent_chat=self.recent_chat,
+            edges=self.edges,
+            historical_edges=self._historical_edges,
+            now_unix=clean_now,
+            retention_seconds=(
+                _to_int(getattr(self, "_live_state_retention_seconds", None))
+                or DEFAULT_LIVE_STATE_RETENTION_SECONDS
+            ),
+            to_int_fn=_to_int,
+            parse_utc_text_to_unix_fn=_parse_utc_text_to_unix,
+        )
+        self._last_live_state_purge_unix = clean_now
+        if bump_revision and result.total_removed:
+            self._bump_state_revision_unlocked()
+        return result
+
+    def purge_live_state(self, now_unix: Optional[int] = None) -> dict[str, int]:
+        with self._lock:
+            return self._purge_live_state_unlocked(
+                now_unix=now_unix,
+                force=True,
+                bump_revision=True,
+            ).as_dict()
 
     def get_delivery_state(self, message_id: object) -> Optional[dict[str, object]]:
         clean_message_id = _to_int(message_id)
@@ -156,6 +212,7 @@ class DashboardTracker:
                     pass
             self._record_meshyface_profile_unlocked(packet)
             self._record_packet_unlocked(packet, interface, include_live_count=True)
+            self._purge_live_state_unlocked(bump_revision=False)
             self._bump_state_revision_unlocked()
 
     def stop_receiving(self) -> None:
@@ -225,12 +282,14 @@ class DashboardTracker:
                 now_unix_fn=time.time,
             )
             if changed:
+                self._purge_live_state_unlocked(bump_revision=False)
                 self._bump_state_revision_unlocked()
 
     def seed_packet(self, packet: dict[str, object], interface: object) -> None:
         with self._lock:
             self._record_meshyface_profile_unlocked(packet)
             self._record_packet_unlocked(packet, interface, include_live_count=False)
+            self._purge_live_state_unlocked(bump_revision=False)
             self._bump_state_revision_unlocked()
 
     def _record_meshyface_profile_unlocked(self, packet: object) -> bool:
@@ -494,6 +553,7 @@ class DashboardTracker:
 
     def snapshot_typed(self, nodes_by_id: dict[str, dict[str, object]]) -> TrackerSnapshot:
         with self._lock:
+            self._purge_live_state_unlocked(force=True, bump_revision=True)
             return _build_tracker_snapshot_for_tracker_typed_helper(
                 self,
                 nodes_by_id=nodes_by_id,
