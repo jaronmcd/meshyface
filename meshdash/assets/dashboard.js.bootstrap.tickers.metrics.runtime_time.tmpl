@@ -240,11 +240,19 @@
     }}
 
     function updateUptimeDisplay() {{
+      const frontendStartedAt = Number(frontendRuntimeStartedAtMs);
+      if (Number.isFinite(frontendStartedAt) && frontendStartedAt > 0) {{
+        const frontendDelta = Math.max(0, (Date.now() - frontendStartedAt) / 1000);
+        setText("settings-about-frontend-uptime", formatUptimeHms(frontendDelta));
+      }}
       if (typeof uptimeBaseSeconds !== "number" || !Number.isFinite(uptimeBaseSeconds)) {{
+        setText("settings-about-backend-uptime", "n/a");
         return;
       }}
       const delta = Math.max(0, (Date.now() - (uptimeBaseMs || 0)) / 1000);
-      setText("m-uptime", formatUptimeHms(uptimeBaseSeconds + delta));
+      const uptimeText = formatUptimeHms(uptimeBaseSeconds + delta);
+      setText("m-uptime", uptimeText);
+      setText("settings-about-backend-uptime", uptimeText);
     }}
 
     function formatRadioTime(unixSeconds) {{
