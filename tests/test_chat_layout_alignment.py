@@ -1360,6 +1360,7 @@ def test_chat_feed_self_authored_messages_render_as_bubbles_without_inline_time(
     assert "width: 100%;" in feed_bottom_spacer_section
     assert "width: fit-content;" in item_section
     assert "max-width: min(84%, 100%);" in item_section
+    assert "flex-shrink: 0;" in item_section
     assert "border-radius: 8px;" in item_section
     assert "margin-right: auto;" in item_section
     assert "padding: 9px 12px;" in item_section

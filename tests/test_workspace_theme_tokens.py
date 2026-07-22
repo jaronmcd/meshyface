@@ -342,6 +342,10 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
         css,
         ".card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert):not(.has-change-marker)",
     )
+    feed_base = _css_rule(
+        css,
+        ".card.chat .chat-feed:not(.chat-feed-view-monitor) .chat-feed-item.profiled-node:not(.selected-node):not(.kind-status):not(.kind-alert):not(.has-change-marker)",
+    )
     feed_author = _last_css_rule(
         css,
         ".chat-feed-item.profiled-node:not(.kind-status):not(.kind-alert) .chat-feed-author .chat-name",
@@ -410,6 +414,10 @@ def test_received_profile_uses_simple_theme_background_and_border() -> None:
     assert "border-color: var(--node-profile-identity-color);" in feed
     assert "background-image: var(--chat-feed-channel-edge-bg), var(--node-profile-theme-surface) !important;" in feed
     assert "box-shadow:" not in feed
+    assert "min-width:" not in feed
+    assert "min-height:" not in feed
+    assert "min-width:" not in feed_base
+    assert "min-height:" not in feed_base
     assert "color: var(--chat-member-node-fg, var(--workspace-shell-text)) !important;" in roster_name
     assert "color: var(--surface-tint-text) !important;" in table_name
     assert "color: var(--theme-text-color, var(--ui-text)) !important;" in feed_author

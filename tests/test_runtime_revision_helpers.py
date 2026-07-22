@@ -125,6 +125,24 @@ def test_git_pr_detection_and_revision_info_fallback(monkeypatch) -> None:
     assert built.build_ref == "fedcba987654 · PR #88"
 
 
+def test_runtime_revision_respects_explicit_empty_pr_env(monkeypatch) -> None:
+    import mesh_dashboard
+
+    monkeypatch.setenv("MESH_DASH_GIT_COMMIT", "abcdef123456")
+    monkeypatch.setenv("MESH_DASH_PR_NUMBER", "")
+    monkeypatch.setattr(mesh_dashboard, "_detect_git_commit", lambda: "abcdef123456")
+    monkeypatch.setattr(
+        mesh_dashboard,
+        "_detect_git_pr_number",
+        lambda: (_ for _ in ()).throw(AssertionError("should not infer PR number")),
+    )
+
+    info = mesh_dashboard._revision_info()
+
+    assert info.build_ref == "abcdef123456"
+    assert info.pr_number == ""
+
+
 def test_container_and_push_deploy_propagate_revision_identity() -> None:
     root = Path(__file__).resolve().parents[1]
     dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")

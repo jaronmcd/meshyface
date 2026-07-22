@@ -307,6 +307,20 @@
       return chatEmojiAllChoices;
     }}
 
+    function setBoundedChatEmojiSearchCacheEntry(queryRaw, matches) {{
+      const query = String(queryRaw || "").trim();
+      if (!query || !Array.isArray(matches)) return;
+      if (chatEmojiSearchCache.has(query)) {{
+        chatEmojiSearchCache.delete(query);
+      }}
+      chatEmojiSearchCache.set(query, matches);
+      while (chatEmojiSearchCache.size > chatEmojiSearchCacheMaxEntries) {{
+        const oldest = chatEmojiSearchCache.keys().next();
+        if (!oldest || oldest.done) break;
+        chatEmojiSearchCache.delete(oldest.value);
+      }}
+    }}
+
     function chatEmojiChoicesForSearch(rawQuery) {{
       const rawText = String(rawQuery || "").trim();
       if (rawText && chatEmojiChoiceSet.has(rawText)) {{
@@ -316,6 +330,7 @@
       if (!query) return [];
       const cached = chatEmojiSearchCache.get(query);
       if (Array.isArray(cached)) {{
+        setBoundedChatEmojiSearchCacheEntry(query, cached);
         return cached;
       }}
 
@@ -334,7 +349,7 @@
         const fallbackParts = aliasParts.length ? parts.concat(aliasParts) : parts;
         matches = rankChatEmojiSearchMatchesAnyPart(query, fallbackParts, true);
       }}
-      chatEmojiSearchCache.set(query, matches);
+      setBoundedChatEmojiSearchCacheEntry(query, matches);
       return matches;
     }}
 

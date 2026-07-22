@@ -184,10 +184,21 @@
       }}
     }}
 
-    function requestFreshStateAfterPageActivation(reason = "page-activation") {{
-      if (typeof forceNextStatePollFresh === "function") {{
+    const pageActivationPollThrottleMs = Math.max(1000, Math.min(5000, Math.trunc(Number(refreshMs) || 3000)));
+    let lastPageActivationPollMs = 0;
+    let pageHiddenAtMs = 0;
+
+    function requestFreshStateAfterPageActivation(reason = "page-activation", options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const nowMs = Date.now();
+      const forceFresh = opts.force === true || !latestState;
+      if (!forceFresh && lastPageActivationPollMs > 0 && (nowMs - lastPageActivationPollMs) < pageActivationPollThrottleMs) {{
+        return;
+      }}
+      lastPageActivationPollMs = nowMs;
+      if (forceFresh && typeof forceNextStatePollFresh === "function") {{
         forceNextStatePollFresh(reason);
-      }} else {{
+      }} else if (forceFresh) {{
         stateEtag = "";
         stateEtagProfile = "";
         forceStateReloadOnce = true;
@@ -207,13 +218,16 @@
     document.addEventListener("visibilitychange", () => {{
       if (document.hidden) {{
         tabHasFocus = false;
+        pageHiddenAtMs = Date.now();
         chatChangeCatchupArmed = true;
         clearAllChatChangeAutoDismissTimers();
         persistDashboardSessionStateNow();
         return;
       }}
       tabHasFocus = (typeof document.hasFocus === "function") ? !!document.hasFocus() : true;
-      requestFreshStateAfterPageActivation("visibility");
+      requestFreshStateAfterPageActivation("visibility", {{
+        force: pageHiddenAtMs <= 0 || (Date.now() - pageHiddenAtMs) > 10 * 60 * 1000,
+      }});
     }});
     window.addEventListener("blur", () => {{
       tabHasFocus = false;
@@ -226,7 +240,9 @@
       requestFreshStateAfterPageActivation("focus");
     }});
     window.addEventListener("pageshow", (event) => {{
-      requestFreshStateAfterPageActivation(event && event.persisted ? "pageshow-persisted" : "pageshow");
+      requestFreshStateAfterPageActivation(event && event.persisted ? "pageshow-persisted" : "pageshow", {{
+        force: !!(event && event.persisted),
+      }});
     }});
     window.addEventListener("pagehide", () => {{
       persistDashboardSessionStateNow();

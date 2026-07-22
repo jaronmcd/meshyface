@@ -863,6 +863,110 @@ def test_lite_console_profile_keeps_packet_feed_and_notification_chat_tail(monke
     assert "raw" not in traffic["recent_packets"][0]["packet"]
 
 
+def test_lite_profiles_that_drop_packet_trends_skip_trend_loader(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def load_trends(_tracker, *, local_node_id: str) -> dict[str, object]:
+        calls.append(local_node_id)
+        return {"nodes": {"!node-a": {"buckets": [1]}}}
+
+    monkeypatch.setattr(state_service, "_load_tracker_node_packet_trends_safe", load_trends)
+
+    def build(profile: str) -> dict[str, object]:
+        return state_service.build_dashboard_state_lite(
+            iface=object(),
+            tracker=object(),
+            started_at=0,
+            target="",
+            show_secrets=True,
+            storage_probe_path=None,
+            revision_info={},
+            sensitive_field_names=set(),
+            collect_nodes_fn=lambda _iface: {
+                "rows": [{"id": "!node-a", "short_name": "A"}],
+                "full": [],
+                "by_id": {"!node-a": {"id": "!node-a", "short_name": "A"}},
+                "with_position_count": 0,
+            },
+            load_tracker_snapshot_safe_fn=lambda _tracker, _nodes_by_id: (
+                {
+                    "live_packet_count": 0,
+                    "real_edge_count": 0,
+                    "edges": [{"from": "!node-a", "to": "!node-b"}],
+                    "port_counts": [{"portnum": "TEXT_MESSAGE_APP", "count": 1}],
+                    "recent_packets": [{"summary": {"packet_id": 1, "from": "!node-a", "to": "^all"}}],
+                    "recent_chat": [{"from": "!node-a", "to": "^all", "text": "chat"}],
+                },
+                None,
+            ),
+            load_tracker_node_saved_counts_safe_fn=lambda _tracker: ({}, None),
+            load_tracker_node_capabilities_safe_fn=lambda _tracker: ({}, None),
+            build_summary_payload_fn=lambda **_kwargs: {},
+            get_radio_connection_status_fn=lambda _iface: {},
+            profile=profile,
+        )
+
+    for profile in ("network-map", "network-graph", "status", "console"):
+        state = build(profile)
+        traffic = state["traffic"]
+        assert isinstance(traffic, dict)
+        assert traffic["node_packet_trends"] == {}
+
+    assert calls == []
+
+
+def test_lite_chat_and_network_profiles_keep_packet_trend_loader(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def load_trends(_tracker, *, local_node_id: str) -> dict[str, object]:
+        calls.append(local_node_id)
+        return {"nodes": {"!node-a": {"buckets": [1]}}}
+
+    monkeypatch.setattr(state_service, "_load_tracker_node_packet_trends_safe", load_trends)
+
+    def build(profile: str) -> dict[str, object]:
+        return state_service.build_dashboard_state_lite(
+            iface=object(),
+            tracker=object(),
+            started_at=0,
+            target="",
+            show_secrets=True,
+            storage_probe_path=None,
+            revision_info={},
+            sensitive_field_names=set(),
+            collect_nodes_fn=lambda _iface: {
+                "rows": [{"id": "!node-a", "short_name": "A"}],
+                "full": [],
+                "by_id": {"!node-a": {"id": "!node-a", "short_name": "A"}},
+                "with_position_count": 0,
+            },
+            load_tracker_snapshot_safe_fn=lambda _tracker, _nodes_by_id: (
+                {
+                    "live_packet_count": 0,
+                    "real_edge_count": 0,
+                    "edges": [],
+                    "port_counts": [],
+                    "recent_packets": [],
+                    "recent_chat": [],
+                },
+                None,
+            ),
+            load_tracker_node_saved_counts_safe_fn=lambda _tracker: ({}, None),
+            load_tracker_node_capabilities_safe_fn=lambda _tracker: ({}, None),
+            build_summary_payload_fn=lambda **_kwargs: {},
+            get_radio_connection_status_fn=lambda _iface: {},
+            profile=profile,
+        )
+
+    for profile in ("chat", "network"):
+        state = build(profile)
+        traffic = state["traffic"]
+        assert isinstance(traffic, dict)
+        assert traffic["node_packet_trends"] == {"nodes": {"!node-a": {"buckets": [1]}}}
+
+    assert len(calls) == 2
+
+
 def test_slim_edges_for_network_drops_duplicate_strings_and_counts() -> None:
     slimmed = _slim_edges_for_network(
         [

@@ -790,6 +790,7 @@
     const chatEmojiPopularDefaults = ["😂", "❤️", "🤣", "👍", "😭", "🙏", "😍", "😊", "🔥", "👏"];
     const chatEmojiNodesByGroup = new Map();
     const chatEmojiSearchCache = new Map();
+    const chatEmojiSearchCacheMaxEntries = 96;
     const chatEmojiSearchMetaByEmoji = new Map();
     const chatEmojiSearchTokensByEmoji = new Map();
     const chatEmojiCodepointIgnoredSet = new Set([0x200d, 0xfe0e, 0xfe0f, 0x20e3]);

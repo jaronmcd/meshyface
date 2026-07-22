@@ -4445,8 +4445,6 @@
         if (latestStatePollProfile === "network-graph" && typeof renderNetworkGraphView === "function") {{
           renderNetworkGraphView(latestState);
         }} else if (typeof requestImmediatePoll === "function") {{
-          stateEtag = "";
-          forceStateReloadOnce = true;
           requestImmediatePoll(0);
         }}
       }}
@@ -10934,8 +10932,6 @@
           if (networkGraphActive && latestStatePollProfile === "network-graph" && typeof renderNetworkGraphView === "function") {{
             renderNetworkGraphView(latestState);
           }} else if (networkGraphActive && typeof requestImmediatePoll === "function") {{
-            stateEtag = "";
-            forceStateReloadOnce = true;
             requestImmediatePoll(0);
           }}
           if (networkRoutesActive) {{
