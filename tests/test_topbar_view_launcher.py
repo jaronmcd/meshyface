@@ -432,11 +432,14 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function openLayoutViewSubmenu(name = \"\") {" in js
     assert "function toggleLayoutViewSubmenu(name = \"\") {" in js
     assert "function currentWorkspaceLauncherLabel(viewName = activeLayoutView) {" in js
-    assert 'target.closest("#layout-view-menu .topbar-view-submenu-item")' in js
+    assert 'target.closest("#layout-view-menu-apps-submenu .topbar-view-submenu-item")' in js
     assert 'target.closest(\'#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]\')' in js
     assert 'return `Apps · ${currentAppsLauncherLabel(viewName)}`;' in js
     assert 'Math.max(260, Math.ceil(btnRect.width))' in js
-    assert "const submenuWidth = 260;" in js
+    assert "document.body.appendChild(submenu);" in js
+    assert 'alignX: "after",' in js
+    assert 'alignY: "top",' in js
+    assert "zIndex: 1360," in js
     assert 'if (!shouldCloseLayoutViewMenuForScrollTarget(ev ? ev.target : null)) {' in js
     assert 'return target === document.body || target === document.documentElement;' in js
     assert "let topbarCornerReservePx = 0;" in js
@@ -454,5 +457,9 @@ def test_apps_launcher_submenu_uses_in_menu_flyout_alignment() -> None:
     overlay_section = css.split('.topbar-view-submenu[data-side="overlay"] {', 1)[1].split("}", 1)[0]
     assert "top: calc(100% + 6px);" in overlay_section
     assert "left: 0;" in overlay_section
-    assert 'submenu.dataset.side = canOpenRight ? "" : "overlay";' in js
-    assert 'positionFloatingPanelNearAnchor(submenu, trigger' not in js
+    assert "document.body.appendChild(submenu);" in js
+    assert '#layout-view-menu-apps-submenu .topbar-view-submenu-item' in js
+    assert 'positionFloatingPanelNearAnchor(submenu, trigger' in js
+    assert 'alignX: "after",' in js
+    assert 'alignY: "top",' in js
+    assert "zIndex: 1360," in js

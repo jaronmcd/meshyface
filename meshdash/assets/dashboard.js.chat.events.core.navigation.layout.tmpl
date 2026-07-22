@@ -10208,6 +10208,7 @@
       const margin = Math.max(0, Number(options.margin) || 8);
       const gap = Math.max(0, Number(options.gap) || 8);
       const alignX = String(options.alignX || "left").trim().toLowerCase();
+      const alignY = String(options.alignY || "").trim().toLowerCase();
       const preferY = String(options.preferY || "below").trim().toLowerCase();
       const minWidth = Number(options.minWidth);
       const zIndex = Number(options.zIndex);
@@ -10255,14 +10256,23 @@
         }}
       }}
 
-      let top = preferY === "above"
-        ? (anchorRect.top - height - gap)
-        : (anchorRect.bottom + gap);
-      if (preferY === "above") {{
+      let top;
+      if (alignY === "top") {{
+        top = anchorRect.top;
+      }} else if (alignY === "center") {{
+        top = anchorRect.top + ((anchorRect.height - height) / 2);
+      }} else if (alignY === "bottom") {{
+        top = anchorRect.bottom - height;
+      }} else {{
+        top = preferY === "above"
+          ? (anchorRect.top - height - gap)
+          : (anchorRect.bottom + gap);
+      }}
+      if (!alignY && preferY === "above") {{
         if (top < margin && (anchorRect.bottom + gap + height + margin) <= viewportHeight) {{
           top = anchorRect.bottom + gap;
         }}
-      }} else if ((top + height + margin) > viewportHeight && (anchorRect.top - gap - height) >= margin) {{
+      }} else if (!alignY && (top + height + margin) > viewportHeight && (anchorRect.top - gap - height) >= margin) {{
         top = anchorRect.top - height - gap;
       }}
 
@@ -10287,18 +10297,24 @@
 
       closeLayoutViewSubmenus();
       syncAppsTabBar(activeLayoutView);
+      if (submenu.parentElement !== document.body) {{
+        document.body.appendChild(submenu);
+      }}
 
       trigger.setAttribute("aria-expanded", "true");
-      const viewportWidth = Math.max(0, window.innerWidth || document.documentElement.clientWidth || 0);
-      const menuRect = menu.getBoundingClientRect();
-      const submenuWidth = 260;
-      const gap = 10;
-      const margin = 8;
-      const canOpenRight = viewportWidth <= 0
-        ? true
-        : ((menuRect.right + gap + submenuWidth + margin) <= viewportWidth);
-      submenu.dataset.side = canOpenRight ? "" : "overlay";
-      submenu.hidden = false;
+      submenu.dataset.side = "";
+      const positioned = positionFloatingPanelNearAnchor(submenu, trigger, {{
+        alignX: "after",
+        alignY: "top",
+        gap: 10,
+        margin: 8,
+        minWidth: 220,
+        zIndex: 1360,
+      }});
+      if (!positioned) {{
+        submenu.dataset.side = "overlay";
+        submenu.hidden = false;
+      }}
     }}
 
     function toggleLayoutViewSubmenu(name = "") {{
@@ -10328,7 +10344,7 @@
       if (appsMeta instanceof HTMLElement) {{
         appsMeta.textContent = appsLauncherMenuMetaText();
       }}
-      for (const btn of document.querySelectorAll("#layout-view-menu .topbar-view-submenu-item")) {{
+      for (const btn of document.querySelectorAll("#layout-view-menu-apps-submenu .topbar-view-submenu-item")) {{
         if (!(btn instanceof HTMLButtonElement)) continue;
         const rawTarget = String(btn.dataset.view || btn.dataset.appView || "").trim().toLowerCase();
         const btnView = normalizeAppsLayoutView(rawTarget);
@@ -10348,7 +10364,7 @@
 
     function syncFileTransferFeatureVisibility() {{
       const enabled = !!fileTransferFeatureEnabled;
-      const filesTabBtn = document.querySelector('#layout-view-menu .topbar-view-submenu-item[data-app-view="files"]');
+      const filesTabBtn = document.querySelector('#layout-view-menu-apps-submenu .topbar-view-submenu-item[data-app-view="files"]');
       if (filesTabBtn instanceof HTMLButtonElement) {{
         filesTabBtn.hidden = !enabled;
         filesTabBtn.disabled = !enabled;
@@ -10722,7 +10738,7 @@
         : ((rawTarget instanceof Node) ? rawTarget.parentElement : null);
       if (!(target instanceof Element)) return "";
 
-      const appsSubmenuBtn = target.closest("#layout-view-menu .topbar-view-submenu-item");
+      const appsSubmenuBtn = target.closest("#layout-view-menu-apps-submenu .topbar-view-submenu-item");
       if (appsSubmenuBtn instanceof HTMLButtonElement) {{
         if (appsSubmenuBtn.disabled) return "";
         return String(appsSubmenuBtn.dataset.view || appsSubmenuBtn.dataset.appView || "chat");
@@ -11131,7 +11147,7 @@
           toggleLayoutViewSubmenu("apps");
           return;
         }}
-        const submenuItem = target.closest("#layout-view-menu .topbar-view-submenu-item");
+        const submenuItem = target.closest("#layout-view-menu-apps-submenu .topbar-view-submenu-item");
         if (submenuItem instanceof HTMLButtonElement) {{
           closeLayoutViewMenu();
           return;
@@ -11141,7 +11157,7 @@
           closeLayoutViewMenu();
           return;
         }}
-        if (!target.closest("#layout-view-menu")) {{
+        if (!target.closest("#layout-view-menu") && !target.closest("#layout-view-menu-apps-submenu")) {{
           closeLayoutViewMenu();
         }}
       }});
