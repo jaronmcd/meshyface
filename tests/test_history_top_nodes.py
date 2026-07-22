@@ -284,8 +284,14 @@ def test_dashboard_js_wires_network_top_nodes_fetch_and_render() -> None:
     assert 'function hydrateNetworkTopNodeCities(root) {' in js
     assert 'function networkTopNodesPayloadHasItems(payload) {' in js
     assert 'function networkTopNodesVisualEmoji(nodeId, state = latestState) {' in js
+    assert 'function networkTopNodesHmsText(totalSeconds) {' in js
+    assert 'function networkTopNodesDurationText(value) {' in js
+    assert 'function networkTopNodesLiveUptimeSeconds(value, lastSeenUnix) {' in js
     assert 'function networkTopNodesValueText(value, unit, category = networkTopNodesCategory) {' in js
-    assert 'return formatUptimeHms(parsed);' in js
+    assert 'return `${parts.join(" ")} ${networkTopNodesHmsText(dayRemainderSeconds)}`;' in js
+    assert 'data-top-node-uptime-seconds="${escAttr(value)}"' in js
+    assert 'function updateNetworkTopNodesUptimeDisplay() {' in js
+    assert 'updateNetworkTopNodesUptimeDisplay();' in js
     assert 'uptime samples' in js
     assert 'function networkTopNodesRowsHtml(items, payload, state = latestState) {' in js
     assert 'class="network-top-node-city${citySource === "estimated" ? " is-estimated" : ""}"' in js
