@@ -57,6 +57,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'class="topbar-view-submenu-item is-active"' in html
     assert 'id="settings-about-version"' not in html
     assert 'id="settings-about-commit"' not in html
+    assert 'id="settings-about-backend-uptime"' in html
+    assert 'id="settings-about-frontend-uptime"' in html
     assert 'id="settings-software-revision"' in html
     assert 'id="settings-software-version"' not in html
     assert 'id="settings-software-commit"' not in html
@@ -280,6 +282,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "overflow-y: auto;" in css
     assert 'document.getElementById("settings-about-version")' not in js
     assert 'document.getElementById("settings-about-commit")' not in js
+    assert 'const frontendRuntimeStartedAtMs = Date.now();' in js
+    assert 'setText("settings-about-backend-uptime", uptimeText);' in js
+    assert 'setText("settings-about-frontend-uptime", formatUptimeHms(frontendDelta));' in js
     assert 'document.getElementById("settings-software-revision")' in js
     assert 'document.getElementById("settings-software-version")' not in js
     assert 'document.getElementById("settings-software-commit")' not in js
