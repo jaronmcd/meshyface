@@ -1,17 +1,20 @@
 from collections import deque
 
-import meshdash.tracker_runtime_impl as tracker_runtime_impl
-from meshdash.tracker_live_retention import DEFAULT_LIVE_STATE_RETENTION_SECONDS
+from meshdash.tracker_live_retention import (
+    DEFAULT_MAX_RETAINED_LIVE_CHAT_ROWS,
+    DEFAULT_MAX_RETAINED_LIVE_EDGE_ROWS,
+    DEFAULT_MAX_RETAINED_LIVE_PACKET_ROWS,
+)
 from meshdash.tracker_runtime_impl import DashboardTracker
 
 
-def _edge(last_rx_time: int) -> dict[str, object]:
+def _edge(index: int) -> dict[str, object]:
     return {
-        "from": "!from",
+        "from": f"!from{index}",
         "to": "!to",
         "count": 2,
-        "first_rx_time": last_rx_time,
-        "last_rx_time": last_rx_time,
+        "first_rx_time": index,
+        "last_rx_time": index,
         "portnums": set(),
         "last_hops": None,
         "hops_sum": 0,
@@ -27,54 +30,27 @@ def _edge(last_rx_time: int) -> dict[str, object]:
     }
 
 
-def test_purge_live_state_removes_old_live_resources_only() -> None:
+def test_purge_live_state_keeps_under_cap_chat_regardless_of_age() -> None:
     tracker = DashboardTracker(packet_limit=8)
-    now_unix = 10_000
-    cutoff_unix = now_unix - DEFAULT_LIVE_STATE_RETENTION_SECONDS
-    old_unix = cutoff_unix - 1
-    recent_unix = cutoff_unix
-
-    tracker.recent_packets = deque(
-        [
-            {"summary": {"packet_id": 1, "rx_time_unix": old_unix}},
-            {"summary": {"packet_id": 2, "rx_time_unix": recent_unix}},
-            {"summary": {"packet_id": 3}},
-        ],
-        maxlen=8,
-    )
     tracker.recent_chat = deque(
         [
-            {"text": "old", "rx_time_unix": old_unix},
-            {"text": "recent", "rx_time_unix": recent_unix},
-            {"text": "unknown"},
+            {"text": "old 1", "rx_time_unix": 1_000},
+            {"text": "old 2", "rx_time_unix": 1_001},
+            {"text": "old 3", "rx_time_unix": 1_002},
+            {"text": "old 4", "rx_time_unix": 1_003},
         ],
         maxlen=32,
     )
-    tracker.edges = {
-        ("!old", "!peer"): _edge(old_unix),
-        ("!recent", "!peer"): _edge(recent_unix),
-        ("!unknown", "!peer"): {"from": "!unknown", "to": "!peer", "count": 2},
-    }
-    tracker._historical_edges = {
-        ("!oldhist", "!peer"): _edge(old_unix),
-        ("!recenthist", "!peer"): _edge(recent_unix),
-    }
 
-    before_revision = tracker.state_revision
-    result = tracker.purge_live_state(now_unix=now_unix)
+    result = tracker.purge_live_state(now_unix=10_000)
 
-    assert result == {
-        "recent_packets": 1,
-        "recent_chat": 1,
-        "edges": 1,
-        "historical_edges": 1,
-        "total_removed": 4,
-    }
-    assert tracker.state_revision == before_revision + 1
-    assert [entry["summary"].get("packet_id") for entry in tracker.recent_packets] == [2, 3]
-    assert [entry["text"] for entry in tracker.recent_chat] == ["recent", "unknown"]
-    assert set(tracker.edges) == {("!recent", "!peer"), ("!unknown", "!peer")}
-    assert set(tracker._historical_edges) == {("!recenthist", "!peer")}
+    assert result["recent_chat"] == 0
+    assert [entry["text"] for entry in tracker.recent_chat] == [
+        "old 1",
+        "old 2",
+        "old 3",
+        "old 4",
+    ]
 
 
 def test_purge_live_state_does_not_bump_revision_without_changes() -> None:
@@ -88,30 +64,95 @@ def test_purge_live_state_does_not_bump_revision_without_changes() -> None:
     assert tracker.state_revision == before_revision
 
 
-def test_snapshot_typed_purges_before_returning_live_payload(monkeypatch) -> None:
-    monkeypatch.setattr(tracker_runtime_impl.time, "time", lambda: 10_000.0)
+def test_purge_live_state_trims_buffers_fifo_to_size_caps() -> None:
     tracker = DashboardTracker(packet_limit=8)
-    cutoff_unix = 10_000 - DEFAULT_LIVE_STATE_RETENTION_SECONDS
-    old_unix = cutoff_unix - 1
-    recent_unix = cutoff_unix + 1
+    tracker._max_retained_live_packet_rows = 3
+    tracker._max_retained_live_chat_rows = 4
+    tracker._max_retained_live_edge_rows = 2
+    tracker.recent_packets = deque(
+        ({"summary": {"packet_id": index}} for index in range(6)),
+        maxlen=8,
+    )
+    tracker.recent_chat = deque(
+        ({"text": f"msg {index}"} for index in range(7)),
+        maxlen=16,
+    )
+    tracker.edges = {
+        (f"!edge{index}", "!peer"): _edge(index)
+        for index in range(5)
+    }
+    tracker._historical_edges = {
+        (f"!hist{index}", "!peer"): _edge(index)
+        for index in range(5)
+    }
 
+    before_revision = tracker.state_revision
+    result = tracker.purge_live_state(now_unix=10_000)
+
+    assert result == {
+        "recent_packets": 3,
+        "recent_chat": 3,
+        "edges": 3,
+        "historical_edges": 3,
+        "total_removed": 12,
+    }
+    assert tracker.state_revision == before_revision + 1
+    assert [entry["summary"]["packet_id"] for entry in tracker.recent_packets] == [3, 4, 5]
+    assert [entry["text"] for entry in tracker.recent_chat] == ["msg 3", "msg 4", "msg 5", "msg 6"]
+    assert list(tracker.edges) == [("!edge3", "!peer"), ("!edge4", "!peer")]
+    assert list(tracker._historical_edges) == [("!hist3", "!peer"), ("!hist4", "!peer")]
+
+
+def test_snapshot_typed_purges_before_returning_live_payload() -> None:
+    tracker = DashboardTracker(packet_limit=8)
+    tracker._max_retained_live_packet_rows = 1
+    tracker._max_retained_live_chat_rows = 1
+    tracker._max_retained_live_edge_rows = 1
     tracker.recent_packets.extend(
         [
-            {"summary": {"packet_id": 1, "rx_time_unix": old_unix}},
-            {"summary": {"packet_id": 2, "rx_time_unix": recent_unix}},
+            {"summary": {"packet_id": 1}},
+            {"summary": {"packet_id": 2}},
         ]
     )
     tracker.recent_chat.extend(
         [
-            {"text": "old", "rx_time_unix": old_unix},
-            {"text": "recent", "rx_time_unix": recent_unix},
+            {"text": "older"},
+            {"text": "newer"},
         ]
     )
-    tracker.edges[("!old", "!peer")] = _edge(old_unix)
-    tracker.edges[("!recent", "!peer")] = _edge(recent_unix)
+    tracker.edges[("!old", "!peer")] = _edge(1)
+    tracker.edges[("!new", "!peer")] = _edge(2)
 
     snapshot = tracker.snapshot_typed({})
 
     assert [entry["summary"]["packet_id"] for entry in snapshot.recent_packets] == [2]
-    assert [entry["text"] for entry in snapshot.recent_chat] == ["recent"]
-    assert {(edge["from"], edge["to"]) for edge in snapshot.edges} == {("!recent", "!peer")}
+    assert [entry["text"] for entry in snapshot.recent_chat] == ["newer"]
+    assert {(edge["from"], edge["to"]) for edge in snapshot.edges} == {("!new", "!peer")}
+
+
+def test_default_caps_bound_day_long_live_state_without_time_checks() -> None:
+    tracker = DashboardTracker(packet_limit=250)
+    tracker.recent_chat.extend(
+        {"text": f"old-{index}", "rx_time_unix": 1_000 + index}
+        for index in range(1_000)
+    )
+    tracker.recent_packets.extend(
+        {"summary": {"packet_id": index, "rx_time_unix": 1_000 + index}}
+        for index in range(250)
+    )
+    tracker.edges.update(
+        {
+            (f"!edge{index:04x}", "!peer"): _edge(index)
+            for index in range(802)
+        }
+    )
+
+    snapshot = tracker.snapshot_typed({})
+
+    assert len(snapshot.recent_chat) == DEFAULT_MAX_RETAINED_LIVE_CHAT_ROWS
+    assert snapshot.recent_chat[0]["text"] == "old-820"
+    assert snapshot.recent_chat[-1]["text"] == "old-999"
+    assert len(snapshot.recent_packets) == DEFAULT_MAX_RETAINED_LIVE_PACKET_ROWS
+    assert snapshot.recent_packets[0]["summary"]["packet_id"] == 130
+    assert snapshot.recent_packets[-1]["summary"]["packet_id"] == 249
+    assert len(snapshot.edges) == DEFAULT_MAX_RETAINED_LIVE_EDGE_ROWS

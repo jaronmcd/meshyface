@@ -42,7 +42,9 @@ from .tracker_history_edges import (
     build_historical_edges as _build_historical_edges_helper,
 )
 from .tracker_live_retention import (
-    DEFAULT_LIVE_STATE_RETENTION_SECONDS,
+    DEFAULT_MAX_RETAINED_LIVE_CHAT_ROWS,
+    DEFAULT_MAX_RETAINED_LIVE_EDGE_ROWS,
+    DEFAULT_MAX_RETAINED_LIVE_PACKET_ROWS,
     LIVE_STATE_PURGE_INTERVAL_SECONDS,
     LiveStatePurgeResult,
     purge_live_state as _purge_live_state_helper,
@@ -104,7 +106,9 @@ class DashboardTracker:
             to_int_fn=_to_int,
             now_unix_fn=time.time,
         )
-        self._live_state_retention_seconds = DEFAULT_LIVE_STATE_RETENTION_SECONDS
+        self._max_retained_live_packet_rows = DEFAULT_MAX_RETAINED_LIVE_PACKET_ROWS
+        self._max_retained_live_chat_rows = DEFAULT_MAX_RETAINED_LIVE_CHAT_ROWS
+        self._max_retained_live_edge_rows = DEFAULT_MAX_RETAINED_LIVE_EDGE_ROWS
         self._live_state_purge_interval_seconds = LIVE_STATE_PURGE_INTERVAL_SECONDS
         self._last_live_state_purge_unix = 0
         self.radio_link_connected: Optional[bool] = None
@@ -147,13 +151,22 @@ class DashboardTracker:
             recent_chat=self.recent_chat,
             edges=self.edges,
             historical_edges=self._historical_edges,
-            now_unix=clean_now,
-            retention_seconds=(
-                _to_int(getattr(self, "_live_state_retention_seconds", None))
-                or DEFAULT_LIVE_STATE_RETENTION_SECONDS
+            max_recent_packets=(
+                _to_int(getattr(self, "_max_retained_live_packet_rows", None))
+                or DEFAULT_MAX_RETAINED_LIVE_PACKET_ROWS
             ),
-            to_int_fn=_to_int,
-            parse_utc_text_to_unix_fn=_parse_utc_text_to_unix,
+            max_recent_chat=(
+                _to_int(getattr(self, "_max_retained_live_chat_rows", None))
+                or DEFAULT_MAX_RETAINED_LIVE_CHAT_ROWS
+            ),
+            max_edges=(
+                _to_int(getattr(self, "_max_retained_live_edge_rows", None))
+                or DEFAULT_MAX_RETAINED_LIVE_EDGE_ROWS
+            ),
+            max_historical_edges=(
+                _to_int(getattr(self, "_max_retained_live_edge_rows", None))
+                or DEFAULT_MAX_RETAINED_LIVE_EDGE_ROWS
+            ),
         )
         self._last_live_state_purge_unix = clean_now
         if bump_revision and result.total_removed:
