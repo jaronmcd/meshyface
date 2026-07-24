@@ -334,22 +334,11 @@
         const unavailableMessage = String(opts.unavailableMessage || "").trim();
         const peerId = normalizeNodeId(peerIdRaw || "");
         const priorWindow = host.querySelector(".peer-dm-popout-window");
-        const priorInput = host.querySelector(".peer-dm-popout-input");
         const priorPeerId = normalizeNodeId(
           priorWindow instanceof HTMLElement
             ? (priorWindow.dataset.peerNodeId || "")
             : peerId
         );
-        const preserveInputFocus = (
-          priorInput instanceof HTMLInputElement
-          && document.activeElement === priorInput
-        );
-        const priorSelectionStart = preserveInputFocus
-          ? Number(priorInput.selectionStart)
-          : null;
-        const priorSelectionEnd = preserveInputFocus
-          ? Number(priorInput.selectionEnd)
-          : null;
         const scheduleBodyScroll = (bodyEl, focusMessageKeysRaw = null) => {{
           if (!(bodyEl instanceof HTMLElement)) return;
           const focusMessageKeys = Array.isArray(focusMessageKeysRaw)
@@ -596,21 +585,22 @@
               </div>`;
             }}).join("")
           : '<div class="peer-dm-popout-empty">No messages in this peer thread yet.</div>';
+        const nextThreadHeaderHtml = `<header class="peer-dm-popout-head${{peerProfileClass}}"${{peerStyleAttr}}>
+          <div class="peer-dm-popout-title">
+            <span class="peer-dm-popout-name">${{escAttr(peerName)}}</span>
+            <span class="peer-dm-popout-id-row">
+              <span class="peer-dm-popout-id">${{escAttr(peerId)}}</span>
+              <span class="peer-dm-popout-channel" title="Thread channel">${{escAttr(threadChannelLabel)}}</span>
+            </span>
+          </div>
+        </header>`;
         const nextThreadHtml = `<section
           class="peer-dm-popout-window is-embedded"
           data-peer-node-id="${{escAttr(peerId)}}"
           data-peer-dm-channel-index="${{escAttr(threadChannelIndex)}}"
           style="${{escAttr(threadChannelStyle)}}"
         >
-          <header class="peer-dm-popout-head${{peerProfileClass}}"${{peerStyleAttr}}>
-            <div class="peer-dm-popout-title">
-              <span class="peer-dm-popout-name">${{escAttr(peerName)}}</span>
-              <span class="peer-dm-popout-id-row">
-                <span class="peer-dm-popout-id">${{escAttr(peerId)}}</span>
-                <span class="peer-dm-popout-channel" title="Thread channel">${{escAttr(threadChannelLabel)}}</span>
-              </span>
-            </div>
-          </header>
+          ${{nextThreadHeaderHtml}}
           <div class="peer-dm-popout-body" data-peer-dm-role="body">${{messageRows}}</div>
           <div class="peer-dm-popout-composer">
             <input
@@ -656,10 +646,64 @@
             ></div>
           </div>
         </section>`;
-        const threadMarkupChanged = host.__meshPeerDmThreadHtml !== nextThreadHtml;
-        if (threadMarkupChanged) {{
+
+        let threadWindow = priorWindow instanceof HTMLElement ? priorWindow : null;
+        let threadHeader = threadWindow
+          ? threadWindow.querySelector(".peer-dm-popout-head")
+          : null;
+        let threadBody = threadWindow
+          ? threadWindow.querySelector('[data-peer-dm-role="body"]')
+          : null;
+        const threadComposer = threadWindow
+          ? threadWindow.querySelector(".peer-dm-popout-composer")
+          : null;
+        const canPatchExistingThread = !!(
+          threadWindow instanceof HTMLElement
+          && priorPeerId === peerId
+          && threadHeader instanceof HTMLElement
+          && threadBody instanceof HTMLElement
+          && threadComposer instanceof HTMLElement
+        );
+        const nextThreadWindowKey = JSON.stringify([
+          peerId,
+          threadChannelIndex,
+          threadChannelStyle,
+        ]);
+        let threadBodyChanged = false;
+        if (!canPatchExistingThread) {{
           host.innerHTML = nextThreadHtml;
-          host.__meshPeerDmThreadHtml = nextThreadHtml;
+          threadWindow = host.querySelector(".peer-dm-popout-window");
+          threadHeader = threadWindow instanceof HTMLElement
+            ? threadWindow.querySelector(".peer-dm-popout-head")
+            : null;
+          threadBody = threadWindow instanceof HTMLElement
+            ? threadWindow.querySelector('[data-peer-dm-role="body"]')
+            : null;
+          threadBodyChanged = true;
+        }} else {{
+          if (threadWindow.__meshPeerDmWindowKey !== nextThreadWindowKey) {{
+            threadWindow.className = "peer-dm-popout-window is-embedded";
+            threadWindow.dataset.peerNodeId = peerId;
+            threadWindow.dataset.peerDmChannelIndex = String(threadChannelIndex);
+            threadWindow.setAttribute("style", threadChannelStyle);
+          }}
+          if (threadHeader.__meshPeerDmHeaderHtml !== nextThreadHeaderHtml) {{
+            threadHeader.outerHTML = nextThreadHeaderHtml;
+            threadHeader = threadWindow.querySelector(".peer-dm-popout-head");
+          }}
+          threadBodyChanged = threadBody.__meshPeerDmBodyHtml !== messageRows;
+          if (threadBodyChanged) {{
+            threadBody.innerHTML = messageRows;
+          }}
+        }}
+        if (threadWindow instanceof HTMLElement) {{
+          threadWindow.__meshPeerDmWindowKey = nextThreadWindowKey;
+        }}
+        if (threadHeader instanceof HTMLElement) {{
+          threadHeader.__meshPeerDmHeaderHtml = nextThreadHeaderHtml;
+        }}
+        if (threadBody instanceof HTMLElement) {{
+          threadBody.__meshPeerDmBodyHtml = messageRows;
         }}
 
         const input = host.querySelector('[data-peer-dm-role="input"]');
@@ -743,9 +787,12 @@
         }};
         if (input instanceof HTMLInputElement) {{
           const inputHasFocus = document.activeElement === input;
-          if (threadMarkupChanged || (!inputHasFocus && input.value !== draft)) {{
+          if (!inputHasFocus && input.value !== draft) {{
             input.value = draft;
           }}
+        }}
+        if (sendBtn instanceof HTMLButtonElement) {{
+          sendBtn.disabled = !!chatSendInFlight;
         }}
         const latestOwnDirectEcho = (() => {{
           for (let idx = bucket.length - 1; idx >= 0; idx -= 1) {{
@@ -855,56 +902,52 @@
             renderChat(latestState);
           }}
         }};
-        if (input instanceof HTMLInputElement && input.dataset.bound !== "1") {{
-          input.dataset.bound = "1";
-          input.addEventListener("focus", acknowledgeUnreadThreadNotices);
-          input.addEventListener("click", acknowledgeUnreadThreadNotices);
-          input.addEventListener("input", () => {{
-            const nextDraft = String(input.value || "");
-            if (nextDraft.trim()) {{
-              peerDmDraftByPeer.set(peerId, nextDraft);
-            }} else {{
-              peerDmDraftByPeer.delete(peerId);
-            }}
-          }});
-          input.addEventListener("keydown", (ev) => {{
-            if (ev.key !== "Enter" || ev.shiftKey) return;
-            ev.preventDefault();
-            void submitMessage();
-          }});
-        }}
         if (input instanceof HTMLInputElement) {{
-          if (preserveInputFocus && priorPeerId === peerId) {{
-            const valueLen = String(input.value || "").length;
-            const nextSelectionStart = Number.isFinite(priorSelectionStart)
-              ? Math.max(0, Math.min(valueLen, Math.trunc(Number(priorSelectionStart))))
-              : valueLen;
-            const nextSelectionEnd = Number.isFinite(priorSelectionEnd)
-              ? Math.max(nextSelectionStart, Math.min(valueLen, Math.trunc(Number(priorSelectionEnd))))
-              : nextSelectionStart;
-            window.requestAnimationFrame(() => {{
-              if (input.disabled) return;
-              try {{
-                input.focus({{ preventScroll: true }});
-              }} catch (_err) {{
-                input.focus();
+          input.__meshPeerDmAcknowledgeUnread = acknowledgeUnreadThreadNotices;
+          input.__meshPeerDmSubmitMessage = submitMessage;
+          if (input.dataset.bound !== "1") {{
+            input.dataset.bound = "1";
+            const acknowledgeCurrentUnread = () => {{
+              const callback = input.__meshPeerDmAcknowledgeUnread;
+              if (typeof callback === "function") {{
+                callback();
               }}
-              try {{
-                input.setSelectionRange(nextSelectionStart, nextSelectionEnd);
-              }} catch (_err) {{
+            }};
+            input.addEventListener("focus", acknowledgeCurrentUnread);
+            input.addEventListener("click", acknowledgeCurrentUnread);
+            input.addEventListener("input", () => {{
+              const nextDraft = String(input.value || "");
+              if (nextDraft.trim()) {{
+                peerDmDraftByPeer.set(peerId, nextDraft);
+              }} else {{
+                peerDmDraftByPeer.delete(peerId);
+              }}
+            }});
+            input.addEventListener("keydown", (ev) => {{
+              if (ev.key !== "Enter" || ev.shiftKey) return;
+              ev.preventDefault();
+              const callback = input.__meshPeerDmSubmitMessage;
+              if (typeof callback === "function") {{
+                void callback();
               }}
             }});
           }}
         }}
-        if (sendBtn instanceof HTMLButtonElement && sendBtn.dataset.bound !== "1") {{
-          sendBtn.dataset.bound = "1";
-          sendBtn.addEventListener("click", (ev) => {{
-            ev.preventDefault();
-            void submitMessage();
-          }});
+        if (sendBtn instanceof HTMLButtonElement) {{
+          sendBtn.__meshPeerDmSubmitMessage = submitMessage;
+          if (sendBtn.dataset.bound !== "1") {{
+            sendBtn.dataset.bound = "1";
+            sendBtn.addEventListener("click", (ev) => {{
+              ev.preventDefault();
+              const callback = sendBtn.__meshPeerDmSubmitMessage;
+              if (typeof callback === "function") {{
+                void callback();
+              }}
+            }});
+          }}
         }}
         const bodyEl = host.querySelector('[data-peer-dm-role="body"]');
-        if (bodyEl instanceof HTMLElement && threadMarkupChanged) {{
+        if (bodyEl instanceof HTMLElement && threadBodyChanged) {{
           scheduleBodyScroll(bodyEl, unreadFocusKeys);
         }}
       }};

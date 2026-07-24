@@ -292,8 +292,9 @@ def test_dashboard_js_routes_drawer_tabs_into_their_panels() -> None:
     assert 'const unreadFocusKeys = Array.isArray(unreadDirectFocusKeysByPeer.get(peerId))' in js
     assert 'const messageKey = String(chatMessageKey(msg) || "").trim();' in js
     assert 'data-message-key="${escAttr(messageKey)}"' in js
-    assert 'input.addEventListener("focus", acknowledgeUnreadThreadNotices);' in js
-    assert 'input.addEventListener("click", acknowledgeUnreadThreadNotices);' in js
+    assert "input.__meshPeerDmAcknowledgeUnread = acknowledgeUnreadThreadNotices;" in js
+    assert 'input.addEventListener("focus", acknowledgeCurrentUnread);' in js
+    assert 'input.addEventListener("click", acknowledgeCurrentUnread);' in js
     assert "window.requestAnimationFrame(() => {" in js
     assert "scheduleBodyScroll(bodyEl, unreadFocusKeys);" in js
     assert 'pinBtn.classList.toggle("active", active);' in js
