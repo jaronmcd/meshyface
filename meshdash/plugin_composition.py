@@ -717,6 +717,8 @@ def build_plugin_subsystem(
         def _mark_state_changed() -> None:
             tracker.state_revision = int(getattr(tracker, "state_revision", 0) or 0) + 1
 
+        delivery_state_fn = getattr(tracker, "get_delivery_state", None)
+
         def _runtime_factory(
             manifests: Sequence[PluginManifest],
         ) -> tuple[PluginRuntime, OutboundFileTransferService | None]:
@@ -744,6 +746,9 @@ def build_plugin_subsystem(
                 node_snapshot_fn=lambda: _node_snapshot(iface),
                 submit_file_fn=outbound.submit if outbound is not None else None,
                 accept_file_offer_fn=accept_file_offer_fn,
+                get_delivery_state_fn=(
+                    delivery_state_fn if callable(delivery_state_fn) else None
+                ),
                 config=runtime_config,
                 state_changed_fn=_mark_state_changed,
             )

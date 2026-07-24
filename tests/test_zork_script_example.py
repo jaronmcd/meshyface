@@ -167,9 +167,10 @@ def test_zork_example_runs_in_spawned_worker_and_routes_private_replies(tmp_path
     sends: list[dict[str, object]] = []
     sends_lock = threading.Lock()
 
-    def _send(**kwargs: object) -> None:
+    def _send(**kwargs: object) -> dict[str, object]:
         with sends_lock:
             sends.append(dict(kwargs))
+            return {"message_id": 1000 + len(sends)}
 
     def _sent_text(destination: str) -> str:
         with sends_lock:
@@ -183,6 +184,7 @@ def test_zork_example_runs_in_spawned_worker_and_routes_private_replies(tmp_path
         manifests=[manifest],
         state_store=store,
         send_chat_fn=_send,
+        get_delivery_state_fn=lambda _message_id: {"delivery_state": "acked"},
         config=PluginRuntimeConfig(
             handler_timeout_seconds=2.0,
             long_reply_pace_seconds=0,
@@ -201,7 +203,16 @@ def test_zork_example_runs_in_spawned_worker_and_routes_private_replies(tmp_path
             first_peer_sends = [
                 dict(row) for row in sends if row.get("destination") == "!00000001"
             ]
+        first_reply_segments = [
+            str(row.get("text") or "") for row in first_peer_sends
+        ]
+        assert len(first_reply_segments) > 1
+        assert all(
+            segment.startswith(f"[{index}/{len(first_reply_segments)}] ")
+            for index, segment in enumerate(first_reply_segments, start=1)
+        )
         assert first_peer_sends[0]["reply_id"] == 10
+        assert all(row["retry_unacked"] is False for row in first_peer_sends)
         assert all(row["channel_index"] == 3 for row in first_peer_sends)
 
         assert runtime.try_enqueue(_event("look", packet_id=11)) is True

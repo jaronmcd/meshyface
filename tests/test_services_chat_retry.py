@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 from meshdash import services_chat
 from meshdash.helpers import to_int
+from meshdash.runtime_send_contracts import SendChatRuntimeDependencies
+from meshdash.runtime_send_loader import build_send_chat_loader_with_dependencies
 from meshdash.services_chat import send_chat_message
 
 
@@ -82,6 +84,37 @@ def test_send_chat_message_does_not_retry_acked_direct_text() -> None:
     assert [row["id"] for row in iface.sent] == [1000]
     assert len(records) == 1
     assert records[0]["retry_of"] is None
+
+
+def test_send_chat_loader_can_leave_retries_to_an_ordered_caller() -> None:
+    iface = _FakeIface()
+    records: list[dict[str, object]] = []
+    dependencies = SendChatRuntimeDependencies(
+        iface=iface,
+        send_lock=threading.Lock(),
+        send_reaction_packet_fn=_send_reaction_packet_fn,
+        local_node_id_fn=lambda: "!49b5dff0",
+        record_local_chat_fn=lambda **kwargs: records.append(kwargs),
+        get_delivery_state_fn=lambda _message_id: {"delivery_state": "pending"},
+        chat_max_bytes=200,
+        normalize_single_emoji_fn=lambda _value: (None, None),
+        to_int_fn=to_int,
+        utc_now_fn=lambda: "2026-05-09 00:00:00Z",
+    )
+    send_chat_fn = build_send_chat_loader_with_dependencies(
+        send_chat_message_fn=send_chat_message,
+        dependencies=dependencies,
+    )
+
+    response = send_chat_fn(
+        "ordered segment",
+        destination="!3369d0b8",
+        retry_unacked=False,
+    )
+
+    assert response["message_id"] == 1000
+    assert [row["id"] for row in iface.sent] == [1000]
+    assert len(records) == 1
 
 
 def test_send_chat_message_skips_async_retry_when_worker_limit_is_full(

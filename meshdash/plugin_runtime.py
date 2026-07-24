@@ -46,6 +46,7 @@ _COMMAND_RE = re.compile(r"!([a-z][a-z0-9_-]{0,31})(?:\s|\Z)", re.IGNORECASE)
 _TICKER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _QUIT_COMMANDS = {"!quit", "!exit"}
 _RESERVED_NODE_IDS = {"!00000000", "!ffffffff"}
+_ACKED_DELIVERY_STATES = {"ack", "acked", "delivered"}
 _QUEUE_STOP = object()
 _ABSOLUTE_PATH_RE = re.compile(
     r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/]|/)"
@@ -67,6 +68,9 @@ class PluginRuntimeConfig:
     chat_max_bytes: int = 200
     max_inbound_file_bytes: int = DEFAULT_FILE_TRANSFER_MAX_BYTES
     long_reply_pace_seconds: float = 1.0
+    long_reply_ack_wait_seconds: float = 25.0
+    long_reply_ack_poll_seconds: float = 0.5
+    long_reply_retry_limit: int = 1
     max_actions_per_minute: int = 60
     max_synchronous_radio_frames_per_batch: int = 64
     max_radio_frames_per_minute: int = 2048
@@ -224,6 +228,48 @@ def _utf8_segments(text: str, maximum_bytes: int) -> list[str]:
     return segments
 
 
+def _numbered_utf8_segments(text: str, maximum_bytes: int) -> list[str]:
+    segments = _utf8_segments(text, maximum_bytes)
+    if len(segments) <= 1:
+        return segments
+
+    total = len(segments)
+    for _attempt in range(8):
+        prefix_bytes = len(f"[{total}/{total}] ".encode("utf-8"))
+        if prefix_bytes >= maximum_bytes:
+            return segments
+        next_segments = _utf8_segments(text, maximum_bytes - prefix_bytes)
+        next_total = len(next_segments)
+        segments = next_segments
+        if next_total == total:
+            break
+        total = next_total
+
+    total = len(segments)
+    return [
+        f"[{index}/{total}] {segment}"
+        for index, segment in enumerate(segments, start=1)
+    ]
+
+
+def _sent_message_id(send_result: object) -> int | None:
+    if not isinstance(send_result, Mapping):
+        return None
+    raw_message_id = (
+        send_result.get("message_id")
+        or send_result.get("packet_id")
+        or send_result.get("messageId")
+        or send_result.get("packetId")
+    )
+    if isinstance(raw_message_id, bool):
+        return None
+    try:
+        message_id = int(raw_message_id)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return message_id if message_id > 0 else None
+
+
 class PluginRuntime:
     """Own one spawned worker and keep all host objects in the parent process."""
 
@@ -236,6 +282,7 @@ class PluginRuntime:
         node_snapshot_fn: Callable[[], Sequence[Mapping[str, object]]] = tuple,
         submit_file_fn: Callable[..., object] | None = None,
         accept_file_offer_fn: Callable[[Mapping[str, JsonValue]], object] | None = None,
+        get_delivery_state_fn: Callable[[object], object] | None = None,
         config: PluginRuntimeConfig = PluginRuntimeConfig(),
         mp_context: object | None = None,
         monotonic_fn: Callable[[], float] = time.monotonic,
@@ -251,6 +298,7 @@ class PluginRuntime:
         self._node_snapshot_fn = node_snapshot_fn
         self._submit_file_fn = submit_file_fn
         self._accept_file_offer_fn = accept_file_offer_fn
+        self._get_delivery_state_fn = get_delivery_state_fn
         self._config = config
         self._mp = mp_context or multiprocessing.get_context("spawn")
         self._monotonic_fn = monotonic_fn
@@ -1384,11 +1432,20 @@ class PluginRuntime:
     def _action_radio_cost(self, action: ScriptAction) -> tuple[int, int]:
         if isinstance(action, ReplyAction):
             segments = (
-                _utf8_segments(action.text, self._config.chat_max_bytes)
+                _numbered_utf8_segments(action.text, self._config.chat_max_bytes)
                 if action.long
                 else [action.text]
             )
-            return len(segments), sum(len(part.encode("utf-8")) for part in segments)
+            retry_multiplier = (
+                max(0, int(self._config.long_reply_retry_limit)) + 1
+                if action.long
+                else 1
+            )
+            return (
+                len(segments) * retry_multiplier,
+                sum(len(part.encode("utf-8")) for part in segments)
+                * retry_multiplier,
+            )
         if isinstance(action, (SendTextAction, SendChannelAction)):
             return 1, len(action.text.encode("utf-8"))
         if isinstance(action, SendFileAction):
@@ -1500,17 +1557,28 @@ class PluginRuntime:
         action = queued.action
         if isinstance(action, ReplyAction):
             segments = (
-                _utf8_segments(action.text, self._config.chat_max_bytes)
+                _numbered_utf8_segments(action.text, self._config.chat_max_bytes)
                 if action.long
                 else [action.text]
             )
             for index, segment in enumerate(segments):
-                self._send_chat_fn(
-                    text=segment,
-                    destination=event.sender_id,
-                    channel_index=event.channel_index,
-                    reply_id=event.packet_id if index == 0 and event.packet_id > 0 else None,
-                )
+                reply_id = event.packet_id if index == 0 and event.packet_id > 0 else None
+                if action.long:
+                    delivered = self._send_long_reply_segment_until_acked(
+                        text=segment,
+                        destination=event.sender_id,
+                        channel_index=event.channel_index,
+                        reply_id=reply_id,
+                    )
+                    if not delivered:
+                        return
+                else:
+                    self._send_chat_fn(
+                        text=segment,
+                        destination=event.sender_id,
+                        channel_index=event.channel_index,
+                        reply_id=reply_id,
+                    )
                 if index + 1 < len(segments):
                     if self._closing.wait(max(0.0, self._config.long_reply_pace_seconds)):
                         return
@@ -1550,6 +1618,71 @@ class PluginRuntime:
             response = self._accept_file_offer_fn(event.packet)
             if isinstance(response, Mapping) and response.get("ok") is False:
                 raise ValueError(str(response.get("error") or "file offer was rejected"))
+
+    def _send_long_reply_segment_until_acked(
+        self,
+        *,
+        text: str,
+        destination: str,
+        channel_index: int,
+        reply_id: int | None,
+    ) -> bool:
+        attempt_message_ids: list[int] = []
+        original_message_id: int | None = None
+        retry_limit = max(0, int(self._config.long_reply_retry_limit))
+        for attempt_index in range(retry_limit + 1):
+            send_result = self._send_chat_fn(
+                text=text,
+                destination=destination,
+                channel_index=channel_index,
+                reply_id=reply_id,
+                retry_of=original_message_id if attempt_index > 0 else None,
+                retry_unacked=False,
+            )
+            message_id = _sent_message_id(send_result)
+            if message_id is None or self._get_delivery_state_fn is None:
+                return True
+            if original_message_id is None:
+                original_message_id = message_id
+            attempt_message_ids.append(message_id)
+            if self._wait_for_long_reply_ack(attempt_message_ids):
+                return True
+        return False
+
+    def _wait_for_long_reply_ack(self, message_ids: Sequence[int]) -> bool:
+        if self._any_delivery_is_acked(message_ids):
+            return True
+        wait_seconds = max(0.0, float(self._config.long_reply_ack_wait_seconds))
+        if wait_seconds <= 0:
+            return False
+        poll_seconds = max(0.05, float(self._config.long_reply_ack_poll_seconds))
+        deadline = time.monotonic() + wait_seconds
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            if self._closing.wait(min(poll_seconds, remaining)):
+                return False
+            if self._any_delivery_is_acked(message_ids):
+                return True
+        return self._any_delivery_is_acked(message_ids)
+
+    def _any_delivery_is_acked(self, message_ids: Sequence[int]) -> bool:
+        return any(self._delivery_is_acked(message_id) for message_id in message_ids)
+
+    def _delivery_is_acked(self, message_id: object) -> bool:
+        getter = self._get_delivery_state_fn
+        if getter is None:
+            return False
+        try:
+            state = getter(message_id)
+        except Exception:
+            return False
+        if isinstance(state, Mapping):
+            raw_state = state.get("delivery_state") or state.get("state")
+        else:
+            raw_state = state
+        return str(raw_state or "").strip().lower() in _ACKED_DELIVERY_STATES
 
     def _startup_identity_is_quarantined(self, plugin_id: str) -> bool:
         manifest = self._manifest_by_id.get(plugin_id)

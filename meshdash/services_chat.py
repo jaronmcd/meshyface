@@ -385,6 +385,7 @@ def send_chat_message(
     outgoing_retry_poll_seconds: float = _OUTGOING_RETRY_ACK_POLL_SECONDS,
     outgoing_retry_limit: int = _OUTGOING_RETRY_LIMIT,
     outgoing_retry_async: bool = True,
+    retry_unacked: bool = True,
     sleep_fn: Callable[[float], None] = time.sleep,
 ) -> dict[str, object]:
     raw_text = str(text or "").strip()
@@ -476,7 +477,7 @@ def send_chat_message(
         local_node_id=local_id,
         to_int_fn=to_int_fn,
         get_delivery_state_fn=get_delivery_state_fn,
-        outgoing_retry_limit=outgoing_retry_limit,
+        outgoing_retry_limit=outgoing_retry_limit if retry_unacked else 0,
         outgoing_retry_wait_seconds=outgoing_retry_wait_seconds,
         outgoing_retry_poll_seconds=outgoing_retry_poll_seconds,
         outgoing_retry_async=outgoing_retry_async,

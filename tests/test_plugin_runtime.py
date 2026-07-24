@@ -8,7 +8,6 @@ import pytest
 
 from meshdash.file_transfer_protocol import (
     FILE_TRANSFER_CHUNK_BYTES,
-    FILE_TRANSFER_MAX_CHUNKS,
     FILE_TRANSFER_MAX_WIRE_BYTES,
 )
 from meshdash.plugins import (
@@ -24,6 +23,7 @@ from meshdash.plugin_runtime import (
     PluginRuntimeConfig,
     _QueuedAction,
     _QueuedActionBatch,
+    _numbered_utf8_segments,
     _terminal_safe_text,
     _utf8_segments,
 )
@@ -479,6 +479,139 @@ def test_long_reply_segmentation_preserves_unicode_byte_limit() -> None:
     assert all(len(segment.encode("utf-8")) <= 11 for segment in segments)
 
 
+def test_long_reply_segments_are_numbered_within_the_radio_byte_limit() -> None:
+    text = "alpha bravo charlie delta echo foxtrot golf hotel"
+
+    segments = _numbered_utf8_segments(text, 24)
+
+    assert len(segments) > 1
+    assert [
+        segment.split("] ", 1)[0] + "]"
+        for segment in segments
+    ] == [
+        f"[{index}/{len(segments)}]"
+        for index in range(1, len(segments) + 1)
+    ]
+    assert all(len(segment.encode("utf-8")) <= 24 for segment in segments)
+    assert " ".join(segment.split("] ", 1)[1] for segment in segments) == text
+
+
+def _long_reply_runtime(
+    *,
+    send_chat_fn,
+    get_delivery_state_fn,
+    retry_limit: int = 1,
+) -> PluginRuntime:
+    runtime = object.__new__(PluginRuntime)
+    runtime._send_chat_fn = send_chat_fn
+    runtime._get_delivery_state_fn = get_delivery_state_fn
+    runtime._closing = threading.Event()
+    runtime._config = PluginRuntimeConfig(
+        chat_max_bytes=24,
+        long_reply_pace_seconds=0,
+        long_reply_ack_wait_seconds=0,
+        long_reply_ack_poll_seconds=0.05,
+        long_reply_retry_limit=retry_limit,
+    )
+    return runtime
+
+
+def test_long_reply_waits_for_each_ack_before_sending_the_next_segment() -> None:
+    events: list[tuple[str, object]] = []
+    acknowledged: set[int] = set()
+
+    def _send(**kwargs: object) -> dict[str, object]:
+        message_id = 100 + sum(1 for kind, _value in events if kind == "send")
+        events.append(("send", kwargs["text"]))
+        acknowledged.add(message_id)
+        return {"message_id": message_id}
+
+    def _delivery_state(message_id: object) -> dict[str, object]:
+        events.append(("ack", message_id))
+        return {
+            "delivery_state": (
+                "acked" if int(message_id) in acknowledged else "pending"
+            )
+        }
+
+    runtime = _long_reply_runtime(
+        send_chat_fn=_send,
+        get_delivery_state_fn=_delivery_state,
+    )
+    action = ReplyAction(
+        "alpha bravo charlie delta echo foxtrot golf hotel",
+        long=True,
+    )
+
+    runtime._execute_action(_QueuedAction("zork", _event("look"), action))
+
+    sent_segments = [value for kind, value in events if kind == "send"]
+    assert len(sent_segments) > 1
+    assert events[0][0] == "send"
+    assert all(
+        events[index][0] == ("send" if index % 2 == 0 else "ack")
+        for index in range(len(events))
+    )
+    assert all(
+        str(segment).startswith(f"[{index}/{len(sent_segments)}] ")
+        for index, segment in enumerate(sent_segments, start=1)
+    )
+
+
+def test_long_reply_retries_a_segment_before_advancing() -> None:
+    sends: list[dict[str, object]] = []
+    delivery_states: dict[int, str] = {}
+
+    def _send(**kwargs: object) -> dict[str, object]:
+        message_id = 200 + len(sends)
+        sends.append(dict(kwargs))
+        delivery_states[message_id] = "pending" if message_id == 200 else "acked"
+        return {"message_id": message_id}
+
+    runtime = _long_reply_runtime(
+        send_chat_fn=_send,
+        get_delivery_state_fn=lambda message_id: {
+            "delivery_state": delivery_states[int(message_id)]
+        },
+    )
+    action = ReplyAction(
+        "alpha bravo charlie delta echo foxtrot golf hotel",
+        long=True,
+    )
+
+    runtime._execute_action(_QueuedAction("zork", _event("look"), action))
+
+    assert len(sends) > 2
+    assert sends[0]["text"] == sends[1]["text"]
+    assert sends[0]["retry_of"] is None
+    assert sends[1]["retry_of"] == 200
+    assert sends[2]["text"] != sends[1]["text"]
+    assert all(send["retry_unacked"] is False for send in sends)
+
+
+def test_long_reply_stops_instead_of_sending_past_an_unacked_segment() -> None:
+    sends: list[dict[str, object]] = []
+
+    def _send(**kwargs: object) -> dict[str, object]:
+        sends.append(dict(kwargs))
+        return {"message_id": 300 + len(sends)}
+
+    runtime = _long_reply_runtime(
+        send_chat_fn=_send,
+        get_delivery_state_fn=lambda _message_id: {"delivery_state": "pending"},
+    )
+    action = ReplyAction(
+        "alpha bravo charlie delta echo foxtrot golf hotel",
+        long=True,
+    )
+
+    runtime._execute_action(_QueuedAction("zork", _event("look"), action))
+
+    assert len(sends) == 2
+    assert sends[0]["text"] == sends[1]["text"]
+    assert sends[1]["retry_of"] == 301
+
+
 def test_debug_terminal_output_escapes_controls_but_keeps_unicode(capsys) -> None:
     runtime = object.__new__(PluginRuntime)
     runtime._status_lock = threading.RLock()
@@ -551,6 +684,7 @@ script = Script(id="second", name="Second", version="1.0.0")
         send_chat_fn=lambda **_kwargs: None,
         config=PluginRuntimeConfig(
             chat_max_bytes=4,
+            long_reply_retry_limit=0,
             max_actions_per_minute=10,
             max_radio_frames_per_minute=10,
             max_radio_bytes_per_minute=100,
@@ -600,8 +734,9 @@ script = Script(id="first", name="First", version="1.0.0")
         send_chat_fn=lambda **_kwargs: None,
         config=PluginRuntimeConfig(
             chat_max_bytes=200,
+            long_reply_retry_limit=0,
             max_actions_per_minute=100,
-            max_synchronous_radio_frames_per_batch=64,
+            max_synchronous_radio_frames_per_batch=66,
             max_radio_frames_per_minute=10_000,
             max_radio_bytes_per_minute=10_000_000,
             max_global_radio_frames_per_minute=10_000,
@@ -617,7 +752,7 @@ script = Script(id="first", name="First", version="1.0.0")
             )
             for _ in range(4)
         )
-        assert all(action.radio_frames == 21 for action in long_actions)
+        assert all(action.radio_frames == 22 for action in long_actions)
         assert runtime._admit_action_batch("first", long_actions[:3]) is True
         assert runtime._admit_action_batch("first", long_actions) is False
 
