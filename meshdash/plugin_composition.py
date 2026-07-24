@@ -131,6 +131,7 @@ class PluginSubsystem:
         enabled_plugin_ids: Sequence[str] = (),
         error: str = "",
         discovery_errors: Sequence[str] = (),
+        directory: str = "",
         detach_receive_fn: Callable[[], object] | None = None,
         runtime_factory: (
             Callable[
@@ -150,6 +151,7 @@ class PluginSubsystem:
         self._discovery_errors = tuple(
             sanitize_plugin_status_error(value) for value in discovery_errors
         )
+        self._directory = str(directory or "").strip()
         self._detach_receive_fn = detach_receive_fn
         self._runtime_factory = runtime_factory
         self._state_changed_fn = state_changed_fn
@@ -302,6 +304,7 @@ class PluginSubsystem:
             "enabled": True,
             "error": self._error,
             "discovery_errors": list(self._discovery_errors),
+            "directory": self._directory,
             "discovered": len(self._manifests),
             "enabled_plugins": list(active_plugin_ids),
             "scripts": scripts,
@@ -756,6 +759,7 @@ def build_plugin_subsystem(
             manifests=discovered,
             enabled_plugin_ids=[manifest.id for manifest in enabled],
             discovery_errors=discovery_errors,
+            directory=local_directory,
             runtime_factory=_runtime_factory,
             state_changed_fn=_mark_state_changed,
         )
@@ -783,6 +787,7 @@ def build_plugin_subsystem(
             runtime=None,
             outbound_files=None,
             error=f"{type(exc).__name__}: {exc}",
+            directory=local_directory,
         )
 
 

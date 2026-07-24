@@ -18,7 +18,7 @@ from meshdash.plugins import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-TEST_REPLY_EXAMPLE = REPO_ROOT / "examples" / "plugins" / "test_reply"
+TEST_REPLY_EXAMPLE = REPO_ROOT / "mesh_dashboard_plugins" / "test_reply"
 
 
 class _Mesh:

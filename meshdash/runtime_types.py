@@ -51,6 +51,7 @@ class RenderHtmlFn(Protocol):
         light_theme_vars: dict | None = None,
         dark_theme_vars: dict | None = None,
         file_transfer_enabled: bool = False,
+        plugins_enabled: bool = False,
         games_enabled: bool = False,
         file_transfer_max_bytes: int = 64 * 1024,
     ) -> str:

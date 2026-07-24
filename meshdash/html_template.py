@@ -25,6 +25,7 @@ def render_html(
     light_theme_vars: dict | None = None,
     dark_theme_vars: dict | None = None,
     file_transfer_enabled: bool = False,
+    plugins_enabled: bool = False,
     games_enabled: bool = False,
     file_transfer_max_bytes: int = _DEFAULT_FILE_TRANSFER_MAX_BYTES,
     initial_background_settings: dict | None = None,
@@ -45,19 +46,43 @@ def render_html(
         reset_ticker_scale_on_restart=reset_ticker_scale_on_restart,
         debug_mode=debug_mode,
         file_transfer_enabled=file_transfer_enabled,
+        plugins_enabled=plugins_enabled,
         games_enabled=games_enabled,
         file_transfer_max_bytes=file_transfer_max_bytes,
     )
     file_transfer_files_tab_hidden_attrs = ""
     file_transfer_section_hidden_attrs = ""
+    scripts_tab_hidden_attrs = ""
+    scripts_section_hidden_attrs = ""
     network_diagnostics_tab_hidden_attrs = ""
     network_diagnostics_panel_hidden_attrs = ""
     if not file_transfer_enabled:
         file_transfer_files_tab_hidden_attrs = ' hidden disabled aria-hidden="true"'
         file_transfer_section_hidden_attrs = ' hidden aria-hidden="true"'
+    if not plugins_enabled:
+        scripts_tab_hidden_attrs = ' hidden disabled aria-hidden="true"'
+        scripts_section_hidden_attrs = ' hidden aria-hidden="true"'
     if not debug_mode:
         network_diagnostics_tab_hidden_attrs = ' hidden disabled aria-hidden="true"'
         network_diagnostics_panel_hidden_attrs = ' hidden aria-hidden="true"'
+    enabled_app_names = ["Games"]
+    if file_transfer_enabled:
+        enabled_app_names.append("Files")
+    if plugins_enabled:
+        enabled_app_names.append("Scripts")
+    if len(enabled_app_names) == 1:
+        apps_workspaces_title = "Games workspace"
+        apps_workspaces_meta = "Games"
+    elif len(enabled_app_names) == 2:
+        apps_workspaces_title = (
+            f"{enabled_app_names[0]} and {enabled_app_names[1]} workspaces"
+        )
+        apps_workspaces_meta = (
+            f"{enabled_app_names[0]} and {enabled_app_names[1].lower()}"
+        )
+    else:
+        apps_workspaces_title = "Games, Files, and Scripts workspaces"
+        apps_workspaces_meta = "Games, files, and scripts"
     return _build_html_shell_helper(
         app_title=_APP_TITLE,
         app_heading=_APP_HEADING,
@@ -71,6 +96,10 @@ def render_html(
         refresh_ms=refresh_ms,
         file_transfer_files_tab_hidden_attrs=file_transfer_files_tab_hidden_attrs,
         file_transfer_section_hidden_attrs=file_transfer_section_hidden_attrs,
+        scripts_tab_hidden_attrs=scripts_tab_hidden_attrs,
+        scripts_section_hidden_attrs=scripts_section_hidden_attrs,
+        apps_workspaces_title=apps_workspaces_title,
+        apps_workspaces_meta=apps_workspaces_meta,
         network_diagnostics_tab_hidden_attrs=network_diagnostics_tab_hidden_attrs,
         network_diagnostics_panel_hidden_attrs=network_diagnostics_panel_hidden_attrs,
         initial_background_settings=initial_background_settings,

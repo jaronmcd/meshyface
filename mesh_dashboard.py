@@ -487,6 +487,7 @@ def _build_render_html_fn_with_theme(
 ):
     settings = theme_preset_settings or _build_theme_preset_settings(args)
     file_transfer_enabled = bool(getattr(args, "file_transfer_enable", False))
+    plugins_enabled = bool(getattr(args, "plugins_enable", False))
     games_enabled = bool(getattr(args, "games_enable", False))
     file_transfer_max_bytes = _normalize_file_transfer_max_bytes(
         getattr(args, "file_transfer_max_bytes", DEFAULT_FILE_TRANSFER_MAX_BYTES)
@@ -511,6 +512,7 @@ def _build_render_html_fn_with_theme(
                 initial_background_settings if isinstance(initial_background_settings, dict) else None
             ),
             file_transfer_enabled=file_transfer_enabled,
+            plugins_enabled=plugins_enabled,
             games_enabled=games_enabled,
             file_transfer_max_bytes=file_transfer_max_bytes,
         )

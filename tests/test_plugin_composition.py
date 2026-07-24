@@ -162,6 +162,7 @@ def test_enabled_master_with_no_enabled_plugins_registers_live_management_listen
         status = subsystem.status()
         assert status["enabled"] is True
         assert status["discovered"] == 0
+        assert status["directory"] == str(tmp_path / "plugins")
         assert status["runtime"] == {}
         assert len(tracker.listeners) == 1
     finally:

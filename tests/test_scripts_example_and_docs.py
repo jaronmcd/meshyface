@@ -6,12 +6,19 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from meshdash.plugins import Script, ReplyAction, parse_manifest, validate_script_against_manifest
+from meshdash.plugins import (
+    ReplyAction,
+    Script,
+    parse_manifest,
+    validate_script_against_manifest,
+)
 from meshdash.plugin_composition import build_plugin_subsystem
+from meshdash.config import DEFAULT_PLUGINS_DIRECTORY
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-HELLO_EXAMPLE = REPO_ROOT / "examples" / "plugins" / "hello"
+DEFAULT_PLUGIN_ROOT = REPO_ROOT / "mesh_dashboard_plugins"
+HELLO_EXAMPLE = DEFAULT_PLUGIN_ROOT / "hello"
 
 
 class _Tracker:
@@ -36,7 +43,7 @@ def _wait_until(predicate, *, timeout: float = 5.0) -> None:
 
 def _example_args(tmp_path: Path, *, enable: bool) -> SimpleNamespace:
     return SimpleNamespace(
-        plugins_directory=str(REPO_ROOT / "examples" / "plugins"),
+        plugins_directory=str(DEFAULT_PLUGIN_ROOT),
         plugins_state_db=str(tmp_path / "plugin-state.sqlite3"),
         plugins_files_directory=str(tmp_path / "plugin-files"),
         plugins_event_queue_size=8,
@@ -85,12 +92,10 @@ def test_hello_example_is_copyable_and_matches_its_manifest(tmp_path: Path) -> N
     assert peer_state == {"visits": 2}
 
 
-def test_hello_example_is_documentation_not_an_included_runtime_package() -> None:
-    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
-
+def test_hello_example_uses_default_source_checkout_plugin_directory() -> None:
     assert HELLO_EXAMPLE.is_dir()
+    assert Path(DEFAULT_PLUGINS_DIRECTORY) == Path("mesh_dashboard_plugins")
     assert not (REPO_ROOT / "meshdash" / "included_plugins" / "hello").exists()
-    assert "COPY examples" not in dockerfile
 
 
 def test_hello_example_runs_in_spawned_runtime_and_persists_peer_state(
@@ -143,12 +148,12 @@ def test_plugins_docs_define_package_and_script_vocabulary() -> None:
         "meshdash.plugins",
         "--plugins-*",
         "MESH_DASH_PLUGINS_*",
-        "examples/plugins/hello",
+        "mesh_dashboard_plugins/hello",
         "one direct child",
         "## Troubleshooting",
         "There is no filesystem hot reload.",
     ):
         assert token in docs
-    assert "not a bundled or automatically discovered plugin" in docs
+    assert "default plugin directory" in docs
     assert "--plugin-enable hello" in docs
     assert "**Apps → Scripts (Alpha)**" in readme

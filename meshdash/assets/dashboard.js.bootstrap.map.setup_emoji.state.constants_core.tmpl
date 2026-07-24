@@ -328,6 +328,7 @@
     const roomSlugRe = /^[a-z0-9][a-z0-9_-]{0,47}$/;
     const chatMessageMaxBytes = Math.max(1, Math.trunc(Number({chat_max_bytes}) || 0));
     const fileTransferFeatureEnabled = !!Number({file_transfer_enabled});
+    const pluginsFeatureEnabled = !!Number({plugins_enabled});
     const fileTransferProtocolPrefix = "MF_FILE_V2";
     // Browser-facing V2 frames are an internal JSON/API representation. The
     // backend converts them to compact binary before radio transmission.

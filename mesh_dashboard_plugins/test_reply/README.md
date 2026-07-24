@@ -11,7 +11,7 @@ Reply:    3 hops to Saint Paul, MN
 Enable it with:
 
 ```bash
-python mesh_dashboard.py --plugins-enable --plugins-directory examples/plugins --plugin-enable test_reply
+python mesh_dashboard.py --plugins-enable --plugin-enable test_reply
 ```
 
 Keep the rest of the arguments required by your radio and HTTP setup.

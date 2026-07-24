@@ -72,7 +72,19 @@ def test_render_html_omits_removed_bbs_and_legacy_bot_workspaces() -> None:
     assert "/api/settings/bbs" not in html
     assert "/api/bbs/host" not in html
     assert 'const gamesFeatureEnabled = !!Number(0);' in html
+    assert 'const pluginsFeatureEnabled = !!Number(0);' in html
     assert 'data-app-view="games"' in html
+    scripts_tab = html.split('data-app-view="scripts"', 1)[1].split(">", 1)[0]
+    scripts_section = html.split(
+        '<section class="card scripts workspace-app-shell"',
+        1,
+    )[1].split(">", 1)[0]
+    assert 'hidden disabled aria-hidden="true"' in scripts_tab
+    assert 'hidden aria-hidden="true"' in scripts_section
+    assert (
+        '<span id="layout-view-menu-apps-meta" '
+        'class="topbar-view-menu-item-meta">Games</span>'
+    ) in html
     assert '<section class="card games workspace-app-shell" aria-label="Games">' in html
     assert 'data-app-view="bots"' not in html
     assert 'class="card bots"' not in html
@@ -91,6 +103,25 @@ def test_render_html_exposes_games_flag_when_enabled() -> None:
     assert 'fetch("/api/games/zork"' in html
     assert 'name: "zork"' in html
     assert 'data-app-view="bots"' not in html
+
+
+def test_render_html_uses_plugins_master_flag_for_scripts_workspace() -> None:
+    html = _render_html(plugins_enabled=True)
+
+    assert 'const pluginsFeatureEnabled = !!Number(1);' in html
+    scripts_tab = html.split('data-app-view="scripts"', 1)[1].split(">", 1)[0]
+    scripts_section = html.split(
+        '<section class="card scripts workspace-app-shell"',
+        1,
+    )[1].split(">", 1)[0]
+    assert " hidden" not in scripts_tab
+    assert " hidden" not in scripts_section
+    assert (
+        '<span id="layout-view-menu-apps-meta" '
+        'class="topbar-view-menu-item-meta">Games and scripts</span>'
+    ) in html
+    assert 'clean === "scripts" && pluginsFeatureEnabled' in html
+    assert 'if (!pluginsFeatureEnabled) return;' in html
 
 
 def test_render_html_has_no_global_file_auto_accept_control() -> None:

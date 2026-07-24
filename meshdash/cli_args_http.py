@@ -149,7 +149,7 @@ def add_http_runtime_args(
         action=argparse.BooleanOptionalAction,
         default=default_plugins_enable,
         help=(
-            "Enable the trusted Python plugin subsystem "
+            "Enable the Scripts workspace and trusted Python plugin subsystem "
             f"(default: {default_plugins_enable})"
         ),
     )

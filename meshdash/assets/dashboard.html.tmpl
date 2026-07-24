@@ -280,7 +280,7 @@
                   role="menuitem"
                   aria-haspopup="menu"
                   aria-expanded="false"
-                  title="Games, Files, and Scripts workspaces"
+                  title="{apps_workspaces_title}"
                 >
                   <span class="topbar-view-menu-item-icon" aria-hidden="true">AP</span>
                   <span class="topbar-view-menu-item-copy">
@@ -288,7 +288,7 @@
                       <span class="topbar-view-menu-item-label">Apps</span>
                       <span id="layout-view-menu-apps-current" class="topbar-view-menu-item-context">Games</span>
                     </span>
-                    <span id="layout-view-menu-apps-meta" class="topbar-view-menu-item-meta">Games and scripts</span>
+                    <span id="layout-view-menu-apps-meta" class="topbar-view-menu-item-meta">{apps_workspaces_meta}</span>
                   </span>
                   <span class="topbar-view-menu-item-badge" hidden>0</span>
                   <span class="topbar-view-menu-item-branch" aria-hidden="true"></span>
@@ -336,6 +336,7 @@
                     role="menuitemradio"
                     aria-checked="false"
                     title="Scripts workspace"
+                    {scripts_tab_hidden_attrs}
                   >
                     <span class="topbar-view-submenu-item-icon" aria-hidden="true">SC</span>
                     <span class="topbar-view-submenu-item-copy">
@@ -2893,7 +2894,7 @@
       </div>
     </section>
 
-    <section class="card scripts workspace-app-shell" aria-label="Scripts">
+    <section class="card scripts workspace-app-shell" aria-label="Scripts"{scripts_section_hidden_attrs}>
       <div class="body">
         <div class="scripts-shell">
           <header class="scripts-head workspace-chrome-bar workspace-stack-head-shell">

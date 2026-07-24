@@ -51,17 +51,15 @@ vectors, parameterized SQL, canonical node-ID validation, and host-brokered file
 operations. The worker provides fault and timeout containment, not an operating
 system sandbox; local plugin source remains fully trusted.
 
-## Try The Hello Example With One Restart
+## Try The Hello Reference Plugin With One Restart
 
-The repository includes a copyable example at `examples/plugins/hello`. It is
-documentation, not a bundled or automatically discovered plugin. Copy it into
-the directory configured by `--plugins-directory`, then start or restart
-Meshyface once with both the runtime and the example enabled:
+The repository includes a minimal reference plugin at
+`mesh_dashboard_plugins/hello`. Local source checkouts use
+`mesh_dashboard_plugins` as the default plugin directory, so start or restart
+Meshyface once with both the runtime and the reference plugin enabled:
 
 ```bash
-mkdir -p mesh_dashboard_plugins
-cp -R examples/plugins/hello mesh_dashboard_plugins/
-python mesh_dashboard.py --plugins-enable --plugins-directory mesh_dashboard_plugins --plugin-enable hello
+python mesh_dashboard.py --plugins-enable --plugin-enable hello
 ```
 
 Keep the rest of the arguments required by your radio and HTTP setup. If a
@@ -76,10 +74,10 @@ For a container installation, place the directory under the persistent
 installation, use writable paths under `/var/lib/meshyface` rather than placing
 local plugins inside the update-managed application checkout.
 
-More examples are available under `examples/plugins/`. `test_reply` shows a
-configurable bot that replies to wildcard-matched messages like `*test*` and
-`*ping*` with response-template macros such as `{hops}`, `{nearest_city}`, and
-`{sender}`.
+More reference plugins are available under `mesh_dashboard_plugins/`.
+`test_reply` shows a configurable bot that replies to wildcard-matched messages
+like `*test*` and `*ping*` with response-template macros such as `{hops}`,
+`{nearest_city}`, and `{sender}`.
 
 ## Runtime Configuration
 
@@ -96,9 +94,10 @@ MESH_DASH_PLUGINS_ENABLE=true
 ```
 
 `--no-plugins-enable` overrides an enabled environment default. When the master
-switch is off, Meshyface does not discover plugins, open script state, start a
-worker or dispatcher, route messages, restore sessions, or execute script
-actions. Normal dashboard messaging and all non-script services remain active.
+switch is off, Meshyface hides the Scripts workspace and does not discover
+plugins, open script state, start a worker or dispatcher, route messages,
+restore sessions, or execute script actions. Normal dashboard messaging and all
+non-script services remain active.
 
 Relevant startup options are:
 
@@ -367,12 +366,12 @@ the new fingerprint; a plugin that was already enabled resumes automatically.
 
 ## Troubleshooting
 
-- **The workspace says the master switch is off:** add `--plugins-enable` or set
-  `MESH_DASH_PLUGINS_ENABLE=true`, then restart Meshyface. Installed packages are
-  deliberately not inspected while the switch is off.
-- **The workspace shows zero scripts:** verify `--plugins-directory`, confirm each
-  plugin is one direct child containing `plugin.toml`, and restart after copying it.
-  The repository `examples/` directory is never discovered automatically.
+- **The Scripts workspace is missing:** add `--plugins-enable` or set
+  `MESH_DASH_PLUGINS_ENABLE=true`, then restart Meshyface. This one master switch
+  controls both workspace visibility and the trusted Python runtime.
+- **The workspace shows zero scripts:** check the configured directory shown in
+  the empty state, confirm each plugin is one direct child containing
+  `plugin.toml`, and restart after copying it.
 - **A plugin reports an import or definition error:** check Python syntax,
   install dependencies into the same virtual environment or container, and
   make the manifest ID, name, version, and command list exactly match the

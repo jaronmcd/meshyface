@@ -12,10 +12,6 @@
     const scriptsPendingRequests = new Map();
     const scriptsPendingConfigRequests = new Set();
     const scriptsConfigDrafts = new Map();
-    const scriptsMasterOffGuidance = (
-      "Not inspected. Install script packages in the --plugins-directory path, enable Scripts with "
-      + "--plugins-enable or MESH_DASH_PLUGINS_ENABLE=true, then restart MeshyFace."
-    );
 
     function scriptsRuntimeSummary(state = latestState) {{
       if (scriptsAdminRuntimeSummary && typeof scriptsAdminRuntimeSummary === "object") {{
@@ -103,6 +99,7 @@
     }}
 
     async function refreshScriptsAdminSummary(force = false) {{
+      if (!pluginsFeatureEnabled) return false;
       if (scriptsAdminFetchPending) return false;
       const now = Date.now();
       const retryDelay = scriptsAdminAccessState ? 15000 : 2500;
@@ -163,6 +160,19 @@
         return String(error.message || error.code || "").trim();
       }}
       return String(error || "").trim();
+    }}
+
+    function scriptsDiscoveryErrors(runtimeSummary) {{
+      if (!runtimeSummary || typeof runtimeSummary !== "object") return [];
+      const errors = Array.isArray(runtimeSummary.discovery_errors)
+        ? runtimeSummary.discovery_errors
+        : [];
+      return errors.map((value) => String(value || "").trim()).filter(Boolean);
+    }}
+
+    function scriptsConfiguredDirectory(runtimeSummary) {{
+      if (!runtimeSummary || typeof runtimeSummary !== "object") return "";
+      return String(runtimeSummary.directory || "").trim();
     }}
 
     function scriptsRuntimeEntries(runtimeSummary) {{
@@ -366,7 +376,11 @@
         return {{ kind: "error", label: "Runtime error", message: summaryError }};
       }}
       if (runtimeSummary.enabled === false) {{
-        return {{ kind: "disabled", label: "Not inspected", message: scriptsMasterOffGuidance }};
+        return {{
+          kind: "unavailable",
+          label: "Waiting for runtime",
+          message: "Scripts will be inspected after the dashboard connects to the radio runtime.",
+        }};
       }}
       if (runtimeSummary.available === false) {{
         return {{
@@ -376,6 +390,14 @@
             runtimeSummary.message
             || "Scripts will become available after the dashboard connects to the radio runtime."
           ),
+        }};
+      }}
+      const discoveryErrors = scriptsDiscoveryErrors(runtimeSummary);
+      if (discoveryErrors.length > 0) {{
+        return {{
+          kind: "error",
+          label: "Discovery error",
+          message: discoveryErrors.slice(0, 3).join(" "),
         }};
       }}
 
@@ -617,6 +639,7 @@
     }}
 
     function renderScriptsView(state = latestState) {{
+      if (!pluginsFeatureEnabled) return false;
       const list = document.getElementById("scripts-list");
       const count = document.getElementById("scripts-count");
       if (!(list instanceof HTMLElement)) return false;
@@ -632,21 +655,38 @@
       const rows = scriptsRuntimeEntries(runtimeSummary);
       const presentation = scriptsRuntimePresentation(runtimeSummary, rows);
       const countText = runtimeSummary && runtimeSummary.enabled === false
-        ? "Not inspected"
+        ? "Waiting"
         : `${{rows.length}} ${{rows.length === 1 ? "script" : "scripts"}}`;
       let listHtml = "";
       if (rows.length <= 0) {{
-        let emptyText = runtimeSummary && runtimeSummary.enabled === false
-          ? scriptsMasterOffGuidance
-          : "Installed scripts have not been inspected.";
+        let emptyText = "Waiting for the Scripts runtime to become available.";
         if (!scriptsAdminRuntimeSummary && scriptsAdminAccessState) {{
           emptyText = "Administrator access is required to inspect installed scripts.";
-        }} else if (runtimeSummary && runtimeSummary.enabled === true && runtimeSummary.available === false) {{
+        }} else if (
+          runtimeSummary
+          && (
+            runtimeSummary.enabled === false
+            || (
+              runtimeSummary.enabled === true
+              && runtimeSummary.available === false
+            )
+          )
+        ) {{
           emptyText = "Waiting for the Scripts runtime to become available.";
         }} else if (!scriptsAdminRuntimeSummary && runtimeSummary && runtimeSummary.enabled === true) {{
           emptyText = "Loading installed scripts…";
         }} else if (runtimeSummary && runtimeSummary.enabled === true) {{
-          emptyText = "No scripts are installed.";
+          const directory = scriptsConfiguredDirectory(runtimeSummary);
+          const discoveryErrors = scriptsDiscoveryErrors(runtimeSummary);
+          if (discoveryErrors.length > 0) {{
+            emptyText = directory
+              ? `No valid scripts were found in ${{directory}}. Fix the discovery error above, then restart MeshyFace.`
+              : "No valid scripts were found. Fix the discovery error above, then restart MeshyFace.";
+          }} else {{
+            emptyText = directory
+              ? `No scripts found in ${{directory}}. Add one package directory containing plugin.toml, then restart MeshyFace.`
+              : "No scripts found. Add a package to the configured plugins directory, then restart MeshyFace.";
+          }}
         }}
         listHtml = `<div class="scripts-empty">${{escAttr(emptyText)}}</div>`;
       }} else {{
@@ -711,6 +751,7 @@
     }}
 
     function renderScriptsViewSafely(state = latestState, stepName = "renderScriptsView") {{
+      if (!pluginsFeatureEnabled) return false;
       let rendered = false;
       if (typeof runPollStep === "function") {{
         rendered = runPollStep(stepName, () => renderScriptsView(state), false);
@@ -727,10 +768,6 @@
       if (
         typeof activeLayoutView !== "undefined"
         && String(activeLayoutView || "") === "scripts"
-        && (
-          !scriptsRuntimeSummary(state)
-          || scriptsRuntimeSummary(state).enabled !== false
-        )
       ) {{
         void refreshScriptsAdminSummary(false);
       }}
@@ -926,6 +963,7 @@
     }}
 
     function bindScriptsView() {{
+      if (!pluginsFeatureEnabled) return;
       const list = document.getElementById("scripts-list");
       if (!(list instanceof HTMLElement) || list.dataset.bound === "1") return;
       list.dataset.bound = "1";

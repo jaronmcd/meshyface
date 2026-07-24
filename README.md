@@ -201,8 +201,8 @@ node/location lookups, and host-managed file jobs. The subsystem is disabled by
 default. Script Python is trusted code, not sandboxed code. Its management
 surface is **Apps → Scripts (Alpha)**; it shows plugin runtime and enablement
 status but does not edit or upload code. See [Plugins and Script API
-(Alpha)](docs/plugins.md) for the copyable Hello example, one-restart install
-flow, package format, API names, trust model, and troubleshooting.
+(Alpha)](docs/plugins.md) for the in-repository reference plugins, one-restart
+enablement flow, package format, API names, trust model, and troubleshooting.
 
 ## Links View Semantics
 

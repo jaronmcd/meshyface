@@ -32,7 +32,7 @@ def _context(*, city="Minneapolis", packet=None):
 
 
 def test_packet_city_example_emits_city_packet_summary() -> None:
-    module = runpy.run_path("examples/plugins/packet_city/script.py")
+    module = runpy.run_path("mesh_dashboard_plugins/packet_city/script.py")
     handler = module["print_packet_and_city"]
     context = _context()
 
@@ -44,7 +44,7 @@ def test_packet_city_example_emits_city_packet_summary() -> None:
 
 
 def test_packet_city_example_publishes_top_three_city_scoreboard() -> None:
-    module = runpy.run_path("examples/plugins/packet_city/script.py")
+    module = runpy.run_path("mesh_dashboard_plugins/packet_city/script.py")
     script = module["script"]
     handler = module["print_packet_and_city"]
 
@@ -100,7 +100,7 @@ def test_packet_city_example_publishes_top_three_city_scoreboard() -> None:
 
 
 def test_packet_city_example_counts_no_city_packets_in_total() -> None:
-    module = runpy.run_path("examples/plugins/packet_city/script.py")
+    module = runpy.run_path("mesh_dashboard_plugins/packet_city/script.py")
     handler = module["print_packet_and_city"]
 
     handler(_context(city="Saint Paul"))

@@ -19,12 +19,12 @@ minutes, as the old script did. Sessions live in the script worker and reset whe
 the script or dashboard restarts. The standalone local Console game remains a
 separate feature controlled by `--games-enable`.
 
-This repository location is an example, not an automatically installed plugin.
-For the standard systemd deployment, copy the package to the persistent plugin
-directory before enabling it:
+Local source checkouts discover this reference plugin from the default
+`mesh_dashboard_plugins` directory. For the standard systemd deployment, copy
+the package to the persistent plugin directory before enabling it:
 
 ```bash
-scp -r examples/plugins/zork j@192.168.1.67:/home/j/mesh/plugins/
+scp -r mesh_dashboard_plugins/zork j@192.168.1.67:/home/j/mesh/plugins/
 MESH_DASH_DEPLOY_PLUGIN_ENABLE=zork ./scripts/deploy_meshyface.sh --target j@192.168.1.67 --plugins-enable
 ```
 

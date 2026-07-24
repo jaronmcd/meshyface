@@ -23,12 +23,14 @@ def _html() -> str:
     )
 
 
-def _js() -> str:
-    return build_dashboard_js(
-        refresh_ms=1000,
-        node_history_hours=24,
-        node_history_max_points=240,
-    )
+def _js(**overrides: object) -> str:
+    kwargs: dict[str, object] = {
+        "refresh_ms": 1000,
+        "node_history_hours": 24,
+        "node_history_max_points": 240,
+    }
+    kwargs.update(overrides)
+    return build_dashboard_js(**kwargs)
 
 
 def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
@@ -82,15 +84,20 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert "scriptsDebugClearedThrough" in scripts_js
 
 
-def test_scripts_view_renders_master_off_offline_and_live_lifecycle_states() -> None:
-    js = _js()
+def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> None:
+    js = _js(plugins_enabled=True)
 
+    assert "const pluginsFeatureEnabled = !!Number(1);" in js
+    assert 'clean === "scripts" && pluginsFeatureEnabled' in js
     assert "runtimeSummary.enabled === false" in js
-    assert 'label: "Not inspected", message: scriptsMasterOffGuidance' in js
-    assert '? "Not inspected"' in js
-    assert "--plugins-directory path" in js
-    assert "--plugins-enable or MESH_DASH_PLUGINS_ENABLE=true" in js
-    assert "then restart MeshyFace" in js
+    assert 'label: "Waiting for runtime"' in js
+    assert "Scripts will be inspected after the dashboard connects" in js
+    assert 'label: "Discovery error"' in js
+    assert "scriptsDiscoveryErrors(runtimeSummary)" in js
+    assert "scriptsConfiguredDirectory(runtimeSummary)" in js
+    assert "No scripts found in ${directory}." in js
+    assert "containing plugin.toml, then restart MeshyFace" in js
+    assert "scriptsMasterOffGuidance" not in js
     assert "runtimeSummary.available === false" in js
     assert 'label: "Waiting for runtime"' in js
     assert "scriptsConfiguredStateMismatch(row)" in js

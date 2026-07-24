@@ -6,7 +6,7 @@
       if (clean === "files" && fileTransferFeatureEnabled) {{
         return clean;
       }}
-      if (clean === "scripts") {{
+      if (clean === "scripts" && pluginsFeatureEnabled) {{
         return clean;
       }}
       return "games";
@@ -16,7 +16,7 @@
       const clean = String(viewName || "").trim().toLowerCase();
       return (
         clean === "games"
-        || clean === "scripts"
+        || (clean === "scripts" && pluginsFeatureEnabled)
         || (clean === "files" && fileTransferFeatureEnabled)
       );
     }}
@@ -51,13 +51,16 @@
       if (resolved === "files" && !fileTransferFeatureEnabled) {{
         resolved = "games";
       }}
+      if (resolved === "scripts" && !pluginsFeatureEnabled) {{
+        resolved = "games";
+      }}
       // Public launcher: expose the core workspaces and the Apps children.
       return (
         resolved === "chat"
         || resolved === "network"
         || resolved === "console"
         || resolved === "games"
-        || resolved === "scripts"
+        || (resolved === "scripts" && pluginsFeatureEnabled)
         || (resolved === "files" && fileTransferFeatureEnabled)
         || resolved === "settings"
       )
@@ -10236,10 +10239,12 @@
     }}
 
     function appsLauncherMenuMetaText() {{
-      if (fileTransferFeatureEnabled) {{
+      if (fileTransferFeatureEnabled && pluginsFeatureEnabled) {{
         return "Games, files, and scripts";
       }}
-      return "Games and scripts";
+      if (fileTransferFeatureEnabled) return "Games and files";
+      if (pluginsFeatureEnabled) return "Games and scripts";
+      return "Games";
     }}
 
     function closeLayoutViewSubmenus() {{
@@ -10437,6 +10442,21 @@
       if (filesCard instanceof HTMLElement) {{
         filesCard.hidden = !enabled;
         filesCard.setAttribute("aria-hidden", enabled ? "false" : "true");
+      }}
+    }}
+
+    function syncScriptsFeatureVisibility() {{
+      const enabled = !!pluginsFeatureEnabled;
+      const scriptsTabBtn = document.querySelector('#layout-view-menu-apps-submenu .topbar-view-submenu-item[data-app-view="scripts"]');
+      if (scriptsTabBtn instanceof HTMLButtonElement) {{
+        scriptsTabBtn.hidden = !enabled;
+        scriptsTabBtn.disabled = !enabled;
+        scriptsTabBtn.setAttribute("aria-hidden", enabled ? "false" : "true");
+      }}
+      const scriptsCard = document.querySelector("#dashboard-layout .card.scripts");
+      if (scriptsCard instanceof HTMLElement) {{
+        scriptsCard.hidden = !enabled;
+        scriptsCard.setAttribute("aria-hidden", enabled ? "false" : "true");
       }}
     }}
 
@@ -10854,6 +10874,7 @@
       syncLayoutViewMenu(next);
       closeLayoutViewMenu();
       syncFileTransferFeatureVisibility();
+      syncScriptsFeatureVisibility();
       syncAppsTabBarVisibility(next);
       syncAppsTabBar(next);
       if (typeof requestTopbarLayoutMetricsSync === "function") {{
