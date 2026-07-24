@@ -21,9 +21,35 @@ boundary contains ordinary exceptions and infinite handlers; it is not a
 security sandbox and does not defend against hostile code, resource exhaustion,
 or deliberate process signaling.
 
+The package fingerprint is a change-detection and stale-request signal, not a
+hostile-code security boundary or publisher signature. It covers operational
+files in the plugin package. Common local-development metadata and generated
+artifacts are excluded from both the fingerprint and package limits:
+`.git`, `.hg`, `.svn`, `__pycache__`, `.pytest_cache`, `.mypy_cache`,
+`.ruff_cache`, `htmlcov`, and `.coverage`. Those excluded paths are
+intentionally outside the integrity signal, so plugins must not depend on them
+for runtime code or configuration. Other package files remain fingerprinted
+and count toward package limits. This keeps an ordinary live local checkout
+usable while making meaningful package changes visible.
+
+Dependencies installed into Meshyface's shared Python environment are
+host-level trusted code and are also outside the package fingerprint. Pin and
+manage them as part of the local Meshyface installation.
+
 Meshyface does not pass the live radio, tracker, HTTP server, SQLite connection,
 or internal locks to a script. Events, state snapshots, and requested actions
 cross the worker boundary as strictly validated JSON bytes.
+
+Treat every mesh-derived value as hostile input, including message text,
+sender/destination IDs, packet fields, node metadata, file-transfer metadata,
+and values returned through node snapshots. Normalization makes those values
+bounded and JSON-safe; it does not make their contents trustworthy. Plugin code
+must not pass them to `eval`/`exec`, interpolate them into `shell=True` or other
+command strings, concatenate them into SQL, or use them as filesystem paths
+without a strict allowlist and confinement check. Prefer fixed argument
+vectors, parameterized SQL, canonical node-ID validation, and host-brokered file
+operations. The worker provides fault and timeout containment, not an operating
+system sandbox; local plugin source remains fully trusted.
 
 ## Try The Hello Example With One Restart
 
@@ -91,13 +117,66 @@ per-plugin overrides may be supplied as comma-separated
 Individual enablement and Script configuration are persisted when changed in
 the Scripts workspace and are not deleted when the master switch is off.
 Enablement changes apply live. Configuration changes are visible to the next
-handler invocation without restarting the worker. Install, code, manifest, and
-dependency changes take effect after a dashboard restart. Runtime status appears
-in the normal state response under `summary.plugins`.
+handler invocation without restarting the worker.
+
+A newly discovered local plugin ID starts disabled when it has no stored
+enablement record, even if its manifest declares `default_enabled = true`. Once
+the administrator enables or disables it, that choice persists by plugin ID.
+Editing the trusted local package and restarting Meshyface discovers the new
+fingerprint and automatically continues running a previously enabled plugin.
+The normal hacking loop is edit, restart, and test; there is no reapproval step
+for a known plugin.
+`--plugin-enable ID` and `MESH_DASH_PLUGIN_ENABLE` can enable a new plugin at
+startup, while the corresponding disable override keeps it off.
+
+Treat the plugin ID as a durable local trust and configuration namespace.
+Removing a package does not erase that namespace. Installing unrelated code
+later under the same ID inherits the prior enabled/disabled choice and may
+inherit schema-compatible settings plus global and peer state. Sessions still
+clear when the fingerprint changes. Give unrelated replacement code a new ID,
+or clear that ID's persisted records (or use a fresh plugin state database)
+before installing it.
+
+Enable/configure requests still carry the package fingerprint rendered with
+the button or form. If a browser tab is stale because the backend restarted on
+a different package revision, Meshyface rejects the request with HTTP 409 and
+the workspace refreshes before applying anything.
+
+Saved settings carry forward automatically when they remain valid under the
+new manifest schema. If the schema changed incompatibly, the plugin uses its
+declared defaults until an administrator saves replacement values. Global and
+peer state also persist, while active conversational sessions are cleared when
+the package fingerprint changes.
+
+Plugin administration remains tokenless only when both the client and HTTP Host
+are loopback (`localhost`, `127.0.0.0/8`, or `::1`). For a LAN hostname, remote
+browser, or reverse proxy, configure `MESH_DASH_API_TOKEN` (preferred) or
+`--api-token`. The Scripts workspace asks for that token and keeps it only in
+the current tab's session storage; it is not placed in public dashboard state
+or `localStorage`. Non-browser clients may send the same credential
+as `Authorization: Bearer ...` or `X-API-Token`.
+
+A proxy connection cannot prove that the original browser was local. Meshyface
+therefore denies tokenless plugin administration whenever `Forwarded`, `Via`,
+`X-Real-IP`, or any `X-Forwarded-*` header is present. Proxy deployments must
+configure a token even if the proxy strips forwarding metadata or rewrites
+`Host` to a loopback address.
+
+The bearer token authenticates an administrator; it does not encrypt HTTP.
+For administration from another machine, put Meshyface behind a correctly
+configured TLS reverse proxy or reach its loopback listener through an SSH
+tunnel. Do not send the token or plugin settings over untrusted plain-text
+networks. Saved text settings are returned to the authorized Scripts workspace
+for editing, so treat that page and its browser session as secret-bearing.
+
+The normal state response exposes only minimal plugin health, counts, and
+display tickers. Installed-package metadata, settings, debug records, and file
+job details are available through the loopback-or-token-protected
+`/api/admin/plugins` endpoint used by the Scripts workspace.
 
 The alpha workspace intentionally has no code editor, package installer, or
-upload surface. Administrators install and review plugin packages through the
-filesystem and deployment workflow.
+upload surface. Administrators install and manage trusted local plugin packages
+through the filesystem and deployment workflow.
 
 ## Plugin Package
 
@@ -132,6 +211,24 @@ Manifest identity and commands are authoritative. The exported `Script` must mat
 them exactly. Entrypoints are confined to their plugin directory, duplicate IDs
 and commands are rejected, and only enabled entrypoints are imported in the
 spawned worker. Merely discovering a manifest never imports its Python module.
+Local packages always begin disabled: a local manifest's `default_enabled = true`
+cannot grant its own code permission to execute. That field is honored only for
+plugins shipped inside Meshyface. Enable a new local package in the Scripts
+workspace or with `--plugin-enable` when you intend to run it.
+
+Package directories, manifests, and files must be ordinary directories and
+regular files rather than symlinks or special filesystem objects. Discovery
+also rejects package paths owned by an unrelated user, world-writable paths,
+and paths writable by a shared group. A user-private primary group remains
+supported. Install packages read-only to other accounts and owned by root or
+the dashboard service user, and keep the configured discovery root and its
+parents administrator-controlled. This prevents less-privileged local writers
+from changing the executable package when conventional POSIX owner and mode
+bits are the access-control boundary. Remove any write-granting filesystem ACLs
+from a plugin tree; extended ACL permissions are outside this check. Discovery
+isolates a malformed package so other healthy packages can still run.
+Manifests, command lists, package entry counts, and total package bytes have
+defensive limits; rejection details appear in plugin discovery status.
 
 Settings are optional. Supported `type` values are `text`, `boolean`, `integer`,
 and `node_ids`. Text fields may declare `placeholder` and `max_length`; integer
@@ -180,6 +277,12 @@ newly saved values without a worker restart. Use `ctx.state` or
 `ctx.peer_state` for Script-owned mutable data instead.
 
 Packet handlers receive the accepted JSON-safe packet as `ctx.packet`.
+This includes accepted transit traffic on monitored channels, even when the
+local node is neither sender nor destination. An enabled `@script.on_packet`
+plugin can therefore inspect that traffic, although it cannot suppress normal
+dashboard processing. Treat packet visibility as part of the capability being
+enabled.
+
 `ctx.debug(...)` writes a bounded entry to Apps → Scripts → Script debug output
 and echoes the same entry to the dashboard's foreground terminal.
 
@@ -211,15 +314,35 @@ Script, and disabling its plugin hides the tickers automatically.
 State and session changes are committed only after a complete valid handler
 result. Exceptions, malformed results, crashes, and timeouts send no actions and
 commit no state. A timed-out invocation is dropped rather than replayed after
-worker restart.
+worker restart. Global `ctx.state` remains shared by the Script, while
+`ctx.peer_state` is isolated by sender and channel. Existing databases migrate
+legacy peer state to channel 0. Unchanged state is not rewritten, and empty peer
+state does not create a row for a new sender. Each plugin may retain at most 512
+peer-state rows, 8 MiB of aggregate peer-state JSON, and 256 active sessions.
+Global and peer state intentionally survive a package update so counters and
+durable workflow data continue across versions. They are not a secret store:
+trusted plugin code runs as the dashboard user and can read the state database.
+Active conversational sessions are cleared when the package fingerprint
+changes, so an old conversation cannot silently resume in changed code.
 
 Calling `ctx.session.start()` or `ctx.session.end()` changes the host-owned
 direct-message session even when the returned session action is not included in
 the handler return. Explicit commands take precedence over sessions. Public
 messages never continue sessions, and direct `!quit` or `!exit` is handled by
-the host even if the script worker is unavailable.
+the host even if the script worker is unavailable. Sessions are scoped by local
+node, peer, and channel, so a conversation on one channel cannot resume on
+another.
 
 `ctx.reply_long(...)` is split on UTF-8 byte boundaries and paced by the host.
+One handler result may schedule at most 64 synchronous radio frames, preventing
+a large group of long replies from monopolizing the action worker. A normal
+long reply remains supported. File sends and inbound file acceptance are
+host-queued asynchronous jobs and do not consume this per-result
+synchronous-frame allowance. Estimated outbound send airtime and the reservation
+made when a plugin accepts an inbound offer count against the runtime radio
+budgets. The inbound service separately applies replay limits and an ACK
+cooldown plus a rolling 60-second ACK ceiling of 64 frames per sender and 128
+frames globally.
 `ctx.mesh.send_file(...)` queues a host-managed MF_FILE_V2 job and can only read
 regular files inside the administrator-approved script files directory. File
 actions also require `--file-transfer-enable` and
@@ -236,6 +359,11 @@ transfer may finish.
 
 Lifecycle hooks are best-effort: `on_start` can run again after a worker restart,
 and `on_stop` cannot run when a hung or crashed worker must be terminated.
+A plugin that hangs or fatally exits while importing is quarantined for that
+package identity so it cannot periodically disrupt healthy plugins. An
+unchanged identity may be retried by disabling and re-enabling it or by
+restarting Meshyface. After editing the package, restart Meshyface to discover
+the new fingerprint; a plugin that was already enabled resumes automatically.
 
 ## Troubleshooting
 
@@ -256,4 +384,6 @@ and `on_stop` cannot run when a hung or crashed worker must be terminated.
   and enable the file-transfer feature and its traffic disclaimer.
 
 There is no filesystem hot reload. Restart Meshyface after changing Script code,
-plugin manifests, dependencies, installation, or enablement.
+plugin manifests, dependencies, or installation. Previously enabled plugins
+resume with the changed local package, while ordinary enablement changes in the
+Scripts workspace remain live.

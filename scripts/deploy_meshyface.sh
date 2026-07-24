@@ -480,6 +480,19 @@ resolve_remote_data_path() {
   fi
 }
 
+assert_single_line_deploy_value() {
+  local label="$1"
+  local value="${2:-}"
+  if [[ "${value}" == *$'\n'* || "${value}" == *$'\r'* ]]; then
+    echo "${label} must not contain line breaks" >&2
+    exit 2
+  fi
+}
+
+remote_shell_quote() {
+  printf '%q' "${1:-}"
+}
+
 read_remote_identity() {
   local identity
   identity="$(
@@ -899,6 +912,21 @@ PLUGINS_STATE_DB="$(resolve_remote_data_path "${PLUGINS_STATE_DB}")"
 PLUGINS_FILES_DIRECTORY="$(resolve_remote_data_path "${PLUGINS_FILES_DIRECTORY}")"
 PLUGINS_STATE_DB_PARENT="$(dirname -- "${PLUGINS_STATE_DB}")"
 
+assert_single_line_deploy_value "plugin enablement" "${PLUGINS_ENABLE}"
+assert_single_line_deploy_value "plugin directory" "${PLUGINS_DIRECTORY}"
+assert_single_line_deploy_value "plugin state database" "${PLUGINS_STATE_DB}"
+assert_single_line_deploy_value "plugin files directory" "${PLUGINS_FILES_DIRECTORY}"
+assert_single_line_deploy_value "plugin enable list" "${PLUGIN_ENABLE_LIST}"
+assert_single_line_deploy_value "plugin disable list" "${PLUGIN_DISABLE_LIST}"
+
+REMOTE_ROOT_Q="$(remote_shell_quote "${REMOTE_ROOT}")"
+APP_DIR_Q="$(remote_shell_quote "${APP_DIR}")"
+CONFIG_DIR_Q="$(remote_shell_quote "${CONFIG_DIR}")"
+LOG_DIR_Q="$(remote_shell_quote "${LOG_DIR}")"
+PLUGINS_DIRECTORY_Q="$(remote_shell_quote "${PLUGINS_DIRECTORY}")"
+PLUGINS_STATE_DB_PARENT_Q="$(remote_shell_quote "${PLUGINS_STATE_DB_PARENT}")"
+PLUGINS_FILES_DIRECTORY_Q="$(remote_shell_quote "${PLUGINS_FILES_DIRECTORY}")"
+
 if ! [[ "${FILE_TRANSFER_MAX_BYTES}" =~ ^[0-9]+$ ]]; then
   echo "--file-transfer-max-bytes must be an integer" >&2
   exit 2
@@ -944,7 +972,7 @@ if [[ "${WIPE_REMOTE_ROOT}" -eq 1 ]]; then
   uninstall_remote_meshyface
 fi
 
-ssh_cmd "${TARGET}" "mkdir -p '${REMOTE_ROOT}' '${APP_DIR}' '${CONFIG_DIR}' '${LOG_DIR}' '${PLUGINS_DIRECTORY}' '${PLUGINS_STATE_DB_PARENT}' '${PLUGINS_FILES_DIRECTORY}'"
+ssh_cmd "${TARGET}" "mkdir -p ${REMOTE_ROOT_Q} ${APP_DIR_Q} ${CONFIG_DIR_Q} ${LOG_DIR_Q} ${PLUGINS_DIRECTORY_Q} ${PLUGINS_STATE_DB_PARENT_Q} ${PLUGINS_FILES_DIRECTORY_Q}"
 
 if [[ "${CLEAN_APP_DIR}" -eq 1 ]]; then
   if [[ -z "${APP_DIR}" || "${APP_DIR}" == "/" ]]; then
@@ -1038,6 +1066,17 @@ Restart=always
 RestartSec=2
 KillSignal=SIGINT
 TimeoutStopSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+CapabilityBoundingSet=
+AmbientCapabilities=
 
 [Install]
 WantedBy=multi-user.target

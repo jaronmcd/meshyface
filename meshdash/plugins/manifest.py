@@ -3,15 +3,39 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
+import hashlib
+import os
 from pathlib import Path
 import re
+import stat
 import tomllib
-from typing import Literal, Mapping
+from typing import Callable, Literal, Mapping
 
 from .sdk import Script
 
 
 SUPPORTED_API_VERSION = 1
+MAX_MANIFEST_BYTES = 64 * 1024
+MAX_DISCOVERED_PLUGINS = 64
+MAX_DISCOVERY_ROOT_ENTRIES = 1024
+MAX_PLUGIN_COMMANDS = 64
+MAX_PLUGIN_PACKAGE_ENTRIES = 1024
+MAX_PLUGIN_PACKAGE_BYTES = 64 * 1024 * 1024
+PACKAGE_DIGEST_PREFIX = "sha256:"
+_IGNORED_DEVELOPMENT_DIRECTORIES = frozenset(
+    {
+        ".git",
+        ".hg",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".svn",
+        "__pycache__",
+        "htmlcov",
+    }
+)
+_IGNORED_DEVELOPMENT_FILES = frozenset({".coverage", ".git"})
 _PLUGIN_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 _COMMAND_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _SETTING_KEY_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
@@ -83,7 +107,19 @@ class PluginManifest:
     entrypoint_path: Path
     entrypoint_object: str
     source: PluginSource
+    package_digest: str
     settings: tuple[PluginSettingDefinition, ...] = ()
+
+    @property
+    def effective_default_enabled(self) -> bool:
+        """Return the host-owned default for this discovered package.
+
+        Only packages shipped in Meshyface's included-plugin directory may opt
+        in to automatic enablement. A new local package cannot grant itself
+        execution merely by setting a manifest field.
+        """
+
+        return self.source == "included" and self.default_enabled
 
 
 def parse_manifest(
@@ -100,11 +136,21 @@ def parse_manifest(
     path = Path(manifest_path)
     if path.name != "plugin.toml":
         raise ManifestError(f"{path}: manifest must be named plugin.toml")
+    if path.parent.is_symlink():
+        raise ManifestError(f"{path}: plugin package directory must not be a symlink")
+    if path.is_symlink():
+        raise ManifestError(f"{path}: plugin manifest must not be a symlink")
     try:
-        with path.open("rb") as handle:
-            raw = tomllib.load(handle)
+        manifest_bytes = _read_regular_file(
+            path,
+            maximum_bytes=MAX_MANIFEST_BYTES,
+            label="plugin manifest",
+        )
+        raw = tomllib.loads(manifest_bytes.decode("utf-8"))
     except FileNotFoundError as exc:
         raise ManifestError(f"{path}: manifest does not exist") from exc
+    except UnicodeDecodeError as exc:
+        raise ManifestError(f"{path}: manifest must be UTF-8") from exc
     except OSError as exc:
         raise ManifestError(f"{path}: cannot read manifest: {exc}") from exc
     except tomllib.TOMLDecodeError as exc:
@@ -135,15 +181,24 @@ def parse_manifest(
     if not isinstance(default_enabled, bool):
         raise ManifestError(f"{path}: default_enabled must be a boolean")
 
-    resolved_manifest = path.resolve()
-    # Confinement is relative to the package containing the manifest path, not
-    # to a possible symlink target of plugin.toml itself.
-    plugin_directory = path.parent.resolve()
+    resolved_manifest = path.absolute()
+    plugin_directory = path.parent.absolute()
     entrypoint_path, entrypoint_object = _resolve_entrypoint(
         path,
         plugin_directory,
         entrypoint,
     )
+    package_digest = compute_plugin_package_digest(plugin_directory)
+    try:
+        current_manifest_bytes = _read_regular_file(
+            path,
+            maximum_bytes=MAX_MANIFEST_BYTES,
+            label="plugin manifest",
+        )
+    except OSError as exc:
+        raise ManifestError(f"{path}: cannot recheck manifest: {exc}") from exc
+    if current_manifest_bytes != manifest_bytes:
+        raise ManifestError(f"{path}: plugin manifest changed during discovery")
     return PluginManifest(
         api_version=api_version,
         id=plugin_id,
@@ -157,6 +212,7 @@ def parse_manifest(
         entrypoint_path=entrypoint_path,
         entrypoint_object=entrypoint_object,
         source=source,
+        package_digest=package_digest,
         settings=settings,
     )
 
@@ -164,6 +220,8 @@ def parse_manifest(
 def discover_plugins(
     included_directory: str | Path | None,
     local_directory: str | Path | None,
+    *,
+    on_error: Callable[[ManifestError], object] | None = None,
 ) -> tuple[PluginManifest, ...]:
     """Discover direct child plugin packages in deterministic source/name order.
 
@@ -174,6 +232,7 @@ def discover_plugins(
 
     discovered: list[PluginManifest] = []
     by_id: dict[str, PluginManifest] = {}
+    candidate_count = 0
     roots: tuple[tuple[PluginSource, str | Path | None], ...] = (
         ("included", included_directory),
         ("local", local_directory),
@@ -184,28 +243,286 @@ def discover_plugins(
         root = Path(root_value)
         if not root.exists():
             continue
+        if root.is_symlink():
+            _report_discovery_error(
+                ManifestError(f"{root}: plugin discovery root must not be a symlink"),
+                on_error,
+            )
+            continue
         if not root.is_dir():
-            raise ManifestError(f"{root}: plugin discovery root is not a directory")
+            _report_discovery_error(
+                ManifestError(f"{root}: plugin discovery root is not a directory"),
+                on_error,
+            )
+            continue
         try:
-            children = sorted(root.iterdir(), key=lambda item: item.name)
+            children: list[Path] = []
+            with os.scandir(root) as entries:
+                for entry in entries:
+                    if len(children) >= MAX_DISCOVERY_ROOT_ENTRIES:
+                        raise ManifestError(
+                            f"{root}: plugin discovery root contains more than "
+                            f"{MAX_DISCOVERY_ROOT_ENTRIES} entries"
+                        )
+                    children.append(Path(entry.path))
+            children.sort(key=lambda item: item.name)
+        except ManifestError as exc:
+            _report_discovery_error(exc, on_error)
+            continue
         except OSError as exc:
-            raise ManifestError(f"{root}: cannot enumerate plugin directory: {exc}") from exc
+            _report_discovery_error(
+                ManifestError(f"{root}: cannot enumerate plugin directory: {exc}"),
+                on_error,
+            )
+            continue
         for child in children:
+            if child.is_symlink():
+                _report_discovery_error(
+                    ManifestError(f"{child}: plugin package directory must not be a symlink"),
+                    on_error,
+                )
+                continue
             if not child.is_dir():
                 continue
             manifest_path = child / "plugin.toml"
+            if manifest_path.is_symlink():
+                _report_discovery_error(
+                    ManifestError(f"{manifest_path}: plugin manifest must not be a symlink"),
+                    on_error,
+                )
+                continue
             if not manifest_path.is_file():
                 continue
-            manifest = parse_manifest(manifest_path, source=source)
+            if candidate_count >= MAX_DISCOVERED_PLUGINS:
+                _report_discovery_error(
+                    ManifestError(
+                        f"{root}: at most {MAX_DISCOVERED_PLUGINS} plugin packages "
+                        "may be inspected"
+                    ),
+                    on_error,
+                )
+                return tuple(discovered)
+            candidate_count += 1
+            try:
+                manifest = parse_manifest(manifest_path, source=source)
+            except ManifestError as exc:
+                _report_discovery_error(exc, on_error)
+                continue
             previous = by_id.get(manifest.id)
             if previous is not None:
-                raise DuplicatePluginIdError(
-                    f"duplicate plugin id {manifest.id!r}: "
-                    f"{previous.manifest_path} and {manifest.manifest_path}"
+                _report_discovery_error(
+                    DuplicatePluginIdError(
+                        f"duplicate plugin id {manifest.id!r}: "
+                        f"{previous.manifest_path} and {manifest.manifest_path}"
+                    ),
+                    on_error,
                 )
+                continue
             by_id[manifest.id] = manifest
             discovered.append(manifest)
     return tuple(discovered)
+
+
+def compute_plugin_package_digest(plugin_directory: str | Path) -> str:
+    """Hash every regular package file in stable path/content order.
+
+    Symlinks and non-regular filesystem objects are rejected.  The same helper
+    runs during import in the worker, preventing files changed after discovery
+    from executing under the earlier package revision.
+    """
+
+    root = Path(plugin_directory)
+    if root.is_symlink():
+        raise ManifestError(f"{root}: plugin package directory must not be a symlink")
+    try:
+        root_stat = root.stat()
+    except OSError as exc:
+        raise ManifestError(f"{root}: cannot inspect plugin package: {exc}") from exc
+    if not stat.S_ISDIR(root_stat.st_mode):
+        raise ManifestError(f"{root}: plugin package is not a directory")
+    _validate_trusted_file_metadata(root, root_stat, label="plugin package directory")
+
+    files: list[tuple[bytes, Path]] = []
+    pending = [root]
+    entry_count = 0
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                rows = sorted(entries, key=lambda entry: entry.name)
+        except OSError as exc:
+            raise ManifestError(f"{directory}: cannot enumerate plugin package: {exc}") from exc
+        for entry in rows:
+            path = Path(entry.path)
+            try:
+                entry_stat = entry.stat(follow_symlinks=False)
+            except OSError as exc:
+                raise ManifestError(f"{path}: cannot inspect plugin package entry: {exc}") from exc
+            if stat.S_ISLNK(entry_stat.st_mode):
+                raise ManifestError(f"{path}: plugin package symlinks are not allowed")
+            if (
+                stat.S_ISDIR(entry_stat.st_mode)
+                and entry.name in _IGNORED_DEVELOPMENT_DIRECTORIES
+            ):
+                continue
+            if (
+                stat.S_ISREG(entry_stat.st_mode)
+                and entry.name in _IGNORED_DEVELOPMENT_FILES
+            ):
+                continue
+            entry_count += 1
+            if entry_count > MAX_PLUGIN_PACKAGE_ENTRIES:
+                raise ManifestError(
+                    f"{root}: plugin package contains more than "
+                    f"{MAX_PLUGIN_PACKAGE_ENTRIES} entries"
+                )
+            if stat.S_ISDIR(entry_stat.st_mode):
+                _validate_trusted_file_metadata(
+                    path,
+                    entry_stat,
+                    label="plugin package directory",
+                )
+                pending.append(path)
+                continue
+            if not stat.S_ISREG(entry_stat.st_mode):
+                raise ManifestError(
+                    f"{path}: plugin package entries must be regular files or directories"
+                )
+            # Preserve POSIX filenames that are not valid UTF-8 without letting
+            # a UnicodeEncodeError escape the package-level isolation boundary.
+            relative_bytes = os.fsencode(path.relative_to(root).as_posix())
+            if len(relative_bytes) > 4096:
+                raise ManifestError(f"{path}: plugin package path is too long")
+            files.append((relative_bytes, path))
+
+    digest = hashlib.sha256()
+    digest.update(b"meshyface-plugin-package-v1\0")
+    total_bytes = 0
+    for relative_bytes, path in sorted(files, key=lambda row: row[0]):
+        try:
+            data = _read_regular_file(
+                path,
+                maximum_bytes=MAX_PLUGIN_PACKAGE_BYTES - total_bytes,
+                label="plugin package file",
+            )
+        except FileNotFoundError as exc:
+            raise ManifestError(f"{path}: plugin package changed during inspection") from exc
+        except OSError as exc:
+            raise ManifestError(f"{path}: cannot read plugin package file: {exc}") from exc
+        total_bytes += len(data)
+        digest.update(len(relative_bytes).to_bytes(4, "big"))
+        digest.update(relative_bytes)
+        digest.update(len(data).to_bytes(8, "big"))
+        digest.update(data)
+    return f"{PACKAGE_DIGEST_PREFIX}{digest.hexdigest()}"
+
+
+def _read_regular_file(path: Path, *, maximum_bytes: int, label: str) -> bytes:
+    if maximum_bytes < 0:
+        raise ManifestError(f"{path}: plugin package exceeds {MAX_PLUGIN_PACKAGE_BYTES} bytes")
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_NONBLOCK", 0)
+    descriptor = os.open(path, flags)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise ManifestError(f"{path}: {label} must be a regular file")
+        _validate_trusted_file_metadata(path, before, label=label)
+        if before.st_size > maximum_bytes:
+            if label == "plugin manifest":
+                raise ManifestError(
+                    f"{path}: manifest exceeds the {MAX_MANIFEST_BYTES}-byte limit"
+                )
+            raise ManifestError(
+                f"{path}: plugin package exceeds {MAX_PLUGIN_PACKAGE_BYTES} bytes"
+            )
+        chunks: list[bytes] = []
+        remaining = before.st_size
+        while remaining:
+            chunk = os.read(descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        data = b"".join(chunks)
+        after = os.fstat(descriptor)
+        if (
+            len(data) != before.st_size
+            or after.st_size != before.st_size
+            or after.st_mtime_ns != before.st_mtime_ns
+        ):
+            raise ManifestError(f"{path}: {label} changed while it was being read")
+        return data
+    finally:
+        os.close(descriptor)
+
+
+def _validate_trusted_file_metadata(
+    path: Path,
+    metadata: os.stat_result,
+    *,
+    label: str,
+) -> None:
+    """Reject package code writable by identities outside the service owner/root."""
+
+    if os.name != "posix":
+        return
+    if metadata.st_mode & stat.S_IWOTH:
+        raise ManifestError(
+            f"{path}: {label} must not be world-writable"
+        )
+    effective_uid_fn = getattr(os, "geteuid", None)
+    if not callable(effective_uid_fn):
+        return
+    effective_uid = int(effective_uid_fn())
+    if int(metadata.st_uid) not in {0, effective_uid}:
+        raise ManifestError(
+            f"{path}: {label} must be owned by root or the dashboard service user"
+        )
+    if metadata.st_mode & stat.S_IWGRP and not _group_is_private_to_service_user(
+        int(metadata.st_gid),
+        effective_uid,
+    ):
+        raise ManifestError(
+            f"{path}: {label} must not be writable by an unrelated group"
+        )
+
+
+@lru_cache(maxsize=16)
+def _group_is_private_to_service_user(group_id: int, effective_uid: int) -> bool:
+    """Allow the common user-private-group umask without trusting shared groups."""
+
+    try:
+        import grp
+        import pwd
+
+        service_entry = pwd.getpwuid(effective_uid)
+        service_user = service_entry.pw_name
+        # A service can intentionally run with a shared effective group (for
+        # example, ``dialout``) while its package files remain owned by its
+        # private primary group. Only that private primary group is trusted.
+        if int(service_entry.pw_gid) != group_id:
+            return False
+        primary_users = {
+            entry.pw_uid
+            for entry in pwd.getpwall()
+            if int(entry.pw_gid) == group_id
+        }
+        explicit_members = set(grp.getgrgid(group_id).gr_mem)
+    except (ImportError, KeyError, OSError):
+        return False
+    return primary_users <= {effective_uid} and explicit_members <= {service_user}
+
+
+def _report_discovery_error(
+    error: ManifestError,
+    on_error: Callable[[ManifestError], object] | None,
+) -> None:
+    if on_error is None:
+        raise error
+    on_error(error)
 
 
 def validate_script_against_manifest(manifest: PluginManifest, script: object) -> Script:
@@ -271,6 +588,10 @@ def _manifest_string(
 def _manifest_commands(path: Path, value: object) -> tuple[str, ...]:
     if not isinstance(value, list):
         raise ManifestError(f"{path}: commands must be an array of strings")
+    if len(value) > MAX_PLUGIN_COMMANDS:
+        raise ManifestError(
+            f"{path}: commands may contain at most {MAX_PLUGIN_COMMANDS} entries"
+        )
     commands: list[str] = []
     seen: set[str] = set()
     for index, command_value in enumerate(value):
@@ -511,7 +832,16 @@ def _resolve_entrypoint(
     relative_path = Path(relative_text)
     if relative_path.is_absolute() or ".." in relative_path.parts:
         raise ManifestError(f"{manifest_path}: entrypoint must stay inside the plugin directory")
-    resolved_entrypoint = (plugin_directory / relative_path).resolve()
+    try:
+        resolved_entrypoint = (plugin_directory / relative_path).resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise ManifestError(
+            f"{manifest_path}: entrypoint file does not exist: {relative_text}"
+        ) from exc
+    except (OSError, RuntimeError) as exc:
+        raise ManifestError(
+            f"{manifest_path}: entrypoint path cannot be resolved"
+        ) from exc
     try:
         resolved_entrypoint.relative_to(plugin_directory)
     except ValueError as exc:

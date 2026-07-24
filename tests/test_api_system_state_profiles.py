@@ -503,6 +503,96 @@ def test_handle_state_get_injects_faults_filters_private_payload_and_writes_etag
     assert payload["traffic"]["recent_packets"] == [{"id": 1}]
 
 
+def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> None:
+    def state_fn():
+        return {
+            "generated_at": "now",
+            "summary": {
+                "plugins": {
+                    "enabled": True,
+                    "discovered": 2,
+                    "enabled_plugins": ["weather"],
+                    "scripts": [
+                        {
+                            "id": "weather",
+                            "settings": {
+                                "api_token": "must-not-be-public",
+                                "client_secret": "also-private",
+                            },
+                        }
+                    ],
+                    "file_jobs": {
+                        "jobs": [{"destination": "!01020304", "filename": "private.bin"}]
+                    },
+                    "runtime": {
+                        "status": "running",
+                        "worker_alive": True,
+                        "worker_pid": 1234,
+                        "last_error": "",
+                        "debug": [{"values": ["private debug"]}],
+                        "tickers": [
+                            {
+                                "id": "script:weather:alerts",
+                                "plugin_id": "weather",
+                                "ticker_id": "alerts",
+                                "label": "Alerts",
+                                "value": 3,
+                                "state": "good",
+                                "detail": "public ticker detail",
+                                "metric": True,
+                                "default_enabled": True,
+                                "runtime_status": "running",
+                                "unapproved_field": "drop me",
+                            }
+                        ],
+                    },
+                }
+            },
+            "traffic": {},
+        }
+
+    written: list[dict[str, object]] = []
+    handle_state_get(
+        _Handler(),
+        state_fn=state_fn,
+        write_json_response_fn=lambda _handler, **kwargs: written.append(kwargs),
+        query="",
+        private_mode=False,
+    )
+
+    plugins = written[0]["payload_obj"]["summary"]["plugins"]
+    assert plugins == {
+        "enabled": True,
+        "health": "running",
+        "active_count": 1,
+        "discovered": 2,
+        "runtime": {
+            "status": "running",
+            "worker_alive": True,
+            "tickers": [
+                {
+                    "id": "script:weather:alerts",
+                    "plugin_id": "weather",
+                    "ticker_id": "alerts",
+                    "label": "Alerts",
+                    "value": 3,
+                    "state": "good",
+                    "detail": "public ticker detail",
+                    "metric": True,
+                    "default_enabled": True,
+                    "runtime_status": "running",
+                }
+            ],
+        },
+    }
+    serialized = str(plugins)
+    assert "must-not-be-public" not in serialized
+    assert "also-private" not in serialized
+    assert "private.bin" not in serialized
+    assert "private debug" not in serialized
+    assert "worker_pid" not in serialized
+
+
 def test_handle_state_get_ignores_bad_etag_and_fault_history_helpers() -> None:
     calls: list[str] = []
 

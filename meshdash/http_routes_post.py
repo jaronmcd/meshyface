@@ -4,6 +4,12 @@ import json
 from hmac import compare_digest
 
 from .http_handler_contracts import DashboardHttpHandler
+from .http_plugin_admin import (
+    PLUGIN_ADMIN_WRITE_PATHS,
+    plugin_admin_authorization,
+    plugin_browser_write_is_same_origin,
+    request_has_json_content_type,
+)
 from .http_route_contracts import DashboardPostRouteDependencies
 from .api_system_update import (
     cleanup_update_rollback_branches as _cleanup_update_rollback_branches_helper,
@@ -198,12 +204,20 @@ def _read_plugin_settings_request(
         raise ValueError("invalid JSON request body") from exc
     if not isinstance(parsed, dict):
         raise ValueError("request body must be an object")
+    if set(parsed) != {"plugin_id", "enabled", "package_digest"}:
+        raise ValueError(
+            "request body must contain only plugin_id, enabled, and package_digest"
+        )
     plugin_id = parsed.get("plugin_id")
     if not isinstance(plugin_id, str) or not plugin_id.strip():
         raise ValueError("plugin_id must be a non-empty string")
     if not isinstance(parsed.get("enabled"), bool):
         raise ValueError("enabled must be a boolean")
-    return {"plugin_id": plugin_id.strip().lower(), "enabled": parsed["enabled"]}
+    return {
+        "plugin_id": plugin_id.strip().lower(),
+        "enabled": parsed["enabled"],
+        "package_digest": _plugin_package_digest(parsed.get("package_digest")),
+    }
 
 
 def _read_plugin_config_request(handler: DashboardHttpHandler) -> dict[str, object]:
@@ -220,15 +234,32 @@ def _read_plugin_config_request(handler: DashboardHttpHandler) -> dict[str, obje
         raise ValueError("invalid JSON request body") from exc
     if not isinstance(parsed, dict):
         raise ValueError("request body must be an object")
-    if set(parsed) != {"plugin_id", "settings"}:
-        raise ValueError("request body must contain only plugin_id and settings")
+    if set(parsed) != {"plugin_id", "settings", "package_digest"}:
+        raise ValueError(
+            "request body must contain only plugin_id, settings, and package_digest"
+        )
     plugin_id = parsed.get("plugin_id")
     if not isinstance(plugin_id, str) or not plugin_id.strip():
         raise ValueError("plugin_id must be a non-empty string")
     settings = parsed.get("settings")
     if not isinstance(settings, dict):
         raise ValueError("settings must be an object")
-    return {"plugin_id": plugin_id.strip().lower(), "settings": settings}
+    return {
+        "plugin_id": plugin_id.strip().lower(),
+        "settings": settings,
+        "package_digest": _plugin_package_digest(parsed.get("package_digest")),
+    }
+
+
+def _plugin_package_digest(value: object) -> str:
+    digest = str(value or "").strip().lower()
+    if (
+        len(digest) != 71
+        or not digest.startswith("sha256:")
+        or any(character not in "0123456789abcdef" for character in digest[7:])
+    ):
+        raise ValueError("package_digest must be a SHA-256 plugin identity")
+    return digest
 
 
 def _record_write_auth_denied(deps: DashboardPostRouteDependencies) -> None:
@@ -282,7 +313,53 @@ def handle_dashboard_post(
         )
         return
 
-    if path in _TOKEN_PROTECTED_WRITE_PATHS and not _write_request_is_authorized(handler, deps=deps):
+    if path in PLUGIN_ADMIN_WRITE_PATHS:
+        authorized, auth_status, auth_error = plugin_admin_authorization(
+            handler,
+            required_token=deps.api_token,
+        )
+        if not authorized:
+            _record_write_auth_denied(deps)
+            extra_headers = (
+                {"WWW-Authenticate": "Bearer"} if auth_status == 401 else None
+            )
+            deps.write_json_response_fn(
+                handler,
+                status_code=auth_status,
+                payload_obj={"ok": False, "error": auth_error},
+                no_store=True,
+                extra_headers=extra_headers,
+            )
+            return
+        if not request_has_json_content_type(handler):
+            deps.write_json_response_fn(
+                handler,
+                status_code=415,
+                payload_obj={
+                    "ok": False,
+                    "error": "Plugin administration requires application/json",
+                },
+                no_store=True,
+            )
+            return
+        if not plugin_browser_write_is_same_origin(handler):
+            _record_write_auth_denied(deps)
+            deps.write_json_response_fn(
+                handler,
+                status_code=403,
+                payload_obj={
+                    "ok": False,
+                    "error": "Cross-origin plugin administration is not allowed",
+                },
+                no_store=True,
+            )
+            return
+
+    if (
+        path in _TOKEN_PROTECTED_WRITE_PATHS
+        and path not in PLUGIN_ADMIN_WRITE_PATHS
+        and not _write_request_is_authorized(handler, deps=deps)
+    ):
         _record_write_auth_denied(deps)
         deps.write_json_response_fn(
             handler,
@@ -579,7 +656,11 @@ def handle_dashboard_post(
             return
         try:
             request = _read_plugin_settings_request(handler)
-            response_obj = setter(request["plugin_id"], bool(request["enabled"]))
+            response_obj = setter(
+                request["plugin_id"],
+                bool(request["enabled"]),
+                expected_package_digest=request["package_digest"],
+            )
         except ValueError as exc:
             deps.write_json_response_fn(
                 handler,
@@ -623,7 +704,12 @@ def handle_dashboard_post(
         error_code = str(error.get("code") or "") if isinstance(error, Mapping) else ""
         status_code = 200
         if response_obj.get("ok") is False:
-            status_code = 404 if error_code == "unknown_plugin" else 503
+            if error_code == "unknown_plugin":
+                status_code = 404
+            elif error_code == "plugin_identity_changed":
+                status_code = 409
+            else:
+                status_code = 503
         deps.write_json_response_fn(
             handler,
             status_code=status_code,
@@ -651,7 +737,11 @@ def handle_dashboard_post(
             return
         try:
             request = _read_plugin_config_request(handler)
-            response_obj = setter(request["plugin_id"], request["settings"])
+            response_obj = setter(
+                request["plugin_id"],
+                request["settings"],
+                expected_package_digest=request["package_digest"],
+            )
         except ValueError as exc:
             deps.write_json_response_fn(
                 handler,
@@ -695,7 +785,12 @@ def handle_dashboard_post(
         error_code = str(error.get("code") or "") if isinstance(error, Mapping) else ""
         status_code = 200
         if response_obj.get("ok") is False:
-            status_code = 404 if error_code == "unknown_plugin" else 503
+            if error_code == "unknown_plugin":
+                status_code = 404
+            elif error_code == "plugin_identity_changed":
+                status_code = 409
+            else:
+                status_code = 503
         deps.write_json_response_fn(
             handler,
             status_code=status_code,

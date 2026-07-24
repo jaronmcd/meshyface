@@ -5,6 +5,7 @@ import os
 import queue
 import re
 import secrets
+import stat
 import threading
 import time
 from collections.abc import Callable, Mapping
@@ -15,6 +16,7 @@ from typing import Protocol
 from .file_transfer_protocol import (
     FILE_TRANSFER_CHUNK_BYTES,
     FILE_TRANSFER_MAX_FILE_BYTES,
+    FILE_TRANSFER_MAX_WIRE_BYTES,
     encode_file_transfer_frame,
     file_transfer_frame_text,
     parse_file_transfer_frame_text,
@@ -77,7 +79,7 @@ class ApprovedPathFileResolver:
     def approved_roots(self) -> tuple[Path, ...]:
         return self._approved_roots
 
-    def _candidate_path(self, path_or_file_id: str) -> Path:
+    def _candidate_path(self, path_or_file_id: str) -> tuple[Path, Path]:
         clean_reference = str(path_or_file_id or "").strip()
         if not clean_reference:
             raise ValueError("A file path or approved file ID is required")
@@ -86,38 +88,71 @@ class ApprovedPathFileResolver:
             candidate = Path(clean_reference).expanduser()
         if not candidate.is_absolute():
             candidate = self._approved_roots[0] / candidate
+        candidate = Path(os.path.abspath(candidate))
         try:
-            return candidate.resolve(strict=True)
+            resolved = candidate.resolve(strict=True)
         except (OSError, RuntimeError) as exc:
             raise ValueError("Requested file does not exist") from exc
+        root = next(
+            (
+                approved_root
+                for approved_root in self._approved_roots
+                if _is_relative_to(resolved, approved_root)
+            ),
+            None,
+        )
+        if root is None:
+            raise ValueError("Requested file is outside the approved file roots")
+        # Opening by path after this check would leave a symlink-swap window.
+        # Reject any symlink component and open beneath the approved directory
+        # descriptor instead.
+        if resolved != candidate:
+            raise ValueError("Requested file symlinks are not allowed")
+        return candidate, root
 
     def resolve(self, path_or_file_id: str) -> ResolvedOutboundFile:
-        candidate = self._candidate_path(path_or_file_id)
-        if not any(_is_relative_to(candidate, root) for root in self._approved_roots):
-            raise ValueError("Requested file is outside the approved file roots")
+        candidate, root = self._candidate_path(path_or_file_id)
+        descriptor = -1
         try:
-            stat = candidate.stat()
+            descriptor = _open_regular_file_beneath(candidate, root)
+            before = os.fstat(descriptor)
         except OSError as exc:
             raise ValueError("Requested file is not readable") from exc
-        if not candidate.is_file():
+        if not stat.S_ISREG(before.st_mode):
+            if descriptor >= 0:
+                os.close(descriptor)
             raise ValueError("Requested file is not a regular file")
-        size = int(stat.st_size)
+        size = int(before.st_size)
         if size <= 0:
+            os.close(descriptor)
             raise ValueError("Requested file is empty")
         if size > self._max_file_bytes:
+            os.close(descriptor)
             raise ValueError(
                 f"Requested file exceeds the {self._max_file_bytes}-byte transfer limit"
             )
         try:
-            data = candidate.read_bytes()
+            data = _read_bounded_descriptor(descriptor, self._max_file_bytes)
+            after = os.fstat(descriptor)
         except OSError as exc:
             raise ValueError("Requested file is not readable") from exc
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
         if not data:
             raise ValueError("Requested file is empty")
         if len(data) > self._max_file_bytes:
             raise ValueError(
                 f"Requested file exceeds the {self._max_file_bytes}-byte transfer limit"
             )
+        if (
+            len(data) != size
+            or after.st_size != before.st_size
+            or after.st_mtime_ns != before.st_mtime_ns
+            or after.st_ino != before.st_ino
+            or after.st_dev != before.st_dev
+        ):
+            raise ValueError("Requested file changed while it was being read")
         return ResolvedOutboundFile(
             file_name=candidate.name,
             data=data,
@@ -133,12 +168,63 @@ def _is_relative_to(path: Path, root: Path) -> bool:
     return True
 
 
+def _open_regular_file_beneath(candidate: Path, root: Path) -> int:
+    """Open ``candidate`` without following symlinks below ``root``."""
+
+    relative = candidate.relative_to(root)
+    parts = relative.parts
+    if not parts:
+        raise OSError("approved root is not a file")
+    close_on_exec = int(getattr(os, "O_CLOEXEC", 0))
+    no_follow = int(getattr(os, "O_NOFOLLOW", 0))
+    nonblocking = int(getattr(os, "O_NONBLOCK", 0))
+    directory_flag = int(getattr(os, "O_DIRECTORY", 0))
+    root_fd = os.open(
+        root,
+        os.O_RDONLY | close_on_exec | no_follow | directory_flag,
+    )
+    current_fd = root_fd
+    try:
+        for part in parts[:-1]:
+            next_fd = os.open(
+                part,
+                os.O_RDONLY | close_on_exec | no_follow | directory_flag,
+                dir_fd=current_fd,
+            )
+            if current_fd != root_fd:
+                os.close(current_fd)
+            current_fd = next_fd
+        descriptor = os.open(
+            parts[-1],
+            os.O_RDONLY | close_on_exec | no_follow | nonblocking,
+            dir_fd=current_fd,
+        )
+    finally:
+        if current_fd != root_fd:
+            os.close(current_fd)
+        os.close(root_fd)
+    return descriptor
+
+
+def _read_bounded_descriptor(descriptor: int, maximum_bytes: int) -> bytes:
+    chunks: list[bytes] = []
+    remaining = max(1, int(maximum_bytes)) + 1
+    while remaining > 0:
+        chunk = os.read(descriptor, min(64 * 1024, remaining))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
+
+
 @dataclass
 class _OutboundTransferJob:
     job_id: str
     transfer_id: str
     destination_id: str
     channel_index: int
+    local_node_id: str
     source_reference: str
     submitted_at: float
     updated_at: float
@@ -159,6 +245,7 @@ class _OutboundTransferJob:
     cancel_requested: bool = False
     notify_cancel: bool = False
     metadata_sent: bool = False
+    admitted_frames: int | None = None
 
 
 class _TransferCanceled(RuntimeError):
@@ -243,16 +330,32 @@ class OutboundFileTransferService:
         destination_id: object,
         path_or_file_id: object,
         channel_index: object = 0,
+        local_node_id: object = None,
+        admitted_frames: object = None,
     ) -> dict[str, object]:
-        destination = str(destination_id or "").strip().lower()
+        destination = _canonical_direct_node_id(destination_id)
+        local_node = (
+            _canonical_direct_node_id(local_node_id)
+            if local_node_id is not None
+            else ""
+        )
         source_reference = str(path_or_file_id or "").strip()
-        channel = _nonnegative_int(channel_index)
-        if not _CANONICAL_NODE_ID_RE.fullmatch(destination):
+        channel = _channel_index(channel_index)
+        frame_limit = (
+            _positive_int(admitted_frames)
+            if admitted_frames is not None
+            else None
+        )
+        if not destination:
             return self._reject("A canonical direct destination is required")
+        if local_node_id is not None and not local_node:
+            return self._reject("A canonical local node ID is required")
         if not source_reference:
             return self._reject("A file path or approved file ID is required")
         if channel is None:
-            return self._reject("Channel index must be a non-negative integer")
+            return self._reject("Channel index must be an integer from 0 through 7")
+        if admitted_frames is not None and frame_limit is None:
+            return self._reject("Admitted frame count must be a positive integer")
         with self._lock:
             if not self._accepting:
                 return self._reject_locked("Outbound file transfer service is closed")
@@ -266,9 +369,11 @@ class OutboundFileTransferService:
                 transfer_id=transfer_id,
                 destination_id=destination,
                 channel_index=channel,
+                local_node_id=local_node,
                 source_reference=source_reference,
                 submitted_at=now,
                 updated_at=now,
+                admitted_frames=frame_limit,
             )
             self._jobs[job.job_id] = job
             self._job_order.append(job.job_id)
@@ -286,6 +391,33 @@ class OutboundFileTransferService:
             "job_id": job.job_id,
             "transfer_id": job.transfer_id,
             "status": job.status,
+        }
+
+    def estimate_transfer_cost(self, path_or_file_id: object) -> dict[str, int]:
+        """Return a conservative initial-send radio cost for one approved file."""
+
+        source_reference = str(path_or_file_id or "").strip()
+        if not source_reference:
+            raise ValueError("A file path or approved file ID is required")
+        resolved = self._resolve_file(source_reference)
+        size = len(resolved.data)
+        if size <= 0:
+            raise ValueError("Requested file is empty")
+        if size > self._max_file_bytes:
+            raise ValueError(
+                f"Requested file exceeds the {self._max_file_bytes}-byte transfer limit"
+            )
+        chunks = (size + FILE_TRANSFER_CHUNK_BYTES - 1) // FILE_TRANSFER_CHUNK_BYTES
+        # Metadata and every missing chunk may be sent once initially and once
+        # per retry round. Reserve that full upper bound before admitting the
+        # plugin action.
+        frames = (1 + chunks) * (self._max_retries + 1)
+        return {
+            "frames": frames,
+            # Charge the maximum protocol payload for every frame so metadata
+            # and encoding overhead cannot make the admission estimate too low.
+            "bytes": frames * FILE_TRANSFER_MAX_WIRE_BYTES,
+            "file_bytes": size,
         }
 
     def _reject(self, error: str) -> dict[str, object]:
@@ -326,13 +458,19 @@ class OutboundFileTransferService:
         sender_id: object,
         frame: object,
         channel_index: object = None,
+        destination_id: object = None,
     ) -> bool:
         parsed = _parse_frame(frame, max_file_bytes=self._max_file_bytes)
         if parsed is None or parsed.get("kind") != "ack":
             return False
-        sender = str(sender_id or "").strip().lower()
+        sender = _canonical_direct_node_id(sender_id)
         transfer_id = str(parsed.get("transfer_id") or "").strip().lower()
-        channel = _nonnegative_int(channel_index) if channel_index is not None else None
+        channel = _channel_index(channel_index)
+        destination = (
+            _canonical_direct_node_id(destination_id)
+            if destination_id is not None
+            else None
+        )
         progress_payload: tuple[_OutboundTransferJob, int, bool] | None = None
         with self._lock:
             job = self._jobs.get(transfer_id)
@@ -340,11 +478,15 @@ class OutboundFileTransferService:
                 job is None
                 or job.status in _TERMINAL_STATES
                 or sender != job.destination_id
+                or channel is None
+                or channel != job.channel_index
+                or (
+                    destination_id is not None
+                    and (not destination or destination != job.local_node_id)
+                )
                 or int(parsed.get("total_chunks") or 0) != job.total_chunks
             ):
                 return False
-            if channel is not None:
-                job.channel_index = channel
             prior_metadata_accepted = job.metadata_accepted
             prior_acked_chunks = job.acked_chunks
             prior_completed_ack = job.completed_ack
@@ -386,7 +528,14 @@ class OutboundFileTransferService:
             )
         return True
 
-    def handle_flow(self, *, sender_id: object, frame: object) -> bool:
+    def handle_flow(
+        self,
+        *,
+        sender_id: object,
+        frame: object,
+        channel_index: object = None,
+        destination_id: object = None,
+    ) -> bool:
         parsed = _parse_frame(frame, max_file_bytes=self._max_file_bytes)
         if (
             parsed is None
@@ -394,14 +543,26 @@ class OutboundFileTransferService:
             or parsed.get("action") != "cancel"
         ):
             return False
-        sender = str(sender_id or "").strip().lower()
+        sender = _canonical_direct_node_id(sender_id)
         transfer_id = str(parsed.get("transfer_id") or "").strip().lower()
+        channel = _channel_index(channel_index)
+        destination = (
+            _canonical_direct_node_id(destination_id)
+            if destination_id is not None
+            else None
+        )
         with self._lock:
             job = self._jobs.get(transfer_id)
             if (
                 job is None
                 or job.status in _TERMINAL_STATES
                 or sender != job.destination_id
+                or channel is None
+                or channel != job.channel_index
+                or (
+                    destination_id is not None
+                    and (not destination or destination != job.local_node_id)
+                )
             ):
                 return False
             job.cancel_requested = True
@@ -524,6 +685,12 @@ class OutboundFileTransferService:
                 resolved.data[offset:offset + FILE_TRANSFER_CHUNK_BYTES]
                 for offset in range(0, len(resolved.data), FILE_TRANSFER_CHUNK_BYTES)
             ]
+            maximum_frames = (1 + len(chunks)) * (self._max_retries + 1)
+            if (
+                job.admitted_frames is not None
+                and maximum_frames > job.admitted_frames
+            ):
+                raise ValueError("Requested file grew beyond its admitted radio-frame budget")
             with self._lock:
                 job.file_name = str(resolved.file_name or "file.bin")
                 job.file_size = len(resolved.data)
@@ -676,6 +843,11 @@ class OutboundFileTransferService:
     ) -> None:
         self._raise_if_canceled(job)
         with self._lock:
+            if (
+                job.admitted_frames is not None
+                and job.sent_frames >= job.admitted_frames
+            ):
+                raise RuntimeError("File transfer exhausted its admitted radio-frame budget")
             should_pace = job.sent_frames > 0 and self._frame_pace_seconds > 0
         if should_pace:
             self._sleep_fn(self._frame_pace_seconds)
@@ -714,6 +886,12 @@ class OutboundFileTransferService:
             "action": "cancel",
         }
         try:
+            with self._lock:
+                if (
+                    job.admitted_frames is not None
+                    and job.sent_frames >= job.admitted_frames
+                ):
+                    return
             text = file_transfer_frame_text(frame)
             response = self._send_frame_fn(
                 text=text,
@@ -808,7 +986,22 @@ class OutboundFileTransferService:
         }
 
 
-def _nonnegative_int(value: object) -> int | None:
+def _canonical_direct_node_id(value: object) -> str:
+    clean = str(value or "").strip().lower()
+    if _CANONICAL_NODE_ID_RE.fullmatch(clean):
+        return clean if clean not in {"!00000000", "!ffffffff"} else ""
+    if value is None or isinstance(value, bool):
+        return ""
+    try:
+        numeric = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return ""
+    if 0 < numeric < 0xFFFFFFFF:
+        return f"!{numeric:08x}"
+    return ""
+
+
+def _channel_index(value: object) -> int | None:
     if value is None:
         return 0
     if isinstance(value, bool):
@@ -817,7 +1010,17 @@ def _nonnegative_int(value: object) -> int | None:
         parsed = int(value)
     except (TypeError, ValueError, OverflowError):
         return None
-    return parsed if parsed >= 0 else None
+    return parsed if 0 <= parsed <= 7 else None
+
+
+def _positive_int(value: object) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return parsed if parsed > 0 else None
 
 
 def _parse_frame(frame: object, *, max_file_bytes: int) -> dict[str, object] | None:

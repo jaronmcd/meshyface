@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import importlib.util
 import json
 import logging
@@ -26,6 +27,7 @@ from .plugins import (
     SendTextAction,
     SessionAction,
     action_to_dict,
+    compute_plugin_package_digest,
     validate_script_against_manifest,
 )
 from .helpers_json import JsonValue, to_jsonable
@@ -54,10 +56,17 @@ def _manifest_from_payload(payload: Mapping[str, object]) -> PluginManifest:
         entrypoint_path=Path(str(payload["entrypoint_path"])),
         entrypoint_object=str(payload["entrypoint_object"]),
         source=cast(PluginSource, str(payload["source"])),
+        package_digest=str(payload["package_digest"]),
     )
 
 
 def _load_plugin_module(manifest: PluginManifest) -> ModuleType:
+    current_digest = compute_plugin_package_digest(manifest.plugin_directory)
+    if not hmac.compare_digest(current_digest, manifest.package_digest):
+        raise ImportError(
+            f"plugin {manifest.id!r} package changed after discovery; "
+            "restart Meshyface to load the current local revision"
+        )
     package_name = f"_meshyface_plugin_{manifest.id}"
     package = ModuleType(package_name)
     package.__path__ = [str(manifest.plugin_directory)]  # type: ignore[attr-defined]
@@ -382,6 +391,9 @@ def _handle_invoke(scripts: Mapping[str, Script], message: Mapping[str, object])
 def plugin_worker_main(connection: object) -> None:
     """Process entrypoint.  Only JSON bytes are read after spawn bootstrap."""
 
+    # Package bytecode is part of the discovered revision. Do not mutate local
+    # plugin directories merely by importing them in a fresh worker.
+    sys.dont_write_bytecode = True
     recv_bytes = getattr(connection, "recv_bytes")
     send_bytes = getattr(connection, "send_bytes")
     close = getattr(connection, "close")

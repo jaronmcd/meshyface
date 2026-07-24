@@ -7,6 +7,7 @@ import math
 import multiprocessing
 import queue
 import re
+import signal
 import threading
 import time
 import uuid
@@ -29,8 +30,14 @@ from .plugins import (
     normalize_plugin_settings,
 )
 from .helpers_json import JsonValue, to_jsonable
+from .file_transfer_protocol import (
+    FILE_TRANSFER_CHUNK_BYTES,
+    FILE_TRANSFER_MAX_CHUNKS,
+    FILE_TRANSFER_MAX_WIRE_BYTES,
+)
+from .config import DEFAULT_FILE_TRANSFER_MAX_BYTES
 from .plugin_protocol import MAX_PROTOCOL_FRAME_BYTES, decode_message, encode_message
-from .plugin_state import PluginStateStore
+from .plugin_state import PluginStateQuotaExceeded, PluginStateStore
 from .plugin_worker import plugin_worker_main
 
 
@@ -38,6 +45,7 @@ _NODE_ID_RE = re.compile(r"![0-9a-f]{8}\Z")
 _COMMAND_RE = re.compile(r"!([a-z][a-z0-9_-]{0,31})(?:\s|\Z)", re.IGNORECASE)
 _TICKER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _QUIT_COMMANDS = {"!quit", "!exit"}
+_RESERVED_NODE_IDS = {"!00000000", "!ffffffff"}
 _QUEUE_STOP = object()
 _ABSOLUTE_PATH_RE = re.compile(
     r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/]|/)"
@@ -54,10 +62,17 @@ class PluginRuntimeConfig:
     startup_timeout_seconds: float = 10.0
     handler_timeout_seconds: float = 5.0
     restart_backoff_seconds: float = 0.25
+    max_restart_backoff_seconds: float = 30.0
     max_action_text_bytes: int = 4096
     chat_max_bytes: int = 200
+    max_inbound_file_bytes: int = DEFAULT_FILE_TRANSFER_MAX_BYTES
     long_reply_pace_seconds: float = 1.0
     max_actions_per_minute: int = 60
+    max_synchronous_radio_frames_per_batch: int = 64
+    max_radio_frames_per_minute: int = 2048
+    max_radio_bytes_per_minute: int = 512 * 1024
+    max_global_radio_frames_per_minute: int = 4096
+    max_global_radio_bytes_per_minute: int = 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -73,6 +88,8 @@ class _QueuedAction:
     plugin_id: str
     event: MessageEvent
     action: ScriptAction
+    radio_frames: int = 0
+    radio_bytes: int = 0
 
 
 @dataclass
@@ -122,6 +139,7 @@ def _manifest_payload(manifest: PluginManifest) -> dict[str, JsonValue]:
         "id": manifest.id,
         "name": manifest.name,
         "version": manifest.version,
+        "package_digest": manifest.package_digest,
         "entrypoint": manifest.entrypoint,
         "commands": list(manifest.commands),
         "default_enabled": manifest.default_enabled,
@@ -158,6 +176,25 @@ def sanitize_plugin_status_error(value: object) -> str:
     if len(scrubbed) > 512:
         return f"{scrubbed[:509]}..."
     return scrubbed
+
+
+def _terminal_safe_text(value: object) -> str:
+    """Escape terminal control bytes while preserving printable Unicode."""
+
+    escaped: list[str] = []
+    for character in str(value):
+        codepoint = ord(character)
+        if character == "\n":
+            escaped.append(r"\n")
+        elif character == "\r":
+            escaped.append(r"\r")
+        elif character == "\t":
+            escaped.append(r"\t")
+        elif codepoint < 0x20 or 0x7F <= codepoint <= 0x9F:
+            escaped.append(f"\\x{codepoint:02x}")
+        else:
+            escaped.append(character)
+    return "".join(escaped)
 
 
 def _utf8_segments(text: str, maximum_bytes: int) -> list[str]:
@@ -249,15 +286,22 @@ class PluginRuntime:
         self._debug_sequence = 0
         self._debug_records: deque[dict[str, JsonValue]] = deque(maxlen=50)
         self._plugin_failures: dict[str, int] = {}
+        self._plugin_last_errors: dict[str, str] = {}
         self._plugin_quarantined_until: dict[str, float] = {}
+        self._startup_quarantined_identities: dict[str, str] = {}
         self._action_times: dict[str, deque[float]] = {}
+        self._radio_usage: dict[str, deque[tuple[float, int, int]]] = {}
+        self._global_radio_usage: deque[tuple[float, int, int]] = deque()
+        self._admission_lock = threading.Lock()
+        self._worker_start_failures = 0
+        self._next_worker_attempt_at = 0.0
         self._started_generation = 0
         self._session_lock = threading.Lock()
         self._sessions = {
-            (local_node_id, peer_id): plugin_id
-            for local_node_id, peer_id, plugin_id in state_store.list_sessions()
+            (local_node_id, peer_id, channel_index): plugin_id
+            for local_node_id, peer_id, channel_index, plugin_id in state_store.list_sessions()
         }
-        self._session_versions: dict[tuple[str, str], int] = {}
+        self._session_versions: dict[tuple[str, str, int], int] = {}
         self._dispatcher = threading.Thread(
             target=self._dispatch_loop,
             name="meshyface-plugin-dispatcher",
@@ -327,6 +371,24 @@ class PluginRuntime:
         if request.error:
             raise RuntimeError(request.error)
 
+    def clear_sessions_for_plugin(self, plugin_id: object) -> int:
+        """Clear durable and in-memory conversations for one plugin."""
+
+        clean_plugin = str(plugin_id or "").strip().lower()
+        with self._session_lock:
+            removed_from_store = self._state_store.clear_sessions_for_plugin(
+                clean_plugin
+            )
+            session_keys = [
+                key
+                for key, active_plugin in self._sessions.items()
+                if active_plugin == clean_plugin
+            ]
+            for key in session_keys:
+                self._session_versions[key] = self._session_versions.get(key, 0) + 1
+                self._sessions.pop(key, None)
+        return max(removed_from_store, len(session_keys))
+
     def _route_event(self, event: MessageEvent) -> tuple[_Invocation, ...]:
         if event.packet is not None:
             with self._status_lock:
@@ -348,7 +410,13 @@ class PluginRuntime:
                 return ()
         if not invocations and event.is_direct:
             with self._session_lock:
-                session_plugin = self._sessions.get((event.local_node_id, event.sender_id))
+                session_plugin = self._sessions.get(
+                    (
+                        event.local_node_id,
+                        event.sender_id,
+                        event.channel_index,
+                    )
+                )
             registration = self._registry.get(session_plugin or "", {})
             if session_plugin and bool(registration.get("session")):
                 invocations.append(_Invocation(session_plugin, "session", event))
@@ -448,6 +516,11 @@ class PluginRuntime:
                 "timeouts": self._timeouts,
                 "crashes": self._crashes,
                 "restarts": self._restarts,
+                "consecutive_start_failures": self._worker_start_failures,
+                "next_restart_in_seconds": max(
+                    0.0,
+                    self._next_worker_attempt_at - self._monotonic_fn(),
+                ),
                 "current_plugin": self._current_plugin,
                 "last_error": sanitize_plugin_status_error(self._last_error),
                 "debug_sequence": self._debug_sequence,
@@ -519,7 +592,13 @@ class PluginRuntime:
                 self._apply_reconfiguration(management_request)
                 continue
             if not self._ensure_worker():
-                if self._stop.wait(max(0.05, self._config.restart_backoff_seconds)):
+                retry_wait = max(
+                    0.05,
+                    self._next_worker_attempt_at - self._monotonic_fn(),
+                )
+                # Poll management requests and shutdown promptly even during a
+                # long exponential restart delay.
+                if self._stop.wait(min(0.5, retry_wait)):
                     return
                 continue
             if self._started_generation != self._generation:
@@ -563,16 +642,36 @@ class PluginRuntime:
                 for plugin_id, failures in self._plugin_failures.items()
                 if plugin_id in enabled_ids
             }
+            self._plugin_last_errors = {
+                plugin_id: error
+                for plugin_id, error in self._plugin_last_errors.items()
+                if plugin_id in enabled_ids
+            }
             self._plugin_quarantined_until = {
                 plugin_id: deadline
                 for plugin_id, deadline in self._plugin_quarantined_until.items()
                 if plugin_id in enabled_ids
+            }
+            self._startup_quarantined_identities = {
+                plugin_id: package_digest
+                for plugin_id, package_digest in self._startup_quarantined_identities.items()
+                if (
+                    plugin_id in enabled_ids
+                    and request.manifest_by_id[plugin_id].package_digest == package_digest
+                )
             }
             self._action_times = {
                 plugin_id: times
                 for plugin_id, times in self._action_times.items()
                 if plugin_id in enabled_ids
             }
+            self._radio_usage = {
+                plugin_id: usage
+                for plugin_id, usage in self._radio_usage.items()
+                if plugin_id in enabled_ids
+            }
+            self._worker_start_failures = 0
+            self._next_worker_attempt_at = 0.0
             with self._status_lock:
                 self._ticker_values = {
                     key: value
@@ -602,13 +701,18 @@ class PluginRuntime:
             self._end_session(item)
 
     def _end_session(self, event: MessageEvent) -> None:
-        session_key = (event.local_node_id, event.sender_id)
+        session_key = (
+            event.local_node_id,
+            event.sender_id,
+            event.channel_index,
+        )
         try:
             with self._session_lock:
                 self._session_versions[session_key] = self._session_versions.get(session_key, 0) + 1
                 ended = self._state_store.end_session(
                     event.local_node_id,
                     event.sender_id,
+                    event.channel_index,
                 )
                 ended = self._sessions.pop(session_key, None) is not None or ended
         except Exception as exc:
@@ -633,10 +737,24 @@ class PluginRuntime:
         if process is not None:
             self._record_worker_failure("plugin worker exited unexpectedly")
             self._stop_worker()
+            self._schedule_worker_retry()
+            return False
+        now = self._monotonic_fn()
+        if now < self._next_worker_attempt_at:
+            return False
+        if not active_manifests:
+            quarantine_deadlines = [
+                self._plugin_quarantined_until.get(manifest.id, 0.0)
+                for manifest in self._manifests
+            ]
+            future_deadlines = [deadline for deadline in quarantine_deadlines if deadline > now]
+            self._next_worker_attempt_at = (
+                min(future_deadlines) if future_deadlines else now + 0.5
+            )
+            self._publish_quarantined_registry()
+            return False
         loading_plugin = ""
         try:
-            if not active_manifests:
-                raise RuntimeError("all enabled plugins are temporarily quarantined")
             parent_connection, child_connection = self._mp.Pipe(duplex=True)
             process = self._mp.Process(
                 target=plugin_worker_main,
@@ -701,21 +819,80 @@ class PluginRuntime:
                         "on_start": False,
                         "on_stop": False,
                         "tickers": [],
-                        "error": "temporarily quarantined after startup failure",
+                        "error": self._quarantine_error(manifest.id),
+                        "failures": self._plugin_failures.get(manifest.id, 0),
+                        "last_error": self._plugin_last_errors.get(manifest.id, ""),
                     }
             with self._status_lock:
                 self._registry = registry
                 self._last_error = ""
                 self._worker_ready = True
             self._worker_plugin_ids = active_plugin_ids
+            self._worker_start_failures = 0
+            self._next_worker_attempt_at = 0.0
             return True
         except Exception as exc:
-            if isinstance(exc, TimeoutError) and loading_plugin:
-                self._record_plugin_failure(loading_plugin, str(exc))
-                self._plugin_quarantined_until[loading_plugin] = self._monotonic_fn() + 60.0
-            self._record_worker_failure(str(exc))
+            error = self._worker_startup_error(exc, process)
+            if loading_plugin and not self._closing.is_set():
+                self._record_plugin_failure(loading_plugin, error)
+                manifest = self._manifest_by_id.get(loading_plugin)
+                if manifest is not None:
+                    self._startup_quarantined_identities[loading_plugin] = (
+                        manifest.package_digest
+                    )
+            self._record_worker_failure(error)
             self._stop_worker()
+            if not self._closing.is_set():
+                self._schedule_worker_retry()
             return False
+
+    def _schedule_worker_retry(self) -> None:
+        self._worker_start_failures += 1
+        base = max(0.05, float(self._config.restart_backoff_seconds))
+        maximum = max(base, float(self._config.max_restart_backoff_seconds))
+        exponent = min(10, self._worker_start_failures - 1)
+        delay = min(maximum, base * float(2**exponent))
+        self._next_worker_attempt_at = self._monotonic_fn() + delay
+
+    def _worker_startup_error(self, exc: Exception, process: object) -> str:
+        message = str(exc).strip()
+        if not isinstance(exc, (EOFError, BrokenPipeError, OSError)):
+            return message or type(exc).__name__
+        join = getattr(process, "join", None)
+        if callable(join):
+            try:
+                join(timeout=0.1)
+            except Exception:
+                pass
+        exit_code = getattr(process, "exitcode", None)
+        if isinstance(exit_code, int):
+            if exit_code < 0:
+                try:
+                    signal_name = signal.Signals(-exit_code).name
+                except (ValueError, OSError):
+                    signal_name = f"signal {-exit_code}"
+                return f"plugin worker exited during startup from {signal_name}"
+            return f"plugin worker exited during startup with code {exit_code}"
+        return message or "plugin worker connection closed during startup"
+
+    def _publish_quarantined_registry(self) -> None:
+        registry: dict[str, dict[str, object]] = {}
+        for manifest in self._manifests:
+            registry[manifest.id] = {
+                "id": manifest.id,
+                "commands": [],
+                "on_message": False,
+                "on_packet": False,
+                "session": False,
+                "on_start": False,
+                "on_stop": False,
+                "tickers": [],
+                "error": self._quarantine_error(manifest.id),
+                "failures": self._plugin_failures.get(manifest.id, 0),
+                "last_error": self._plugin_last_errors.get(manifest.id, ""),
+            }
+        with self._status_lock:
+            self._registry = registry
 
     def _invoke(self, invocation: _Invocation) -> bool:
         connection = self._connection
@@ -724,9 +901,16 @@ class PluginRuntime:
         registration = self._registry.get(invocation.plugin_id, {})
         if registration.get("error"):
             return True
-        state = self._state_store.snapshot(invocation.plugin_id, invocation.event.sender_id)
+        state = self._state_store.snapshot(
+            invocation.plugin_id,
+            invocation.event.sender_id,
+            invocation.event.channel_index,
+        )
         manifest = self._manifest_by_id[invocation.plugin_id]
-        stored_settings = self._state_store.plugin_settings(invocation.plugin_id)
+        stored_settings = self._state_store.plugin_settings(
+            invocation.plugin_id,
+            package_digest=manifest.package_digest,
+        )
         try:
             plugin_config = normalize_plugin_settings(
                 manifest,
@@ -739,6 +923,7 @@ class PluginRuntime:
             session_key = (
                 invocation.event.local_node_id,
                 invocation.event.sender_id,
+                invocation.event.channel_index,
             )
             session_active = self._sessions.get(session_key) == invocation.plugin_id
             session_version = self._session_versions.get(session_key, 0)
@@ -814,7 +999,11 @@ class PluginRuntime:
             ):
                 raise ValueError("plugin worker returned invalid state")
             external_actions = tuple(
-                _QueuedAction(invocation.plugin_id, invocation.event, action)
+                self._queued_external_action(
+                    invocation.plugin_id,
+                    invocation.event,
+                    action,
+                )
                 for action in actions
                 if not isinstance(action, SessionAction)
             )
@@ -822,7 +1011,7 @@ class PluginRuntime:
             if external_actions:
                 if not self._admit_action_batch(
                     invocation.plugin_id,
-                    len(external_actions),
+                    external_actions,
                 ):
                     raise ValueError("plugin action rate limit exceeded")
                 action_batch = _QueuedActionBatch(
@@ -849,6 +1038,7 @@ class PluginRuntime:
                         peer_state=returned_peer_state,
                         expected_state_revision=state.state_revision,
                         expected_peer_state_revision=state.peer_state_revision,
+                        channel_index=invocation.event.channel_index,
                         session_local_node_id=(
                             invocation.event.local_node_id if effective_session_actions else None
                         ),
@@ -874,8 +1064,12 @@ class PluginRuntime:
                 self._publish_ticker_updates(invocation.plugin_id, ticker_updates)
             self._publish_debug(invocation.plugin_id, debug_entries)
             self._plugin_failures[invocation.plugin_id] = 0
+            self._plugin_last_errors.pop(invocation.plugin_id, None)
             with self._status_lock:
                 self._last_error = ""
+            return True
+        except PluginStateQuotaExceeded as exc:
+            self._record_plugin_failure(invocation.plugin_id, str(exc))
             return True
         except TimeoutError as exc:
             with self._status_lock:
@@ -913,15 +1107,27 @@ class PluginRuntime:
                     if size > self._config.chat_max_bytes:
                         raise ValueError("plugin text action exceeds the chat byte limit")
             if isinstance(action, SendTextAction):
-                if _NODE_ID_RE.fullmatch(action.destination_id.lower()) is None:
-                    raise ValueError("plugin send destination must be a canonical node ID")
+                destination_id = action.destination_id.lower()
+                if (
+                    _NODE_ID_RE.fullmatch(destination_id) is None
+                    or destination_id in _RESERVED_NODE_IDS
+                ):
+                    raise ValueError(
+                        "plugin send destination must be a direct canonical node ID"
+                    )
                 if action.channel_index is not None and not 0 <= action.channel_index <= 7:
                     raise ValueError("plugin channel index is out of range")
             if isinstance(action, SendChannelAction) and not 0 <= action.channel_index <= 7:
                 raise ValueError("plugin channel index is out of range")
             if isinstance(action, SendFileAction):
-                if _NODE_ID_RE.fullmatch(action.destination_id.lower()) is None:
-                    raise ValueError("plugin file destination must be a canonical node ID")
+                destination_id = action.destination_id.lower()
+                if (
+                    _NODE_ID_RE.fullmatch(destination_id) is None
+                    or destination_id in _RESERVED_NODE_IDS
+                ):
+                    raise ValueError(
+                        "plugin file destination must be a direct canonical node ID"
+                    )
             actions.append(action)
         return tuple(actions)
 
@@ -1099,7 +1305,11 @@ class PluginRuntime:
                 else json.dumps(value, separators=(",", ":"), sort_keys=True)
                 for value in values
             )
-            print(f"[script:{plugin_id}] {rendered}", flush=True)
+            print(
+                f"[script:{_terminal_safe_text(plugin_id)}] "
+                f"{_terminal_safe_text(rendered)}",
+                flush=True,
+            )
             with self._status_lock:
                 self._debug_sequence += 1
                 self._debug_records.append(
@@ -1118,15 +1328,15 @@ class PluginRuntime:
     ) -> None:
         if not invocation.event.is_direct:
             raise ValueError("sessions may only be changed by direct messages")
+        session_key = (
+            invocation.event.local_node_id,
+            invocation.event.sender_id,
+            invocation.event.channel_index,
+        )
         if action.operation == "start":
-            self._sessions[(invocation.event.local_node_id, invocation.event.sender_id)] = (
-                invocation.plugin_id
-            )
+            self._sessions[session_key] = invocation.plugin_id
         else:
-            self._sessions.pop(
-                (invocation.event.local_node_id, invocation.event.sender_id),
-                None,
-            )
+            self._sessions.pop(session_key, None)
 
     def _action_loop(self) -> None:
         while not self._stop.is_set():
@@ -1156,16 +1366,133 @@ class PluginRuntime:
                 with self._status_lock:
                     self._last_error = f"action failed: {exc}"
 
-    def _admit_action_batch(self, plugin_id: str, action_count: int) -> bool:
+    def _queued_external_action(
+        self,
+        plugin_id: str,
+        event: MessageEvent,
+        action: ScriptAction,
+    ) -> _QueuedAction:
+        frames, radio_bytes = self._action_radio_cost(action)
+        return _QueuedAction(
+            plugin_id,
+            event,
+            action,
+            radio_frames=frames,
+            radio_bytes=radio_bytes,
+        )
+
+    def _action_radio_cost(self, action: ScriptAction) -> tuple[int, int]:
+        if isinstance(action, ReplyAction):
+            segments = (
+                _utf8_segments(action.text, self._config.chat_max_bytes)
+                if action.long
+                else [action.text]
+            )
+            return len(segments), sum(len(part.encode("utf-8")) for part in segments)
+        if isinstance(action, (SendTextAction, SendChannelAction)):
+            return 1, len(action.text.encode("utf-8"))
+        if isinstance(action, SendFileAction):
+            estimator_owner = getattr(self._submit_file_fn, "__self__", None)
+            estimator = getattr(estimator_owner, "estimate_transfer_cost", None)
+            if callable(estimator):
+                estimate = estimator(action.path_or_file_id)
+                if not isinstance(estimate, Mapping):
+                    raise ValueError("file transfer estimator returned an invalid result")
+                frames = self._positive_radio_cost(estimate.get("frames"), "frames")
+                radio_bytes = self._positive_radio_cost(estimate.get("bytes"), "bytes")
+            else:
+                # Custom submitters without a preflight API are charged the
+                # protocol maximum so they can never understate radio use.
+                frames = 4 * (FILE_TRANSFER_MAX_CHUNKS + 1)
+                radio_bytes = frames * FILE_TRANSFER_MAX_WIRE_BYTES
+            if frames > 4 * (FILE_TRANSFER_MAX_CHUNKS + 1):
+                raise ValueError("file transfer estimator exceeds the protocol frame limit")
+            if radio_bytes > frames * FILE_TRANSFER_MAX_WIRE_BYTES:
+                raise ValueError("file transfer estimator exceeds the protocol byte limit")
+            return frames, radio_bytes
+        if isinstance(action, AcceptFileOfferAction):
+            configured_chunks = max(
+                1,
+                (
+                    max(1, int(self._config.max_inbound_file_bytes))
+                    + FILE_TRANSFER_CHUNK_BYTES
+                    - 1
+                )
+                // FILE_TRANSFER_CHUNK_BYTES,
+            )
+            ack_frames = min(FILE_TRANSFER_MAX_CHUNKS, configured_chunks) + 1
+            return ack_frames, ack_frames * FILE_TRANSFER_MAX_WIRE_BYTES
+        return 0, 0
+
+    @staticmethod
+    def _positive_radio_cost(value: object, label: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"file transfer estimator returned invalid {label}")
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(
+                f"file transfer estimator returned invalid {label}"
+            ) from exc
+        if parsed <= 0:
+            raise ValueError(f"file transfer estimator returned invalid {label}")
+        return parsed
+
+    def _admit_action_batch(
+        self,
+        plugin_id: str,
+        actions: Sequence[_QueuedAction],
+    ) -> bool:
+        action_count = len(actions)
+        frame_count = sum(max(0, action.radio_frames) for action in actions)
+        synchronous_frame_count = sum(
+            max(0, action.radio_frames)
+            for action in actions
+            if not isinstance(
+                action.action,
+                (SendFileAction, AcceptFileOfferAction),
+            )
+        )
+        radio_bytes = sum(max(0, action.radio_bytes) for action in actions)
         now = self._monotonic_fn()
-        times = self._action_times.setdefault(plugin_id, deque())
-        while times and now - times[0] >= 60.0:
-            times.popleft()
-        if len(times) + action_count > max(1, self._config.max_actions_per_minute):
+        with self._admission_lock:
+            times = self._action_times.setdefault(plugin_id, deque())
+            while times and now - times[0] >= 60.0:
+                times.popleft()
+            usage = self._radio_usage.setdefault(plugin_id, deque())
+            while usage and now - usage[0][0] >= 60.0:
+                usage.popleft()
+            while (
+                self._global_radio_usage
+                and now - self._global_radio_usage[0][0] >= 60.0
+            ):
+                self._global_radio_usage.popleft()
+            used_frames = sum(row[1] for row in usage)
+            used_bytes = sum(row[2] for row in usage)
+            global_frames = sum(row[1] for row in self._global_radio_usage)
+            global_bytes = sum(row[2] for row in self._global_radio_usage)
+            denied = (
+                len(times) + action_count
+                > max(1, self._config.max_actions_per_minute)
+                or synchronous_frame_count
+                > max(1, self._config.max_synchronous_radio_frames_per_batch)
+                or used_frames + frame_count
+                > max(1, self._config.max_radio_frames_per_minute)
+                or used_bytes + radio_bytes
+                > max(1, self._config.max_radio_bytes_per_minute)
+                or global_frames + frame_count
+                > max(1, self._config.max_global_radio_frames_per_minute)
+                or global_bytes + radio_bytes
+                > max(1, self._config.max_global_radio_bytes_per_minute)
+            )
+            if not denied:
+                times.extend(now for _ in range(action_count))
+                usage.append((now, frame_count, radio_bytes))
+                self._global_radio_usage.append((now, frame_count, radio_bytes))
+        if denied:
             with self._status_lock:
                 self._dropped_actions += action_count
             return False
-        times.extend(now for _ in range(action_count))
         return True
 
     def _execute_action(self, queued: _QueuedAction) -> None:
@@ -1209,6 +1536,8 @@ class PluginRuntime:
                 destination_id=action.destination_id,
                 path_or_file_id=action.path_or_file_id,
                 channel_index=event.channel_index,
+                local_node_id=event.local_node_id,
+                admitted_frames=queued.radio_frames,
             )
             if isinstance(response, Mapping) and response.get("ok") is False:
                 raise RuntimeError(str(response.get("error") or "file job was rejected"))
@@ -1222,12 +1551,32 @@ class PluginRuntime:
             if isinstance(response, Mapping) and response.get("ok") is False:
                 raise ValueError(str(response.get("error") or "file offer was rejected"))
 
+    def _startup_identity_is_quarantined(self, plugin_id: str) -> bool:
+        manifest = self._manifest_by_id.get(plugin_id)
+        quarantined_digest = self._startup_quarantined_identities.get(plugin_id)
+        return bool(
+            manifest is not None
+            and quarantined_digest
+            and manifest.package_digest == quarantined_digest
+        )
+
     def _is_quarantined(self, plugin_id: str) -> bool:
+        if self._startup_identity_is_quarantined(plugin_id):
+            return True
         return self._plugin_quarantined_until.get(plugin_id, 0.0) > self._monotonic_fn()
+
+    def _quarantine_error(self, plugin_id: str) -> str:
+        if self._startup_identity_is_quarantined(plugin_id):
+            return (
+                "quarantined after fatal startup failure; disable and re-enable "
+                "the plugin or restart Meshyface to retry"
+            )
+        return "temporarily quarantined after repeated handler failures"
 
     def _record_plugin_failure(self, plugin_id: str, error: str) -> None:
         failures = self._plugin_failures.get(plugin_id, 0) + 1
         self._plugin_failures[plugin_id] = failures
+        self._plugin_last_errors[plugin_id] = error
         if failures >= 3:
             delay = min(60.0, float(2 ** min(6, failures - 3)))
             self._plugin_quarantined_until[plugin_id] = self._monotonic_fn() + delay

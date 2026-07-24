@@ -1,6 +1,9 @@
+import sqlite3
 import time
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from meshdash.file_transfer_protocol import (
     FILE_TRANSFER_PORTNUM,
@@ -8,7 +11,8 @@ from meshdash.file_transfer_protocol import (
     encode_file_transfer_frame,
     parse_file_transfer_frame_text,
 )
-from meshdash.plugin_composition import build_plugin_subsystem
+from meshdash.plugin_composition import PluginSubsystem, build_plugin_subsystem
+from meshdash.plugin_state import PluginStateStore
 
 
 class _Tracker:
@@ -21,6 +25,20 @@ class _Tracker:
 
     def remove_accepted_packet_listener(self, listener: object) -> None:
         self.listeners.remove(listener)
+
+
+class _OutboundCapture:
+    def __init__(self) -> None:
+        self.acks: list[dict[str, object]] = []
+        self.flows: list[dict[str, object]] = []
+
+    def handle_ack(self, **kwargs: object) -> bool:
+        self.acks.append(dict(kwargs))
+        return True
+
+    def handle_flow(self, **kwargs: object) -> bool:
+        self.flows.append(dict(kwargs))
+        return True
 
 
 def _args(tmp_path: Path, **overrides: object) -> SimpleNamespace:
@@ -123,6 +141,12 @@ def _wait_until(predicate, timeout: float = 4.0) -> None:
     raise AssertionError("condition did not become true")
 
 
+def _package_digest(subsystem: object, plugin_id: str) -> str:
+    status = subsystem.status()  # type: ignore[attr-defined]
+    scripts = status["scripts"]
+    return str(next(row for row in scripts if row["id"] == plugin_id)["package_digest"])
+
+
 def test_enabled_master_with_no_enabled_plugins_registers_live_management_listener(
     tmp_path,
 ) -> None:
@@ -196,7 +220,11 @@ def test_individual_enablement_starts_live_and_persists_for_the_next_runtime(tmp
     )
     try:
         assert first.status()["enabled_plugins"] == []
-        assert first.set_plugin_enabled("echo", True) == {
+        assert first.set_plugin_enabled(
+            "echo",
+            True,
+            expected_package_digest=_package_digest(first, "echo"),
+        ) == {
             "ok": True,
             "plugin_id": "echo",
             "enabled": True,
@@ -225,13 +253,211 @@ def test_individual_enablement_starts_live_and_persists_for_the_next_runtime(tmp
         second.close()
 
 
+def test_local_manifest_default_true_does_not_self_enable(tmp_path) -> None:
+    _write_echo_plugin(tmp_path / "plugins", default_enabled=True)
+    subsystem = build_plugin_subsystem(
+        args=_args(tmp_path),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        status = subsystem.status()
+        script = status["scripts"][0]  # type: ignore[index]
+        assert status["enabled_plugins"] == []
+        assert script["enabled"] is False
+        assert script["default_enabled"] is False
+        assert script["declared_default_enabled"] is True
+        assert str(script["package_digest"]).startswith("sha256:")
+    finally:
+        subsystem.close()
+
+
+def test_management_mutations_require_current_package_identity(tmp_path) -> None:
+    _write_echo_plugin(tmp_path / "plugins")
+    subsystem = build_plugin_subsystem(
+        args=_args(tmp_path),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        initial_script = subsystem.status()["scripts"][0]  # type: ignore[index]
+        assert initial_script["approval_status"] == "new"
+        assert initial_script["identity_changed"] is False
+        with pytest.raises(TypeError, match="expected_package_digest"):
+            subsystem.set_plugin_enabled("echo", True)  # type: ignore[call-arg]
+        with pytest.raises(TypeError, match="expected_package_digest"):
+            subsystem.set_plugin_settings("echo", {})  # type: ignore[call-arg]
+        stale_result = subsystem.set_plugin_enabled(
+            "echo",
+            True,
+            expected_package_digest=f"sha256:{'0' * 64}",
+        )
+        assert stale_result["ok"] is False
+        assert stale_result["error"]["code"] == "plugin_identity_changed"  # type: ignore[index]
+        assert subsystem.status()["enabled_plugins"] == []
+    finally:
+        subsystem.close()
+
+
+def test_replaced_known_package_preserves_persisted_enablement(tmp_path) -> None:
+    plugin_root = tmp_path / "plugins"
+    _write_echo_plugin(plugin_root)
+    first = build_plugin_subsystem(
+        args=_args(tmp_path),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        assert first.set_plugin_enabled(
+            "echo",
+            True,
+            expected_package_digest=_package_digest(first, "echo"),
+        )["ok"] is True
+    finally:
+        first.close()
+
+    script_path = plugin_root / "echo" / "script.py"
+    script_path.write_text(
+        script_path.read_text(encoding="utf-8").replace(
+            "echo works",
+            "edited code",
+        ),
+        encoding="utf-8",
+    )
+    reopened = build_plugin_subsystem(
+        args=_args(tmp_path),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        status = reopened.status()
+        assert status["enabled_plugins"] == ["echo"]
+        assert status["scripts"][0]["enabled"] is True  # type: ignore[index]
+        assert status["scripts"][0]["approval_status"] == "known_enabled"  # type: ignore[index]
+        assert status["scripts"][0]["identity_changed"] is False  # type: ignore[index]
+    finally:
+        reopened.close()
+
+
+def test_persistent_enable_continues_to_work_across_local_edits(tmp_path) -> None:
+    plugin_root = tmp_path / "plugins"
+    _write_echo_plugin(plugin_root)
+    args = _args(tmp_path, plugin_enable=["echo"])
+    first = build_plugin_subsystem(
+        args=args,
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        assert first.status()["enabled_plugins"] == ["echo"]
+        old_digest = _package_digest(first, "echo")
+    finally:
+        first.close()
+
+    script_path = plugin_root / "echo" / "script.py"
+    script_path.write_text(
+        script_path.read_text(encoding="utf-8").replace(
+            "echo works",
+            "edited code",
+        ),
+        encoding="utf-8",
+    )
+    reopened = build_plugin_subsystem(
+        args=args,
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        status = reopened.status()
+        assert status["enabled_plugins"] == ["echo"]
+        assert status["scripts"][0]["enabled"] is True  # type: ignore[index]
+        assert status["discovery_errors"] == []
+        new_digest = _package_digest(reopened, "echo")
+        assert new_digest != old_digest
+    finally:
+        reopened.close()
+
+
+def test_live_package_edit_requires_restart_before_enablement_change(tmp_path) -> None:
+    plugin_root = tmp_path / "plugins"
+    _write_echo_plugin(plugin_root)
+    subsystem = build_plugin_subsystem(
+        args=_args(tmp_path),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        (plugin_root / "echo" / "new.py").write_text(
+            "changed = True\n",
+            encoding="utf-8",
+        )
+        result = subsystem.set_plugin_enabled(
+            "echo",
+            True,
+            expected_package_digest=_package_digest(subsystem, "echo"),
+        )
+        assert result["ok"] is False
+        assert result["error"]["code"] == "plugin_package_changed"  # type: ignore[index]
+        assert subsystem.status()["enabled_plugins"] == []
+    finally:
+        subsystem.close()
+
+
+def test_malformed_local_package_is_isolated_from_healthy_plugins(tmp_path) -> None:
+    root = tmp_path / "plugins"
+    _write_echo_plugin(root)
+    broken = root / "broken"
+    broken.mkdir(parents=True)
+    (broken / "plugin.toml").write_text("not = [valid", encoding="utf-8")
+    subsystem = build_plugin_subsystem(
+        args=_args(tmp_path, plugin_enable=["echo", "broken"]),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        _wait_until(
+            lambda: subsystem.status()["scripts"][0]["runtime_status"] == "running"  # type: ignore[index]
+        )
+        status = subsystem.status()
+        assert status["error"] == ""
+        assert status["discovered"] == 1
+        assert status["enabled_plugins"] == ["echo"]
+        assert len(status["discovery_errors"]) == 2  # type: ignore[arg-type]
+        assert any(
+            "invalid TOML" in error for error in status["discovery_errors"]  # type: ignore[union-attr]
+        )
+        assert any(
+            "--plugin-enable references unknown plugin 'broken'" in error
+            for error in status["discovery_errors"]  # type: ignore[union-attr]
+        )
+        assert str(tmp_path) not in str(status["discovery_errors"])
+    finally:
+        subsystem.close()
+
+
 def test_plugin_configuration_is_validated_persisted_and_live_on_next_event(tmp_path) -> None:
     plugin_root = tmp_path / "plugins"
     _write_config_plugin(plugin_root)
     tracker = _Tracker()
     sends: list[dict[str, object]] = []
     subsystem = build_plugin_subsystem(
-        args=_args(tmp_path),
+        args=_args(tmp_path, plugin_enable=["configured"]),
         iface=SimpleNamespace(nodesByNum={}),
         tracker=tracker,
         send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)) or {"ok": True},
@@ -268,6 +494,7 @@ def test_plugin_configuration_is_validated_persisted_and_live_on_next_event(tmp_
         assert subsystem.set_plugin_settings(
             "configured",
             {"greeting": "updated", "allowed_nodes": ["!AABBCCDD"]},
+            expected_package_digest=_package_digest(subsystem, "configured"),
         ) == {
             "ok": True,
             "plugin_id": "configured",
@@ -296,6 +523,174 @@ def test_plugin_configuration_is_validated_persisted_and_live_on_next_event(tmp_
         reopened.close()
 
 
+def test_replacement_package_automatically_inherits_compatible_settings(
+    tmp_path,
+) -> None:
+    root = tmp_path / "plugins"
+    _write_config_plugin(root)
+    first = build_plugin_subsystem(
+        args=_args(tmp_path, plugin_enable=["configured"]),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        assert first.set_plugin_settings(
+            "configured",
+            {"greeting": "private-value", "allowed_nodes": ["!01020304"]},
+            expected_package_digest=_package_digest(first, "configured"),
+        )["ok"] is True
+    finally:
+        first.close()
+
+    script_path = root / "configured" / "script.py"
+    script_path.write_text(
+        script_path.read_text(encoding="utf-8") + "\n# replacement package\n",
+        encoding="utf-8",
+    )
+    replacement = build_plugin_subsystem(
+        args=_args(tmp_path),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        status = replacement.status()
+        assert status["enabled_plugins"] == ["configured"]
+        assert status["scripts"][0]["settings"] == {  # type: ignore[index]
+            "greeting": "private-value",
+            "allowed_nodes": ["!01020304"],
+        }
+    finally:
+        replacement.close()
+
+
+def test_replacement_package_leaves_incompatible_settings_unbound(tmp_path) -> None:
+    root = tmp_path / "plugins"
+    _write_config_plugin(root)
+    first = build_plugin_subsystem(
+        args=_args(tmp_path, plugin_enable=["configured"]),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        assert first.set_plugin_settings(
+            "configured",
+            {"greeting": "private-value", "allowed_nodes": ["!01020304"]},
+            expected_package_digest=_package_digest(first, "configured"),
+        )["ok"] is True
+    finally:
+        first.close()
+
+    manifest_path = root / "configured" / "plugin.toml"
+    manifest_path.write_text(
+        manifest_path.read_text(encoding="utf-8").replace(
+            "max_length = 20",
+            "max_length = 5",
+        ),
+        encoding="utf-8",
+    )
+    replacement = build_plugin_subsystem(
+        args=_args(tmp_path),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        assert replacement.status()["enabled_plugins"] == ["configured"]
+        assert replacement.status()["scripts"][0]["settings"] == {  # type: ignore[index]
+            "greeting": "hello",
+            "allowed_nodes": [],
+        }
+    finally:
+        replacement.close()
+
+
+def test_startup_reconciles_legacy_identity_settings_and_sessions(tmp_path) -> None:
+    root = tmp_path / "plugins"
+    _write_config_plugin(root)
+    state_path = tmp_path / "plugin-state.sqlite3"
+    connection = sqlite3.connect(state_path)
+    connection.execute(
+        """
+        CREATE TABLE plugin_settings (
+            plugin_id TEXT PRIMARY KEY,
+            settings_json TEXT NOT NULL,
+            updated_unix INTEGER NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE plugin_enablement (
+            plugin_id TEXT PRIMARY KEY,
+            enabled INTEGER NOT NULL,
+            updated_unix INTEGER NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO plugin_settings(plugin_id, settings_json, updated_unix)
+        VALUES (?, ?, ?)
+        """,
+        (
+            "configured",
+            '{"allowed_nodes":["!01020304"],"greeting":"legacy-value"}',
+            100,
+        ),
+    )
+    connection.execute(
+        """
+        INSERT INTO plugin_enablement(plugin_id, enabled, updated_unix)
+        VALUES (?, ?, ?)
+        """,
+        ("configured", 1, 100),
+    )
+    connection.commit()
+    connection.close()
+    legacy_store = PluginStateStore(str(state_path))
+    legacy_store.start_session(
+        "!00000002",
+        "!01020304",
+        "configured",
+        3,
+    )
+    legacy_store.close()
+
+    subsystem = build_plugin_subsystem(
+        args=_args(tmp_path),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        initial_script = subsystem.status()["scripts"][0]  # type: ignore[index]
+        assert initial_script["approval_status"] == "known_enabled"
+        assert initial_script["identity_changed"] is False
+        assert initial_script["settings"] == {
+            "greeting": "legacy-value",
+            "allowed_nodes": ["!01020304"],
+        }
+        assert subsystem._state_store is not None
+        assert (
+            subsystem._state_store.active_session(
+                "!00000002",
+                "!01020304",
+                3,
+            )
+            is None
+        )
+    finally:
+        subsystem.close()
+
+
 def test_individual_disable_stops_live_routing_and_the_last_worker(tmp_path) -> None:
     plugin_root = tmp_path / "plugins"
     _write_echo_plugin(plugin_root)
@@ -316,7 +711,11 @@ def test_individual_disable_stops_live_routing_and_the_last_worker(tmp_path) -> 
         "decoded": {"portnum": "TEXT_MESSAGE_APP", "text": "!echo"},
     }
     try:
-        assert subsystem.set_plugin_enabled("echo", True)["active"] is True
+        assert subsystem.set_plugin_enabled(
+            "echo",
+            True,
+            expected_package_digest=_package_digest(subsystem, "echo"),
+        )["active"] is True
         assert tracker.state_revision == 1
         _wait_until(
             lambda: subsystem.status()["scripts"][0]["runtime_status"] == "running"  # type: ignore[index]
@@ -325,7 +724,11 @@ def test_individual_disable_stops_live_routing_and_the_last_worker(tmp_path) -> 
         _wait_until(lambda: len(sends) == 1)
 
         disable_started = time.monotonic()
-        assert subsystem.set_plugin_enabled("echo", False) == {
+        assert subsystem.set_plugin_enabled(
+            "echo",
+            False,
+            expected_package_digest=_package_digest(subsystem, "echo"),
+        ) == {
             "ok": True,
             "plugin_id": "echo",
             "enabled": False,
@@ -338,6 +741,8 @@ def test_individual_disable_stops_live_routing_and_the_last_worker(tmp_path) -> 
         assert status["enabled_plugins"] == []
         assert status["runtime"] == {}
         assert status["scripts"][0]["runtime_status"] == "disabled"  # type: ignore[index]
+        assert status["scripts"][0]["approval_status"] == "known_disabled"  # type: ignore[index]
+        assert status["scripts"][0]["identity_changed"] is False  # type: ignore[index]
 
         tracker.listeners[0](packet, object())  # type: ignore[operator]
         time.sleep(0.2)
@@ -370,7 +775,7 @@ def test_broken_plugin_is_reported_without_preventing_healthy_plugin(tmp_path) -
         encoding="utf-8",
     )
     subsystem = build_plugin_subsystem(
-        args=_args(tmp_path),
+        args=_args(tmp_path, plugin_enable=["echo", "broken"]),
         iface=SimpleNamespace(nodesByNum={}),
         tracker=_Tracker(),
         send_chat_fn=lambda **_kwargs: {"ok": True},
@@ -437,6 +842,7 @@ def send_file(ctx):
             tmp_path,
             file_transfer_enable=True,
             plugins_files_directory=str(approved),
+            plugin_enable=["files"],
         ),
         iface=SimpleNamespace(nodesByNum={}),
         tracker=tracker,
@@ -504,3 +910,54 @@ def send_file(ctx):
         assert file_status["completed_count"] == 1  # type: ignore[index]
     finally:
         subsystem.close()
+
+
+def test_file_transfer_control_frames_forward_channel_and_local_destination() -> None:
+    outbound = _OutboundCapture()
+    subsystem = PluginSubsystem(  # type: ignore[arg-type]
+        state_store=None,
+        runtime=None,
+        outbound_files=outbound,
+    )
+    ack = parse_file_transfer_frame_text(
+        build_file_transfer_ack_frame(
+            transfer_id="abcdef123456",
+            total_chunks=1,
+            received_indexes=(),
+        )
+    )
+    assert ack is not None
+
+    def _packet(frame: dict[str, object]) -> dict[str, object]:
+        return {
+            "from": 1,
+            "to": 2,
+            "channel": 4,
+            "decoded": {
+                "portnum": FILE_TRANSFER_PORTNUM,
+                "payload": encode_file_transfer_frame(frame),
+            },
+        }
+
+    subsystem.on_file_transfer_receive(_packet(ack))
+    subsystem.on_file_transfer_receive(
+        _packet(
+            {
+                "kind": "flow",
+                "transfer_id": "abcdef123456",
+                "action": "cancel",
+            }
+        )
+    )
+
+    assert outbound.acks[0]["sender_id"] == "!00000001"
+    assert outbound.acks[0]["destination_id"] == "!00000002"
+    assert outbound.acks[0]["channel_index"] == 4
+    assert outbound.flows[0]["sender_id"] == "!00000001"
+    assert outbound.flows[0]["destination_id"] == "!00000002"
+    assert outbound.flows[0]["channel_index"] == 4
+
+    missing_destination = _packet(ack)
+    missing_destination.pop("to")
+    subsystem.on_file_transfer_receive(missing_destination)
+    assert len(outbound.acks) == 1

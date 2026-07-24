@@ -3,6 +3,12 @@
     let scriptsDebugClearedThrough = 0;
     let scriptsTransientErrorMessage = "";
     let scriptsOpenConfigId = "";
+    let scriptsAdminRuntimeSummary = null;
+    let scriptsAdminFetchPending = false;
+    let scriptsAdminLastFetchMs = 0;
+    let scriptsAdminAccessState = "";
+    let scriptsAdminAccessMessage = "";
+    const scriptsAdminTokenStorageKey = "meshDashboardScriptsApiTokenV1";
     const scriptsPendingRequests = new Map();
     const scriptsPendingConfigRequests = new Set();
     const scriptsConfigDrafts = new Map();
@@ -12,6 +18,9 @@
     );
 
     function scriptsRuntimeSummary(state = latestState) {{
+      if (scriptsAdminRuntimeSummary && typeof scriptsAdminRuntimeSummary === "object") {{
+        return scriptsAdminRuntimeSummary;
+      }}
       const safeState = state && typeof state === "object" ? state : {{}};
       const summary = safeState.summary && typeof safeState.summary === "object"
         ? safeState.summary
@@ -19,6 +28,132 @@
       return summary.plugins && typeof summary.plugins === "object"
         ? summary.plugins
         : null;
+    }}
+
+    function scriptsStoredApiToken() {{
+      try {{
+        return String(window.sessionStorage.getItem(scriptsAdminTokenStorageKey) || "").trim();
+      }} catch (_err) {{
+        return "";
+      }}
+    }}
+
+    function scriptsSetStoredApiToken(value) {{
+      const clean = String(value || "").trim();
+      try {{
+        if (clean) window.sessionStorage.setItem(scriptsAdminTokenStorageKey, clean);
+        else window.sessionStorage.removeItem(scriptsAdminTokenStorageKey);
+      }} catch (_err) {{
+      }}
+    }}
+
+    function scriptsDiscardPrivilegedState() {{
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {{
+        try {{
+          activeElement.blur();
+        }} catch (_err) {{
+        }}
+      }}
+      scriptsOpenConfigId = "";
+      scriptsConfigDrafts.clear();
+      scriptsAdminRuntimeSummary = null;
+      scriptsLastDebugSignature = "";
+      scriptsLastRenderSignature = "";
+      renderScriptsDebug(null);
+    }}
+
+    function scriptsAdminRequestHeaders({{ json = false }} = {{}}) {{
+      const headers = {{}};
+      if (json) headers["Content-Type"] = "application/json";
+      const token = scriptsStoredApiToken();
+      if (token) headers["X-API-Token"] = token;
+      return headers;
+    }}
+
+    function scriptsSyncAdminAccessControls() {{
+      const panel = document.getElementById("scripts-admin-access");
+      const input = document.getElementById("scripts-admin-token");
+      const forgetButton = document.getElementById("scripts-admin-token-forget");
+      const status = document.getElementById("scripts-admin-access-status");
+      if (!(panel instanceof HTMLElement)) return;
+      const tokenPresent = !!scriptsStoredApiToken();
+      const needsToken = scriptsAdminAccessState === "token_required";
+      const serverNeedsToken = scriptsAdminAccessState === "server_token_required";
+      panel.hidden = !(needsToken || serverNeedsToken || tokenPresent);
+      if (input instanceof HTMLInputElement) {{
+        input.hidden = serverNeedsToken;
+        input.disabled = serverNeedsToken;
+      }}
+      const unlockButton = document.getElementById("scripts-admin-token-submit");
+      if (unlockButton instanceof HTMLButtonElement) {{
+        unlockButton.hidden = serverNeedsToken;
+        unlockButton.disabled = serverNeedsToken;
+      }}
+      if (forgetButton instanceof HTMLButtonElement) {{
+        forgetButton.hidden = !tokenPresent;
+      }}
+      if (status instanceof HTMLElement) {{
+        status.textContent = serverNeedsToken
+          ? "Remote administration is disabled until the server is configured with an API token."
+          : (tokenPresent
+            ? "An API token is active for this browser tab."
+            : "Enter the dashboard API token to manage scripts.");
+      }}
+    }}
+
+    async function refreshScriptsAdminSummary(force = false) {{
+      if (scriptsAdminFetchPending) return false;
+      const now = Date.now();
+      const retryDelay = scriptsAdminAccessState ? 15000 : 2500;
+      if (!force && (now - scriptsAdminLastFetchMs) < retryDelay) return false;
+      scriptsAdminFetchPending = true;
+      scriptsAdminLastFetchMs = now;
+      try {{
+        const response = await fetch("/api/admin/plugins", {{
+          method: "GET",
+          headers: scriptsAdminRequestHeaders(),
+          cache: "no-store",
+        }});
+        const text = await response.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        if (!response.ok || !payload || payload.ok !== true || !payload.plugins) {{
+          scriptsDiscardPrivilegedState();
+          if (response.status === 401) {{
+            scriptsAdminAccessState = "token_required";
+            scriptsAdminAccessMessage = "Administrator access is required to inspect or manage installed scripts.";
+          }} else if (response.status === 403) {{
+            scriptsAdminAccessState = "server_token_required";
+            scriptsAdminAccessMessage = "Remote script administration requires an API token configured on the server.";
+          }} else {{
+            scriptsAdminAccessState = "unavailable";
+            scriptsAdminAccessMessage = String(
+              (payload && payload.error) || text || `Could not load script administration (HTTP ${{response.status}}).`
+            );
+          }}
+          return false;
+        }}
+        scriptsAdminRuntimeSummary = payload.plugins;
+        scriptsAdminAccessState = "";
+        scriptsAdminAccessMessage = "";
+        return true;
+      }} catch (err) {{
+        scriptsDiscardPrivilegedState();
+        scriptsAdminAccessState = "unavailable";
+        scriptsAdminAccessMessage = err instanceof Error
+          ? err.message
+          : String(err || "Could not load script administration.");
+        return false;
+      }} finally {{
+        scriptsAdminFetchPending = false;
+        scriptsSyncAdminAccessControls();
+        scriptsLastRenderSignature = "";
+        renderScriptsView(latestState);
+      }}
     }}
 
     function scriptsRuntimeErrorMessage(runtimeSummary) {{
@@ -293,8 +428,19 @@
     function scriptsSettingValue(row, definition) {{
       const scriptId = String(row.id || "").trim();
       const draft = scriptsConfigDrafts.get(scriptId);
-      const settings = draft && typeof draft === "object"
-        ? draft
+      const packageDigest = String(row.package_digest || "").trim().toLowerCase();
+      const draftMatchesPackage = !!(
+        draft
+        && typeof draft === "object"
+        && draft.packageDigest === packageDigest
+        && draft.settings
+        && typeof draft.settings === "object"
+      );
+      if (draft && !draftMatchesPackage) {{
+        scriptsConfigDrafts.delete(scriptId);
+      }}
+      const settings = draftMatchesPackage
+        ? draft.settings
         : (row.settings && typeof row.settings === "object" ? row.settings : {{}});
       const key = String(definition.key || "");
       if (Object.prototype.hasOwnProperty.call(settings, key)) return settings[key];
@@ -384,8 +530,13 @@
       const scriptId = String(row.id || "").trim();
       if (scriptsOpenConfigId !== scriptId) return "";
       const pending = scriptsPendingConfigRequests.has(scriptId);
+      const packageDigest = String(row.package_digest || "").trim().toLowerCase();
       return `
-        <form class="scripts-config-form" data-script-config-form="${{escAttr(scriptId)}}">
+        <form
+          class="scripts-config-form"
+          data-script-config-form="${{escAttr(scriptId)}}"
+          data-package-digest="${{escAttr(packageDigest)}}"
+        >
           <div class="scripts-config-fields">
             ${{schema.map((definition) => scriptsSettingHtml(row, definition)).join("")}}
           </div>
@@ -401,6 +552,11 @@
       const scriptId = String(row.id || "").trim();
       const scriptName = String(row.name || scriptId || "Unnamed script").trim();
       const version = String(row.version || "unknown").trim();
+      const packageDigest = String(row.package_digest || "").trim().toLowerCase();
+      const hasPackageDigest = /^sha256:[0-9a-f]{{64}}$/.test(packageDigest);
+      const digestLabel = hasPackageDigest
+        ? `sha256:${{packageDigest.slice(7, 19)}}…`
+        : "Identity unavailable";
       const source = String(row.source || "local").trim().toLowerCase() === "included"
         ? "Bundled"
         : "Local";
@@ -431,6 +587,7 @@
           <div class="scripts-item-meta">
             <span>v${{escAttr(version)}}</span>
             <span>${{escAttr(source)}}</span>
+            <span title="${{escAttr(packageDigest || "Package identity unavailable")}}">${{escAttr(digestLabel)}}</span>
           </div>
           <div class="scripts-commands" aria-label="Declared commands">${{commandHtml}}</div>
           <div class="scripts-item-actions">
@@ -441,7 +598,7 @@
                   class="btn btn-secondary scripts-configure-btn"
                   type="button"
                   data-script-configure="${{escAttr(scriptId)}}"
-                  ${{runtimeEnabled && !configPending ? "" : "disabled"}}
+                  ${{runtimeEnabled && hasPackageDigest && !configPending ? "" : "disabled"}}
                 >${{scriptsOpenConfigId === scriptId ? "Close" : "Configure"}}</button>
               ` : ""}}
               <button
@@ -449,7 +606,8 @@
                 type="button"
                 data-script-toggle="${{escAttr(scriptId)}}"
                 data-next-enabled="${{enabled ? "false" : "true"}}"
-                ${{runtimeEnabled && !pending ? "" : "disabled"}}
+                data-package-digest="${{escAttr(packageDigest)}}"
+                ${{runtimeEnabled && hasPackageDigest && !pending ? "" : "disabled"}}
               >${{escAttr(buttonLabel)}}</button>
             </div>
           </div>
@@ -481,8 +639,12 @@
         let emptyText = runtimeSummary && runtimeSummary.enabled === false
           ? scriptsMasterOffGuidance
           : "Installed scripts have not been inspected.";
-        if (runtimeSummary && runtimeSummary.enabled === true && runtimeSummary.available === false) {{
+        if (!scriptsAdminRuntimeSummary && scriptsAdminAccessState) {{
+          emptyText = "Administrator access is required to inspect installed scripts.";
+        }} else if (runtimeSummary && runtimeSummary.enabled === true && runtimeSummary.available === false) {{
           emptyText = "Waiting for the Scripts runtime to become available.";
+        }} else if (!scriptsAdminRuntimeSummary && runtimeSummary && runtimeSummary.enabled === true) {{
+          emptyText = "Loading installed scripts…";
         }} else if (runtimeSummary && runtimeSummary.enabled === true) {{
           emptyText = "No scripts are installed.";
         }}
@@ -492,7 +654,11 @@
           .map((row) => scriptsItemHtml(row, runtimeSummary, runtimeEnabled))
           .join("");
       }}
-      const runtimeMessage = scriptsTransientErrorMessage || presentation.message;
+      const runtimeMessage = (
+        scriptsTransientErrorMessage
+        || scriptsAdminAccessMessage
+        || presentation.message
+      );
       const signature = JSON.stringify([
         presentation.kind,
         presentation.label,
@@ -508,6 +674,8 @@
         : null;
       if (
         activeConfigForm instanceof HTMLFormElement
+        && scriptsAdminRuntimeSummary
+        && !scriptsAdminAccessState
         && !scriptsPendingConfigRequests.has(
           String(activeConfigForm.dataset.scriptConfigForm || "").trim()
         )
@@ -543,17 +711,30 @@
     }}
 
     function renderScriptsViewSafely(state = latestState, stepName = "renderScriptsView") {{
+      let rendered = false;
       if (typeof runPollStep === "function") {{
-        return runPollStep(stepName, () => renderScriptsView(state), false);
-      }}
-      try {{
-        return renderScriptsView(state);
-      }} catch (err) {{
-        if (typeof console !== "undefined" && console && typeof console.error === "function") {{
-          console.error(`[scripts render error] ${{stepName}}`, err);
+        rendered = runPollStep(stepName, () => renderScriptsView(state), false);
+      }} else {{
+        try {{
+          rendered = renderScriptsView(state);
+        }} catch (err) {{
+          if (typeof console !== "undefined" && console && typeof console.error === "function") {{
+            console.error(`[scripts render error] ${{stepName}}`, err);
+          }}
+          rendered = false;
         }}
-        return false;
       }}
+      if (
+        typeof activeLayoutView !== "undefined"
+        && String(activeLayoutView || "") === "scripts"
+        && (
+          !scriptsRuntimeSummary(state)
+          || scriptsRuntimeSummary(state).enabled !== false
+        )
+      ) {{
+        void refreshScriptsAdminSummary(false);
+      }}
+      return rendered;
     }}
 
     function scriptsUpdateCachedEnabled(scriptId, enabled, active = enabled) {{
@@ -573,6 +754,23 @@
       const match = rows.find((row) => String(row.id || "") === scriptId);
       if (match && settings && typeof settings === "object") {{
         match.settings = {{ ...settings }};
+      }}
+    }}
+
+    function scriptsDiscardStaleConfig(scriptId) {{
+      const cleanId = String(scriptId || "").trim();
+      scriptsConfigDrafts.delete(cleanId);
+      if (scriptsOpenConfigId === cleanId) scriptsOpenConfigId = "";
+      const activeElement = document.activeElement;
+      const activeForm = activeElement instanceof Element
+        ? activeElement.closest("[data-script-config-form]")
+        : null;
+      if (
+        activeForm instanceof HTMLFormElement
+        && String(activeForm.dataset.scriptConfigForm || "").trim() === cleanId
+        && activeElement instanceof HTMLElement
+      ) {{
+        activeElement.blur();
       }}
     }}
 
@@ -601,19 +799,32 @@
       return settings;
     }}
 
-    async function saveScriptConfig(scriptId, settings) {{
+    async function saveScriptConfig(scriptId, packageDigest, settings) {{
       const cleanId = String(scriptId || "").trim();
       if (!cleanId || scriptsPendingConfigRequests.has(cleanId)) return false;
+      const expectedPackageDigest = String(packageDigest || "").trim().toLowerCase();
+      if (!/^sha256:[0-9a-f]{{64}}$/.test(expectedPackageDigest)) {{
+        scriptsTransientErrorMessage = `Could not configure ${{cleanId}}: refresh to load its current package fingerprint.`;
+        void refreshScriptsAdminSummary(true);
+        return false;
+      }}
       scriptsPendingConfigRequests.add(cleanId);
-      scriptsConfigDrafts.set(cleanId, {{ ...settings }});
+      scriptsConfigDrafts.set(cleanId, {{
+        packageDigest: expectedPackageDigest,
+        settings: {{ ...settings }},
+      }});
       scriptsTransientErrorMessage = "";
       scriptsLastRenderSignature = "";
       renderScriptsViewSafely(latestState, "scripts.config.pending");
       try {{
         const response = await fetch("/api/settings/plugins/config", {{
           method: "POST",
-          headers: {{ "Content-Type": "application/json" }},
-          body: JSON.stringify({{ plugin_id: cleanId, settings }}),
+          headers: scriptsAdminRequestHeaders({{ json: true }}),
+          body: JSON.stringify({{
+            plugin_id: cleanId,
+            package_digest: expectedPackageDigest,
+            settings,
+          }}),
           cache: "no-store",
         }});
         const text = await response.text();
@@ -627,6 +838,11 @@
           ? String(error.message || error.code || "")
           : String(error || (payload && payload.message) || text || `HTTP ${{response.status}}`);
         if (!response.ok || !payload || payload.ok !== true) {{
+          if (response.status === 409) {{
+            scriptsDiscardStaleConfig(cleanId);
+            scriptsAdminRuntimeSummary = null;
+            void refreshScriptsAdminSummary(true);
+          }}
           throw new Error(errorMessage || `HTTP ${{response.status}}`);
         }}
         scriptsUpdateCachedSettings(cleanId, payload.settings);
@@ -636,6 +852,7 @@
           forceNextStatePollFresh("script-config");
         }}
         if (typeof requestImmediatePoll === "function") requestImmediatePoll(0);
+        void refreshScriptsAdminSummary(true);
         return true;
       }} catch (err) {{
         const message = err instanceof Error ? err.message : String(err || "Unknown error");
@@ -648,9 +865,15 @@
       }}
     }}
 
-    async function setScriptEnabled(scriptId, enabled, button) {{
+    async function setScriptEnabled(scriptId, packageDigest, enabled, button) {{
       const cleanId = String(scriptId || "").trim();
       if (!cleanId || scriptsPendingRequests.has(cleanId)) return false;
+      const expectedPackageDigest = String(packageDigest || "").trim().toLowerCase();
+      if (!/^sha256:[0-9a-f]{{64}}$/.test(expectedPackageDigest)) {{
+        scriptsTransientErrorMessage = `Could not update ${{cleanId}}: refresh to load its current package fingerprint.`;
+        void refreshScriptsAdminSummary(true);
+        return false;
+      }}
       scriptsPendingRequests.set(cleanId, {{ enabled: !!enabled }});
       scriptsTransientErrorMessage = "";
       if (button instanceof HTMLButtonElement) button.disabled = true;
@@ -658,8 +881,12 @@
       try {{
         const response = await fetch("/api/settings/plugins", {{
           method: "POST",
-          headers: {{ "Content-Type": "application/json" }},
-          body: JSON.stringify({{ plugin_id: cleanId, enabled: !!enabled }}),
+          headers: scriptsAdminRequestHeaders({{ json: true }}),
+          body: JSON.stringify({{
+            plugin_id: cleanId,
+            package_digest: expectedPackageDigest,
+            enabled: !!enabled,
+          }}),
           cache: "no-store",
         }});
         const text = await response.text();
@@ -673,6 +900,10 @@
           ? String(error.message || error.code || "")
           : String(error || (payload && payload.message) || text || `HTTP ${{response.status}}`);
         if (!response.ok || !payload || payload.ok !== true) {{
+          if (response.status === 409) {{
+            scriptsAdminRuntimeSummary = null;
+            void refreshScriptsAdminSummary(true);
+          }}
           throw new Error(errorMessage || `HTTP ${{response.status}}`);
         }}
         scriptsUpdateCachedEnabled(cleanId, !!payload.enabled, !!payload.active);
@@ -682,6 +913,7 @@
         if (typeof requestImmediatePoll === "function") {{
           requestImmediatePoll(0);
         }}
+        void refreshScriptsAdminSummary(true);
         return true;
       }} catch (err) {{
         const message = err instanceof Error ? err.message : String(err || "Unknown error");
@@ -697,6 +929,35 @@
       const list = document.getElementById("scripts-list");
       if (!(list instanceof HTMLElement) || list.dataset.bound === "1") return;
       list.dataset.bound = "1";
+      scriptsSyncAdminAccessControls();
+      const accessForm = document.getElementById("scripts-admin-access");
+      if (accessForm instanceof HTMLFormElement) {{
+        accessForm.addEventListener("submit", (event) => {{
+          event.preventDefault();
+          const input = document.getElementById("scripts-admin-token");
+          const token = input instanceof HTMLInputElement ? input.value.trim() : "";
+          if (!token) return;
+          scriptsSetStoredApiToken(token);
+          input.value = "";
+          scriptsAdminAccessState = "";
+          scriptsAdminAccessMessage = "";
+          scriptsAdminRuntimeSummary = null;
+          scriptsSyncAdminAccessControls();
+          void refreshScriptsAdminSummary(true);
+        }});
+      }}
+      const forgetButton = document.getElementById("scripts-admin-token-forget");
+      if (forgetButton instanceof HTMLButtonElement) {{
+        forgetButton.addEventListener("click", () => {{
+          scriptsSetStoredApiToken("");
+          scriptsDiscardPrivilegedState();
+          scriptsAdminAccessState = "";
+          scriptsAdminAccessMessage = "";
+          scriptsSyncAdminAccessControls();
+          renderScriptsView(latestState);
+          void refreshScriptsAdminSummary(true);
+        }});
+      }}
       list.addEventListener("click", (event) => {{
         const configure = event.target instanceof Element
           ? event.target.closest("[data-script-configure]")
@@ -725,18 +986,23 @@
           : null;
         if (!(target instanceof HTMLButtonElement) || target.disabled) return;
         const scriptId = String(target.dataset.scriptToggle || "").trim();
+        const packageDigest = String(target.dataset.packageDigest || "").trim();
         const enabled = String(target.dataset.nextEnabled || "false") === "true";
-        void setScriptEnabled(scriptId, enabled, target);
+        void setScriptEnabled(scriptId, packageDigest, enabled, target);
       }});
       list.addEventListener("submit", (event) => {{
         const form = event.target;
         if (!(form instanceof HTMLFormElement) || !form.dataset.scriptConfigForm) return;
         event.preventDefault();
         const scriptId = String(form.dataset.scriptConfigForm || "").trim();
+        const packageDigest = String(form.dataset.packageDigest || "").trim();
         try {{
           const settings = scriptsReadConfigForm(form);
-          scriptsConfigDrafts.set(scriptId, settings);
-          void saveScriptConfig(scriptId, settings);
+          scriptsConfigDrafts.set(scriptId, {{
+            packageDigest,
+            settings,
+          }});
+          void saveScriptConfig(scriptId, packageDigest, settings);
         }} catch (err) {{
           const message = err instanceof Error ? err.message : String(err || "Invalid settings");
           scriptsTransientErrorMessage = `Could not configure ${{scriptId}}: ${{message}}`;

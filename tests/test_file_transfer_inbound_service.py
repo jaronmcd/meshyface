@@ -30,6 +30,7 @@ def _make_iface(*, local_num: int = 0x12345678, sender_num: int = 0x01020304):
 def _packet(
     text: str,
     *,
+    from_num: int = 0x01020304,
     to_num: int = 0x12345678,
     channel: int = 2,
     packet_id: int | None = None,
@@ -37,7 +38,7 @@ def _packet(
     frame = parse_file_transfer_frame_text(text)
     assert frame is not None
     packet: dict[str, object] = {
-        "from": 0x01020304,
+        "from": from_num,
         "to": to_num,
         "channel": channel,
         "decoded": {
@@ -294,6 +295,110 @@ def test_accepted_session_tracks_chunk_progress_and_completion() -> None:
     assert session["received_indexes"] == [0, 1]
     assert session["percent"] == 100.0
     assert session["complete"] is True
+
+
+def test_ack_budget_bounds_fresh_duplicate_final_chunks_and_recovers() -> None:
+    sent_messages: list[dict[str, object]] = []
+    now = {"value": 10.0}
+    service = _service(
+        sent_messages,
+        now_monotonic_fn=lambda: now["value"],
+        ack_cooldown_seconds=0,
+        ack_budget_window_seconds=60,
+        max_ack_sends_per_peer_window=3,
+        max_ack_sends_global_window=8,
+    )
+    service.accept_offer(
+        _packet("MF_FILE_V2|M|abcd1234|sample.bin|64|1|raw|64", packet_id=1)
+    )
+    service.on_receive(
+        _packet("MF_FILE_V2|C|abcd1234|0|AQID", packet_id=2)
+    )
+    service.on_receive(
+        _packet("MF_FILE_V2|C|abcd1234|0|AQID", packet_id=3)
+    )
+    service.on_receive(
+        _packet("MF_FILE_V2|C|abcd1234|0|AQID", packet_id=4)
+    )
+
+    runtime = service.get_runtime()
+    assert len(sent_messages) == 3
+    assert runtime["sent_ack_count"] == 3
+    assert runtime["suppressed_ack_count"] == 1
+    assert runtime["sessions"][0]["complete"] is True
+
+    now["value"] = 71.0
+    service.on_receive(
+        _packet("MF_FILE_V2|C|abcd1234|0|AQID", packet_id=5)
+    )
+    assert len(sent_messages) == 4
+    assert service.get_runtime()["sent_ack_count"] == 4
+
+
+def test_suppressed_progress_ack_remains_retryable_after_budget_recovers() -> None:
+    sent_messages: list[dict[str, object]] = []
+    now = {"value": 10.0}
+    service = _service(
+        sent_messages,
+        now_monotonic_fn=lambda: now["value"],
+        ack_cooldown_seconds=0,
+        ack_budget_window_seconds=60,
+        max_ack_sends_per_peer_window=2,
+        max_ack_sends_global_window=2,
+    )
+    service.accept_offer(
+        _packet("MF_FILE_V2|M|abcd1234|sample.bin|480|3|raw|480", packet_id=1)
+    )
+    service.on_receive(
+        _packet("MF_FILE_V2|C|abcd1234|0|AQID", packet_id=2)
+    )
+    service.on_receive(
+        _packet("MF_FILE_V2|C|abcd1234|1|BAUG", packet_id=3)
+    )
+    assert len(sent_messages) == 2
+    assert service.get_runtime()["suppressed_ack_count"] == 1
+
+    now["value"] = 71.0
+    service.on_receive(
+        _packet("MF_FILE_V2|C|abcd1234|1|BAUG", packet_id=4)
+    )
+
+    assert len(sent_messages) == 3
+    recovered_ack = parse_file_transfer_frame_text(
+        str(sent_messages[-1]["text"])
+    )
+    assert recovered_ack is not None
+    assert recovered_ack["kind"] == "ack"
+    assert recovered_ack["received_count"] == 2
+    assert service.get_runtime()["sessions"][0]["complete"] is False
+
+
+def test_ack_budget_is_shared_across_inbound_senders() -> None:
+    sent_messages: list[dict[str, object]] = []
+    service = _service(
+        sent_messages,
+        now_monotonic_fn=lambda: 10.0,
+        meta_peer_cooldown_seconds=0,
+        meta_global_cooldown_seconds=0,
+        max_ack_sends_per_peer_window=8,
+        max_ack_sends_global_window=2,
+    )
+
+    for index, sender_num in enumerate((0x01020304, 0x02030405, 0x03040506)):
+        result = service.accept_offer(
+            _packet(
+                f"MF_FILE_V2|M|abcd000{index + 1}|sample.bin|64|1|raw|64",
+                from_num=sender_num,
+                packet_id=index + 1,
+            )
+        )
+        assert result["accepted"] is True
+
+    runtime = service.get_runtime()
+    assert len(sent_messages) == 2
+    assert runtime["active_sessions"] == 3
+    assert runtime["sent_ack_count"] == 2
+    assert runtime["suppressed_ack_count"] == 1
 
 
 def test_accepted_sessions_bind_chunks_to_the_offer_channel() -> None:

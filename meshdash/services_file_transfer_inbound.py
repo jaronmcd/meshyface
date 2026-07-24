@@ -1,7 +1,7 @@
 import hashlib
 import threading
 import time
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -29,6 +29,9 @@ _REPLAY_MAX_ENTRIES = 8192
 _META_PEER_COOLDOWN_SECONDS = 2.0
 _META_GLOBAL_COOLDOWN_SECONDS = 0.25
 _MAX_RATE_TRACKED_PEERS = 128
+_ACK_BUDGET_WINDOW_SECONDS = 60.0
+_MAX_ACK_SENDS_PER_PEER_WINDOW = 64
+_MAX_ACK_SENDS_GLOBAL_WINDOW = 128
 
 
 @dataclass
@@ -160,6 +163,9 @@ class InboundFileTransferService:
         replay_max_entries: int = _REPLAY_MAX_ENTRIES,
         meta_peer_cooldown_seconds: float = _META_PEER_COOLDOWN_SECONDS,
         meta_global_cooldown_seconds: float = _META_GLOBAL_COOLDOWN_SECONDS,
+        ack_budget_window_seconds: float = _ACK_BUDGET_WINDOW_SECONDS,
+        max_ack_sends_per_peer_window: int = _MAX_ACK_SENDS_PER_PEER_WINDOW,
+        max_ack_sends_global_window: int = _MAX_ACK_SENDS_GLOBAL_WINDOW,
     ) -> None:
         self._lock = threading.Lock()
         self._local_node_id_fn = local_node_id_fn
@@ -201,8 +207,27 @@ class InboundFileTransferService:
         self._meta_global_cooldown_seconds = max(0.0, float(meta_global_cooldown_seconds))
         self._meta_monotonic_by_peer: dict[str, float] = {}
         self._last_meta_monotonic: float | None = None
+        self._ack_budget_window_seconds = max(
+            1.0,
+            float(ack_budget_window_seconds),
+        )
+        self._max_ack_sends_per_peer_window = max(
+            1,
+            int(max_ack_sends_per_peer_window),
+        )
+        self._max_ack_sends_global_window = max(
+            1,
+            int(max_ack_sends_global_window),
+        )
+        self._ack_send_times: deque[float] = deque(
+            maxlen=self._max_ack_sends_global_window
+        )
+        self._ack_send_times_by_peer: OrderedDict[str, deque[float]] = (
+            OrderedDict()
+        )
         self._sessions_by_key: dict[str, _InboundTransferSession] = {}
         self._sent_ack_count = 0
+        self._suppressed_ack_count = 0
         self._last_error = ""
 
     def _now_unix(self) -> int:
@@ -281,6 +306,7 @@ class InboundFileTransferService:
                 "active_sessions": len(self._sessions_by_key),
                 "sessions": sessions,
                 "sent_ack_count": int(self._sent_ack_count),
+                "suppressed_ack_count": int(self._suppressed_ack_count),
                 "last_error": self._last_error,
             }
 
@@ -298,6 +324,8 @@ class InboundFileTransferService:
             self._fingerprint_replay_seen.clear()
             self._meta_monotonic_by_peer.clear()
             self._last_meta_monotonic = None
+            self._ack_send_times.clear()
+            self._ack_send_times_by_peer.clear()
 
     def _admit_meta(self, sender_id: str, *, now_monotonic: float) -> bool:
         with self._lock:
@@ -439,6 +467,45 @@ class InboundFileTransferService:
         indexes = ",".join(str(idx) for idx in sorted(session.received_indexes))
         return f"{len(session.received_indexes)}/{session.total_chunks}|{indexes}"
 
+    def _prune_ack_budget_locked(self, now_monotonic: float) -> None:
+        stale_before = now_monotonic - self._ack_budget_window_seconds
+        while self._ack_send_times and self._ack_send_times[0] <= stale_before:
+            self._ack_send_times.popleft()
+        for peer_id, send_times in list(self._ack_send_times_by_peer.items()):
+            while send_times and send_times[0] <= stale_before:
+                send_times.popleft()
+            if not send_times:
+                self._ack_send_times_by_peer.pop(peer_id, None)
+
+    def _admit_ack_locked(
+        self,
+        destination: str,
+        *,
+        now_monotonic: float,
+    ) -> bool:
+        self._prune_ack_budget_locked(now_monotonic)
+        peer_send_times = self._ack_send_times_by_peer.get(destination)
+        if (
+            len(self._ack_send_times) >= self._max_ack_sends_global_window
+            or (
+                peer_send_times is not None
+                and len(peer_send_times) >= self._max_ack_sends_per_peer_window
+            )
+        ):
+            self._suppressed_ack_count += 1
+            return False
+        if peer_send_times is None:
+            peer_send_times = deque(
+                maxlen=self._max_ack_sends_per_peer_window
+            )
+            self._ack_send_times_by_peer[destination] = peer_send_times
+        peer_send_times.append(now_monotonic)
+        self._ack_send_times.append(now_monotonic)
+        self._ack_send_times_by_peer.move_to_end(destination)
+        while len(self._ack_send_times_by_peer) > _MAX_RATE_TRACKED_PEERS:
+            self._ack_send_times_by_peer.popitem(last=False)
+        return True
+
     def _build_ack_send(
         self,
         session: _InboundTransferSession,
@@ -475,6 +542,11 @@ class InboundFileTransferService:
         if not frame:
             return None
         if len(frame.encode("utf-8")) > self._max_ack_frame_bytes:
+            return None
+        if not self._admit_ack_locked(
+            session.sender_id,
+            now_monotonic=now_monotonic,
+        ):
             return None
         session.last_ack_signature = signature
         session.last_ack_monotonic = now_monotonic

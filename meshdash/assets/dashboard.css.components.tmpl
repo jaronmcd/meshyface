@@ -6504,6 +6504,38 @@
       background: color-mix(in srgb, #d45a5a 8%, var(--surface-tint-bg-soft));
       color: color-mix(in srgb, #a52b2b 82%, var(--surface-tint-text));
     }}
+    .scripts-admin-access {{
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--surface-tint-border);
+      border-radius: 10px;
+      background: var(--surface-tint-bg-soft);
+    }}
+    .scripts-admin-access[hidden] {{
+      display: none;
+    }}
+    .scripts-admin-access-status {{
+      flex: 1 1 220px;
+      color: var(--surface-tint-text-soft, var(--ui-text-soft));
+      font-size: 10px;
+      line-height: 1.35;
+    }}
+    .scripts-admin-token {{
+      flex: 1 1 180px;
+      min-width: 150px;
+      max-width: 260px;
+      height: 30px;
+      padding: 0 9px;
+      border: 1px solid var(--surface-tint-border);
+      border-radius: 7px;
+      background: var(--surface-tint-bg);
+      color: var(--surface-tint-text, var(--ui-text));
+      font: inherit;
+      font-size: 11px;
+    }}
     .scripts-list-head {{
       display: flex;
       align-items: center;

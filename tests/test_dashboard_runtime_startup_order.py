@@ -229,7 +229,7 @@ def hello(ctx):
     args.plugins_files_directory = str(tmp_path / "plugin-files")
     args.plugins_handler_timeout = 2
     args.plugins_event_queue_size = 8
-    args.plugin_enable = []
+    args.plugin_enable = ["startup"]
     args.plugin_disable = []
     subscriptions: list[object] = []
     sends: list[dict[str, object]] = []
@@ -312,6 +312,13 @@ def hello(ctx):
         time.sleep(0.02)
     try:
         assert sends and sends[0]["text"] == "startup packet handled"
+        plugin_admin_status_fn = getattr(
+            context.state_fn,
+            "plugin_admin_status_fn",
+            None,
+        )
+        assert callable(plugin_admin_status_fn)
+        assert plugin_admin_status_fn()["enabled_plugins"] == ["startup"]
     finally:
         context.tracker._plugin_subsystem.close()
         context.tracker._startup_receive_buffer.close()

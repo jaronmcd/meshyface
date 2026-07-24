@@ -1,14 +1,30 @@
 import os
 import threading
 import time
+from collections import deque
 from pathlib import Path
 
-from meshdash.plugins import MessageEvent, ReplyAction, parse_manifest
+import pytest
+
+from meshdash.file_transfer_protocol import (
+    FILE_TRANSFER_CHUNK_BYTES,
+    FILE_TRANSFER_MAX_CHUNKS,
+    FILE_TRANSFER_MAX_WIRE_BYTES,
+)
+from meshdash.plugins import (
+    AcceptFileOfferAction,
+    MessageEvent,
+    ReplyAction,
+    SendFileAction,
+    SendTextAction,
+    parse_manifest,
+)
 from meshdash.plugin_runtime import (
     PluginRuntime,
     PluginRuntimeConfig,
     _QueuedAction,
     _QueuedActionBatch,
+    _terminal_safe_text,
     _utf8_segments,
 )
 from meshdash.plugin_state import PluginStateStore
@@ -48,13 +64,15 @@ def _event(
     packet_id: int = 10,
     packet: dict[str, object] | None = None,
     portnum: str | None = None,
+    channel_index: int = 0,
+    sender_id: str = "!00000001",
 ) -> MessageEvent:
     return MessageEvent(
         text=text,
-        sender_id="!00000001",
+        sender_id=sender_id,
         destination_id="!00000002",
         local_node_id="!00000002",
-        channel_index=0,
+        channel_index=channel_index,
         is_direct=True,
         is_broadcast=False,
         packet_id=packet_id,
@@ -126,6 +144,106 @@ def hello(ctx):
     assert runtime.status()["worker_alive"] is False
     assert runtime.status()["worker_ready"] is False
     assert runtime.status()["status"] == "stopped"
+
+
+def test_peer_state_and_sessions_are_isolated_by_channel(tmp_path) -> None:
+    manifest = _write_plugin(
+        tmp_path,
+        "scoped",
+        commands=("enter",),
+        source="""
+from meshdash.plugins import Script
+script = Script(id="scoped", name="Scoped", version="1.0.0")
+@script.command("enter")
+def enter(ctx):
+    ctx.peer_state["count"] = int(ctx.peer_state.get("count", 0)) + 1
+    ctx.session.start()
+    return ctx.reply(f"entered {ctx.peer_state['count']}")
+@script.session
+def session(ctx):
+    ctx.peer_state["count"] = int(ctx.peer_state.get("count", 0)) + 1
+    return ctx.reply(f"session {ctx.peer_state['count']}")
+""",
+    )
+    store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    sends: list[dict[str, object]] = []
+    runtime = PluginRuntime(
+        manifests=[manifest],
+        state_store=store,
+        send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)),
+    )
+    try:
+        assert runtime.try_enqueue(_event("!enter", packet_id=101, channel_index=0))
+        _wait_until(lambda: len(sends) == 1)
+        assert runtime.try_enqueue(_event("!enter", packet_id=102, channel_index=1))
+        _wait_until(lambda: len(sends) == 2)
+        assert store.snapshot("scoped", "!00000001", 0).peer_state == {"count": 1}
+        assert store.snapshot("scoped", "!00000001", 1).peer_state == {"count": 1}
+        assert store.active_session("!00000002", "!00000001", 0) == "scoped"
+        assert store.active_session("!00000002", "!00000001", 1) == "scoped"
+
+        assert runtime.try_enqueue(_event("continue", packet_id=103, channel_index=0))
+        _wait_until(lambda: len(sends) == 3)
+        assert sends[-1]["text"] == "session 2"
+        assert store.snapshot("scoped", "!00000001", 0).peer_state == {"count": 2}
+        assert store.snapshot("scoped", "!00000001", 1).peer_state == {"count": 1}
+
+        assert runtime.try_enqueue(_event("!quit", packet_id=104, channel_index=1))
+        _wait_until(lambda: len(sends) == 4)
+        assert store.active_session("!00000002", "!00000001", 0) == "scoped"
+        assert store.active_session("!00000002", "!00000001", 1) is None
+    finally:
+        runtime.close()
+        store.close()
+
+
+def test_peer_state_quota_rejects_result_without_restarting_worker(tmp_path) -> None:
+    manifest = _write_plugin(
+        tmp_path,
+        "quota",
+        commands=("remember",),
+        source="""
+from meshdash.plugins import Script
+script = Script(id="quota", name="Quota", version="1.0.0")
+@script.command("remember")
+def remember(ctx):
+    ctx.peer_state["seen"] = int(ctx.peer_state.get("seen", 0)) + 1
+    return ctx.reply(f"seen {ctx.peer_state['seen']}")
+""",
+    )
+    store = PluginStateStore(
+        str(tmp_path / "state.sqlite3"),
+        max_peer_state_rows_per_plugin=1,
+    )
+    sends: list[dict[str, object]] = []
+    runtime = PluginRuntime(
+        manifests=[manifest],
+        state_store=store,
+        send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)),
+    )
+    try:
+        assert runtime.try_enqueue(_event("!remember", packet_id=111))
+        _wait_until(lambda: len(sends) == 1)
+        generation = runtime.status()["generation"]
+
+        assert runtime.try_enqueue(
+            _event(
+                "!remember",
+                packet_id=112,
+                sender_id="!00000003",
+            )
+        )
+        _wait_until(lambda: "row quota" in str(runtime.status()["last_error"]))
+        assert len(sends) == 1
+        assert runtime.status()["generation"] == generation
+        assert runtime.status()["worker_alive"] is True
+
+        assert runtime.try_enqueue(_event("!remember", packet_id=113))
+        _wait_until(lambda: len(sends) == 2)
+        assert sends[-1]["text"] == "seen 2"
+    finally:
+        runtime.close()
+        store.close()
 
 
 def test_packet_handler_runs_inside_worker_with_raw_packet_context(tmp_path) -> None:
@@ -359,6 +477,205 @@ def test_long_reply_segmentation_preserves_unicode_byte_limit() -> None:
     segments = _utf8_segments("alpha 🙂 bravo 🙂 charlie", 11)
     assert " ".join(segments).replace("  ", " ") == "alpha 🙂 bravo 🙂 charlie"
     assert all(len(segment.encode("utf-8")) <= 11 for segment in segments)
+
+
+def test_debug_terminal_output_escapes_controls_but_keeps_unicode(capsys) -> None:
+    runtime = object.__new__(PluginRuntime)
+    runtime._status_lock = threading.RLock()
+    runtime._debug_sequence = 0
+    runtime._debug_records = deque(maxlen=50)
+
+    runtime._publish_debug(
+        "bad\n\x1b]8;;https://example.invalid\x07id",
+        [["hello\r\n\x1b[31mred\x9bworld", "snowman ☃"]],
+    )
+
+    output = capsys.readouterr().out
+    assert output.count("\n") == 1
+    assert "\x1b" not in output
+    assert "\x07" not in output
+    assert "\x9b" not in output
+    assert r"bad\n\x1b]8;;https://example.invalid\x07id" in output
+    assert r"hello\r\n\x1b[31mred\x9bworld" in output
+    assert "snowman ☃" in output
+    assert runtime._debug_records[0]["plugin_id"].startswith("bad\n")
+    assert _terminal_safe_text("plain 🙂") == "plain 🙂"
+
+
+@pytest.mark.parametrize("destination_id", ["!00000000", "!ffffffff", "!FFFFFFFF"])
+@pytest.mark.parametrize(
+    "action",
+    [
+        lambda destination_id: SendTextAction(destination_id, "hello"),
+        lambda destination_id: SendFileAction(destination_id, "sample.bin"),
+    ],
+)
+def test_plugin_actions_reject_reserved_destinations(
+    destination_id,
+    action,
+) -> None:
+    runtime = object.__new__(PluginRuntime)
+    runtime._config = PluginRuntimeConfig()
+
+    with pytest.raises(ValueError, match="direct canonical node ID"):
+        runtime._validated_actions([action(destination_id).to_dict()])
+
+    assert runtime._validated_actions(
+        [action("!00000001").to_dict()]
+    ) == (action("!00000001"),)
+
+
+def test_radio_admission_counts_expanded_frames_and_global_usage(tmp_path) -> None:
+    first = _write_plugin(
+        tmp_path,
+        "first",
+        commands=(),
+        source="""
+from meshdash.plugins import Script
+script = Script(id="first", name="First", version="1.0.0")
+""",
+    )
+    second = _write_plugin(
+        tmp_path,
+        "second",
+        commands=(),
+        source="""
+from meshdash.plugins import Script
+script = Script(id="second", name="Second", version="1.0.0")
+""",
+    )
+    store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    runtime = PluginRuntime(
+        manifests=[first, second],
+        state_store=store,
+        send_chat_fn=lambda **_kwargs: None,
+        config=PluginRuntimeConfig(
+            chat_max_bytes=4,
+            max_actions_per_minute=10,
+            max_radio_frames_per_minute=10,
+            max_radio_bytes_per_minute=100,
+            max_global_radio_frames_per_minute=3,
+            max_global_radio_bytes_per_minute=100,
+        ),
+    )
+    try:
+        first_action = runtime._queued_external_action(
+            "first",
+            _event(""),
+            ReplyAction("abcdefgh", long=True),
+        )
+        second_action = runtime._queued_external_action(
+            "second",
+            _event(""),
+            ReplyAction("ijklmnop", long=True),
+        )
+        assert first_action.radio_frames == 2
+        assert first_action.radio_bytes == 8
+        assert runtime._admit_action_batch("first", (first_action,)) is True
+        # The second plugin has an unused per-plugin budget, but the shared
+        # radio budget prevents the combined four-frame burst.
+        assert runtime._admit_action_batch("second", (second_action,)) is False
+        assert runtime.status()["dropped_actions"] == 1
+    finally:
+        runtime.close()
+        store.close()
+
+
+def test_radio_admission_caps_synchronous_frames_but_preserves_file_jobs(
+    tmp_path,
+) -> None:
+    manifest = _write_plugin(
+        tmp_path,
+        "first",
+        commands=(),
+        source="""
+from meshdash.plugins import Script
+script = Script(id="first", name="First", version="1.0.0")
+""",
+    )
+    store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    runtime = PluginRuntime(
+        manifests=[manifest],
+        state_store=store,
+        send_chat_fn=lambda **_kwargs: None,
+        config=PluginRuntimeConfig(
+            chat_max_bytes=200,
+            max_actions_per_minute=100,
+            max_synchronous_radio_frames_per_batch=64,
+            max_radio_frames_per_minute=10_000,
+            max_radio_bytes_per_minute=10_000_000,
+            max_global_radio_frames_per_minute=10_000,
+            max_global_radio_bytes_per_minute=10_000_000,
+        ),
+    )
+    try:
+        long_actions = tuple(
+            runtime._queued_external_action(
+                "first",
+                _event(""),
+                ReplyAction("x" * 4096, long=True),
+            )
+            for _ in range(4)
+        )
+        assert all(action.radio_frames == 21 for action in long_actions)
+        assert runtime._admit_action_batch("first", long_actions[:3]) is True
+        assert runtime._admit_action_batch("first", long_actions) is False
+
+        queued_file = _QueuedAction(
+            "first",
+            _event(""),
+            SendFileAction("!00000001", "sample.bin"),
+            radio_frames=1_000,
+            radio_bytes=1_000,
+        )
+        assert runtime._admit_action_batch("first", (queued_file,)) is True
+        assert runtime.status()["dropped_actions"] == 4
+    finally:
+        runtime.close()
+        store.close()
+
+
+def test_accept_file_offer_reserves_worst_case_ack_airtime(tmp_path) -> None:
+    manifest = _write_plugin(
+        tmp_path,
+        "first",
+        commands=(),
+        source="""
+from meshdash.plugins import Script
+script = Script(id="first", name="First", version="1.0.0")
+""",
+    )
+    store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    runtime = PluginRuntime(
+        manifests=[manifest],
+        state_store=store,
+        send_chat_fn=lambda **_kwargs: None,
+    )
+    try:
+        accepted_offer = runtime._queued_external_action(
+            "first",
+            _event(""),
+            AcceptFileOfferAction(),
+        )
+        expected_frames = (
+            runtime._config.max_inbound_file_bytes
+            + FILE_TRANSFER_CHUNK_BYTES
+            - 1
+        ) // FILE_TRANSFER_CHUNK_BYTES + 1
+        assert accepted_offer.radio_frames == expected_frames
+        assert (
+            accepted_offer.radio_bytes
+            == expected_frames * FILE_TRANSFER_MAX_WIRE_BYTES
+        )
+        assert runtime._admit_action_batch("first", (accepted_offer,)) is True
+        assert (
+            runtime._admit_action_batch("first", (accepted_offer,) * 7)
+            is False
+        )
+        assert runtime.status()["dropped_actions"] == 7
+    finally:
+        runtime.close()
+        store.close()
 
 
 def test_city_aware_plugin_uses_stable_node_and_atlas_facades(tmp_path) -> None:
@@ -658,7 +975,66 @@ def after(ctx):
         store.close()
 
 
-def test_expired_startup_quarantine_reloads_plugin_into_worker(tmp_path) -> None:
+def test_fatal_import_exit_is_attributed_quarantined_and_does_not_respawn_loop(
+    tmp_path,
+) -> None:
+    fatal = _write_plugin(
+        tmp_path,
+        "fatal",
+        commands=(),
+        source="""
+import os
+os._exit(23)
+""",
+    )
+    healthy = _write_plugin(
+        tmp_path,
+        "survivor",
+        commands=("survive",),
+        source="""
+from meshdash.plugins import Script
+script = Script(id="survivor", name="Survivor", version="1.0.0")
+@script.command("survive")
+def survive(ctx):
+    return ctx.reply("loaded after fatal import")
+""",
+    )
+    store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    sends: list[dict[str, object]] = []
+    runtime = PluginRuntime(
+        manifests=[fatal, healthy],
+        state_store=store,
+        send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)),
+        config=PluginRuntimeConfig(
+            startup_timeout_seconds=1,
+            handler_timeout_seconds=1,
+            restart_backoff_seconds=0.01,
+            max_restart_backoff_seconds=0.04,
+        ),
+    )
+    try:
+        assert runtime.try_enqueue(_event("!survive")) is True
+        _wait_until(lambda: bool(sends))
+        assert sends[0]["text"] == "loaded after fatal import"
+        status = runtime.status()
+        fatal_status = status["plugins"]["fatal"]  # type: ignore[index]
+        assert "quarantined" in fatal_status["error"]
+        assert "disable and re-enable" in fatal_status["error"]
+        assert "code 23" in fatal_status["last_error"]
+        assert fatal_status["failures"] == 1
+        assert status["generation"] == 2
+        assert status["restarts"] == 1
+        assert status["consecutive_start_failures"] == 0
+        time.sleep(0.1)
+        assert runtime.status()["generation"] == 2
+    finally:
+        runtime.close()
+        store.close()
+
+
+def test_startup_quarantine_retries_only_after_explicit_disable_and_reenable(
+    tmp_path,
+) -> None:
     import_marker = tmp_path / "flaky-imported"
     flaky = _write_plugin(
         tmp_path,
@@ -706,7 +1082,12 @@ def steady(ctx):
         assert runtime.try_enqueue(_event("!steady")) is True
         _wait_until(lambda: len(sends) == 1)
         assert sends[0]["text"] == "steady loaded"
-        runtime._plugin_quarantined_until["flaky"] = 0.0
+        quarantined_generation = runtime.status()["generation"]
+        time.sleep(0.1)
+        assert runtime.status()["generation"] == quarantined_generation
+
+        runtime.reconfigure([healthy])
+        runtime.reconfigure([flaky, healthy])
 
         def _flaky_is_loaded() -> bool:
             plugins = runtime.status()["plugins"]

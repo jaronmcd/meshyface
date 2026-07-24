@@ -110,12 +110,24 @@ class SetRawPacketCaptureSettingsFn(Protocol):
 
 
 class SetPluginEnabledFn(Protocol):
-    def __call__(self, plugin_id: object, enabled: bool) -> dict[str, object]:
+    def __call__(
+        self,
+        plugin_id: object,
+        enabled: bool,
+        *,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
         ...
 
 
 class SetPluginSettingsFn(Protocol):
-    def __call__(self, plugin_id: object, settings: object) -> dict[str, object]:
+    def __call__(
+        self,
+        plugin_id: object,
+        settings: object,
+        *,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
         ...
 
 

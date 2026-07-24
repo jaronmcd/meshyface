@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import threading
 from collections import Counter
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from meshdash.file_transfer_protocol import (
+    FILE_TRANSFER_MAX_WIRE_BYTES,
     build_file_transfer_ack_frame,
     file_transfer_frame_text,
     parse_file_transfer_frame_text,
@@ -102,6 +104,76 @@ def test_approved_path_file_resolver_allows_roots_and_ids_and_blocks_escape(
         resolver.resolve(str(oversized))
 
 
+def test_approved_path_file_resolver_rejects_symlink_swap_during_open(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    approved = tmp_path / "approved"
+    approved.mkdir()
+    candidate = approved / "candidate.bin"
+    candidate.write_bytes(b"approved")
+    outside = tmp_path / "outside.bin"
+    outside.write_bytes(b"must-not-read")
+    resolver = ApprovedPathFileResolver(approved)
+    real_open = os.open
+    swapped = False
+
+    def _swapping_open(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal swapped
+        if path == "candidate.bin" and dir_fd is not None and not swapped:
+            swapped = True
+            candidate.unlink()
+            candidate.symlink_to(outside)
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr("meshdash.services_file_transfer_outbound.os.open", _swapping_open)
+
+    with pytest.raises(ValueError, match="not readable"):
+        resolver.resolve("candidate.bin")
+    assert swapped is True
+
+
+def test_transfer_cost_includes_retry_upper_bound() -> None:
+    service = OutboundFileTransferService(
+        file_resolver=_StaticResolver(b"x" * (64 * 1024)),
+        send_frame_fn=lambda **_kwargs: {"ok": True},
+        max_retries=3,
+        autostart=False,
+    )
+
+    assert service.estimate_transfer_cost("fixture") == {
+        "frames": 1644,
+        "bytes": 1644 * FILE_TRANSFER_MAX_WIRE_BYTES,
+        "file_bytes": 64 * 1024,
+    }
+    service.close()
+
+
+def test_transfer_cannot_exceed_admitted_frame_ceiling() -> None:
+    sent: list[dict[str, object]] = []
+    service = OutboundFileTransferService(
+        file_resolver=_StaticResolver(b"x" * 161),
+        send_frame_fn=lambda **kwargs: sent.append(dict(kwargs)) or {"ok": True},
+        max_retries=0,
+        transfer_id_fn=lambda: "budget01",
+        autostart=False,
+    )
+    submitted = service.submit(
+        destination_id="!aabbccdd",
+        path_or_file_id="fixture",
+        admitted_frames=2,
+    )
+
+    assert submitted["accepted"] is True
+    assert service.run_pending_once() is True
+    job = service.get_job("budget01")
+    assert job is not None
+    assert job["status"] == "failed"
+    assert "radio-frame budget" in str(job["error"])
+    assert sent == []
+    service.close()
+
+
 def test_submit_is_bounded_nonblocking_and_defers_resolution() -> None:
     resolver = _StaticResolver(b"payload")
     transfer_ids = iter(("abcd0001", "abcd0002"))
@@ -126,6 +198,18 @@ def test_submit_is_bounded_nonblocking_and_defers_resolution() -> None:
         destination_id="^all",
         path_or_file_id="approved-id",
     )
+    zero_broadcast = service.submit(
+        destination_id="!00000000",
+        path_or_file_id="approved-id",
+    )
+    max_broadcast = service.submit(
+        destination_id="!ffffffff",
+        path_or_file_id="approved-id",
+    )
+    numeric_zero_broadcast = service.submit(
+        destination_id=0,
+        path_or_file_id="approved-id",
+    )
 
     assert first == {
         "ok": True,
@@ -140,9 +224,12 @@ def test_submit_is_bounded_nonblocking_and_defers_resolution() -> None:
         "error": "Outbound file transfer queue is full",
     }
     assert invalid["accepted"] is False
+    assert zero_broadcast["accepted"] is False
+    assert max_broadcast["accepted"] is False
+    assert numeric_zero_broadcast["accepted"] is False
     assert resolver.calls == []
     assert service.get_status()["queued_jobs"] == 1
-    assert service.get_status()["rejected_count"] == 2
+    assert service.get_status()["rejected_count"] == 5
 
     service.close()
     assert service.get_job("abcd0001")["status"] == "canceled"  # type: ignore[index]
@@ -162,13 +249,27 @@ def test_transfer_chunks_paces_and_completes_through_chat_send_path() -> None:
             assert service.handle_ack(
                 sender_id="!aabbccdd",
                 frame=_ack("abcd1234", 3, ()),
-                channel_index=4,
+                channel_index=2,
+                destination_id="!00000002",
+            ) is False
+            assert service.handle_ack(
+                sender_id="!aabbccdd",
+                frame=_ack("abcd1234", 3, ()),
+                channel_index=1,
+                destination_id="!00000003",
+            ) is False
+            assert service.handle_ack(
+                sender_id="!aabbccdd",
+                frame=_ack("abcd1234", 3, ()),
+                channel_index=1,
+                destination_id="!00000002",
             )
         elif parsed["kind"] == "chunk" and parsed["chunk_index"] == 2:
             assert service.handle_ack(
                 sender_id="!aabbccdd",
                 frame=_ack("abcd1234", 3, range(3)),
-                channel_index=4,
+                channel_index=1,
+                destination_id="!00000002",
             )
         return {"ok": True}
 
@@ -189,6 +290,7 @@ def test_transfer_chunks_paces_and_completes_through_chat_send_path() -> None:
         destination_id="!aabbccdd",
         path_or_file_id="fixture",
         channel_index=1,
+        local_node_id="!00000002",
     )
 
     assert submitted["accepted"] is True
@@ -199,7 +301,7 @@ def test_transfer_chunks_paces_and_completes_through_chat_send_path() -> None:
     assert [frame["kind"] for frame in frames] == ["meta", "chunk", "chunk", "chunk"]  # type: ignore[index]
     assert [frame["chunk_index"] for frame in frames[1:]] == [0, 1, 2]  # type: ignore[index]
     assert [entry["destination"] for entry in sent] == ["!aabbccdd"] * 4
-    assert [entry["channel_index"] for entry in sent] == [1, 4, 4, 4]
+    assert [entry["channel_index"] for entry in sent] == [1, 1, 1, 1]
     assert clock.sleeps == [0.25, 0.25, 0.25]
 
     job = service.get_job("abcd1234")
@@ -213,6 +315,56 @@ def test_transfer_chunks_paces_and_completes_through_chat_send_path() -> None:
     status = service.get_status()
     assert status["completed_count"] == 1
     assert status["sent_frame_count"] == 4
+
+
+def test_flow_control_is_bound_to_original_peer_channel_and_local_node() -> None:
+    service = OutboundFileTransferService(
+        file_resolver=_StaticResolver(b"payload"),
+        send_frame_fn=lambda **_kwargs: {"ok": True},
+        transfer_id_fn=lambda: "bound001",
+        autostart=False,
+    )
+    submitted = service.submit(
+        destination_id="!aabbccdd",
+        path_or_file_id="fixture",
+        channel_index=3,
+        local_node_id="!00000002",
+    )
+    assert submitted["accepted"] is True
+    cancel = file_transfer_frame_text(
+        {
+            "kind": "flow",
+            "transfer_id": "bound001",
+            "action": "cancel",
+        }
+    )
+
+    assert service.handle_flow(
+        sender_id="!11223344",
+        frame=cancel,
+        channel_index=3,
+        destination_id="!00000002",
+    ) is False
+    assert service.handle_flow(
+        sender_id="!aabbccdd",
+        frame=cancel,
+        channel_index=8,
+        destination_id="!00000002",
+    ) is False
+    assert service.handle_flow(
+        sender_id="!aabbccdd",
+        frame=cancel,
+        channel_index=3,
+        destination_id="!00000003",
+    ) is False
+    assert service.handle_flow(
+        sender_id="!aabbccdd",
+        frame=cancel,
+        channel_index=3,
+        destination_id="!00000002",
+    ) is True
+    assert service.get_job("bound001")["cancel_requested"] is True  # type: ignore[index]
+    service.close()
 
 
 def test_partial_ack_retries_only_missing_chunks() -> None:

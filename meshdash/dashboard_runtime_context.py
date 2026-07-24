@@ -689,6 +689,15 @@ def build_dashboard_runtime_context(
                 "set_plugin_settings_fn",
                 plugin_subsystem.set_plugin_settings,
             )
+            # The ordinary state loader may redact values such as "password".
+            # Authenticated plugin administration must use the subsystem's
+            # direct status instead so a redaction sentinel is never posted
+            # back over a real saved value.
+            setattr(
+                loaders.state_fn,
+                "plugin_admin_status_fn",
+                plugin_subsystem.status,
+            )
             state_lite_fn = getattr(loaders.state_fn, "lite", None)
             if callable(state_lite_fn):
                 setattr(
@@ -701,22 +710,33 @@ def build_dashboard_runtime_context(
                     "set_plugin_settings_fn",
                     plugin_subsystem.set_plugin_settings,
                 )
+                setattr(
+                    state_lite_fn,
+                    "plugin_admin_status_fn",
+                    plugin_subsystem.status,
+                )
         except Exception as exc:
             plugin_error = f"{type(exc).__name__}: {exc}"
+            plugin_error_status = lambda: {"enabled": True, "error": plugin_error}
             setattr(
                 tracker,
                 "get_plugin_runtime",
-                lambda: {"enabled": True, "error": plugin_error},
+                plugin_error_status,
             )
+            setattr(loaders.state_fn, "plugin_admin_status_fn", plugin_error_status)
     else:
         # Static status only: no discovery, state store, worker, or thread exists.
-        setattr(tracker, "get_plugin_runtime", lambda: {"enabled": False})
+        plugin_disabled_status = lambda: {"enabled": False}
+        setattr(tracker, "get_plugin_runtime", plugin_disabled_status)
+        setattr(loaders.state_fn, "plugin_admin_status_fn", plugin_disabled_status)
 
         def _plugin_runtime_disabled(
             plugin_id: object,
             enabled: bool,
+            *,
+            expected_package_digest: object | None = None,
         ) -> dict[str, object]:
-            del plugin_id, enabled
+            del plugin_id, enabled, expected_package_digest
             return {
                 "ok": False,
                 "error": {
@@ -728,8 +748,10 @@ def build_dashboard_runtime_context(
         def _plugin_settings_disabled(
             plugin_id: object,
             settings: object,
+            *,
+            expected_package_digest: object | None = None,
         ) -> dict[str, object]:
-            del plugin_id, settings
+            del plugin_id, settings, expected_package_digest
             return {
                 "ok": False,
                 "error": {
@@ -744,6 +766,7 @@ def build_dashboard_runtime_context(
         if callable(state_lite_fn):
             setattr(state_lite_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
             setattr(state_lite_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
+            setattr(state_lite_fn, "plugin_admin_status_fn", plugin_disabled_status)
 
     # Activate only after optional post-accept consumers are attached so text
     # packets buffered while the radio identity was resolving are not lost.

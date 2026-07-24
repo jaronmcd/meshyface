@@ -425,8 +425,10 @@ def _build_offline_runtime_context(
         def _plugin_runtime_disabled(
             plugin_id: object,
             enabled: bool,
+            *,
+            expected_package_digest: object,
         ) -> dict[str, object]:
-            del plugin_id, enabled
+            del plugin_id, enabled, expected_package_digest
             return {
                 "ok": False,
                 "error": {
@@ -438,8 +440,10 @@ def _build_offline_runtime_context(
         def _plugin_settings_disabled(
             plugin_id: object,
             settings: object,
+            *,
+            expected_package_digest: object,
         ) -> dict[str, object]:
-            del plugin_id, settings
+            del plugin_id, settings, expected_package_digest
             return {
                 "ok": False,
                 "error": {

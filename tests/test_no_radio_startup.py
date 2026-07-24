@@ -359,7 +359,11 @@ def test_offline_runtime_reports_and_rejects_disabled_plugin_management(tmp_path
     assert state["summary"]["plugins"] == {"enabled": False, "available": False}
     setter = getattr(context.state_fn, "set_plugin_enabled_fn", None)
     assert callable(setter)
-    assert setter("echo", True) == {
+    assert setter(
+        "echo",
+        True,
+        expected_package_digest=f"sha256:{'0' * 64}",
+    ) == {
         "ok": False,
         "error": {
             "code": "plugin_runtime_disabled",

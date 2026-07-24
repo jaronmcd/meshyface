@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from urllib.parse import parse_qs
 
 from .http_handler_contracts import DashboardHttpHandler
@@ -52,6 +53,93 @@ def _private_mode_state_payload(payload: object) -> object:
         traffic = dict(traffic_raw)
         traffic["recent_chat"] = []
         out["traffic"] = traffic
+    return out
+
+
+def _public_plugin_tickers(runtime: Mapping[str, object]) -> list[dict[str, object]]:
+    tickers = runtime.get("tickers")
+    if not isinstance(tickers, list):
+        return []
+    safe_tickers: list[dict[str, object]] = []
+    public_fields = {
+        "id",
+        "plugin_id",
+        "ticker_id",
+        "label",
+        "metric",
+        "default_enabled",
+        "value",
+        "rows",
+        "state",
+        "detail",
+        "metric_value",
+        "updated_at",
+        "runtime_status",
+    }
+    for ticker in tickers:
+        if not isinstance(ticker, Mapping):
+            continue
+        safe_tickers.append(
+            {
+                str(key): value
+                for key, value in ticker.items()
+                if str(key) in public_fields
+            }
+        )
+    return safe_tickers
+
+
+def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
+    enabled = plugins.get("enabled") is True
+    runtime_raw = plugins.get("runtime")
+    runtime = runtime_raw if isinstance(runtime_raw, Mapping) else {}
+    runtime_status = str(runtime.get("status") or "").strip().lower()
+    worker_alive = runtime.get("worker_alive") is True
+    has_error = bool(plugins.get("error") or runtime.get("last_error"))
+    if not enabled:
+        health = "disabled"
+    elif has_error or runtime_status in {"error", "failed", "crashed"}:
+        health = "error"
+    elif worker_alive:
+        health = "running"
+    else:
+        health = "enabled"
+    enabled_plugins = plugins.get("enabled_plugins")
+    public_runtime: dict[str, object] = {
+        "tickers": _public_plugin_tickers(runtime),
+    }
+    if runtime_status:
+        public_runtime["status"] = runtime_status
+    if "worker_alive" in runtime:
+        public_runtime["worker_alive"] = worker_alive
+    public_status: dict[str, object] = {
+        "enabled": enabled,
+        "health": health,
+        "active_count": (
+            len(enabled_plugins) if isinstance(enabled_plugins, list) else 0
+        ),
+        "runtime": public_runtime,
+    }
+    for key in ("available", "discovered"):
+        value = plugins.get(key)
+        if isinstance(value, (bool, int)) and not isinstance(value, str):
+            public_status[key] = value
+    return public_status
+
+
+def _public_plugin_state_payload(payload: object) -> object:
+    if not isinstance(payload, dict):
+        return payload
+    summary_raw = payload.get("summary")
+    if not isinstance(summary_raw, dict):
+        return payload
+    plugins_raw = summary_raw.get("plugins")
+    if not isinstance(plugins_raw, Mapping):
+        return payload
+    out = dict(payload)
+    summary = dict(summary_raw)
+    summary["plugins"] = _public_plugin_status(plugins_raw)
+    out["summary"] = summary
     return out
 
 
@@ -233,6 +321,7 @@ def handle_state_get(
         selected_fn=selected_fn,
         rows=fault_rows,
     )
+    payload = _public_plugin_state_payload(payload)
     if private_mode:
         payload = _private_mode_state_payload(payload)
     if lite:

@@ -10,13 +10,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from meshdash.helpers import to_int
 from meshdash.http_api import make_http_handler
 from meshdash.http_api_post import build_post_route_dependencies
+from meshdash.http_plugin_admin import request_is_loopback
 from meshdash.http_routes_post import handle_dashboard_post
 
 
+_PLUGIN_PACKAGE_DIGEST = "sha256:" + ("a" * 64)
+_CURRENT_PLUGIN_PACKAGE_DIGEST = "sha256:" + ("b" * 64)
+
+
+def _plugin_request_body(**values: object) -> bytes:
+    return json.dumps(
+        {
+            **values,
+            "package_digest": _PLUGIN_PACKAGE_DIGEST,
+        }
+    ).encode("utf-8")
+
+
 class _FakeHandler:
-    def __init__(self, body: bytes = b"", *, headers: dict[str, object] | None = None) -> None:
+    def __init__(
+        self,
+        body: bytes = b"",
+        *,
+        headers: dict[str, object] | None = None,
+        client_host: str = "127.0.0.1",
+    ) -> None:
         self.path = "/"
-        self.headers = headers or {}
+        self.headers = dict(headers or {})
+        self.headers.setdefault("Host", "127.0.0.1:8877")
+        self.client_address = (client_host, 12345)
         self.rfile = io.BytesIO(body)
         self.wfile = io.BytesIO()
 
@@ -130,8 +152,14 @@ def test_handle_dashboard_post_updates_raw_packet_capture_settings() -> None:
 
 
 def test_plugin_management_returns_structured_disabled_error() -> None:
-    body = json.dumps({"plugin_id": "echo", "enabled": True}).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
     calls: list[tuple[int, object]] = []
     disabled = {
         "ok": False,
@@ -142,7 +170,7 @@ def test_plugin_management_returns_structured_disabled_error() -> None:
     }
     deps = build_post_route_dependencies(
         send_chat_fn=None,
-        set_plugin_enabled_fn=lambda _plugin_id, _enabled: disabled,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: disabled,
         to_int_fn=to_int,
     )
     deps = type(deps)(
@@ -160,14 +188,20 @@ def test_plugin_management_returns_structured_disabled_error() -> None:
 
 
 def test_plugin_management_applies_individual_setting_live() -> None:
-    body = json.dumps({"plugin_id": "echo", "enabled": False}).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    body = _plugin_request_body(plugin_id="echo", enabled=False)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
     calls: list[tuple[int, object]] = []
-    received: list[tuple[object, bool]] = []
+    received: list[tuple[object, bool, object]] = []
     deps = build_post_route_dependencies(
         send_chat_fn=None,
-        set_plugin_enabled_fn=lambda plugin_id, enabled: (
-            received.append((plugin_id, enabled))
+        set_plugin_enabled_fn=lambda plugin_id, enabled, *, expected_package_digest=None: (
+            received.append((plugin_id, enabled, expected_package_digest))
             or {
                 "ok": True,
                 "plugin_id": plugin_id,
@@ -189,7 +223,7 @@ def test_plugin_management_applies_individual_setting_live() -> None:
 
     handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
 
-    assert received == [("echo", False)]
+    assert received == [("echo", False, _PLUGIN_PACKAGE_DIGEST)]
     assert calls == [
         (
             200,
@@ -205,12 +239,18 @@ def test_plugin_management_applies_individual_setting_live() -> None:
 
 
 def test_plugin_management_returns_structured_unknown_plugin_error() -> None:
-    body = json.dumps({"plugin_id": "missing", "enabled": True}).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    body = _plugin_request_body(plugin_id="missing", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(
         send_chat_fn=None,
-        set_plugin_enabled_fn=lambda _plugin_id, _enabled: {
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: {
             "ok": False,
             "error": {"code": "unknown_plugin", "message": "Unknown plugin ID"},
         },
@@ -238,13 +278,81 @@ def test_plugin_management_returns_structured_unknown_plugin_error() -> None:
     ]
 
 
+def test_plugin_management_rejects_stale_package_digest() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[object] = []
+
+    def _setter(
+        _plugin_id: object,
+        _enabled: bool,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        received.append(expected_package_digest)
+        return {
+            "ok": False,
+            "error": {
+                "code": "plugin_identity_changed",
+                "message": "Plugin package identity changed; refresh and review it",
+            },
+            "package_digest": _CURRENT_PLUGIN_PACKAGE_DIGEST,
+        }
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=_setter,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert received == [_PLUGIN_PACKAGE_DIGEST]
+    assert calls == [
+        (
+            409,
+            {
+                "ok": False,
+                "error": {
+                    "code": "plugin_identity_changed",
+                    "message": "Plugin package identity changed; refresh and review it",
+                },
+                "package_digest": _CURRENT_PLUGIN_PACKAGE_DIGEST,
+            },
+        )
+    ]
+
+
 def test_plugin_management_returns_structured_invalid_request_error() -> None:
-    body = json.dumps({"plugin_id": "echo", "enabled": "yes"}).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    body = _plugin_request_body(plugin_id="echo", enabled="yes")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(
         send_chat_fn=None,
-        set_plugin_enabled_fn=lambda _plugin_id, _enabled: {"ok": True},
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: {
+            "ok": True
+        },
         to_int_fn=to_int,
     )
     deps = type(deps)(
@@ -272,17 +380,105 @@ def test_plugin_management_returns_structured_invalid_request_error() -> None:
     ]
 
 
-def test_plugin_configuration_applies_validated_settings() -> None:
-    body = json.dumps(
-        {"plugin_id": "configured", "settings": {"allowed_nodes": ["!01020304"]}}
-    ).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+@pytest.mark.parametrize(
+    ("path", "payload", "expected_message"),
+    (
+        (
+            "/api/settings/plugins",
+            {"plugin_id": "echo", "enabled": True},
+            "request body must contain only plugin_id, enabled, and package_digest",
+        ),
+        (
+            "/api/settings/plugins/config",
+            {"plugin_id": "echo", "settings": {}},
+            "request body must contain only plugin_id, settings, and package_digest",
+        ),
+    ),
+)
+def test_plugin_mutations_require_package_digest(
+    path: str,
+    payload: dict[str, object],
+    expected_message: str,
+) -> None:
+    body = json.dumps(payload).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
     calls: list[tuple[int, object]] = []
-    received: list[tuple[object, object]] = []
+    updates: list[str] = []
+
+    def _set_enabled(
+        _plugin_id: object,
+        _enabled: bool,
+        *,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        updates.append(str(expected_package_digest))
+        return {"ok": True}
+
+    def _set_settings(
+        _plugin_id: object,
+        _settings: object,
+        *,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        updates.append(str(expected_package_digest))
+        return {"ok": True}
+
     deps = build_post_route_dependencies(
         send_chat_fn=None,
-        set_plugin_settings_fn=lambda plugin_id, settings: (
-            received.append((plugin_id, settings))
+        set_plugin_enabled_fn=_set_enabled,
+        set_plugin_settings_fn=_set_settings,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path=path, deps=deps)
+
+    assert updates == []
+    assert calls == [
+        (
+            400,
+            {
+                "ok": False,
+                "error": {
+                    "code": "invalid_request",
+                    "message": expected_message,
+                },
+            },
+        )
+    ]
+
+
+def test_plugin_configuration_applies_validated_settings() -> None:
+    body = _plugin_request_body(
+        plugin_id="configured",
+        settings={"allowed_nodes": ["!01020304"]},
+    )
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[tuple[object, object, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_settings_fn=lambda plugin_id, settings, *, expected_package_digest=None: (
+            received.append((plugin_id, settings, expected_package_digest))
             or {"ok": True, "plugin_id": plugin_id, "settings": settings}
         ),
         to_int_fn=to_int,
@@ -298,7 +494,13 @@ def test_plugin_configuration_applies_validated_settings() -> None:
 
     handle_dashboard_post(handler, path="/api/settings/plugins/config", deps=deps)
 
-    assert received == [("configured", {"allowed_nodes": ["!01020304"]})]
+    assert received == [
+        (
+            "configured",
+            {"allowed_nodes": ["!01020304"]},
+            _PLUGIN_PACKAGE_DIGEST,
+        )
+    ]
     assert calls == [
         (
             200,
@@ -311,14 +513,90 @@ def test_plugin_configuration_applies_validated_settings() -> None:
     ]
 
 
+def test_plugin_configuration_rejects_stale_package_digest() -> None:
+    body = _plugin_request_body(plugin_id="configured", settings={"mode": "safe"})
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[object] = []
+
+    def _setter(
+        _plugin_id: object,
+        _settings: object,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        received.append(expected_package_digest)
+        return {
+            "ok": False,
+            "error": {
+                "code": "plugin_identity_changed",
+                "message": "Plugin package identity changed; refresh before saving",
+            },
+            "package_digest": _CURRENT_PLUGIN_PACKAGE_DIGEST,
+        }
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_settings_fn=_setter,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(
+        handler,
+        path="/api/settings/plugins/config",
+        deps=deps,
+    )
+
+    assert received == [_PLUGIN_PACKAGE_DIGEST]
+    assert calls == [
+        (
+            409,
+            {
+                "ok": False,
+                "error": {
+                    "code": "plugin_identity_changed",
+                    "message": "Plugin package identity changed; refresh before saving",
+                },
+                "package_digest": _CURRENT_PLUGIN_PACKAGE_DIGEST,
+            },
+        )
+    ]
+
+
 def test_plugin_configuration_requires_api_token_when_configured() -> None:
-    body = json.dumps({"plugin_id": "configured", "settings": {}}).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    body = _plugin_request_body(plugin_id="configured", settings={})
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
     calls: list[tuple[int, object]] = []
     updates = 0
 
-    def _setter(_plugin_id: object, _settings: object) -> dict[str, object]:
+    def _setter(
+        _plugin_id: object,
+        _settings: object,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
         nonlocal updates
+        del expected_package_digest
         updates += 1
         return {"ok": True}
 
@@ -340,7 +618,328 @@ def test_plugin_configuration_requires_api_token_when_configured() -> None:
     handle_dashboard_post(handler, path="/api/settings/plugins/config", deps=deps)
 
     assert updates == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert calls == [
+        (
+            401,
+            {
+                "ok": False,
+                "error": "API token required for plugin administration",
+            },
+        )
+    ]
+
+
+def test_plugin_management_without_token_is_loopback_only() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+        client_host="192.0.2.20",
+    )
+    calls: list[tuple[int, object]] = []
+    updates = 0
+
+    def _setter(
+        _plugin_id: object,
+        _enabled: bool,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        nonlocal updates
+        del expected_package_digest
+        updates += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=_setter,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert updates == 0
+    assert calls == [
+        (
+            403,
+            {
+                "ok": False,
+                "error": (
+                    "Plugin administration is tokenless only from loopback; "
+                    "configure an API token for remote access"
+                ),
+            },
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("host_header", "client_host"),
+    (
+        ("localhost:8877", "127.0.0.1"),
+        ("127.0.0.42:8877", "127.0.0.1"),
+        ("[::1]:8877", "::1"),
+    ),
+)
+def test_tokenless_plugin_admin_accepts_only_loopback_hosts(
+    host_header: str,
+    client_host: str,
+) -> None:
+    handler = _FakeHandler(
+        headers={"Host": host_header},
+        client_host=client_host,
+    )
+
+    assert request_is_loopback(handler) is True
+
+
+@pytest.mark.parametrize(
+    ("header_name", "header_value"),
+    (
+        ("X-Forwarded-For", "127.0.0.1"),
+        ("X-Forwarded-Proto", "http"),
+        ("Forwarded", "for=127.0.0.1"),
+        ("X-Real-IP", "127.0.0.1"),
+        ("Via", "1.1 local-proxy"),
+    ),
+)
+def test_tokenless_plugin_admin_rejects_any_proxy_metadata(
+    header_name: str,
+    header_value: str,
+) -> None:
+    handler = _FakeHandler(
+        headers={
+            "Host": "127.0.0.1:8877",
+            header_name: header_value,
+        },
+    )
+
+    assert request_is_loopback(handler) is False
+
+
+def test_plugin_management_rejects_non_loopback_host_from_loopback_client() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "dashboard.example",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: {
+            "ok": True
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            403,
+            {
+                "ok": False,
+                "error": (
+                    "Plugin administration is tokenless only from loopback; "
+                    "configure an API token for remote access"
+                ),
+            },
+        )
+    ]
+
+
+def test_plugin_management_requires_json_content_type() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={"Content-Length": str(len(body)), "Content-Type": "text/plain"},
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: {
+            "ok": True
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            415,
+            {
+                "ok": False,
+                "error": "Plugin administration requires application/json",
+            },
+        )
+    ]
+
+
+def test_plugin_management_rejects_cross_origin_browser_write() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json; charset=utf-8",
+            "Host": "127.0.0.1:8877",
+            "Origin": "https://attacker.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: {
+            "ok": True
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            403,
+            {
+                "ok": False,
+                "error": "Cross-origin plugin administration is not allowed",
+            },
+        )
+    ]
+
+
+def test_plugin_management_accepts_same_origin_browser_write() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "localhost:8877",
+            "Origin": "http://localhost:8877",
+            "Sec-Fetch-Site": "same-origin",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda plugin_id, enabled, *, expected_package_digest=None: {
+            "ok": True,
+            "plugin_id": plugin_id,
+            "enabled": enabled,
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "plugin_id": "echo",
+                "enabled": True,
+            },
+        )
+    ]
+
+
+def test_remote_non_browser_plugin_client_can_use_configured_token() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "X-API-Token": "secret",
+            "X-Forwarded-For": "192.0.2.20",
+        },
+        client_host="192.0.2.20",
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda plugin_id, enabled, *, expected_package_digest=None: {
+            "ok": True,
+            "plugin_id": plugin_id,
+            "enabled": enabled,
+            "active": enabled,
+        },
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "plugin_id": "echo",
+                "enabled": True,
+                "active": True,
+            },
+        )
+    ]
 
 
 def test_make_http_handler_wires_plugin_management_hook(
@@ -363,10 +962,22 @@ def test_make_http_handler_wires_plugin_management_hook(
     def _state_fn() -> dict[str, object]:
         return {}
 
-    def _set_plugin_enabled(plugin_id: object, enabled: bool) -> dict[str, object]:
+    def _set_plugin_enabled(
+        plugin_id: object,
+        enabled: bool,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        del expected_package_digest
         return {"ok": True, "plugin_id": plugin_id, "enabled": enabled}
 
-    def _set_plugin_settings(plugin_id: object, settings: object) -> dict[str, object]:
+    def _set_plugin_settings(
+        plugin_id: object,
+        settings: object,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        del expected_package_digest
         return {"ok": True, "plugin_id": plugin_id, "settings": settings}
 
     setattr(_state_fn, "set_plugin_enabled_fn", _set_plugin_enabled)

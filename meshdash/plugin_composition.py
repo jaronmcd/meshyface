@@ -6,7 +6,12 @@ import threading
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
-from .plugins import PluginManifest, discover_plugins, normalize_plugin_settings
+from .plugins import (
+    PluginManifest,
+    compute_plugin_package_digest,
+    discover_plugins,
+    normalize_plugin_settings,
+)
 from .file_transfer_protocol import decode_file_transfer_packet
 from .helpers import to_int, to_jsonable
 from .helpers_packet_position import extract_position_fields
@@ -29,6 +34,18 @@ def _packet_sender_id(packet: Mapping[str, object]) -> str:
     if numeric is not None and 0 <= numeric <= 0xFFFFFFFF:
         return f"!{numeric:08x}"
     for key in ("fromId", "from_id"):
+        value = str(packet.get(key) or "").strip().lower()
+        if value.startswith("!") and len(value) == 9:
+            return value
+    return ""
+
+
+def _packet_destination_id(packet: Mapping[str, object]) -> str:
+    raw = packet.get("to")
+    numeric = to_int(raw)
+    if numeric is not None and 0 <= numeric <= 0xFFFFFFFF:
+        return f"!{numeric:08x}"
+    for key in ("toId", "to_id"):
         value = str(packet.get(key) or "").strip().lower()
         if value.startswith("!") and len(value) == 9:
             return value
@@ -113,6 +130,7 @@ class PluginSubsystem:
         manifests: Sequence[PluginManifest] = (),
         enabled_plugin_ids: Sequence[str] = (),
         error: str = "",
+        discovery_errors: Sequence[str] = (),
         detach_receive_fn: Callable[[], object] | None = None,
         runtime_factory: (
             Callable[
@@ -129,6 +147,9 @@ class PluginSubsystem:
         self._manifests = tuple(manifests)
         self._enabled_plugin_ids = tuple(enabled_plugin_ids)
         self._error = sanitize_plugin_status_error(error)
+        self._discovery_errors = tuple(
+            sanitize_plugin_status_error(value) for value in discovery_errors
+        )
         self._detach_receive_fn = detach_receive_fn
         self._runtime_factory = runtime_factory
         self._state_changed_fn = state_changed_fn
@@ -169,15 +190,24 @@ class PluginSubsystem:
         sender_id = _packet_sender_id(packet)
         if not sender_id:
             return
+        destination_id = _packet_destination_id(packet)
+        if not destination_id:
+            return
         kind = str(frame.get("kind") or "")
         if kind == "ack":
             service.handle_ack(
                 sender_id=sender_id,
                 frame=frame,
                 channel_index=packet.get("channel"),
+                destination_id=destination_id,
             )
         elif kind == "flow":
-            service.handle_flow(sender_id=sender_id, frame=frame)
+            service.handle_flow(
+                sender_id=sender_id,
+                frame=frame,
+                channel_index=packet.get("channel"),
+                destination_id=destination_id,
+            )
 
     def status(self) -> dict[str, object]:
         with self._lifecycle_lock:
@@ -186,17 +216,41 @@ class PluginSubsystem:
             active_ids = set(active_plugin_ids)
         runtime_status = runtime.status() if runtime is not None else {}
         configured_enabled: dict[str, bool] = {}
+        package_revision_states: dict[str, tuple[str, bool]] = {}
         for manifest in self._manifests:
             if self._state_store is None:
-                configured_enabled[manifest.id] = manifest.default_enabled
+                configured_enabled[manifest.id] = manifest.effective_default_enabled
+                package_revision_states[manifest.id] = ("new", False)
             else:
                 configured_enabled[manifest.id] = self._state_store.plugin_enabled(
                     manifest.id,
-                    default=manifest.default_enabled,
+                    package_digest=manifest.package_digest,
+                    default=manifest.effective_default_enabled,
                 )
+                enablement_record = self._state_store.plugin_enablement_record(
+                    manifest.id
+                )
+                if enablement_record is None:
+                    package_revision_states[manifest.id] = (
+                        ("bundled", False)
+                        if manifest.source == "included"
+                        else ("new", False)
+                    )
+                elif enablement_record[1] != manifest.package_digest:
+                    package_revision_states[manifest.id] = (
+                        "stale_revision",
+                        True,
+                    )
+                elif enablement_record[0]:
+                    package_revision_states[manifest.id] = ("known_enabled", False)
+                else:
+                    package_revision_states[manifest.id] = ("known_disabled", False)
         scripts: list[dict[str, object]] = []
         for manifest in self._manifests:
             is_enabled = configured_enabled[manifest.id]
+            package_revision_status, identity_changed = package_revision_states[
+                manifest.id
+            ]
             is_active = manifest.id in active_ids
             health, runtime_error, restart_required = _script_runtime_health(
                 plugin_id=manifest.id,
@@ -205,7 +259,10 @@ class PluginSubsystem:
                 runtime_status=runtime_status,
             )
             stored_settings = (
-                self._state_store.plugin_settings(manifest.id)
+                self._state_store.plugin_settings(
+                    manifest.id,
+                    package_digest=manifest.package_digest,
+                )
                 if self._state_store is not None
                 else {}
             )
@@ -224,7 +281,12 @@ class PluginSubsystem:
                     "version": manifest.version,
                     "commands": list(manifest.commands),
                     "source": manifest.source,
-                    "default_enabled": manifest.default_enabled,
+                    "default_enabled": manifest.effective_default_enabled,
+                    "declared_default_enabled": manifest.default_enabled,
+                    "package_digest": manifest.package_digest,
+                    # Compatibility key retained for the current Scripts API.
+                    "approval_status": package_revision_status,
+                    "identity_changed": identity_changed,
                     "enabled": is_enabled,
                     "active": is_active,
                     "runtime_status": health,
@@ -239,6 +301,7 @@ class PluginSubsystem:
         return {
             "enabled": True,
             "error": self._error,
+            "discovery_errors": list(self._discovery_errors),
             "discovered": len(self._manifests),
             "enabled_plugins": list(active_plugin_ids),
             "scripts": scripts,
@@ -250,92 +313,12 @@ class PluginSubsystem:
             ),
         }
 
-    def set_plugin_enabled(self, plugin_id: object, enabled: bool) -> dict[str, object]:
-        if self._state_store is None:
-            return {
-                "ok": False,
-                "error": {
-                    "code": "plugin_runtime_unavailable",
-                    "message": self._error or "Plugin runtime is unavailable",
-                },
-            }
-        clean_id = str(plugin_id or "").strip().lower()
-        known_ids = {manifest.id for manifest in self._manifests}
-        if clean_id not in known_ids:
-            return {
-                "ok": False,
-                "error": {"code": "unknown_plugin", "message": "Unknown plugin ID"},
-            }
-        requested_enabled = bool(enabled)
-        with self._lifecycle_lock:
-            if self._closed:
-                return {
-                    "ok": False,
-                    "error": {
-                        "code": "plugin_runtime_unavailable",
-                        "message": "Plugin runtime is closed",
-                    },
-                }
-            current_ids = set(self._enabled_plugin_ids)
-            target_ids = set(current_ids)
-            if requested_enabled:
-                target_ids.add(clean_id)
-            else:
-                target_ids.discard(clean_id)
-            target_manifests = tuple(
-                manifest for manifest in self._manifests if manifest.id in target_ids
-            )
-            previous_setting = self._state_store.plugin_enabled(
-                clean_id,
-                default=next(
-                    manifest.default_enabled
-                    for manifest in self._manifests
-                    if manifest.id == clean_id
-                ),
-            )
-            self._state_store.set_plugin_enabled(clean_id, requested_enabled)
-            try:
-                runtime = self._runtime
-                if target_manifests:
-                    if runtime is None:
-                        if self._runtime_factory is None:
-                            raise RuntimeError("Plugin runtime cannot be started")
-                        runtime, outbound = self._runtime_factory(target_manifests)
-                        self._runtime = runtime
-                        self._outbound_files = outbound
-                    elif target_ids != current_ids:
-                        runtime.reconfigure(target_manifests)
-                elif runtime is not None:
-                    runtime.reconfigure(())
-                    runtime.close()
-                    self._runtime = None
-                self._enabled_plugin_ids = tuple(manifest.id for manifest in target_manifests)
-            except Exception as exc:
-                self._state_store.set_plugin_enabled(clean_id, previous_setting)
-                return {
-                    "ok": False,
-                    "error": {
-                        "code": "plugin_lifecycle_failed",
-                        "message": sanitize_plugin_status_error(exc),
-                    },
-                }
-            if self._state_changed_fn is not None:
-                try:
-                    self._state_changed_fn()
-                except Exception:
-                    pass
-            return {
-                "ok": True,
-                "plugin_id": clean_id,
-                "enabled": requested_enabled,
-                "active": requested_enabled,
-                "restart_required": False,
-            }
-
-    def set_plugin_settings(
+    def set_plugin_enabled(
         self,
         plugin_id: object,
-        settings: object,
+        enabled: bool,
+        *,
+        expected_package_digest: object,
     ) -> dict[str, object]:
         if self._state_store is None:
             return {
@@ -354,6 +337,191 @@ class PluginSubsystem:
             return {
                 "ok": False,
                 "error": {"code": "unknown_plugin", "message": "Unknown plugin ID"},
+            }
+        expected_digest = str(expected_package_digest or "").strip().lower()
+        if expected_digest != manifest.package_digest:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_identity_changed",
+                    "message": (
+                        "Plugin package revision is stale; refresh the Scripts "
+                        "workspace and retry this change"
+                    ),
+                },
+                "package_digest": manifest.package_digest,
+            }
+        requested_enabled = bool(enabled)
+        settings_migration_attempted = False
+        settings_migrated = False
+        with self._lifecycle_lock:
+            if self._closed:
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_unavailable",
+                        "message": "Plugin runtime is closed",
+                    },
+                }
+            if requested_enabled:
+                try:
+                    current_digest = compute_plugin_package_digest(
+                        manifest.plugin_directory
+                    )
+                except Exception:
+                    current_digest = ""
+                if current_digest != manifest.package_digest:
+                    return {
+                        "ok": False,
+                        "error": {
+                            "code": "plugin_package_changed",
+                            "message": (
+                                "Plugin package changed after discovery; restart "
+                                "Meshyface to load the current local revision"
+                            ),
+                        },
+                    }
+                enablement_record = self._state_store.plugin_enablement_record(
+                    clean_id
+                )
+                settings_record = self._state_store.plugin_settings_record(clean_id)
+                package_revision_changed = (
+                    (
+                        enablement_record is not None
+                        and enablement_record[1] != manifest.package_digest
+                    )
+                    or (
+                        settings_record is not None
+                        and settings_record[1] != manifest.package_digest
+                    )
+                )
+                if (
+                    settings_record is not None
+                    and settings_record[1] != manifest.package_digest
+                ):
+                    settings_migration_attempted = True
+                    try:
+                        migrated_settings = normalize_plugin_settings(
+                            manifest,
+                            settings_record[0],
+                            require_all=False,
+                        )
+                    except ValueError:
+                        pass
+                    else:
+                        self._state_store.set_plugin_settings(
+                            clean_id,
+                            migrated_settings,
+                            package_digest=manifest.package_digest,
+                        )
+                        settings_migrated = True
+                if package_revision_changed:
+                    runtime = self._runtime
+                    if runtime is None:
+                        self._state_store.clear_sessions_for_plugin(clean_id)
+                    else:
+                        runtime.clear_sessions_for_plugin(clean_id)
+            current_ids = set(self._enabled_plugin_ids)
+            target_ids = set(current_ids)
+            if requested_enabled:
+                target_ids.add(clean_id)
+            else:
+                target_ids.discard(clean_id)
+            target_manifests = tuple(
+                manifest for manifest in self._manifests if manifest.id in target_ids
+            )
+            previous_setting = self._state_store.plugin_enabled(
+                clean_id,
+                package_digest=manifest.package_digest,
+                default=manifest.effective_default_enabled,
+            )
+            self._state_store.set_plugin_enabled(
+                clean_id,
+                requested_enabled,
+                package_digest=manifest.package_digest,
+            )
+            try:
+                runtime = self._runtime
+                if target_manifests:
+                    if runtime is None:
+                        if self._runtime_factory is None:
+                            raise RuntimeError("Plugin runtime cannot be started")
+                        runtime, outbound = self._runtime_factory(target_manifests)
+                        self._runtime = runtime
+                        self._outbound_files = outbound
+                    elif target_ids != current_ids:
+                        runtime.reconfigure(target_manifests)
+                elif runtime is not None:
+                    runtime.reconfigure(())
+                    runtime.close()
+                    self._runtime = None
+                self._enabled_plugin_ids = tuple(manifest.id for manifest in target_manifests)
+            except Exception as exc:
+                self._state_store.set_plugin_enabled(
+                    clean_id,
+                    previous_setting,
+                    package_digest=manifest.package_digest,
+                )
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_lifecycle_failed",
+                        "message": sanitize_plugin_status_error(exc),
+                    },
+                }
+            if self._state_changed_fn is not None:
+                try:
+                    self._state_changed_fn()
+                except Exception:
+                    pass
+            result: dict[str, object] = {
+                "ok": True,
+                "plugin_id": clean_id,
+                "enabled": requested_enabled,
+                "active": requested_enabled,
+                "restart_required": False,
+            }
+            if settings_migration_attempted:
+                result["settings_migrated"] = settings_migrated
+            return result
+
+    def set_plugin_settings(
+        self,
+        plugin_id: object,
+        settings: object,
+        *,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        if self._state_store is None:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": self._error or "Plugin runtime is unavailable",
+                },
+            }
+        clean_id = str(plugin_id or "").strip().lower()
+        manifest = next(
+            (candidate for candidate in self._manifests if candidate.id == clean_id),
+            None,
+        )
+        if manifest is None:
+            return {
+                "ok": False,
+                "error": {"code": "unknown_plugin", "message": "Unknown plugin ID"},
+            }
+        expected_digest = str(expected_package_digest or "").strip().lower()
+        if expected_digest != manifest.package_digest:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_identity_changed",
+                    "message": (
+                        "Plugin package revision is stale; refresh the Scripts "
+                        "workspace and retry saving configuration"
+                    ),
+                },
+                "package_digest": manifest.package_digest,
             }
         if not isinstance(settings, Mapping):
             raise ValueError("settings must be an object")
@@ -379,7 +547,11 @@ class PluginSubsystem:
                         "message": "Plugin runtime is closed",
                     },
                 }
-            self._state_store.set_plugin_settings(clean_id, normalized)
+            self._state_store.set_plugin_settings(
+                clean_id,
+                normalized,
+                package_digest=manifest.package_digest,
+            )
         if self._state_changed_fn is not None:
             try:
                 self._state_changed_fn()
@@ -428,25 +600,101 @@ def build_plugin_subsystem(
     try:
         local_directory = str(getattr(args, "plugins_directory", "mesh_dashboard_plugins"))
         included_directory = Path(__file__).with_name("included_plugins")
-        discovered = discover_plugins(included_directory, local_directory)
+        discovery_errors: list[str] = []
+        discovery_error_count = 0
+
+        def _record_discovery_error(exc: Exception) -> None:
+            nonlocal discovery_error_count
+            discovery_error_count += 1
+            if len(discovery_errors) < 32:
+                discovery_errors.append(
+                    sanitize_plugin_status_error(f"{type(exc).__name__}: {exc}")
+                )
+
+        discovered = discover_plugins(
+            included_directory,
+            local_directory,
+            on_error=_record_discovery_error,
+        )
+        if discovery_error_count > len(discovery_errors):
+            discovery_errors.append(
+                f"{discovery_error_count - len(discovery_errors)} additional "
+                "plugin discovery errors were omitted"
+            )
         state_store = PluginStateStore(
             str(getattr(args, "plugins_state_db", "mesh_dashboard_plugin_state.sqlite3"))
         )
         by_id = {manifest.id: manifest for manifest in discovered}
+        for manifest in discovered:
+            enablement_record = state_store.plugin_enablement_record(manifest.id)
+            if (
+                enablement_record is None
+                or enablement_record[1] == manifest.package_digest
+            ):
+                continue
+            settings_record = state_store.plugin_settings_record(manifest.id)
+            migrated_settings: dict[str, object] | None = None
+            if (
+                settings_record is not None
+                and settings_record[1] != manifest.package_digest
+            ):
+                try:
+                    migrated_settings = normalize_plugin_settings(
+                        manifest,
+                        settings_record[0],
+                        require_all=False,
+                    )
+                except ValueError:
+                    migrated_settings = None
+            state_store.reconcile_plugin_identity(
+                manifest.id,
+                package_digest=manifest.package_digest,
+                compatible_settings=migrated_settings,
+                rebind_settings=migrated_settings is not None,
+            )
         for raw_id in list(getattr(args, "plugin_enable", []) or []):
             plugin_id = str(raw_id or "").strip().lower()
             if plugin_id not in by_id:
-                raise ValueError(f"--plugin-enable references unknown plugin {plugin_id!r}")
-            state_store.set_plugin_enabled(plugin_id, True)
+                _record_discovery_error(
+                    ValueError(
+                        f"--plugin-enable references unknown plugin {plugin_id!r}"
+                    )
+                )
+                continue
+            applied = state_store.set_plugin_enabled_if_identity_matches(
+                plugin_id,
+                True,
+                package_digest=by_id[plugin_id].package_digest,
+            )
+            if not applied:
+                _record_discovery_error(
+                    ValueError(
+                        f"--plugin-enable could not update stale plugin record "
+                        f"{plugin_id!r}; restart Meshyface and retry"
+                    )
+                )
         for raw_id in list(getattr(args, "plugin_disable", []) or []):
             plugin_id = str(raw_id or "").strip().lower()
             if plugin_id not in by_id:
-                raise ValueError(f"--plugin-disable references unknown plugin {plugin_id!r}")
-            state_store.set_plugin_enabled(plugin_id, False)
+                _record_discovery_error(
+                    ValueError(
+                        f"--plugin-disable references unknown plugin {plugin_id!r}"
+                    )
+                )
+                continue
+            state_store.set_plugin_enabled_if_identity_matches(
+                plugin_id,
+                False,
+                package_digest=by_id[plugin_id].package_digest,
+            )
         enabled = tuple(
             manifest
             for manifest in discovered
-            if state_store.plugin_enabled(manifest.id, default=manifest.default_enabled)
+            if state_store.plugin_enabled(
+                manifest.id,
+                package_digest=manifest.package_digest,
+                default=manifest.effective_default_enabled,
+            )
         )
         runtime_config = PluginRuntimeConfig(
             event_queue_size=max(
@@ -456,6 +704,10 @@ def build_plugin_subsystem(
             handler_timeout_seconds=max(
                 0.1,
                 float(getattr(args, "plugins_handler_timeout", 5.0)),
+            ),
+            max_inbound_file_bytes=max(
+                1,
+                int(getattr(args, "file_transfer_max_bytes", 64 * 1024)),
             ),
         )
 
@@ -503,6 +755,7 @@ def build_plugin_subsystem(
             outbound_files=outbound,
             manifests=discovered,
             enabled_plugin_ids=[manifest.id for manifest in enabled],
+            discovery_errors=discovery_errors,
             runtime_factory=_runtime_factory,
             state_changed_fn=_mark_state_changed,
         )

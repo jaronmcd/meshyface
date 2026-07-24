@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
 
 from meshdash.plugins import Script
 from meshdash.plugins.manifest import (
+    MAX_DISCOVERED_PLUGINS,
+    MAX_MANIFEST_BYTES,
+    MAX_PLUGIN_COMMANDS,
     PluginDefinitionError,
     DuplicatePluginIdError,
     ManifestError,
@@ -13,6 +17,7 @@ from meshdash.plugins.manifest import (
     parse_manifest,
     validate_script_against_manifest,
 )
+from meshdash.plugin_worker import _load_script
 
 
 def _write_plugin(
@@ -68,6 +73,64 @@ def test_parse_valid_manifest_resolves_entrypoint_without_importing(tmp_path: Pa
     assert manifest.entrypoint_path == (plugin / "script.py").resolve()
     assert manifest.entrypoint_object == "script"
     assert manifest.source == "included"
+    assert manifest.effective_default_enabled is True
+    assert manifest.package_digest.startswith("sha256:")
+    assert len(manifest.package_digest) == 71
+
+
+def test_local_package_cannot_self_enable_from_its_manifest(tmp_path: Path) -> None:
+    plugin = _write_plugin(tmp_path, "example", default_enabled=True)
+
+    local = parse_manifest(plugin / "plugin.toml", source="local")
+    included = parse_manifest(plugin / "plugin.toml", source="included")
+
+    assert local.default_enabled is True
+    assert local.effective_default_enabled is False
+    assert included.effective_default_enabled is True
+
+
+def test_package_digest_covers_non_entrypoint_files_deterministically(tmp_path: Path) -> None:
+    plugin = _write_plugin(tmp_path, "example")
+    extra = plugin / "README.md"
+    extra.write_text("package notes", encoding="utf-8")
+
+    first = parse_manifest(plugin / "plugin.toml").package_digest
+    assert parse_manifest(plugin / "plugin.toml").package_digest == first
+
+    extra.write_text("changed package notes", encoding="utf-8")
+    second = parse_manifest(plugin / "plugin.toml").package_digest
+    assert second != first
+
+
+def test_package_digest_ignores_common_local_development_metadata(tmp_path: Path) -> None:
+    plugin = _write_plugin(tmp_path, "example")
+    baseline = parse_manifest(plugin / "plugin.toml").package_digest
+    git_dir = plugin / ".git"
+    cache_dir = plugin / "__pycache__"
+    pytest_cache = plugin / ".pytest_cache"
+    git_dir.mkdir()
+    cache_dir.mkdir()
+    pytest_cache.mkdir()
+    (git_dir / "index").write_bytes(b"changing checkout metadata")
+    (cache_dir / "script.cpython-313.pyc").write_bytes(b"changing bytecode cache")
+    (pytest_cache / "README.md").write_text("changing test cache", encoding="utf-8")
+    (plugin / ".coverage").write_bytes(b"changing coverage data")
+
+    assert parse_manifest(plugin / "plugin.toml").package_digest == baseline
+
+    (plugin / "script.py").write_text("changed = True\n", encoding="utf-8")
+    assert parse_manifest(plugin / "plugin.toml").package_digest != baseline
+
+
+@pytest.mark.skipif(os.name != "posix", reason="surrogate-escaped filenames are POSIX-specific")
+def test_package_digest_handles_non_utf8_filename(tmp_path: Path) -> None:
+    plugin = _write_plugin(tmp_path, "example")
+    non_utf8_name = os.fsdecode(b"package-\xff.dat")
+    (plugin / non_utf8_name).write_bytes(b"package data")
+
+    manifest = parse_manifest(plugin / "plugin.toml")
+
+    assert manifest.package_digest.startswith("sha256:")
 
 
 def test_manifest_declares_and_normalizes_typed_settings(tmp_path: Path) -> None:
@@ -215,6 +278,98 @@ def test_parse_manifest_rejects_entrypoint_symlink_escape(tmp_path: Path) -> Non
         parse_manifest(plugin / "plugin.toml")
 
 
+def test_discovery_isolates_entrypoint_symlink_loop(tmp_path: Path) -> None:
+    root = tmp_path / "plugins"
+    plugin = _write_plugin(root, "looped", entrypoint="loop.py:script")
+    (plugin / "loop.py").symlink_to("loop.py")
+    errors: list[ManifestError] = []
+
+    assert discover_plugins(None, root, on_error=errors.append) == ()
+    assert any("entrypoint path cannot be resolved" in str(error) for error in errors)
+
+
+def test_parse_manifest_rejects_any_package_symlink(tmp_path: Path) -> None:
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside", encoding="utf-8")
+    plugin = _write_plugin(tmp_path / "plugins", "example")
+    (plugin / "linked-data.txt").symlink_to(outside)
+
+    with pytest.raises(ManifestError, match="package symlinks are not allowed"):
+        parse_manifest(plugin / "plugin.toml")
+
+
+def test_parse_manifest_rejects_world_writable_package_code(
+    tmp_path: Path,
+) -> None:
+    plugin = _write_plugin(tmp_path, "example")
+    script_path = plugin / "script.py"
+    script_path.chmod(0o666)
+
+    with pytest.raises(ManifestError, match="must not be world-writable"):
+        parse_manifest(plugin / "plugin.toml")
+
+
+def test_manifest_and_package_directory_symlinks_are_rejected(tmp_path: Path) -> None:
+    root = tmp_path / "plugins"
+    target = _write_plugin(tmp_path / "targets", "example")
+    root.mkdir()
+    (root / "linked-package").symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(ManifestError, match="package directory must not be a symlink"):
+        discover_plugins(None, root)
+
+    package = _write_plugin(root, "direct")
+    contents = (package / "plugin.toml").read_text(encoding="utf-8")
+    (package / "plugin.toml").unlink()
+    outside_manifest = tmp_path / "outside-plugin.toml"
+    outside_manifest.write_text(contents, encoding="utf-8")
+    (package / "plugin.toml").symlink_to(outside_manifest)
+
+    errors: list[ManifestError] = []
+    assert discover_plugins(None, root, on_error=errors.append) == ()
+    assert any("plugin manifest must not be a symlink" in str(error) for error in errors)
+
+
+def test_discovery_isolates_malformed_and_duplicate_packages_when_requested(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "plugins"
+    _write_plugin(root, "healthy")
+    malformed = _write_plugin(root, "malformed")
+    (malformed / "plugin.toml").write_text("not = [valid", encoding="utf-8")
+    _write_plugin(root, "duplicate", plugin_id="healthy")
+    errors: list[ManifestError] = []
+
+    manifests = discover_plugins(None, root, on_error=errors.append)
+
+    assert [manifest.id for manifest in manifests] == ["healthy"]
+    assert len(errors) == 2
+    assert any("invalid TOML" in str(error) for error in errors)
+    assert any(isinstance(error, DuplicatePluginIdError) for error in errors)
+
+
+def test_discovery_bounds_total_candidate_packages(tmp_path: Path) -> None:
+    root = tmp_path / "plugins"
+    for index in range(MAX_DISCOVERED_PLUGINS + 1):
+        _write_plugin(root, f"plugin{index:02d}")
+
+    with pytest.raises(ManifestError, match="plugin packages may be inspected"):
+        discover_plugins(None, root)
+
+
+def test_manifest_and_command_metadata_limits_are_enforced(tmp_path: Path) -> None:
+    plugin = _write_plugin(tmp_path, "oversized")
+    manifest_path = plugin / "plugin.toml"
+    manifest_path.write_bytes(b"#" * (MAX_MANIFEST_BYTES + 1))
+    with pytest.raises(ManifestError, match="manifest exceeds"):
+        parse_manifest(manifest_path)
+
+    commands = tuple(f"c{index}" for index in range(MAX_PLUGIN_COMMANDS + 1))
+    plugin = _write_plugin(tmp_path, "commands", commands=commands)
+    with pytest.raises(ManifestError, match="commands may contain at most"):
+        parse_manifest(plugin / "plugin.toml")
+
+
 def test_discovery_is_deterministic_and_does_not_import_python(tmp_path: Path) -> None:
     included = tmp_path / "included"
     local = tmp_path / "local"
@@ -251,6 +406,25 @@ def test_discovery_rejects_duplicate_ids_with_both_paths(tmp_path: Path) -> None
     assert "duplicate plugin id 'duplicate'" in message
     assert str((first / "plugin.toml").resolve()) in message
     assert str((second / "plugin.toml").resolve()) in message
+
+
+def test_worker_rejects_package_changed_after_discovery(tmp_path: Path) -> None:
+    plugin = _write_plugin(
+        tmp_path,
+        "example",
+        python_source="""
+from meshdash.plugins import Script
+script = Script(id="example", name="Example", version="1.0.0")
+@script.command("hello")
+def hello(ctx):
+    return None
+""",
+    )
+    manifest = parse_manifest(plugin / "plugin.toml")
+    (plugin / "new-code.py").write_text("changed = True\n", encoding="utf-8")
+
+    with pytest.raises(ImportError, match="package changed after discovery"):
+        _load_script(manifest)
 
 
 def test_worker_validation_enforces_authoritative_manifest_metadata(tmp_path: Path) -> None:

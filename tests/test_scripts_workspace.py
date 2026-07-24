@@ -44,7 +44,11 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert 'id="scripts-list"' in html
     assert 'id="scripts-debug-output"' in html
     assert 'id="scripts-debug-clear"' in html
-    assert "Start or stop installed scripts immediately." in html
+    assert 'id="scripts-admin-access"' in html
+    assert 'id="scripts-admin-token"' in html
+    assert 'type="password"' in html
+    assert "New scripts start disabled." in html
+    assert "are not sandboxed" in html
     assert "No code editor" not in html
     assert (
         'type="file"'
@@ -59,6 +63,7 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert ".scripts-runtime-status.is-error {" in css
     assert ".scripts-list {" in css
     assert ".scripts-debug-console {" in css
+    assert ".scripts-admin-access {" in css
 
     known_views = js.split("const knownLayoutViews = new Set([", 1)[1].split("]);", 1)[0]
     assert '"scripts"' in known_views
@@ -95,11 +100,29 @@ def test_scripts_view_renders_master_off_offline_and_live_lifecycle_states() -> 
     assert 'label: "Error"' in js
     assert 'fetch("/api/settings/plugins"' in js
     assert 'fetch("/api/settings/plugins/config"' in js
+    assert 'fetch("/api/admin/plugins"' in js
+    assert "window.sessionStorage.setItem(scriptsAdminTokenStorageKey, clean)" in js
+    assert 'headers["X-API-Token"] = token' in js
+    scripts_admin_js = js.split("function scriptsStoredApiToken", 1)[1].split(
+        "function scriptsRuntimeErrorMessage", 1
+    )[0]
+    assert "localStorage" not in scripts_admin_js
     assert "data-script-configure" in js
     assert "data-script-config-form" in js
+    assert "data-package-digest" in js
     assert 'data-setting-type="node_ids"' in js
     assert ".scripts-config-form {" in build_dashboard_css(theme_css="")
-    assert "JSON.stringify({ plugin_id: cleanId, enabled: !!enabled })" in js
+    assert "const hasPackageDigest = /^sha256:[0-9a-f]{64}$/.test(packageDigest);" in js
+    assert "`sha256:${packageDigest.slice(7, 19)}…`" in js
+    assert 'title="${escAttr(packageDigest || "Package identity unavailable")}"' in js
+    assert "package_digest: expectedPackageDigest" in js
+    assert "scriptsPackageDigest" not in js
+    assert "async function saveScriptConfig(scriptId, packageDigest, settings)" in js
+    assert "async function setScriptEnabled(scriptId, packageDigest, enabled, button)" in js
+    assert "form.dataset.packageDigest" in js
+    assert "target.dataset.packageDigest" in js
+    assert "draft.packageDigest === packageDigest" in js
+    assert "packageDigest: expectedPackageDigest" in js
     assert "scriptsUpdateCachedEnabled(cleanId, !!payload.enabled, !!payload.active)" in js
     assert "Restart MeshyFace to apply the change." not in _html()
 
@@ -114,13 +137,82 @@ def test_scripts_view_avoids_poll_churn_duplicate_writes_and_render_cascade_fail
     assert "if (signature === scriptsLastRenderSignature) return false;" in js
     assert "const focusedScriptId = activeElement instanceof HTMLElement" in js
     assert "replacement.focus({ preventScroll: true });" in js
-    assert "return runPollStep(stepName, () => renderScriptsView(state), false);" in js
+    assert "rendered = runPollStep(stepName, () => renderScriptsView(state), false);" in js
     assert 'renderScriptsViewSafely(latestState, "poll.notModified.scripts");' in js
     assert 'renderScriptsViewSafely(state, "poll.updated.scripts");' in js
     assert 'renderScriptsViewSafely(latestState, "navigation.loading.scripts");' in js
     assert "window.__meshPollStepErrors = ledger;" in js
     assert "window.__meshPollStepErrorSequence = sequence;" in js
     assert "if (ledger.length > 25) ledger.splice(0, ledger.length - 25);" in js
+
+
+def test_scripts_view_binds_mutations_and_drafts_to_rendered_package_identity() -> None:
+    js = _js()
+
+    assert 'data-package-digest="${escAttr(packageDigest)}"' in js
+    assert "const packageDigest = String(form.dataset.packageDigest || \"\").trim();" in js
+    assert "const packageDigest = String(target.dataset.packageDigest || \"\").trim();" in js
+    assert "void saveScriptConfig(scriptId, packageDigest, settings);" in js
+    assert "void setScriptEnabled(scriptId, packageDigest, enabled, target);" in js
+    assert "scriptsPackageDigest" not in js
+    assert "draft.packageDigest === packageDigest" in js
+    assert "if (draft && !draftMatchesPackage)" in js
+    assert "scriptsConfigDrafts.delete(scriptId);" in js
+    assert "packageDigest: expectedPackageDigest" in js
+    assert js.count("if (response.status === 409)") == 2
+    stale_config_handler = js.split("if (response.status === 409)", 1)[1].split(
+        "throw new Error",
+        1,
+    )[0]
+    assert "scriptsDiscardStaleConfig(cleanId);" in stale_config_handler
+    assert "refreshScriptsAdminSummary(true)" in stale_config_handler
+    discard_helper = js.split("function scriptsDiscardStaleConfig", 1)[1].split(
+        "function scriptsReadConfigForm",
+        1,
+    )[0]
+    assert "scriptsConfigDrafts.delete(cleanId);" in discard_helper
+    assert 'scriptsOpenConfigId = "";' in discard_helper
+    assert "activeElement.blur();" in discard_helper
+
+
+def test_scripts_view_keeps_fingerprint_without_changed_package_confirmation() -> None:
+    js = _js()
+
+    assert "`sha256:${packageDigest.slice(7, 19)}…`" in js
+    assert 'data-package-digest="${escAttr(packageDigest)}"' in js
+    assert '"Review & enable"' not in js
+    assert "data-identity-changed" not in js
+    assert "identityChanged" not in js
+    assert "Review its files and fingerprint" not in js
+
+
+def test_scripts_view_scrubs_privileged_state_on_auth_loss_or_forgotten_token() -> None:
+    js = _js()
+
+    scrub_helper = js.split("function scriptsDiscardPrivilegedState", 1)[1].split(
+        "function scriptsAdminRequestHeaders",
+        1,
+    )[0]
+    assert "activeElement.blur();" in scrub_helper
+    assert 'scriptsOpenConfigId = "";' in scrub_helper
+    assert "scriptsConfigDrafts.clear();" in scrub_helper
+    assert "scriptsAdminRuntimeSummary = null;" in scrub_helper
+    assert "renderScriptsDebug(null);" in scrub_helper
+    assert js.count("scriptsDiscardPrivilegedState();") >= 3
+
+    focused_form_guard = js.split(
+        "activeConfigForm instanceof HTMLFormElement",
+        1,
+    )[1].split(")", 1)[0]
+    assert "scriptsAdminRuntimeSummary" in focused_form_guard
+    assert "!scriptsAdminAccessState" in focused_form_guard
+
+    forget_handler = js.split(
+        'forgetButton.addEventListener("click"',
+        1,
+    )[1].split("});", 1)[0]
+    assert 'scriptsSetStoredApiToken("");' in forget_handler
+    assert "scriptsDiscardPrivilegedState();" in forget_handler
 
 
 class _Tracker:
@@ -171,6 +263,8 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
     )
     try:
         status = subsystem.status()
+        package_digest = status["scripts"][0]["package_digest"]
+        assert str(package_digest).startswith("sha256:")
         assert status["scripts"] == [
             {
                 "id": "weather",
@@ -179,6 +273,10 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
                 "commands": ["weather", "forecast"],
                 "source": "local",
                 "default_enabled": False,
+                "declared_default_enabled": False,
+                "package_digest": package_digest,
+                "approval_status": "new",
+                "identity_changed": False,
                 "enabled": False,
                 "active": False,
                 "runtime_status": "disabled",
@@ -190,7 +288,11 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
         ]
         assert str(tmp_path) not in json.dumps(status["scripts"])
 
-        result = subsystem.set_plugin_enabled("weather", True)
+        result = subsystem.set_plugin_enabled(
+            "weather",
+            True,
+            expected_package_digest=package_digest,
+        )
         assert result["restart_required"] is False
         assert result["active"] is True
         assert subsystem.status()["scripts"][0]["enabled"] is True

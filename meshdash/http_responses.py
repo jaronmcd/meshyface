@@ -133,6 +133,8 @@ def write_html_response(
     payload, content_encoding = _gzip_if_accepted(handler, payload)
     handler.send_response(200)
     handler.send_header("Content-Type", "text/html; charset=utf-8")
+    handler.send_header("Content-Security-Policy", "frame-ancestors 'self'")
+    handler.send_header("X-Frame-Options", "SAMEORIGIN")
     if no_store:
         _send_no_store_headers(handler)
     if extra_headers:
