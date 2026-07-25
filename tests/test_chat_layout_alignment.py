@@ -445,8 +445,8 @@ def test_dark_chat_palette_matches_workspace_theme() -> None:
     assert "color-mix(in srgb, var(--workspace-shell-active-bg) 58%, transparent)" in css
     assert "[data-theme=\"dark\"] .card.chat .chat-reaction-chip," in css
     assert "background: var(--workspace-shell-active-bg);" in css
-    assert "[data-theme=\"dark\"] .chat-node-navigator-menu," in css
-    assert "background: var(--workspace-shell-bg-alt);" in css
+    assert "[data-theme=\"dark\"] .chat-node-navigator-menu {" in css
+    assert "background: color-mix(in srgb, var(--workspace-shell-bg) 88%, black);" in css
     assert "[data-theme=\"dark\"] .chat-member-item {" in css
     assert "--chat-member-node-dark-sat-mult: 0;" in css
     assert "--chat-member-node-outline-dark-sat-mult: 0;" in css
@@ -1238,6 +1238,11 @@ def test_chat_node_list_can_collapse_into_compact_rail() -> None:
     assert ".workspace-shell.chat-panel-collapsed .chat-member-meta-row," in css
     assert ".workspace-shell.chat-panel-collapsed #chat-peer-add-toggle-btn," in css
     assert ".workspace-shell.chat-panel-collapsed .chat-left-bottom-bar {" in css
+    assert 'const dockHost = document.querySelector(".chat-left-bottom-bar");' in js
+    assert "document.body.appendChild(menu);" in js
+    assert "dockHost.appendChild(menu);" in js
+    assert 'menu.style.removeProperty("min-width");' in js
+    assert "positionFloatingPanelNearAnchor(menu, menuBtn" in js
     assert "const chatPanelCollapsedStorageKey = \"meshDashboardChatPanelCollapsedV1\";" in js
     assert "let chatPanelCollapsed = false;" in js
     assert "function applyChatPanelCollapseState() {" in js

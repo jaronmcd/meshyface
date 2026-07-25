@@ -2672,13 +2672,23 @@
       display: none !important;
     }}
     .chat-node-navigator-menu {{
-      border: 1px solid #d0dfd0;
-      border-radius: 8px;
-      background: #f5fbf6;
-      padding: 6px;
+      border: 1px solid color-mix(in srgb, var(--workspace-shell-border, var(--surface-tint-border)) 72%, var(--ui-border, transparent));
+      border-radius: 16px;
+      background:
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--workspace-shell-bg-alt, var(--ui-panel)) 86%, #07121f 14%),
+          color-mix(in srgb, var(--workspace-shell-bg, var(--ui-panel)) 94%, #050b13 6%)
+        ),
+        var(--workspace-shell-bg-alt, var(--ui-panel));
+      box-shadow: 0 18px 38px rgba(5, 17, 28, 0.24);
+      padding: 10px;
       display: flex;
       flex-direction: column;
       gap: 6px;
+      overflow-y: auto;
+      backdrop-filter: blur(14px) saturate(138%);
+      -webkit-backdrop-filter: blur(14px) saturate(138%);
     }}
     .chat-node-navigator-menu-docked {{
       position: absolute;
@@ -2686,7 +2696,6 @@
       right: 0;
       bottom: calc(100% + 6px);
       z-index: 20;
-      box-shadow: 0 10px 24px rgba(11, 27, 17, 0.18);
     }}
     .chat-node-navigator-menu[hidden] {{
       display: none !important;

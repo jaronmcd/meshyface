@@ -3896,7 +3896,11 @@
       background: transparent;
       border-color: var(--ui-border);
     }}
-    [data-theme="dark"] .chat-node-navigator-menu,
+    [data-theme="dark"] .chat-node-navigator-menu {{
+      border-color: color-mix(in srgb, var(--workspace-shell-border) 72%, var(--ui-border));
+      background: color-mix(in srgb, var(--workspace-shell-bg) 88%, black);
+      box-shadow: 0 18px 38px rgba(0, 0, 0, 0.6);
+    }}
     [data-theme="dark"] .chat-peer-add-panel {{
       background: var(--workspace-shell-bg);
       border-color: var(--workspace-shell-border);
