@@ -52,7 +52,13 @@ def test_dashboard_js_adds_link_quality_metadata_field_and_sort_option() -> None
     )
 
     assert 'id: "link_quality", label: "Link", sortable: true, rosterMeta: true' in js
-    assert 'id: "link_quality", label: "Link quality"' in js
+    assert (
+        'id: "link_quality", label: "Link", sortable: true, rosterMeta: true, '
+        'rosterDefault: false, rosterSort: true, rosterSortLabel: "Link quality"'
+        in js
+    )
+    assert "function chatNodeNavigatorFieldSortDefs() {" in js
+    assert 'source: "node_field"' in js
     assert "function buildChatNodeNavigatorLinkQualityByNode(" in js
     assert "function chatNodeNavigatorInferLinkQuality(" in js
     assert 'showLinkQuality = Array.isArray(visibleMetaFieldIds)' in js
@@ -193,10 +199,13 @@ def test_dashboard_adds_cached_city_hint_to_node_navigator_rows() -> None:
 
     assert "let nodeCityHintCache = new Map();" in js
     assert "let nodeCityHintPending = new Map();" in js
-    assert "let chatNodeNavigatorShowCity = true;" in js
+    assert 'id: "city", label: "City", prefKey: "showCity", defaultValue: true' in js
+    assert 'let chatNodeNavigatorShowCity = chatNodeNavigatorDefaultToggleOptionValue("city");' in js
     assert "function normalizeChatNodeNavigatorShowCityPref(value) {" in js
-    assert "showCity: normalizeChatNodeNavigatorShowCityPref(chatNodeNavigatorShowCity)," in js
-    assert "chatNodeNavigatorShowCity = nextShowCity;" in js
+    assert 'return normalizeChatNodeNavigatorTogglePref("city", value);' in js
+    assert "Object.assign(payload, chatNodeNavigatorTogglePreferencePayload());" in js
+    assert 'if (clean === "city") return chatNodeNavigatorShowCity;' in js
+    assert 'chatNodeNavigatorShowCity = normalized;' in js
     assert "function chatNodeNavigatorNodeLocation(nodeId, nodesById = null, item = null) {" in js
     assert "function hydrateChatNodeNavigatorCities(root) {" in js
     assert 'class="chat-member-city${memberCitySource === "estimated" ? " is-estimated" : ""}"' in js
@@ -204,10 +213,9 @@ def test_dashboard_adds_cached_city_hint_to_node_navigator_rows() -> None:
     assert js.index("if (showCity && memberCityHtml) memberMetaRowParts.push(memberCityHtml);") < js.index(
         "if (idleRowHtml) memberMetaRowParts.push(idleRowHtml);"
     )
-    assert '<input type="checkbox" data-nav-toggle-id="city"' in js
-    assert "<span>City</span>" in js
-    assert 'if (toggleId === "city") {' in js
-    assert "showCity: !!target.checked," in js
+    assert 'data-nav-option-id="${escAttr(optionId)}"' in js
+    assert 'const togglePrefKey = chatNodeNavigatorTogglePrefKey(optionId);' in js
+    assert "nextPrefs[togglePrefKey] = !!target.checked;" in js
     assert "hydrateChatNodeNavigatorCities(roomList);" in js
     assert ".chat-member-city {" in html
     assert ".chat-member-city[hidden]" in html
@@ -261,14 +269,24 @@ def test_dashboard_js_supports_dm_history_first_toggle_in_node_navigator() -> No
         node_history_max_points=240,
     )
 
-    assert "let chatNodeNavigatorPinDirectHistory = false;" in js
+    assert (
+        'id: "direct-history", label: "DM history first", prefKey: "pinDirectHistory", '
+        'defaultValue: false, sortAffects: true'
+        in js
+    )
+    assert 'let chatNodeNavigatorPinDirectHistory = chatNodeNavigatorDefaultToggleOptionValue("direct-history");' in js
     assert "function normalizeChatNodeNavigatorPinDirectHistoryPref(value) {" in js
-    assert "pinDirectHistory: normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory)," in js
-    assert "prefs.pinDirectHistory != null ? prefs.pinDirectHistory : chatNodeNavigatorPinDirectHistory" in js
-    assert 'data-nav-toggle-id="direct-history"' in js
-    assert "<span>DM history first</span>" in js
-    assert 'pinDirectHistory: !!target.checked,' in js
-    assert "const pinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory);" in js
+    assert 'return normalizeChatNodeNavigatorTogglePref("direct-history", value);' in js
+    assert "function chatNodeNavigatorTogglePreferencePayload() {" in js
+    assert 'if (clean === "direct-history") return chatNodeNavigatorPinDirectHistory;' in js
+    assert 'chatNodeNavigatorPinDirectHistory = normalized;' in js
+    assert 'data-nav-option-id="${escAttr(optionId)}"' in js
+    assert "nextPrefs[togglePrefKey] = !!target.checked;" in js
+    assert (
+        "const pinDirectHistory = "
+        "normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory);"
+        in js
+    )
     assert "const directHistoryPeerIds = chatNodeNavigatorDirectHistoryPeerIds(safeState);" in js
     assert "const historyPriorityRows = [];" in js
     assert "} else if (pinDirectHistory && directHistoryPeerIds.has(nodeId)) {" in js
@@ -320,19 +338,20 @@ def test_dashboard_js_supports_idle_toggle_in_node_navigator() -> None:
         node_history_max_points=240,
     )
 
-    assert "let chatNodeNavigatorShowIdle = false;" in js
+    assert 'id: "idle", label: "Idle / Last Heard", prefKey: "showIdle", defaultValue: false' in js
+    assert 'let chatNodeNavigatorShowIdle = chatNodeNavigatorDefaultToggleOptionValue("idle");' in js
     assert "function normalizeChatNodeNavigatorShowIdlePref(value) {" in js
-    assert 'showIdle: normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle),' in js
-    assert 'const nextShowIdle = normalizeChatNodeNavigatorShowIdlePref(' in js
-    assert 'chatNodeNavigatorShowIdle = nextShowIdle;' in js
-    assert '<input type="checkbox" data-nav-toggle-id="idle"' in js
-    assert '<span>Idle / Last Heard</span>' in js
-    assert 'if (toggleId === "idle") {' in js
-    assert 'showIdle: !!target.checked,' in js
+    assert 'return normalizeChatNodeNavigatorTogglePref("idle", value);' in js
+    assert "const nextToggleValues = new Map();" in js
+    assert 'if (optionId === "idle" && prefs[prefKey] == null && legacyLastHeardMetaAsFreshness)' in js
+    assert 'chatNodeNavigatorShowIdle = normalized;' in js
+    assert 'data-nav-option-id="${escAttr(optionId)}"' in js
+    assert "nextPrefs[togglePrefKey] = !!target.checked;" in js
     assert "function chatNodeNavigatorMetaFieldIdsIncludeLegacyLastHeard(rawIds) {" in js
     assert 'normalizeNodeExplorerFieldId(value) === "last_heard"' in js
     assert "const legacyLastHeardMetaAsFreshness = (" in js
-    assert "(legacyLastHeardMetaAsFreshness ? true : chatNodeNavigatorShowIdle)" in js
+    assert 'if (optionId === "idle" && prefs[prefKey] == null && legacyLastHeardMetaAsFreshness)' in js
+    assert "rawValue = true;" in js
     assert "function nodeFreshnessInlineLabel(lastSeenUnix, status" in js
     assert 'text: showLastHeard ? "Last Heard: n/a" : "Idle: n/a"' in js
     assert 'text: `Last Heard: ${lastSeenText}`' in js
@@ -353,8 +372,8 @@ def test_dashboard_js_labels_node_packet_plot_without_rx_tx_text() -> None:
     )
     css = build_dashboard_css(theme_css="")
 
-    assert '<input type="checkbox" data-nav-toggle-id="packet-direction"' in js
-    assert "<span>Packet plot</span>" in js
+    assert 'id: "packet-direction", label: "Packet plot", prefKey: "showPacketDirection", defaultValue: false' in js
+    assert 'data-nav-option-id="${escAttr(optionId)}"' in js
     assert "TX/RX + Plot" not in js
     assert "packetDirectionHtml" not in js
     assert "chat-member-packet-direction" not in js
@@ -370,15 +389,14 @@ def test_dashboard_js_supports_status_dot_toggle_in_node_navigator() -> None:
         node_history_max_points=240,
     )
 
-    assert "let chatNodeNavigatorShowStatusDots = true;" in js
+    assert 'id: "status-dots", label: "Status", prefKey: "showStatusDots", defaultValue: true' in js
+    assert 'let chatNodeNavigatorShowStatusDots = chatNodeNavigatorDefaultToggleOptionValue("status-dots");' in js
     assert "function normalizeChatNodeNavigatorShowStatusDotsPref(value) {" in js
-    assert 'showStatusDots: normalizeChatNodeNavigatorShowStatusDotsPref(chatNodeNavigatorShowStatusDots),' in js
-    assert 'const nextShowStatusDots = normalizeChatNodeNavigatorShowStatusDotsPref(' in js
-    assert 'chatNodeNavigatorShowStatusDots = nextShowStatusDots;' in js
-    assert '<input type="checkbox" data-nav-toggle-id="status-dots"' in js
-    assert '<span>Status</span>' in js
-    assert 'if (toggleId === "status-dots") {' in js
-    assert 'showStatusDots: !!target.checked,' in js
+    assert 'return normalizeChatNodeNavigatorTogglePref("status-dots", value);' in js
+    assert "const nextToggleValues = new Map();" in js
+    assert 'chatNodeNavigatorShowStatusDots = normalized;' in js
+    assert 'data-nav-option-id="${escAttr(optionId)}"' in js
+    assert "nextPrefs[togglePrefKey] = !!target.checked;" in js
     assert 'const showStatusDots = (typeof normalizeChatNodeNavigatorShowStatusDotsPref === "function")' in js
     assert 'const statusVisibilityClass = showStatusDots ? "" : " status-hidden";' in js
     assert 'const statusMarkerClass = showStatusDots ? "" : " is-hidden";' in js

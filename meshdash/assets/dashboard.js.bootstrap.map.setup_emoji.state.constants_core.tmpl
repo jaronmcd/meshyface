@@ -10,45 +10,22 @@
       "ports-table": {{ index: 1, dir: "desc" }},
     }};
     const nodeExplorerFieldDefs = Object.freeze([
-      Object.freeze({{ id: "last_heard", label: "Last Heard", sortable: true, rosterMeta: false, rosterDefault: false }}),
-      Object.freeze({{ id: "id", label: "ID", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "name", label: "Name", sortable: true, rosterMeta: false, rosterDefault: false }}),
-      Object.freeze({{ id: "hardware", label: "HW", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "snr", label: "SNR", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "hops", label: "Hops", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "link_quality", label: "Link", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "links", label: "Links", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "battery", label: "Battery", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "saved", label: "Total Packets", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "pos", label: "Pos", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "location_points", label: "Location Points", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "favorite", label: "Tag", sortable: false, rosterMeta: true, rosterDefault: false }}),
+      Object.freeze({{ id: "last_heard", label: "Last Heard", sortable: true, rosterMeta: false, rosterDefault: false, rosterSort: true }}),
+      Object.freeze({{ id: "id", label: "ID", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
+      Object.freeze({{ id: "name", label: "Name", sortable: true, rosterMeta: false, rosterDefault: false, rosterSort: true }}),
+      Object.freeze({{ id: "hardware", label: "HW", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
+      Object.freeze({{ id: "snr", label: "SNR", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
+      Object.freeze({{ id: "hops", label: "Hops", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
+      Object.freeze({{ id: "link_quality", label: "Link", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, rosterSortLabel: "Link quality" }}),
+      Object.freeze({{ id: "links", label: "Links", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
+      Object.freeze({{ id: "battery", label: "Battery", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
+      Object.freeze({{ id: "saved", label: "Total Packets", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
+      Object.freeze({{ id: "pos", label: "Pos", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
+      Object.freeze({{ id: "location_points", label: "Location Points", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
+      Object.freeze({{ id: "favorite", label: "Tag", sortable: false, rosterMeta: true, rosterDefault: false, rosterSort: true, rosterSortLabel: "Tagged" }}),
     ]);
     const nodeExplorerFieldDefById = new Map(
       nodeExplorerFieldDefs.map((def) => [String(def.id || ""), def])
-    );
-    const chatNodeNavigatorDefaultSortKey = "status";
-    const chatNodeNavigatorDefaultSortDir = "asc";
-    const chatNodeNavigatorSortDefs = Object.freeze([
-      Object.freeze({{ id: "status", label: "Status" }}),
-      Object.freeze({{ id: "activity", label: "Recent Message" }}),
-      Object.freeze({{ id: "last_heard", label: "Last Heard" }}),
-      Object.freeze({{ id: "idle", label: "Idle" }}),
-      Object.freeze({{ id: "name", label: "Name" }}),
-      Object.freeze({{ id: "snr", label: "SNR" }}),
-      Object.freeze({{ id: "hops", label: "Hops" }}),
-      Object.freeze({{ id: "link_quality", label: "Link quality" }}),
-      Object.freeze({{ id: "links", label: "Links" }}),
-      Object.freeze({{ id: "battery", label: "Battery" }}),
-      Object.freeze({{ id: "favorite", label: "Tagged" }}),
-      Object.freeze({{ id: "saved", label: "Total Packets" }}),
-      Object.freeze({{ id: "hardware", label: "HW" }}),
-      Object.freeze({{ id: "id", label: "ID" }}),
-      Object.freeze({{ id: "pos", label: "Pos" }}),
-      Object.freeze({{ id: "location_points", label: "Location Points" }}),
-    ]);
-    const chatNodeNavigatorSortDefById = new Map(
-      chatNodeNavigatorSortDefs.map((def) => [String(def.id || ""), def])
     );
     function normalizeNodeExplorerFieldId(value) {{
       const clean = String(value || "").trim().toLowerCase();
@@ -69,6 +46,80 @@
         .filter((def) => !!(def && def.rosterMeta && def.rosterDefault))
         .map((def) => String(def.id || ""))
         .filter((id) => !!id);
+    }}
+
+    const chatNodeNavigatorDefaultSortKey = "status";
+    const chatNodeNavigatorDefaultSortDir = "asc";
+    const chatNodeNavigatorBaseSortDefs = Object.freeze([
+      Object.freeze({{ id: "status", label: "Status", source: "navigator" }}),
+      Object.freeze({{ id: "activity", label: "Recent Message", source: "navigator" }}),
+      Object.freeze({{ id: "idle", label: "Idle", source: "navigator" }}),
+    ]);
+    const chatNodeNavigatorFieldSortOrder = Object.freeze([
+      "last_heard",
+      "name",
+      "snr",
+      "hops",
+      "link_quality",
+      "links",
+      "battery",
+      "favorite",
+      "saved",
+      "hardware",
+      "id",
+      "pos",
+      "location_points",
+    ]);
+    function chatNodeNavigatorFieldSortDefs() {{
+      return chatNodeNavigatorFieldSortOrder
+        .map((fieldId) => nodeExplorerFieldDef(fieldId))
+        .filter((def) => !!(def && def.rosterSort))
+        .map((def) => Object.freeze({{
+          id: String(def.id || ""),
+          label: String(def.rosterSortLabel || def.label || def.id || ""),
+          source: "node_field",
+          fieldId: String(def.id || ""),
+        }}));
+    }}
+    const chatNodeNavigatorNodeFieldSortDefs = Object.freeze(chatNodeNavigatorFieldSortDefs());
+    const chatNodeNavigatorSortDefs = Object.freeze(
+      chatNodeNavigatorBaseSortDefs
+        .slice(0, 2)
+        .concat(chatNodeNavigatorNodeFieldSortDefs.slice(0, 1))
+        .concat(chatNodeNavigatorBaseSortDefs.slice(2))
+        .concat(chatNodeNavigatorNodeFieldSortDefs.slice(1))
+    );
+    const chatNodeNavigatorSortDefById = new Map(
+      chatNodeNavigatorSortDefs.map((def) => [String(def.id || ""), def])
+    );
+    const chatNodeNavigatorToggleOptionDefs = Object.freeze([
+      Object.freeze({{ id: "direct-history", label: "DM history first", prefKey: "pinDirectHistory", defaultValue: false, sortAffects: true }}),
+      Object.freeze({{ id: "city", label: "City", prefKey: "showCity", defaultValue: true, sortAffects: false }}),
+      Object.freeze({{ id: "idle", label: "Idle / Last Heard", prefKey: "showIdle", defaultValue: false, sortAffects: false }}),
+      Object.freeze({{ id: "status-dots", label: "Status", prefKey: "showStatusDots", defaultValue: true, sortAffects: false }}),
+      Object.freeze({{ id: "packet-direction", label: "Packet plot", prefKey: "showPacketDirection", defaultValue: false, sortAffects: false }}),
+    ]);
+    const chatNodeNavigatorToggleOptionDefById = new Map(
+      chatNodeNavigatorToggleOptionDefs.map((def) => [String(def.id || ""), def])
+    );
+    function chatNodeNavigatorFieldOptionDefs() {{
+      return nodeExplorerRosterMetadataFieldDefs().map((def) => {{
+        const fieldId = normalizeNodeExplorerFieldId(def && def.id);
+        return Object.freeze({{
+          id: `field:${{fieldId}}`,
+          label: String(def && (def.rosterLabel || def.label) || fieldId),
+          kind: "meta",
+          fieldId,
+          source: "node_field",
+        }});
+      }}).filter((def) => !!(def && def.fieldId));
+    }}
+    function chatNodeNavigatorOptionDefs() {{
+      return chatNodeNavigatorFieldOptionDefs().concat(chatNodeNavigatorToggleOptionDefs);
+    }}
+    function chatNodeNavigatorDefaultToggleOptionValue(optionId) {{
+      const def = chatNodeNavigatorToggleOptionDefById.get(String(optionId || "").trim().toLowerCase());
+      return def ? !!def.defaultValue : false;
     }}
 
     function nodeExplorerBuildProjection(nodeInput, options = null) {{
