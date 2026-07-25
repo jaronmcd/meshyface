@@ -3939,6 +3939,18 @@
     [data-theme="dark"] .chat-node-navigator-field-option {{
       color: var(--workspace-shell-text);
     }}
+    [data-theme="dark"] .chat-node-navigator-option-section + .chat-node-navigator-option-section {{
+      border-top-color: color-mix(in srgb, var(--workspace-shell-border) 68%, transparent);
+    }}
+    [data-theme="dark"] .chat-node-navigator-field-option:hover {{
+      background: var(--workspace-shell-hover-bg);
+      border-color: var(--workspace-shell-border-muted);
+    }}
+    [data-theme="dark"] .chat-node-navigator-field-option.is-checked {{
+      background: color-mix(in srgb, var(--workspace-shell-active-bg) 84%, var(--workspace-shell-bg-alt));
+      border-color: var(--workspace-shell-border-strong);
+      color: var(--workspace-shell-active-text);
+    }}
     [data-theme="dark"] .chat-node-navigator-fields-head {{
       color: var(--workspace-shell-text-soft);
     }}

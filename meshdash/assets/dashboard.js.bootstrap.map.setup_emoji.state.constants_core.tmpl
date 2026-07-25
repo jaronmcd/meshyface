@@ -93,15 +93,20 @@
       chatNodeNavigatorSortDefs.map((def) => [String(def.id || ""), def])
     );
     const chatNodeNavigatorToggleOptionDefs = Object.freeze([
-      Object.freeze({{ id: "direct-history", label: "DM history first", prefKey: "pinDirectHistory", defaultValue: false, sortAffects: true }}),
-      Object.freeze({{ id: "city", label: "City", prefKey: "showCity", defaultValue: true, sortAffects: false }}),
-      Object.freeze({{ id: "idle", label: "Idle / Last Heard", prefKey: "showIdle", defaultValue: false, sortAffects: false }}),
-      Object.freeze({{ id: "status-dots", label: "Status", prefKey: "showStatusDots", defaultValue: true, sortAffects: false }}),
-      Object.freeze({{ id: "packet-direction", label: "Packet plot", prefKey: "showPacketDirection", defaultValue: false, sortAffects: false }}),
+      Object.freeze({{ id: "city", label: "City", prefKey: "showCity", defaultValue: true, sortAffects: false, group: "display" }}),
+      Object.freeze({{ id: "idle", label: "Idle / Last Heard", prefKey: "showIdle", defaultValue: false, sortAffects: false, group: "display" }}),
+      Object.freeze({{ id: "status-dots", label: "Status", prefKey: "showStatusDots", defaultValue: true, sortAffects: false, group: "display" }}),
+      Object.freeze({{ id: "packet-direction", label: "Packet plot", prefKey: "showPacketDirection", defaultValue: false, sortAffects: false, group: "display" }}),
+      Object.freeze({{ id: "direct-history", label: "DM history first", prefKey: "pinDirectHistory", defaultValue: false, sortAffects: true, group: "order" }}),
     ]);
     const chatNodeNavigatorToggleOptionDefById = new Map(
       chatNodeNavigatorToggleOptionDefs.map((def) => [String(def.id || ""), def])
     );
+    const chatNodeNavigatorOptionGroupDefs = Object.freeze([
+      Object.freeze({{ id: "fields", label: "Fields" }}),
+      Object.freeze({{ id: "display", label: "Display" }}),
+      Object.freeze({{ id: "order", label: "Order" }}),
+    ]);
     function chatNodeNavigatorFieldOptionDefs() {{
       return nodeExplorerRosterMetadataFieldDefs().map((def) => {{
         const fieldId = normalizeNodeExplorerFieldId(def && def.id);
@@ -111,6 +116,7 @@
           kind: "meta",
           fieldId,
           source: "node_field",
+          group: "fields",
         }});
       }}).filter((def) => !!(def && def.fieldId));
     }}

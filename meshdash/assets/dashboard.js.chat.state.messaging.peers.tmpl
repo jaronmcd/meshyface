@@ -2946,19 +2946,55 @@
             : normalizeChatNodeNavigatorTogglePref(optionId, chatNodeNavigatorToggleOptionValue(optionId));
           return [optionId, checked];
         }}));
-        const fieldsHtml = optionDefs.map((def) => {{
+        const renderOption = (def) => {{
           const optionId = String(def && def.id || "").trim();
           if (!optionId) return "";
           const kind = String(def && def.kind || "toggle").trim().toLowerCase();
           const fieldId = kind === "meta" ? normalizeNodeExplorerFieldId(def && def.fieldId) : "";
           if (kind === "meta" && !fieldId) return "";
-          const checked = checkedByOptionId.get(optionId) ? " checked" : "";
+          const checked = !!checkedByOptionId.get(optionId);
+          const checkedAttr = checked ? " checked" : "";
+          const checkedClass = checked ? " is-checked" : "";
           const fieldAttr = fieldId ? ` data-nav-field-id="${{escAttr(fieldId)}}"` : "";
-          return `<label class="chat-node-navigator-field-option">
-            <input type="checkbox" data-nav-option-id="${{escAttr(optionId)}}" data-nav-option-kind="${{escAttr(kind)}}"${{fieldAttr}}${{checked}} />
+          return `<label class="chat-node-navigator-field-option${{checkedClass}}">
+            <input type="checkbox" data-nav-option-id="${{escAttr(optionId)}}" data-nav-option-kind="${{escAttr(kind)}}"${{fieldAttr}}${{checkedAttr}} />
             <span>${{escAttr(def.label || fieldId || optionId)}}</span>
           </label>`;
+        }};
+        const optionDefsByGroup = new Map();
+        for (const def of optionDefs) {{
+          const optionId = String(def && def.id || "").trim();
+          if (!optionId) continue;
+          const kind = String(def && def.kind || "toggle").trim().toLowerCase();
+          const groupId = String(def && def.group || (kind === "meta" ? "fields" : "display")).trim().toLowerCase();
+          if (!groupId) continue;
+          if (!optionDefsByGroup.has(groupId)) optionDefsByGroup.set(groupId, []);
+          optionDefsByGroup.get(groupId).push(def);
+        }}
+        const groupDefs = Array.isArray(chatNodeNavigatorOptionGroupDefs) ? chatNodeNavigatorOptionGroupDefs : [];
+        const knownGroupIds = new Set(
+          groupDefs
+            .map((group) => String(group && group.id || "").trim().toLowerCase())
+            .filter((groupId) => !!groupId)
+        );
+        const renderGroup = (groupId, groupLabel, defs) => {{
+          if (!groupId || !Array.isArray(defs) || defs.length <= 0) return "";
+          const optionsHtml = defs.map(renderOption).join("");
+          if (!optionsHtml) return "";
+          return `<section class="chat-node-navigator-option-section" data-nav-option-group="${{escAttr(groupId)}}">
+            <div class="chat-node-navigator-fields-head">${{escAttr(groupLabel || groupId)}}</div>
+            <div class="chat-node-navigator-option-grid">${{optionsHtml}}</div>
+          </section>`;
+        }};
+        const registeredGroupHtml = groupDefs.map((group) => {{
+          const groupId = String(group && group.id || "").trim().toLowerCase();
+          return renderGroup(groupId, String(group && group.label || groupId), optionDefsByGroup.get(groupId) || []);
         }}).join("");
+        const extraGroupHtml = Array.from(optionDefsByGroup.entries())
+          .filter(([groupId]) => !knownGroupIds.has(groupId))
+          .map(([groupId, defs]) => renderGroup(groupId, groupId, defs))
+          .join("");
+        const fieldsHtml = registeredGroupHtml + extraGroupHtml;
         if (fieldsHost.__meshFieldsHtml !== fieldsHtml) {{
           fieldsHost.innerHTML = fieldsHtml;
           fieldsHost.__meshFieldsHtml = fieldsHtml;
@@ -2966,7 +3002,10 @@
           for (const input of fieldsHost.querySelectorAll('input[type="checkbox"][data-nav-option-id]')) {{
             if (!(input instanceof HTMLInputElement)) continue;
             const optionId = String(input.dataset.navOptionId || "").trim();
-            input.checked = !!checkedByOptionId.get(optionId);
+            const checked = !!checkedByOptionId.get(optionId);
+            input.checked = checked;
+            const optionLabel = input.closest(".chat-node-navigator-field-option");
+            if (optionLabel instanceof HTMLElement) optionLabel.classList.toggle("is-checked", checked);
           }}
         }}
       }}
@@ -3020,6 +3059,8 @@
           const target = ev.target;
           if (!(target instanceof HTMLInputElement)) return;
           if (target.type !== "checkbox") return;
+          const optionLabel = target.closest(".chat-node-navigator-field-option");
+          if (optionLabel instanceof HTMLElement) optionLabel.classList.toggle("is-checked", !!target.checked);
           const optionId = String(target.dataset.navOptionId || "").trim().toLowerCase();
           const togglePrefKey = chatNodeNavigatorTogglePrefKey(optionId);
           if (togglePrefKey) {{

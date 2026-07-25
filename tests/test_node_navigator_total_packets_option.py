@@ -222,6 +222,43 @@ def test_dashboard_adds_cached_city_hint_to_node_navigator_rows() -> None:
     assert "[data-theme=\"dark\"] .chat-member-city" in html
 
 
+def test_dashboard_groups_node_navigator_options_from_registry() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+    css = build_dashboard_css(theme_css="")
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+
+    assert "const chatNodeNavigatorOptionGroupDefs = Object.freeze([" in js
+    assert 'Object.freeze({ id: "fields", label: "Fields" })' in js
+    assert 'Object.freeze({ id: "display", label: "Display" })' in js
+    assert 'Object.freeze({ id: "order", label: "Order" })' in js
+    assert 'id: "city", label: "City", prefKey: "showCity", defaultValue: true, sortAffects: false, group: "display"' in js
+    assert 'id: "direct-history", label: "DM history first", prefKey: "pinDirectHistory", defaultValue: false, sortAffects: true, group: "order"' in js
+    assert 'group: "fields"' in js
+    assert "const optionDefsByGroup = new Map();" in js
+    assert 'data-nav-option-group="${escAttr(groupId)}"' in js
+    assert 'class="chat-node-navigator-field-option${checkedClass}"' in js
+    assert 'aria-label="Node navigator options"' in html
+    assert "chat-node-navigator-fields-head\">Options" not in html
+    assert ".chat-node-navigator-option-section {" in css
+    assert ".chat-node-navigator-option-grid {" in css
+    assert ".chat-node-navigator-field-option.is-checked {" in css
+
+
 def test_dashboard_js_only_applies_saved_peer_pin_sorting_in_direct_mode() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
