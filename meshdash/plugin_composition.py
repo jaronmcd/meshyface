@@ -166,6 +166,25 @@ def _script_view_statuses(
     return views
 
 
+def _script_mesh_access_status(
+    *,
+    manifest: PluginManifest,
+    runtime_status: Mapping[str, object],
+) -> str:
+    runtime_plugins = runtime_status.get("plugins")
+    registration = (
+        runtime_plugins.get(manifest.id)
+        if isinstance(runtime_plugins, Mapping)
+        else None
+    )
+    raw = (
+        str(registration.get("mesh_access") or "").strip().lower()
+        if isinstance(registration, Mapping)
+        else ""
+    )
+    return raw if raw in {"none", "read_only", "read_write", "unknown"} else "unknown"
+
+
 class PluginSubsystem:
     def __init__(
         self,
@@ -403,6 +422,10 @@ class PluginSubsystem:
                 "enabled": is_enabled,
                 "active": is_active,
                 "mesh_enabled": bool(route_policy.get("mesh_enabled", True)),
+                "mesh_access": _script_mesh_access_status(
+                    manifest=manifest,
+                    runtime_status=runtime_status,
+                ),
                 "console_enabled": bool(route_policy.get("console_enabled", True)),
                 "ticker_enabled": bool(route_policy.get("ticker_enabled", True)),
                 "view_enabled": bool(route_policy.get("view_enabled", True)),

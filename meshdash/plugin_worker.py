@@ -8,10 +8,11 @@ import json
 import logging
 import math
 import sys
+import dis
 from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from types import MappingProxyType, ModuleType
+from types import CodeType, FunctionType, MappingProxyType, ModuleType
 from typing import cast
 
 from .plugins import (
@@ -41,6 +42,127 @@ MAX_HANDLER_DEBUG_CALLS = 16
 MAX_HANDLER_DEBUG_BYTES = 16 * 1024
 MAX_HANDLER_TICKER_UPDATES = 8
 MAX_TICKER_ROWS = 8
+
+_MESH_READ_CALLS = frozenset(
+    {
+        "get_node",
+        "list_nodes",
+        "get_node_location",
+        "nearest_city",
+    }
+)
+_MESH_WRITE_CALLS = frozenset(
+    {
+        "reply",
+        "reply_long",
+        "send_text",
+        "send_channel",
+        "send_file",
+        "accept_file",
+    }
+)
+_MESH_WRITE_ACTION_NAMES = frozenset(
+    {
+        "ReplyAction",
+        "SendTextAction",
+        "SendChannelAction",
+        "SendFileAction",
+        "AcceptFileOfferAction",
+    }
+)
+
+
+def _handler_mesh_access(handler: object) -> tuple[bool, bool]:
+    if not isinstance(handler, FunctionType):
+        return False, False
+    return _code_mesh_access(
+        handler.__code__,
+        globals_map=handler.__globals__,
+        module_name=handler.__module__,
+        seen_functions={id(handler)},
+        seen_codes=set(),
+    )
+
+
+def _code_mesh_access(
+    code: CodeType,
+    *,
+    globals_map: Mapping[str, object],
+    module_name: str,
+    seen_functions: set[int],
+    seen_codes: set[int],
+) -> tuple[bool, bool]:
+    code_id = id(code)
+    if code_id in seen_codes:
+        return False, False
+    seen_codes.add(code_id)
+    reads = False
+    writes = False
+    referenced_names: set[str] = set()
+    for instruction in dis.get_instructions(code):
+        arg = str(instruction.argval or "")
+        if instruction.opname in {"LOAD_METHOD", "LOAD_ATTR", "LOAD_GLOBAL", "LOAD_NAME"}:
+            referenced_names.add(arg)
+            if arg in _MESH_READ_CALLS:
+                reads = True
+            if arg in _MESH_WRITE_CALLS or arg in _MESH_WRITE_ACTION_NAMES:
+                writes = True
+    for const in code.co_consts:
+        if isinstance(const, CodeType):
+            const_reads, const_writes = _code_mesh_access(
+                const,
+                globals_map=globals_map,
+                module_name=module_name,
+                seen_functions=seen_functions,
+                seen_codes=seen_codes,
+            )
+            reads = reads or const_reads
+            writes = writes or const_writes
+    for name in referenced_names:
+        value = globals_map.get(name)
+        if not isinstance(value, FunctionType):
+            continue
+        if value.__module__ != module_name:
+            continue
+        function_id = id(value)
+        if function_id in seen_functions:
+            continue
+        seen_functions.add(function_id)
+        nested_reads, nested_writes = _code_mesh_access(
+            value.__code__,
+            globals_map=value.__globals__,
+            module_name=value.__module__,
+            seen_functions=seen_functions,
+            seen_codes=seen_codes,
+        )
+        reads = reads or nested_reads
+        writes = writes or nested_writes
+    return reads, writes
+
+
+def _script_mesh_access(script: Script) -> str:
+    handlers: list[object] = [
+        script.message_handler,
+        script.packet_handler,
+        script.session_handler,
+        script.start_handler,
+        script.stop_handler,
+        *script.commands.values(),
+    ]
+    active_handlers = [handler for handler in handlers if handler is not None]
+    if not active_handlers:
+        return "none"
+    saw_read = False
+    saw_write = False
+    for handler in active_handlers:
+        handler_reads, handler_writes = _handler_mesh_access(handler)
+        saw_read = saw_read or handler_reads
+        saw_write = saw_write or handler_writes
+    if saw_write:
+        return "read_write"
+    if saw_read or active_handlers:
+        return "read_only"
+    return "none"
 
 
 def _view_definitions_from_payload(raw: object) -> tuple[ViewDefinition, ...]:
@@ -448,6 +570,7 @@ def plugin_worker_main(connection: object) -> None:
                         "session": False,
                         "on_start": False,
                         "on_stop": False,
+                        "mesh_access": "unknown",
                         "tickers": [],
                         "views": [definition.to_dict() for definition in manifest.views],
                     }
@@ -463,6 +586,7 @@ def plugin_worker_main(connection: object) -> None:
                         "session": script.session_handler is not None,
                         "on_start": script.start_handler is not None,
                         "on_stop": script.stop_handler is not None,
+                        "mesh_access": _script_mesh_access(script),
                         "tickers": [definition.to_dict() for definition in script.tickers.values()],
                         "views": [definition.to_dict() for definition in script.views.values()],
                     }

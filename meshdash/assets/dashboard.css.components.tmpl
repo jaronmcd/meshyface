@@ -6832,6 +6832,24 @@
       margin: 0;
       accent-color: color-mix(in srgb, var(--theme-accent, #1d9bf0) 82%, #1d9bf0);
     }}
+    .scripts-route-label {{
+      display: inline-flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }}
+    .scripts-route-access {{
+      color: var(--surface-tint-text-muted, var(--ui-muted));
+      font-size: 8px;
+      font-weight: 700;
+      line-height: 1;
+    }}
+    .scripts-route-access-read-write {{
+      color: color-mix(in srgb, #c2410c 76%, var(--surface-tint-text));
+    }}
+    .scripts-route-access-read-only {{
+      color: color-mix(in srgb, #187447 72%, var(--surface-tint-text));
+    }}
     .scripts-item-buttons,
     .scripts-config-actions {{
       display: flex;

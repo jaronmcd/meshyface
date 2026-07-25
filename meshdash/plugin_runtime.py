@@ -47,6 +47,7 @@ _COMMAND_NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _TICKER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _VIEW_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _VIEW_ICON_RE = re.compile(r"[A-Z0-9]{1,4}\Z")
+_MESH_ACCESS_VALUES = frozenset({"none", "read_only", "read_write", "unknown"})
 _QUIT_COMMANDS = {"!quit", "!exit"}
 _RESERVED_NODE_IDS = {"!00000000", "!ffffffff"}
 _ACKED_DELIVERY_STATES = {"ack", "acked", "delivered"}
@@ -197,6 +198,11 @@ def _manifest_payload(manifest: PluginManifest) -> dict[str, JsonValue]:
         "source": manifest.source,
         "views": [definition.to_dict(include_content=False) for definition in manifest.views],
     }
+
+
+def _validated_mesh_access(value: object) -> str:
+    clean = str(value or "").strip().lower()
+    return clean if clean in _MESH_ACCESS_VALUES else "unknown"
 
 
 def _system_event() -> MessageEvent:
@@ -1247,6 +1253,9 @@ class PluginRuntime:
                 clean_registration["views"] = list(
                     self._validated_view_definitions(row.get("views"))
                 )
+                clean_registration["mesh_access"] = _validated_mesh_access(
+                    row.get("mesh_access")
+                )
                 registry[plugin_id] = clean_registration
             for manifest in self._manifests:
                 if manifest.id not in registry:
@@ -1258,6 +1267,7 @@ class PluginRuntime:
                         "session": False,
                         "on_start": False,
                         "on_stop": False,
+                        "mesh_access": "unknown",
                         "tickers": [],
                         "views": [definition.to_dict(include_content=False) for definition in manifest.views],
                         "error": self._quarantine_error(manifest.id),
@@ -1327,6 +1337,7 @@ class PluginRuntime:
                 "session": False,
                 "on_start": False,
                 "on_stop": False,
+                "mesh_access": "unknown",
                 "tickers": [],
                 "views": [definition.to_dict(include_content=False) for definition in manifest.views],
                 "error": self._quarantine_error(manifest.id),

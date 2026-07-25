@@ -166,6 +166,8 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert "const consoleRouteVisible = commands.length > 0;" in js
     assert "const tickerRouteVisible = tickerDefinitions.length > 0 || row.ticker_enabled === false;" in js
     assert "const viewRouteVisible = viewDefinitions.length > 0 || row.view_enabled === false;" in js
+    assert 'return { key: "read-write", label: "Read/Write" };' in js
+    assert 'return { key: "read-only", label: "Read Only" };' in js
     assert "registryEntry.on_packet === true" in js
     assert "registryEntry.on_start === true" in js
     assert "registryEntry.on_stop === true" in js
@@ -180,6 +182,8 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert 'data-setting-type="node_ids"' in js
     assert ".scripts-config-form {" in build_dashboard_css(theme_css="")
     assert ".scripts-route-toggles {" in build_dashboard_css(theme_css="")
+    assert ".scripts-route-access-read-write {" in build_dashboard_css(theme_css="")
+    assert ".scripts-route-access-read-only {" in build_dashboard_css(theme_css="")
     assert "const hasPackageDigest = /^sha256:[0-9a-f]{64}$/.test(packageDigest);" in js
     assert "`sha256:${packageDigest.slice(7, 19)}…`" in js
     assert 'title="${escAttr(packageDigest || "Package identity unavailable")}"' in js
@@ -380,6 +384,7 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
                 "enabled": False,
                 "active": False,
                 "mesh_enabled": True,
+                "mesh_access": "unknown",
                 "console_enabled": True,
                 "ticker_enabled": True,
                 "view_enabled": True,

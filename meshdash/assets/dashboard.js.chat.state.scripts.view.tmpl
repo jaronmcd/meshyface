@@ -795,6 +795,20 @@
       `;
     }}
 
+    function scriptsMeshAccess(row) {{
+      const clean = String(row && row.mesh_access || "").trim().toLowerCase();
+      if (clean === "read_write") {{
+        return {{ key: "read-write", label: "Read/Write" }};
+      }}
+      if (clean === "read_only") {{
+        return {{ key: "read-only", label: "Read Only" }};
+      }}
+      if (clean === "none") {{
+        return {{ key: "none", label: "No Mesh" }};
+      }}
+      return {{ key: "unknown", label: "Unknown" }};
+    }}
+
     function scriptsItemHtml(row, runtimeSummary, runtimeEnabled) {{
       const scriptId = String(row.id || "").trim();
       const scriptName = String(row.name || scriptId || "Unnamed script").trim();
@@ -851,6 +865,7 @@
       const consoleEnabled = row.console_enabled !== false;
       const tickerEnabled = row.ticker_enabled !== false;
       const viewEnabled = row.view_enabled !== false;
+      const meshAccess = scriptsMeshAccess(row);
       return `
         <article class="scripts-item" data-script-id="${{escAttr(scriptId)}}">
           <div class="scripts-item-head">
@@ -899,7 +914,10 @@
                         ${{meshEnabled ? "checked" : ""}}
                         ${{routeControlsDisabled ? "disabled" : ""}}
                       >
-                      <span>Mesh</span>
+                      <span class="scripts-route-label">
+                        <span>Mesh</span>
+                        <span class="scripts-route-access scripts-route-access-${{escAttr(meshAccess.key)}}">${{escAttr(meshAccess.label)}}</span>
+                      </span>
                     </label>
                   ` : ""}}
                   ${{consoleRouteVisible ? `

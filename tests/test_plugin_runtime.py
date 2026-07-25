@@ -146,6 +146,56 @@ def hello(ctx):
     assert runtime.status()["status"] == "stopped"
 
 
+def test_runtime_reports_mesh_access_from_handler_calls(tmp_path) -> None:
+    read_manifest = _write_plugin(
+        tmp_path,
+        "reader",
+        commands=(),
+        source="""
+from meshdash.plugins import Script
+
+script = Script(id="reader", name="Reader", version="1.0.0")
+
+@script.on_packet
+def packet(ctx):
+    node = ctx.mesh.get_node(ctx.message.sender_id)
+    if node:
+        ctx.debug(node.get("id"))
+""",
+    )
+    write_manifest = _write_plugin(
+        tmp_path,
+        "writer",
+        commands=("ping",),
+        source="""
+from meshdash.plugins import Script
+
+script = Script(id="writer", name="Writer", version="1.0.0")
+
+def make_reply(ctx):
+    return ctx.reply("pong")
+
+@script.command("ping")
+def ping(ctx):
+    return make_reply(ctx)
+""",
+    )
+    store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    runtime = PluginRuntime(
+        manifests=[read_manifest, write_manifest],
+        state_store=store,
+        send_chat_fn=lambda **_kwargs: None,
+    )
+    try:
+        _wait_until(lambda: runtime.status()["status"] == "running")
+        plugins = runtime.status()["plugins"]
+        assert plugins["reader"]["mesh_access"] == "read_only"  # type: ignore[index]
+        assert plugins["writer"]["mesh_access"] == "read_write"  # type: ignore[index]
+    finally:
+        runtime.close()
+        store.close()
+
+
 def test_console_command_invokes_plugin_handlers_without_radio_sends(tmp_path) -> None:
     manifest = _write_plugin(
         tmp_path,
