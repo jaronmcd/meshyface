@@ -10,6 +10,7 @@ PLUGIN_ADMIN_WRITE_PATHS = frozenset(
         "/api/settings/plugins",
         "/api/settings/plugins/config",
         "/api/settings/plugins/routes",
+        "/api/settings/plugins/runtime",
     }
 )
 _PROXY_CLIENT_HEADER_NAMES = frozenset(

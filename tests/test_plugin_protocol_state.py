@@ -92,6 +92,12 @@ def test_plugin_state_is_durable_peer_scoped_and_revision_guarded(tmp_path) -> N
 
 def test_plugin_sessions_and_enablement_are_host_owned(tmp_path) -> None:
     store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    assert store.runtime_enabled(default=True) is True
+    assert store.set_runtime_enabled(False) is False
+    assert store.runtime_enabled(default=True) is False
+    assert store.set_runtime_enabled(True) is True
+    assert store.runtime_enabled(default=False) is True
+
     assert store.active_session("!aaaaaaaa", "!bbbbbbbb") is None
     store.start_session("!aaaaaaaa", "!bbbbbbbb", "zork", 3)
     assert store.active_session("!aaaaaaaa", "!bbbbbbbb", 0) is None
@@ -166,6 +172,10 @@ def test_plugin_sessions_and_enablement_are_host_owned(tmp_path) -> None:
         "console_enabled": True,
     }
     store.close()
+
+    reopened = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    assert reopened.runtime_enabled(default=False) is True
+    reopened.close()
 
 
 def test_known_plugin_identity_reconciliation_preserves_choice_and_clears_sessions(

@@ -10,6 +10,7 @@
     let scriptsAdminAccessMessage = "";
     let scriptsActiveTab = "plugins";
     let scriptsReadmeReturnFocusId = "";
+    let scriptsRuntimeMasterPending = false;
     const scriptsAdminTokenStorageKey = "meshDashboardScriptsApiTokenV1";
     const scriptsPendingRequests = new Map();
     const scriptsPendingRouteRequests = new Set();
@@ -204,6 +205,30 @@
       return runtimeSummary && runtimeSummary.runtime && typeof runtimeSummary.runtime === "object"
         ? runtimeSummary.runtime
         : {{}};
+    }}
+
+    function scriptsRuntimeMasterEnabled(runtimeSummary) {{
+      return !(runtimeSummary && typeof runtimeSummary === "object" && runtimeSummary.runtime_enabled === false);
+    }}
+
+    function scriptsSyncRuntimeMasterControl(runtimeSummary, runtimeMasterEnabled, summaryError) {{
+      const button = document.getElementById("scripts-runtime-master-toggle");
+      if (!(button instanceof HTMLButtonElement)) return;
+      const canManage = !!(
+        runtimeSummary
+        && runtimeSummary.enabled === true
+        && runtimeSummary.available !== false
+        && !String(summaryError || "").trim()
+        && !scriptsAdminAccessState
+      );
+      button.textContent = scriptsRuntimeMasterPending
+        ? "Saving..."
+        : (runtimeMasterEnabled ? "Disable" : "Enable");
+      button.disabled = scriptsRuntimeMasterPending || !canManage;
+      button.dataset.nextEnabled = runtimeMasterEnabled ? "false" : "true";
+      button.setAttribute("aria-pressed", runtimeMasterEnabled ? "true" : "false");
+      button.title = runtimeMasterEnabled ? "Disable scripts" : "Enable scripts";
+      button.classList.toggle("is-disabled", !runtimeMasterEnabled);
     }}
 
     function scriptsReadmePayload(row) {{
@@ -466,7 +491,7 @@
       if (["running", "active", "ready"].includes(status)) {{
         return {{ className: "is-running", label: "Running", error: "" }};
       }}
-      if (["disabled", "stopped", "inactive"].includes(status)) {{
+      if (["disabled", "master_disabled", "stopped", "inactive"].includes(status)) {{
         return {{ className: "", label: "Disabled", error: "" }};
       }}
 
@@ -582,6 +607,13 @@
             runtimeSummary.message
             || "Scripts will become available after the dashboard connects to the radio runtime."
           ),
+        }};
+      }}
+      if (!scriptsRuntimeMasterEnabled(runtimeSummary)) {{
+        return {{
+          kind: "disabled",
+          label: "Scripts disabled",
+          message: "",
         }};
       }}
       const discoveryErrors = scriptsDiscoveryErrors(runtimeSummary);
@@ -907,7 +939,10 @@
       const runtimeSummary = scriptsRuntimeSummary(state);
       renderScriptsDebug(runtimeSummary);
       const summaryError = scriptsRuntimeErrorMessage(runtimeSummary);
+      const runtimeMasterEnabled = scriptsRuntimeMasterEnabled(runtimeSummary);
       const runtimeEnabled = !!(
+        runtimeMasterEnabled
+        &&
         runtimeSummary
         && runtimeSummary.enabled === true
         && runtimeSummary.available !== false
@@ -960,7 +995,10 @@
         || scriptsAdminAccessMessage
         || presentation.message
       );
+      scriptsSyncRuntimeMasterControl(runtimeSummary, runtimeMasterEnabled, summaryError);
       const signature = JSON.stringify([
+        runtimeMasterEnabled,
+        scriptsRuntimeMasterPending,
         presentation.kind,
         presentation.label,
         runtimeMessage,
@@ -982,6 +1020,7 @@
         )
       ) {{
         scriptsSetRuntimeStatus(presentation.kind, presentation.label);
+        scriptsSyncRuntimeMasterControl(runtimeSummary, runtimeMasterEnabled, summaryError);
         scriptsSetRuntimeMessage(runtimeMessage);
         if (count instanceof HTMLElement) count.textContent = countText;
         return false;
@@ -991,6 +1030,7 @@
         : "";
       const previousScrollTop = list.scrollTop;
       scriptsSetRuntimeStatus(presentation.kind, presentation.label);
+      scriptsSyncRuntimeMasterControl(runtimeSummary, runtimeMasterEnabled, summaryError);
       scriptsSetRuntimeMessage(runtimeMessage);
       if (count instanceof HTMLElement) count.textContent = countText;
       list.innerHTML = listHtml;
@@ -1044,6 +1084,31 @@
         match.active = !!active;
         match.restart_required = false;
       }}
+    }}
+
+    function scriptsUpdateCachedRuntimeMaster(enabled, enabledPlugins) {{
+      const runtimeSummary = scriptsRuntimeSummary(latestState);
+      if (!runtimeSummary || typeof runtimeSummary !== "object") return;
+      const runtimeEnabled = !!enabled;
+      const activeIds = Array.isArray(enabledPlugins)
+        ? new Set(enabledPlugins.map((value) => String(value || "").trim()).filter(Boolean))
+        : new Set();
+      runtimeSummary.runtime_enabled = runtimeEnabled;
+      if (!runtimeEnabled || Array.isArray(enabledPlugins)) {{
+        runtimeSummary.enabled_plugins = Array.from(activeIds);
+      }}
+      if (!runtimeEnabled) {{
+        runtimeSummary.runtime = {{}};
+      }}
+      scriptsRuntimeEntries(runtimeSummary).forEach((row) => {{
+        const rowId = String(row.id || "").trim();
+        row.active = runtimeEnabled && row.enabled === true && activeIds.has(rowId);
+        row.restart_required = false;
+        if (!runtimeEnabled && row.enabled === true) {{
+          row.runtime_status = "master_disabled";
+          row.runtime_error = "";
+        }}
+      }});
     }}
 
     function scriptsUpdateCachedSettings(scriptId, settings) {{
@@ -1115,6 +1180,62 @@
         }}
       }});
       return settings;
+    }}
+
+    async function setScriptsRuntimeMasterEnabled(enabled, button) {{
+      if (scriptsRuntimeMasterPending) return false;
+      scriptsRuntimeMasterPending = true;
+      scriptsTransientErrorMessage = "";
+      if (button instanceof HTMLButtonElement) button.disabled = true;
+      renderScriptsViewSafely(latestState, "scripts.runtime.pending");
+      try {{
+        const response = await fetch("/api/settings/plugins/runtime", {{
+          method: "POST",
+          headers: scriptsAdminRequestHeaders({{ json: true }}),
+          body: JSON.stringify({{ enabled: !!enabled }}),
+          cache: "no-store",
+        }});
+        const text = await response.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const error = payload && payload.error;
+        const errorMessage = error && typeof error === "object"
+          ? String(error.message || error.code || "")
+          : String(error || (payload && payload.message) || text || `HTTP ${{response.status}}`);
+        if (!response.ok || !payload || payload.ok !== true) {{
+          if (response.status === 401) {{
+            scriptsAdminAccessState = "token_required";
+            scriptsAdminAccessMessage = "Administrator access is required to manage scripts.";
+          }} else if (response.status === 403) {{
+            scriptsAdminAccessState = "server_token_required";
+            scriptsAdminAccessMessage = "Remote script administration requires an API token configured on the server.";
+          }}
+          throw new Error(errorMessage || `HTTP ${{response.status}}`);
+        }}
+        scriptsUpdateCachedRuntimeMaster(
+          payload.runtime_enabled !== false,
+          payload.enabled_plugins
+        );
+        if (typeof forceNextStatePollFresh === "function") {{
+          forceNextStatePollFresh("script-runtime");
+        }}
+        if (typeof requestImmediatePoll === "function") {{
+          requestImmediatePoll(0);
+        }}
+        void refreshScriptsAdminSummary(true);
+        return true;
+      }} catch (err) {{
+        const message = err instanceof Error ? err.message : String(err || "Unknown error");
+        scriptsTransientErrorMessage = `Could not update scripts runtime: ${{message}}`;
+        return false;
+      }} finally {{
+        scriptsRuntimeMasterPending = false;
+        scriptsLastRenderSignature = "";
+        renderScriptsViewSafely(latestState, "scripts.runtime.complete");
+      }}
     }}
 
     async function saveScriptConfig(scriptId, packageDigest, settings) {{
@@ -1335,6 +1456,18 @@
             : null;
           if (!(target instanceof HTMLButtonElement)) return;
           applyScriptsTab(target.dataset.scriptsTab);
+        }});
+      }}
+      const runtimeMasterToggle = document.getElementById("scripts-runtime-master-toggle");
+      if (
+        runtimeMasterToggle instanceof HTMLButtonElement
+        && runtimeMasterToggle.dataset.bound !== "1"
+      ) {{
+        runtimeMasterToggle.dataset.bound = "1";
+        runtimeMasterToggle.addEventListener("click", () => {{
+          if (runtimeMasterToggle.disabled) return;
+          const enabled = String(runtimeMasterToggle.dataset.nextEnabled || "true") === "true";
+          void setScriptsRuntimeMasterEnabled(enabled, runtimeMasterToggle);
         }});
       }}
       applyScriptsTab(scriptsActiveTab);

@@ -582,6 +582,7 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
     plugins = written[0]["payload_obj"]["summary"]["plugins"]
     assert plugins == {
         "enabled": True,
+        "runtime_enabled": True,
         "health": "running",
         "active_count": 1,
         "discovered": 2,

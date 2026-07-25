@@ -93,6 +93,8 @@ def _public_plugin_tickers(runtime: Mapping[str, object]) -> list[dict[str, obje
 
 
 def _public_plugin_console_commands(plugins: Mapping[str, object]) -> list[dict[str, object]]:
+    if plugins.get("runtime_enabled") is False:
+        return []
     scripts = plugins.get("scripts")
     if not isinstance(scripts, list):
         return []
@@ -131,12 +133,13 @@ def _public_plugin_console_commands(plugins: Mapping[str, object]) -> list[dict[
 
 def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
     enabled = plugins.get("enabled") is True
+    runtime_enabled = enabled and plugins.get("runtime_enabled") is not False
     runtime_raw = plugins.get("runtime")
     runtime = runtime_raw if isinstance(runtime_raw, Mapping) else {}
     runtime_status = str(runtime.get("status") or "").strip().lower()
     worker_alive = runtime.get("worker_alive") is True
     has_error = bool(plugins.get("error") or runtime.get("last_error"))
-    if not enabled:
+    if not enabled or not runtime_enabled:
         health = "disabled"
     elif has_error or runtime_status in {"error", "failed", "crashed"}:
         health = "error"
@@ -154,6 +157,7 @@ def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
         public_runtime["worker_alive"] = worker_alive
     public_status: dict[str, object] = {
         "enabled": enabled,
+        "runtime_enabled": runtime_enabled,
         "health": health,
         "active_count": (
             len(enabled_plugins) if isinstance(enabled_plugins, list) else 0

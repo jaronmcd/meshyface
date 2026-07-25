@@ -27,6 +27,10 @@ def _plugin_request_body(**values: object) -> bytes:
     ).encode("utf-8")
 
 
+def _plugin_runtime_request_body(**values: object) -> bytes:
+    return json.dumps(values).encode("utf-8")
+
+
 class _FakeHandler:
     def __init__(
         self,
@@ -725,6 +729,101 @@ def test_plugin_route_policy_applies_validated_booleans() -> None:
     ]
 
 
+def test_plugin_runtime_master_applies_validated_boolean() -> None:
+    body = _plugin_runtime_request_body(enabled=False)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[bool] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_runtime_enabled_fn=lambda enabled: (
+            received.append(enabled)
+            or {
+                "ok": True,
+                "runtime_enabled": enabled,
+                "enabled_plugins": [],
+            }
+        ),
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins/runtime", deps=deps)
+
+    assert received == [False]
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "runtime_enabled": False,
+                "enabled_plugins": [],
+            },
+        )
+    ]
+
+
+def test_plugin_runtime_master_rejects_invalid_request() -> None:
+    body = _plugin_runtime_request_body(enabled="false")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    updates = 0
+
+    def _setter(_enabled: bool) -> dict[str, object]:
+        nonlocal updates
+        updates += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_runtime_enabled_fn=_setter,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins/runtime", deps=deps)
+
+    assert updates == 0
+    assert calls == [
+        (
+            400,
+            {
+                "ok": False,
+                "error": {
+                    "code": "invalid_request",
+                    "message": "enabled must be a boolean",
+                },
+            },
+        )
+    ]
+
+
 def test_plugin_configuration_rejects_stale_package_digest() -> None:
     body = _plugin_request_body(plugin_id="configured", settings={"mode": "safe"})
     handler = _FakeHandler(
@@ -1207,12 +1306,16 @@ def test_make_http_handler_wires_plugin_management_hook(
             "console_enabled": console_enabled,
         }
 
+    def _set_plugin_runtime_enabled(enabled: bool) -> dict[str, object]:
+        return {"ok": True, "runtime_enabled": enabled}
+
     def _run_plugin_console_command(**kwargs: object) -> dict[str, object]:
         return {"ok": True, "command": kwargs.get("command")}
 
     setattr(_state_fn, "set_plugin_enabled_fn", _set_plugin_enabled)
     setattr(_state_fn, "set_plugin_settings_fn", _set_plugin_settings)
     setattr(_state_fn, "set_plugin_route_policy_fn", _set_plugin_route_policy)
+    setattr(_state_fn, "set_plugin_runtime_enabled_fn", _set_plugin_runtime_enabled)
     setattr(_state_fn, "run_plugin_console_command_fn", _run_plugin_console_command)
 
     make_http_handler("<html></html>", _state_fn)
@@ -1220,6 +1323,7 @@ def test_make_http_handler_wires_plugin_management_hook(
     assert captured["set_plugin_enabled_fn"] is _set_plugin_enabled
     assert captured["set_plugin_settings_fn"] is _set_plugin_settings
     assert captured["set_plugin_route_policy_fn"] is _set_plugin_route_policy
+    assert captured["set_plugin_runtime_enabled_fn"] is _set_plugin_runtime_enabled
     assert captured["run_plugin_console_command_fn"] is _run_plugin_console_command
 
 

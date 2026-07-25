@@ -20,6 +20,7 @@ MAX_PEER_STATE_ROWS_PER_PLUGIN = 512
 MAX_PEER_STATE_BYTES_PER_PLUGIN = 8 * 1024 * 1024
 MAX_SESSIONS_PER_PLUGIN = 256
 _GLOBAL_STATE_CHANNEL = -1
+_RUNTIME_ENABLED_KEY = "runtime_enabled"
 _PACKAGE_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 
@@ -165,6 +166,11 @@ class PluginStateStore:
                 plugin_id TEXT PRIMARY KEY,
                 mesh_enabled INTEGER NOT NULL,
                 console_enabled INTEGER NOT NULL,
+                updated_unix INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS plugin_runtime_settings (
+                key TEXT PRIMARY KEY,
+                value_json TEXT NOT NULL,
                 updated_unix INTEGER NOT NULL
             );
             """
@@ -314,6 +320,46 @@ class PluginStateStore:
     def close(self) -> None:
         with self._lock:
             self._connection.close()
+
+    def runtime_enabled(self, *, default: bool = True) -> bool:
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT value_json
+                FROM plugin_runtime_settings
+                WHERE key=?
+                """,
+                (_RUNTIME_ENABLED_KEY,),
+            ).fetchone()
+        if row is None:
+            return bool(default)
+        try:
+            value = json.loads(str(row[0] or ""))
+        except json.JSONDecodeError:
+            return bool(default)
+        if isinstance(value, bool):
+            return value
+        return bool(default)
+
+    def set_runtime_enabled(self, enabled: bool) -> bool:
+        clean_enabled = bool(enabled)
+        with self._lock:
+            self._connection.execute(
+                """
+                INSERT INTO plugin_runtime_settings(key, value_json, updated_unix)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value_json=excluded.value_json,
+                    updated_unix=excluded.updated_unix
+                """,
+                (
+                    _RUNTIME_ENABLED_KEY,
+                    json.dumps(clean_enabled),
+                    max(0, int(self._now_fn())),
+                ),
+            )
+            self._connection.commit()
+        return clean_enabled
 
     def _load_row_locked(
         self,

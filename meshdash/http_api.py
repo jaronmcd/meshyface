@@ -53,6 +53,11 @@ def make_http_handler(
         "set_plugin_route_policy_fn",
         None,
     )
+    set_plugin_runtime_enabled_fn = getattr(
+        state_fn,
+        "set_plugin_runtime_enabled_fn",
+        None,
+    )
     play_standalone_zork_fn = getattr(state_fn, "play_standalone_zork_fn", None)
     run_plugin_console_command_fn = getattr(state_fn, "run_plugin_console_command_fn", None)
     run_network_tool_fn = getattr(state_fn, "run_network_tool_fn", None)
@@ -106,6 +111,11 @@ def make_http_handler(
         set_plugin_route_policy_fn=(
             set_plugin_route_policy_fn
             if callable(set_plugin_route_policy_fn)
+            else None
+        ),
+        set_plugin_runtime_enabled_fn=(
+            set_plugin_runtime_enabled_fn
+            if callable(set_plugin_runtime_enabled_fn)
             else None
         ),
         play_standalone_zork_fn=play_standalone_zork_fn,

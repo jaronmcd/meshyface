@@ -696,6 +696,11 @@ def build_dashboard_runtime_context(
             )
             setattr(
                 loaders.state_fn,
+                "set_plugin_runtime_enabled_fn",
+                plugin_subsystem.set_runtime_enabled,
+            )
+            setattr(
+                loaders.state_fn,
                 "run_plugin_console_command_fn",
                 plugin_subsystem.run_console_command,
             )
@@ -724,6 +729,11 @@ def build_dashboard_runtime_context(
                     state_lite_fn,
                     "set_plugin_route_policy_fn",
                     plugin_subsystem.set_plugin_route_policy,
+                )
+                setattr(
+                    state_lite_fn,
+                    "set_plugin_runtime_enabled_fn",
+                    plugin_subsystem.set_runtime_enabled,
                 )
                 setattr(
                     state_lite_fn,
@@ -823,12 +833,27 @@ def build_dashboard_runtime_context(
                 },
             }
 
+        def _plugin_runtime_master_disabled(enabled: bool) -> dict[str, object]:
+            del enabled
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
         setattr(loaders.state_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
         setattr(loaders.state_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
         setattr(
             loaders.state_fn,
             "set_plugin_route_policy_fn",
             _plugin_route_policy_disabled,
+        )
+        setattr(
+            loaders.state_fn,
+            "set_plugin_runtime_enabled_fn",
+            _plugin_runtime_master_disabled,
         )
         setattr(loaders.state_fn, "run_plugin_console_command_fn", _plugin_console_disabled)
         state_lite_fn = getattr(loaders.state_fn, "lite", None)
@@ -839,6 +864,11 @@ def build_dashboard_runtime_context(
                 state_lite_fn,
                 "set_plugin_route_policy_fn",
                 _plugin_route_policy_disabled,
+            )
+            setattr(
+                state_lite_fn,
+                "set_plugin_runtime_enabled_fn",
+                _plugin_runtime_master_disabled,
             )
             setattr(state_lite_fn, "run_plugin_console_command_fn", _plugin_console_disabled)
             setattr(state_lite_fn, "plugin_admin_status_fn", plugin_disabled_status)

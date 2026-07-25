@@ -94,8 +94,11 @@ def _script_runtime_health(
     plugin_id: str,
     configured_enabled: bool,
     active: bool,
+    runtime_enabled: bool,
     runtime_status: Mapping[str, object],
 ) -> tuple[str, str, bool]:
+    if not runtime_enabled:
+        return "master_disabled" if configured_enabled else "disabled", "", False
     restart_required = configured_enabled != active
     if restart_required:
         return "restart_pending", "", True
@@ -129,6 +132,7 @@ class PluginSubsystem:
         outbound_files: OutboundFileTransferService | None,
         manifests: Sequence[PluginManifest] = (),
         enabled_plugin_ids: Sequence[str] = (),
+        runtime_enabled: bool = True,
         error: str = "",
         discovery_errors: Sequence[str] = (),
         directory: str = "",
@@ -147,6 +151,7 @@ class PluginSubsystem:
         self._outbound_files = outbound_files
         self._manifests = tuple(manifests)
         self._enabled_plugin_ids = tuple(enabled_plugin_ids)
+        self._runtime_enabled = bool(runtime_enabled)
         self._error = sanitize_plugin_status_error(error)
         self._discovery_errors = tuple(
             sanitize_plugin_status_error(value) for value in discovery_errors
@@ -171,6 +176,23 @@ class PluginSubsystem:
             manifest.id: self._state_store.plugin_route_policy(manifest.id)
             for manifest in manifests
         }
+
+    def _configured_enabled_manifests(self) -> tuple[PluginManifest, ...]:
+        if self._state_store is None:
+            return tuple(
+                manifest
+                for manifest in self._manifests
+                if manifest.effective_default_enabled
+            )
+        return tuple(
+            manifest
+            for manifest in self._manifests
+            if self._state_store.plugin_enabled(
+                manifest.id,
+                package_digest=manifest.package_digest,
+                default=manifest.effective_default_enabled,
+            )
+        )
 
     def on_receive(self, packet: object, interface: object, *, local_node_id_fn) -> None:
         if self._closed:
@@ -229,6 +251,7 @@ class PluginSubsystem:
         with self._lifecycle_lock:
             runtime = self._runtime
             active_plugin_ids = tuple(self._enabled_plugin_ids)
+            runtime_enabled = self._runtime_enabled
             active_ids = set(active_plugin_ids)
         runtime_status = runtime.status() if runtime is not None else {}
         configured_enabled: dict[str, bool] = {}
@@ -277,6 +300,7 @@ class PluginSubsystem:
                 plugin_id=manifest.id,
                 configured_enabled=is_enabled,
                 active=is_active,
+                runtime_enabled=runtime_enabled,
                 runtime_status=runtime_status,
             )
             stored_settings = (
@@ -324,6 +348,7 @@ class PluginSubsystem:
             scripts.append(script_status)
         return {
             "enabled": True,
+            "runtime_enabled": runtime_enabled,
             "error": self._error,
             "discovery_errors": list(self._discovery_errors),
             "directory": self._directory,
@@ -465,6 +490,28 @@ class PluginSubsystem:
                 requested_enabled,
                 package_digest=manifest.package_digest,
             )
+            if not self._runtime_enabled:
+                runtime = self._runtime
+                if runtime is not None:
+                    runtime.reconfigure((), route_policy={})
+                    runtime.close()
+                    self._runtime = None
+                self._enabled_plugin_ids = ()
+                if self._state_changed_fn is not None:
+                    try:
+                        self._state_changed_fn()
+                    except Exception:
+                        pass
+                result = {
+                    "ok": True,
+                    "plugin_id": clean_id,
+                    "enabled": requested_enabled,
+                    "active": False,
+                    "restart_required": False,
+                }
+                if settings_migration_attempted:
+                    result["settings_migrated"] = settings_migrated
+                return result
             try:
                 runtime = self._runtime
                 if target_manifests:
@@ -515,6 +562,87 @@ class PluginSubsystem:
                 result["settings_migrated"] = settings_migrated
             return result
 
+    def set_runtime_enabled(self, enabled: bool) -> dict[str, object]:
+        if self._state_store is None:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": self._error or "Plugin runtime is unavailable",
+                },
+            }
+        requested_enabled = bool(enabled)
+        with self._lifecycle_lock:
+            if self._closed:
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_unavailable",
+                        "message": "Plugin runtime is closed",
+                    },
+                }
+            previous_enabled = self._runtime_enabled
+            previous_runtime = self._runtime
+            previous_outbound = self._outbound_files
+            previous_ids = tuple(self._enabled_plugin_ids)
+            self._state_store.set_runtime_enabled(requested_enabled)
+            try:
+                if not requested_enabled:
+                    runtime = self._runtime
+                    if runtime is not None:
+                        runtime.reconfigure((), route_policy={})
+                        runtime.close()
+                    self._runtime = None
+                    self._enabled_plugin_ids = ()
+                else:
+                    target_manifests = self._configured_enabled_manifests()
+                    runtime = self._runtime
+                    if target_manifests:
+                        if runtime is None:
+                            if self._runtime_factory is None:
+                                raise RuntimeError("Plugin runtime cannot be started")
+                            runtime, outbound = self._runtime_factory(target_manifests)
+                            self._runtime = runtime
+                            self._outbound_files = outbound
+                        else:
+                            runtime.reconfigure(
+                                target_manifests,
+                                route_policy=self._route_policy_for_manifests(
+                                    target_manifests
+                                ),
+                            )
+                    elif runtime is not None:
+                        runtime.reconfigure((), route_policy={})
+                        runtime.close()
+                        self._runtime = None
+                    self._enabled_plugin_ids = tuple(
+                        manifest.id for manifest in target_manifests
+                    )
+                self._runtime_enabled = requested_enabled
+            except Exception as exc:
+                self._state_store.set_runtime_enabled(previous_enabled)
+                self._runtime_enabled = previous_enabled
+                self._runtime = previous_runtime
+                self._outbound_files = previous_outbound
+                self._enabled_plugin_ids = previous_ids
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_lifecycle_failed",
+                        "message": sanitize_plugin_status_error(exc),
+                    },
+                }
+            if self._state_changed_fn is not None:
+                try:
+                    self._state_changed_fn()
+                except Exception:
+                    pass
+            return {
+                "ok": True,
+                "runtime_enabled": requested_enabled,
+                "enabled_plugins": list(self._enabled_plugin_ids),
+            }
+
     def run_console_command(
         self,
         *,
@@ -526,7 +654,24 @@ class PluginSubsystem:
         with self._lifecycle_lock:
             runtime = self._runtime
             closed = self._closed
-        if closed or runtime is None:
+            runtime_enabled = self._runtime_enabled
+        if closed:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": self._error or "Plugin runtime is unavailable",
+                },
+            }
+        if not runtime_enabled:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Plugin runtime is disabled",
+                },
+            }
+        if runtime is None:
             return {
                 "ok": False,
                 "error": {
@@ -831,15 +976,6 @@ def build_plugin_subsystem(
                 False,
                 package_digest=by_id[plugin_id].package_digest,
             )
-        enabled = tuple(
-            manifest
-            for manifest in discovered
-            if state_store.plugin_enabled(
-                manifest.id,
-                package_digest=manifest.package_digest,
-                default=manifest.effective_default_enabled,
-            )
-        )
         runtime_config = PluginRuntimeConfig(
             event_queue_size=max(
                 1,
@@ -904,6 +1040,20 @@ def build_plugin_subsystem(
             )
             return new_runtime, outbound
 
+        runtime_enabled = state_store.runtime_enabled(default=True)
+        if runtime_enabled:
+            enabled = tuple(
+                manifest
+                for manifest in discovered
+                if state_store.plugin_enabled(
+                    manifest.id,
+                    package_digest=manifest.package_digest,
+                    default=manifest.effective_default_enabled,
+                )
+            )
+        else:
+            enabled = ()
+
         if enabled:
             runtime, outbound = _runtime_factory(enabled)
 
@@ -913,6 +1063,7 @@ def build_plugin_subsystem(
             outbound_files=outbound,
             manifests=discovered,
             enabled_plugin_ids=[manifest.id for manifest in enabled],
+            runtime_enabled=runtime_enabled,
             discovery_errors=discovery_errors,
             directory=local_directory,
             runtime_factory=_runtime_factory,

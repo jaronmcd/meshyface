@@ -44,6 +44,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/settings/plugins",
     "/api/settings/plugins/config",
     "/api/settings/plugins/routes",
+    "/api/settings/plugins/runtime",
     "/api/maps/packs/build",
     "/api/maps/packs/build/cancel",
     "/api/maps/packs/install",
@@ -293,6 +294,17 @@ def _read_plugin_route_policy_request(
         "console_enabled": parsed["console_enabled"],
         "package_digest": _plugin_package_digest(parsed.get("package_digest")),
     }
+
+
+def _read_plugin_runtime_settings_request(
+    handler: DashboardHttpHandler,
+) -> dict[str, object]:
+    parsed = _read_json_object_request(handler, max_bytes=1024)
+    if set(parsed) != {"enabled"}:
+        raise ValueError("request body must contain only enabled")
+    if not isinstance(parsed.get("enabled"), bool):
+        raise ValueError("enabled must be a boolean")
+    return {"enabled": parsed["enabled"]}
 
 
 def _read_plugin_console_request(handler: DashboardHttpHandler) -> dict[str, object]:
@@ -784,6 +796,76 @@ def handle_dashboard_post(
             validate_content_length_fn=deps.validate_content_length_fn,
             parse_raw_packet_capture_settings_request_fn=parse_raw_packet_capture_settings_request_fn,
             write_json_response_fn=deps.write_json_response_fn,
+        )
+        return
+
+    if path == "/api/settings/plugins/runtime":
+        setter = deps.set_plugin_runtime_enabled_fn
+        if not callable(setter):
+            response_obj = {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": "Plugin runtime management is unavailable",
+                },
+            }
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj=response_obj,
+                no_store=True,
+            )
+            return
+        try:
+            request = _read_plugin_runtime_settings_request(handler)
+            response_obj = setter(bool(request["enabled"]))
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={
+                    "ok": False,
+                    "error": {"code": "invalid_request", "message": str(exc)},
+                },
+                no_store=True,
+            )
+            return
+        except Exception as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_update_failed",
+                        "message": f"Plugin runtime update failed: {exc}",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        if not isinstance(response_obj, Mapping):
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_update_failed",
+                        "message": (
+                            "Plugin runtime update returned an invalid response"
+                        ),
+                    },
+                },
+                no_store=True,
+            )
+            return
+        status_code = 200 if response_obj.get("ok") is not False else 503
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
+            payload_obj=response_obj,
+            no_store=True,
         )
         return
 

@@ -53,6 +53,8 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert 'data-scripts-tab="plugins"' in scripts_section
     assert 'id="scripts-tab-debug"' in scripts_section
     assert 'data-scripts-tab="debug"' in scripts_section
+    assert 'id="scripts-runtime-master-toggle"' in scripts_section
+    assert 'class="btn btn-secondary scripts-runtime-master-toggle"' in scripts_section
     assert 'id="scripts-panel-plugins"' in scripts_section
     assert 'id="scripts-panel-debug"' in scripts_section
     assert 'id="scripts-list"' in html
@@ -82,6 +84,7 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert ".layout.view-scripts .scripts {" in css
     assert ".scripts-tab-panel[hidden] {" in css
     assert ".scripts-tab-panel-plugins {" in css
+    assert ".scripts-runtime-master-toggle {" in css
     assert ".scripts-list {" in css
     scripts_list_css = css.split(".scripts-list {", 1)[1].split("}", 1)[0]
     assert "display: flex;" in scripts_list_css
@@ -110,6 +113,7 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert "scriptsDebugClearedThrough" in scripts_js
     assert "function applyScriptsTab(value)" in scripts_js
     assert 'event.target.closest("[data-scripts-tab]")' in scripts_js
+    assert 'document.getElementById("scripts-runtime-master-toggle")' in scripts_js
 
 
 def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> None:
@@ -126,6 +130,10 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert "No scripts found in ${directory}." in js
     assert "containing plugin.toml, then restart MeshyFace" in js
     assert "scriptsMasterOffGuidance" not in js
+    assert "runtimeSummary.runtime_enabled === false" in js
+    assert "function scriptsRuntimeMasterEnabled(runtimeSummary)" in js
+    assert "function scriptsSyncRuntimeMasterControl(" in js
+    assert 'fetch("/api/settings/plugins/runtime"' in js
     assert "runtimeSummary.available === false" in js
     assert 'label: "Waiting for runtime"' in js
     assert "scriptsConfiguredStateMismatch(row)" in js
@@ -133,6 +141,7 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert 'label: "Starting"' in js
     assert 'label: "Running"' in js
     assert 'label: "Error"' in js
+    assert 'label: "Scripts disabled"' in js
     assert 'fetch("/api/settings/plugins"' in js
     assert 'fetch("/api/settings/plugins/config"' in js
     assert 'fetch("/api/settings/plugins/routes"' in js
@@ -171,12 +180,14 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert "async function saveScriptConfig(scriptId, packageDigest, settings)" in js
     assert "async function setScriptRoutePolicy(" in js
     assert "async function setScriptEnabled(scriptId, packageDigest, enabled, button)" in js
+    assert "async function setScriptsRuntimeMasterEnabled(enabled, button)" in js
     assert "form.dataset.packageDigest" in js
     assert "target.dataset.packageDigest" in js
     assert "draft.packageDigest === packageDigest" in js
     assert "packageDigest: expectedPackageDigest" in js
     assert "scriptsUpdateCachedRoutePolicy(cleanId" in js
     assert "scriptsUpdateCachedEnabled(cleanId, !!payload.enabled, !!payload.active)" in js
+    assert "scriptsUpdateCachedRuntimeMaster(" in js
     assert "Restart MeshyFace to apply the change." not in _html()
 
 
@@ -185,12 +196,16 @@ def test_scripts_view_avoids_poll_churn_duplicate_writes_and_render_cascade_fail
 
     assert "const scriptsPendingRequests = new Map();" in js
     assert "const scriptsPendingRouteRequests = new Set();" in js
+    assert "let scriptsRuntimeMasterPending = false;" in js
     assert "if (!cleanId || scriptsPendingRequests.has(cleanId)) return false;" in js
     assert "if (!cleanId || scriptsPendingRouteRequests.has(cleanId)) return false;" in js
+    assert "if (scriptsRuntimeMasterPending) return false;" in js
     assert "scriptsPendingRequests.set(cleanId, { enabled: !!enabled });" in js
     assert "scriptsPendingRouteRequests.add(cleanId);" in js
+    assert "scriptsRuntimeMasterPending = true;" in js
     assert "scriptsPendingRequests.delete(cleanId);" in js
     assert "scriptsPendingRouteRequests.delete(cleanId);" in js
+    assert "scriptsRuntimeMasterPending = false;" in js
     assert "if (signature === scriptsLastRenderSignature) return false;" in js
     assert "const focusedScriptId = activeElement instanceof HTMLElement" in js
     assert "replacement.focus({ preventScroll: true });" in js
@@ -324,6 +339,7 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
         status = subsystem.status()
         package_digest = status["scripts"][0]["package_digest"]
         assert str(package_digest).startswith("sha256:")
+        assert status["runtime_enabled"] is True
         assert status["scripts"] == [
             {
                 "id": "weather",

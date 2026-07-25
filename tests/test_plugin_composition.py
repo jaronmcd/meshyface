@@ -281,6 +281,66 @@ def test_individual_enablement_starts_live_and_persists_for_the_next_runtime(tmp
         second.close()
 
 
+def test_runtime_master_disable_preserves_enablement_and_persists(tmp_path) -> None:
+    plugin_root = tmp_path / "plugins"
+    _write_echo_plugin(plugin_root)
+    args = _args(tmp_path, plugin_enable=["echo"])
+    first = build_plugin_subsystem(
+        args=args,
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        _wait_until(
+            lambda: first.status()["scripts"][0]["runtime_status"] == "running"  # type: ignore[index]
+        )
+        assert first.status()["runtime_enabled"] is True
+        assert first.status()["enabled_plugins"] == ["echo"]
+        assert first.set_runtime_enabled(False) == {
+            "ok": True,
+            "runtime_enabled": False,
+            "enabled_plugins": [],
+        }
+        disabled_status = first.status()
+        disabled_script = disabled_status["scripts"][0]  # type: ignore[index]
+        assert disabled_status["runtime_enabled"] is False
+        assert disabled_status["enabled_plugins"] == []
+        assert disabled_script["enabled"] is True
+        assert disabled_script["active"] is False
+        assert disabled_script["runtime_status"] == "master_disabled"
+        command_result = first.run_console_command(command="echo", text="!echo")
+        assert command_result["ok"] is False
+        assert command_result["error"]["code"] == "plugin_runtime_disabled"  # type: ignore[index]
+    finally:
+        first.close()
+
+    reopened = build_plugin_subsystem(
+        args=args,
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        reopened_status = reopened.status()
+        reopened_script = reopened_status["scripts"][0]  # type: ignore[index]
+        assert reopened_status["runtime_enabled"] is False
+        assert reopened_script["enabled"] is True
+        assert reopened_script["active"] is False
+        assert reopened.set_runtime_enabled(True) == {
+            "ok": True,
+            "runtime_enabled": True,
+            "enabled_plugins": ["echo"],
+        }
+        _wait_until(
+            lambda: reopened.status()["scripts"][0]["runtime_status"] == "running"  # type: ignore[index]
+        )
+    finally:
+        reopened.close()
+
+
 def test_local_manifest_default_true_does_not_self_enable(tmp_path) -> None:
     _write_echo_plugin(tmp_path / "plugins", default_enabled=True)
     subsystem = build_plugin_subsystem(
