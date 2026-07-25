@@ -1,0 +1,58 @@
+    function registerConsoleCoreCommands() {{
+      registerConsoleCommand({{
+        name: "help",
+        usage: "help",
+        description: "Show available console commands.",
+        supportsVerbosity: true,
+        run: () => {{
+          syncPluginConsoleCommands(latestState);
+          const defs = Array.from(consoleCommandRegistry.values())
+            .filter((def) => def && !def.hiddenFromHelp)
+            .sort((a, b) => a.name.localeCompare(b.name));
+          const lines = ["[help] commands:"];
+          for (const def of defs) {{
+            const details = def.description ? ` - ${{def.description}}` : "";
+            lines.push(`  ${{def.usage}}${{details}}`);
+          }}
+          lines.push("  autocomplete: type a command or node target to open suggestions; Tab accepts, Enter runs, ArrowUp/ArrowDown moves, ! narrows node IDs");
+          lines.push("  node suggestions: node targets show name, ID, emoji, tag, status, hops, GPS, last heard, ports, and node number; tag text narrows suggestions");
+          lines.push("  target macros: %self resolves to the radio ID connected to the server");
+          lines.push("  live grep [-i] [-v <text>] <text> [from!=%self] - stream matching live packet groups");
+          lines.push("  grep <text> or rg <text> - search retained packet/chat history with context windows");
+          lines.push("  /search <text> - filter visible console output live from the prompt");
+          lines.push("[help] Ctrl+C stops running commands. While live is running, q also stops it.");
+          return lines;
+        }},
+      }});
+      registerConsoleCommand({{
+        name: "clear",
+        usage: "clear",
+        description: "Clear console output.",
+        supportsVerbosity: true,
+        run: () => {{
+          clearConsoleOutput({{ renderNow: false }});
+          return "[console] cleared.";
+        }},
+      }});
+      registerConsoleCommand({{
+        name: "download",
+        usage: "download|/download [name=<filename.txt>]",
+        description: "Download the current visible console snapshot as a text file.",
+        supportsVerbosity: false,
+        run: (ctx) => {{
+          const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+          const options = (ctx && ctx.options && typeof ctx.options === "object")
+            ? ctx.options
+            : {{}};
+          const rawName = String(options.name ?? args.join(" ") ?? "").trim();
+          const result = downloadVisibleConsoleSnapshot(rawName);
+          if (!(result && result.ok)) {{
+            const msg = String((result && result.error) || "download failed");
+            return `[download] ${{msg}}.`;
+          }}
+          const lineCount = Math.max(0, Math.trunc(Number(result.lineCount) || 0));
+          const lineLabel = `${{lineCount}} line${{lineCount === 1 ? "" : "s"}}`;
+          return `[download] saved visible console snapshot to ${{result.filename}} (${{lineLabel}}).`;
+        }},
+      }});
+    }}

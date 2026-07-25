@@ -1,0 +1,372 @@
+    function registerConsoleHistoryCommands() {{
+      registerConsoleCommand({{
+        name: "grep",
+        usage: "grep <text> [-A<n>|-B<n>|-C<n>] [limit=<n>] [scope=both|summary|packet] [source=both|packet|chat] [scan=<n>]",
+        description: "Search retained history (packets and/or chat) with grep-style context windows.",
+        supportsVerbosity: true,
+        run: async (ctx) => {{
+          const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+          const options = (ctx && ctx.options && typeof ctx.options === "object")
+            ? ctx.options
+            : {{}};
+          const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
+          const parseBoundedIntOption = (rawValue, min, max, optionLabel) => {{
+            if (rawValue == null) return {{ ok: true, value: null }};
+            const rawText = String(rawValue).trim();
+            if (!rawText) return {{ ok: true, value: null }};
+            const numeric = Number(rawText);
+            if (!Number.isFinite(numeric)) {{
+              return {{ ok: false, value: null, error: `[grep] invalid ${{optionLabel}} value: ${{rawText}}` }};
+            }}
+            const clean = Math.trunc(numeric);
+            if (clean < min || clean > max) {{
+              return {{ ok: false, value: null, error: `[grep] ${{optionLabel}} must be between ${{min}} and ${{max}}.` }};
+            }}
+            return {{ ok: true, value: clean }};
+          }};
+
+          const rawQuery = args.join(" ").trim();
+          const parsedFilterExpr = parseConsoleFilterExpression(rawQuery);
+          const queryText = String(parsedFilterExpr.needle || "").trim();
+          if (!queryText) {{
+            return '[grep] missing search text. Example: grep "!1234abcd" -C2';
+          }}
+
+          let before = Math.max(0, Math.trunc(Number(parsedFilterExpr.before) || 0));
+          let after = Math.max(0, Math.trunc(Number(parsedFilterExpr.after) || 0));
+
+          const contextParsed = parseBoundedIntOption(
+            options.context ?? options.c,
+            0,
+            30,
+            "context",
+          );
+          if (!contextParsed.ok) return contextParsed.error;
+          if (contextParsed.value != null) {{
+            before = Math.max(before, contextParsed.value);
+            after = Math.max(after, contextParsed.value);
+          }}
+
+          const beforeParsed = parseBoundedIntOption(options.before ?? options.b, 0, 30, "before");
+          if (!beforeParsed.ok) return beforeParsed.error;
+          if (beforeParsed.value != null) {{
+            before = Math.max(before, beforeParsed.value);
+          }}
+
+          const afterParsed = parseBoundedIntOption(options.after ?? options.a, 0, 30, "after");
+          if (!afterParsed.ok) return afterParsed.error;
+          if (afterParsed.value != null) {{
+            after = Math.max(after, afterParsed.value);
+          }}
+
+          const limitParsed = parseBoundedIntOption(options.limit ?? options.n, 1, 500, "limit");
+          if (!limitParsed.ok) return limitParsed.error;
+          const limit = limitParsed.value == null ? 120 : limitParsed.value;
+
+          const scanParsed = parseBoundedIntOption(options.scan ?? options.scan_limit, 1, 50000, "scan");
+          if (!scanParsed.ok) return scanParsed.error;
+          const scanLimit = scanParsed.value == null ? 0 : scanParsed.value;
+
+          const scopeRaw = String(options.scope ?? options.s ?? "both").trim().toLowerCase();
+          const scope = scopeRaw || "both";
+          if (!["both", "summary", "packet"].includes(scope)) {{
+            return `[grep] invalid scope: ${{scope}} (use both|summary|packet)`;
+          }}
+          const sourceRaw = String(options.source ?? options.src ?? "both").trim().toLowerCase();
+          const source = sourceRaw || "both";
+          if (!["both", "packet", "chat"].includes(source)) {{
+            return `[grep] invalid source: ${{source}} (use both|packet|chat)`;
+          }}
+
+          const payload = await fetchConsoleHistorySearch({{
+            queryText,
+            limit,
+            before,
+            after,
+            scope,
+            source,
+            scanLimit,
+          }});
+          if (!(payload && payload.ok)) {{
+            const msg = String((payload && payload.error) || "history search failed");
+            return `[grep] ${{msg}}`;
+          }}
+
+          const entries = Array.isArray(payload.entries) ? payload.entries : [];
+          const totalMatchesRaw = Number(payload.matches);
+          const shownMatchesRaw = Number(payload.returned_matches);
+          const scannedPacketsRaw = Number(payload.scanned_packets);
+          const scannedChatRaw = Number(payload.scanned_chat);
+          const scannedTotalRaw = Number(payload.scanned_total);
+          const totalMatches = Number.isFinite(totalMatchesRaw) ? Math.max(0, Math.trunc(totalMatchesRaw)) : 0;
+          const shownMatches = Number.isFinite(shownMatchesRaw) ? Math.max(0, Math.trunc(shownMatchesRaw)) : totalMatches;
+          const scannedPackets = Number.isFinite(scannedPacketsRaw) ? Math.max(0, Math.trunc(scannedPacketsRaw)) : 0;
+          const scannedChat = Number.isFinite(scannedChatRaw) ? Math.max(0, Math.trunc(scannedChatRaw)) : 0;
+          const scannedTotal = Number.isFinite(scannedTotalRaw)
+            ? Math.max(0, Math.trunc(scannedTotalRaw))
+            : (scannedPackets + scannedChat);
+          const queryLabel = String(payload.query || queryText);
+          const scopeLabel = String(payload.scope || scope);
+          const sourceLabel = String(payload.source || source);
+          const scannedLabel = (() => {{
+            if (sourceLabel === "packet") return `${{scannedPackets}}`;
+            if (sourceLabel === "chat") return `${{scannedChat}}`;
+            return `total=${{scannedTotal}}, packets=${{scannedPackets}}, chat=${{scannedChat}}`;
+          }})();
+          if (totalMatches < 1 || entries.length < 1) {{
+            return `[grep] no matches for "${{queryLabel}}" (source=${{sourceLabel}}, scope=${{scopeLabel}}, scanned=${{scannedLabel}}).`;
+          }}
+
+          appendConsoleEventLine(
+            `[grep] query="${{queryLabel}}" source=${{sourceLabel}} scope=${{scopeLabel}} matches=${{totalMatches}} showing=${{shownMatches}} scanned=${{scannedLabel}}`
+          );
+          consoleGrepRunCounter += 1;
+          const runId = consoleGrepRunCounter;
+          let fallbackLineCounter = 0;
+          for (const entry of entries) {{
+            if (entry && entry.separator === true) {{
+              appendConsoleEventLine("[grep] --");
+              continue;
+            }}
+            if (!entry || typeof entry !== "object") continue;
+            const sourceKind = String(entry.source || "packet").trim().toLowerCase() || "packet";
+            const isChatEntry = sourceKind === "chat";
+            const summary = (entry.summary && typeof entry.summary === "object")
+              ? entry.summary
+              : {{}};
+            const packet = (entry.packet && typeof entry.packet === "object")
+              ? entry.packet
+              : {{}};
+            const chat = (entry.chat && typeof entry.chat === "object")
+              ? entry.chat
+              : {{}};
+            const isMatch = entry.match === true;
+            const matchScope = String(entry.match_scope || "").trim().toLowerCase();
+            const matchExcerpt = String(entry.match_excerpt || "").trim();
+            const packetLines = isChatEntry
+              ? formatConsoleLine({{
+                  summary: {{
+                    from: chat.from ?? summary.from,
+                    to: chat.to ?? summary.to,
+                    portnum: chat.portnum ?? summary.portnum,
+                    rx_snr: chat.rx_snr ?? summary.rx_snr,
+                    rx_rssi: chat.rx_rssi ?? summary.rx_rssi,
+                    hop_start: chat.hop_start ?? summary.hop_start,
+                    hop_limit: chat.hop_limit ?? summary.hop_limit,
+                    text: chat.text ?? summary.text ?? "",
+                    reply_id: chat.reply_id ?? summary.reply_id,
+                    emoji: chat.emoji ?? summary.emoji,
+                    channel: chat.channel ?? summary.channel,
+                    packet_id: chat.message_id ?? summary.packet_id,
+                  }},
+                  packet: {{
+                    id: chat.message_id ?? packet.id ?? null,
+                    channel: chat.channel ?? packet.channel ?? null,
+                    text: chat.text ?? packet.text ?? "",
+                    emoji: chat.emoji ?? packet.emoji ?? "",
+                    reply_id: chat.reply_id ?? packet.reply_id ?? null,
+                    fromId: chat.from ?? packet.fromId ?? null,
+                    toId: chat.to ?? packet.toId ?? null,
+                  }},
+                  chat,
+                }}, verbosity)
+              : formatConsoleLine({{ summary, packet }}, verbosity);
+            const lineList = Array.isArray(packetLines)
+              ? packetLines
+              : [String(packetLines == null ? "" : packetLines)];
+            const packetUnix = isChatEntry
+              ? latestUnixTimestamp(
+                  chat.captured_at,
+                  chat.rx_time,
+                  entry.created_unix,
+                )
+              : latestUnixTimestamp(
+                  summary.captured_at,
+                  summary.rx_time,
+                  entry.created_unix,
+                );
+            const packetMs = Number.isFinite(packetUnix) && packetUnix > 0
+              ? packetUnix * 1000
+              : Date.now();
+            const packetRowId = Number(isChatEntry ? (entry.chat_row_id ?? entry.packet_row_id) : entry.packet_row_id);
+            const packetKey = Number.isFinite(packetRowId)
+              ? `${{isChatEntry ? "chat" : "packet"}}-${{Math.trunc(packetRowId)}}`
+              : `scan-${{fallbackLineCounter}}`;
+            for (let i = 0; i < lineList.length; i += 1) {{
+              const lineRaw = String(lineList[i] == null ? "" : lineList[i]);
+              const prefix = i === 0 ? (isMatch ? "> " : "  ") : "  ";
+              const sourcePrefix = (isChatEntry && i === 0) ? "[chat] " : "";
+              fallbackLineCounter += 1;
+              appendConsoleLine(
+                `grep|${{runId}}|${{packetKey}}|${{i}}|${{fallbackLineCounter}}`,
+                `${{prefix}}${{sourcePrefix}}${{lineRaw}}`,
+                packetMs,
+                false,
+                {{ timestampMode: "grep" }},
+              );
+            }}
+            if (isMatch && matchExcerpt) {{
+              const matchLabel = matchScope || (isChatEntry ? "chat" : "packet");
+              fallbackLineCounter += 1;
+              appendConsoleLine(
+                `grep|${{runId}}|${{packetKey}}|match|${{fallbackLineCounter}}`,
+                `  match[${{matchLabel}}] "${{matchExcerpt.replace(/\"/g, "'")}}"`,
+                packetMs,
+                false,
+                {{ timestampMode: "grep" }},
+              );
+            }}
+          }}
+          if (totalMatches > shownMatches) {{
+            appendConsoleEventLine(
+              `[grep] truncated to latest ${{shownMatches}} match(es). Use limit=<n> up to 500.`
+            );
+          }}
+          renderConsoleBuffer(true);
+          return "";
+        }},
+      }});
+      registerConsoleCommand({{
+        name: "rg",
+        usage: "rg <text> [-A<n>|-B<n>|-C<n>] [limit=<n>] [scope=both|summary|packet] [source=both|packet|chat] [scan=<n>]",
+        description: "Alias for grep.",
+        supportsVerbosity: true,
+        run: async (ctx) => {{
+          const grepCommand = consoleCommandRegistry.get("grep");
+          if (!(grepCommand && typeof grepCommand.run === "function")) {{
+            return "[rg] grep command is unavailable.";
+          }}
+          return grepCommand.run(ctx);
+        }},
+      }});
+      registerConsoleCommand({{
+        name: "maltext",
+        usage: "maltext [-v|-vv] [node=<id|name>] [hours=<n>] [limit=<n>]",
+        description: "Review persisted malformed TEXT_MESSAGE_APP payloads.",
+        supportsVerbosity: true,
+        run: async (ctx) => {{
+          const options = (ctx && ctx.options && typeof ctx.options === "object")
+            ? ctx.options
+            : {{}};
+          const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+          const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
+
+          const parseBoundedInt = (rawValue, fallback, min, max, label) => {{
+            if (rawValue == null || String(rawValue).trim() === "") return fallback;
+            const parsed = Number(rawValue);
+            if (!Number.isFinite(parsed)) {{
+              throw new Error(`[maltext] invalid ${{label}} value: ${{rawValue}}`);
+            }}
+            const clean = Math.trunc(parsed);
+            if (clean < min || clean > max) {{
+              throw new Error(`[maltext] ${{label}} must be between ${{min}} and ${{max}}.`);
+            }}
+            return clean;
+          }};
+
+          let hours = 72;
+          let limit = 10;
+          try {{
+            hours = parseBoundedInt(options.hours ?? options.window, 72, 1, 24 * 365, "hours");
+            limit = parseBoundedInt(options.limit ?? options.n, 10, 1, 200, "limit");
+          }} catch (err) {{
+            return err instanceof Error ? err.message : String(err || "[maltext] invalid arguments");
+          }}
+
+          const rawTarget = String(
+            options.node
+            ?? options.id
+            ?? options.sender
+            ?? args.join(" ")
+            ?? ""
+          ).trim();
+          let nodeId = "";
+          let targetLabel = "";
+          if (rawTarget) {{
+            const cleanTargetId = normalizeNodeId(rawTarget);
+            if (typeof isCanonicalNodeId === "function" && isCanonicalNodeId(cleanTargetId)) {{
+              nodeId = cleanTargetId;
+              targetLabel = cleanTargetId;
+            }} else {{
+              const lookup = resolveConsoleNodeLookupMatches(rawTarget, ctx && ctx.state);
+              const matches = Array.isArray(lookup && lookup.matches) ? lookup.matches : [];
+              if (matches.length < 1) {{
+                return `[maltext] no node matches for "${{rawTarget}}".`;
+              }}
+              if (matches.length > 1) {{
+                const preview = matches.slice(0, 8).map((row) => `  ${{formatConsoleNodeLookupListLine(row)}}`);
+                return [
+                  `[maltext] ${{matches.length}} node matches for "${{rawTarget}}"; be more specific.`,
+                  ...preview,
+                ];
+              }}
+              const match = matches[0];
+              nodeId = normalizeNodeId(match && match.id ? match.id : "");
+              targetLabel = String(match && match.name ? match.name : nodeId).trim() || nodeId;
+            }}
+          }}
+
+          let payload;
+          try {{
+            payload = await fetchMalformedTextHistory({{
+              windowHours: hours,
+              limit,
+              nodeId,
+            }});
+          }} catch (err) {{
+            const message = err instanceof Error ? err.message : String(err || "request failed");
+            return `[maltext] ${{message}}`;
+          }}
+          if (!(payload && payload.ok)) {{
+            return `[maltext] ${{String((payload && payload.error) || "request failed")}}`;
+          }}
+
+          const summary = (payload.summary && typeof payload.summary === "object") ? payload.summary : {{}};
+          const totalPackets = Math.max(0, Math.trunc(Number(summary.total_packets) || 0));
+          const distinctSenders = Math.max(0, Math.trunc(Number(summary.distinct_senders) || 0));
+          if (totalPackets < 1) {{
+            return `[maltext] no malformed TEXT_MESSAGE_APP payloads in the last ${{hours}}h${{targetLabel ? ` for ${{targetLabel}}` : ""}}.`;
+          }}
+
+          const lines = [
+            `[maltext] ${{totalPackets}} malformed TEXT_MESSAGE_APP payload(s) from ${{distinctSenders}} sender(s) in the last ${{hours}}h${{targetLabel ? ` for ${{targetLabel}}` : ""}}.`,
+          ];
+          const senders = Array.isArray(payload.senders) ? payload.senders : [];
+          const entries = Array.isArray(payload.entries) ? payload.entries : [];
+
+          if (!nodeId) {{
+            lines.push("[maltext] senders:");
+            for (const sender of senders.slice(0, limit)) {{
+              const senderLabel = resolveMalformedDiagnosticsSenderLabel(sender, ctx && ctx.state);
+              const senderId = normalizeNodeId(sender && (sender.from_id || sender.fromId) || "");
+              const senderCount = Math.max(0, Math.trunc(Number(sender && sender.count) || 0));
+              const senderLastSeen = formatMalformedDiagnosticsTimestamp(sender && sender.last_seen_unix);
+              const senderPreview = previewMalformedDiagnosticsPayload(sender && sender.last_payload_preview, 52);
+              const suffix = verbosity > 0 ? ` | preview=${{senderPreview}}` : "";
+              lines.push(`  ${{senderId}} | ${{senderLabel}} | count=${{senderCount}} | last=${{senderLastSeen}}${{suffix}}`);
+            }}
+            if (senders.length > limit) {{
+              lines.push(`  ... ${{senders.length - limit}} more sender(s). Use limit=<n> to show more.`);
+            }}
+          }}
+
+          if (nodeId || verbosity > 0) {{
+            lines.push(nodeId ? "[maltext] recent payloads:" : "[maltext] latest payloads:");
+            for (const entry of entries.slice(0, limit)) {{
+              const entryLabel = resolveMalformedDiagnosticsSenderLabel(entry, ctx && ctx.state);
+              const entryId = normalizeNodeId(entry && (entry.from_id || entry.fromId) || "");
+              const entryUnix = Number(entry && (entry.rx_time_unix ?? entry.created_unix));
+              const whenText = formatMalformedDiagnosticsTimestamp(entryUnix);
+              const packetId = Number(entry && entry.packet_id);
+              const packetLabel = Number.isFinite(packetId) && packetId > 0 ? `packet=${{Math.trunc(packetId)}}` : "packet=n/a";
+              const payloadText = String(entry && entry.payload_text || "").trim();
+              const renderedPayload = verbosity > 1
+                ? payloadText
+                : previewMalformedDiagnosticsPayload(payloadText, 72);
+              lines.push(`  ${{entryId}} | ${{entryLabel}} | ${{packetLabel}} | ${{whenText}} | ${{renderedPayload}}`);
+            }}
+          }}
+          return lines;
+        }},
+      }});
+    }}
