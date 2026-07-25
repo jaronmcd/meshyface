@@ -939,6 +939,7 @@ def test_dashboard_js_renders_mesh_sized_map_pack_commands() -> None:
     assert "Mesh-sized map pack" in js
     assert "function consoleMappacksBuild(ctx, options)" in js
     assert 'usage: "mappacks [build|install|status|cancel]' in js
+    assert "      });\n    }\n    function registerConsoleLiveCommands()" in js
     assert '"/api/maps/packs/build"' in js
     assert '"/api/maps/packs/install"' in js
     assert "[mappacks] please wait: checking live GPS and node history..." in js
