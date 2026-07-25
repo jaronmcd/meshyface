@@ -10,39 +10,146 @@
       "ports-table": {{ index: 1, dir: "desc" }},
     }};
     const nodeExplorerFieldDefs = Object.freeze([
-      Object.freeze({{ id: "last_heard", label: "Last Heard", sortable: true, rosterMeta: false, rosterDefault: false, rosterSort: true }}),
-      Object.freeze({{ id: "id", label: "ID", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
-      Object.freeze({{ id: "name", label: "Name", sortable: true, rosterMeta: false, rosterDefault: false, rosterSort: true }}),
-      Object.freeze({{ id: "hardware", label: "HW", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
-      Object.freeze({{ id: "snr", label: "SNR", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
-      Object.freeze({{ id: "hops", label: "Hops", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
-      Object.freeze({{ id: "link_quality", label: "Link", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, rosterSortLabel: "Link quality" }}),
-      Object.freeze({{ id: "links", label: "Links", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
-      Object.freeze({{ id: "battery", label: "Battery", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
-      Object.freeze({{ id: "saved", label: "Total Packets", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
-      Object.freeze({{ id: "pos", label: "Pos", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
-      Object.freeze({{ id: "location_points", label: "Location Points", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true }}),
-      Object.freeze({{ id: "favorite", label: "Tag", sortable: false, rosterMeta: true, rosterDefault: false, rosterSort: true, rosterSortLabel: "Tagged" }}),
+      Object.freeze({{ id: "last_heard", label: "Last Heard", sortable: true, rosterMeta: false, rosterDefault: false, rosterSort: true, valueType: "timestamp", renderKinds: Object.freeze(["timestamp", "text", "chip"]), defaultRenderKind: "timestamp", rosterSlot: "meta" }}),
+      Object.freeze({{ id: "id", label: "ID", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "text", renderKinds: Object.freeze(["text", "chip"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "name", label: "Name", sortable: true, rosterMeta: false, rosterDefault: false, rosterSort: true, valueType: "text", renderKinds: Object.freeze(["text"]), defaultRenderKind: "text", rosterSlot: "name" }}),
+      Object.freeze({{ id: "hardware", label: "HW", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "text", renderKinds: Object.freeze(["text", "chip", "badge"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "snr", label: "SNR", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "number", renderKinds: Object.freeze(["metric", "text", "chip", "bar"]), defaultRenderKind: "metric", rosterSlot: "meta" }}),
+      Object.freeze({{ id: "hops", label: "Hops", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "integer", renderKinds: Object.freeze(["metric", "text", "chip", "pill"]), defaultRenderKind: "metric", rosterSlot: "meta" }}),
+      Object.freeze({{ id: "link_quality", label: "Link", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, rosterSortLabel: "Link quality", valueType: "number", renderKinds: Object.freeze(["bar", "pill", "metric", "text"]), defaultRenderKind: "bar", rosterSlot: "meta" }}),
+      Object.freeze({{ id: "links", label: "Links", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "integer", renderKinds: Object.freeze(["metric", "chip", "text"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "battery", label: "Battery", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "integer", renderKinds: Object.freeze(["metric", "pill", "bar", "chip", "text"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "saved", label: "Total Packets", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "integer", renderKinds: Object.freeze(["metric", "chip", "text"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "pos", label: "Pos", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "text", renderKinds: Object.freeze(["text", "chip"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "location_points", label: "Location Points", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "integer", renderKinds: Object.freeze(["metric", "chip", "text"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "favorite", label: "Tag", sortable: false, rosterMeta: true, rosterDefault: false, rosterSort: true, rosterSortLabel: "Tagged", valueType: "text", renderKinds: Object.freeze(["badge", "pill", "text"]), defaultRenderKind: "badge", rosterSlot: "name" }}),
     ]);
     const nodeExplorerFieldDefById = new Map(
       nodeExplorerFieldDefs.map((def) => [String(def.id || ""), def])
     );
-    function normalizeNodeExplorerFieldId(value) {{
+    const nodeExplorerPluginFieldIdPattern = /^plugin:[a-z][a-z0-9_-]{{0,63}}:[a-z][a-z0-9_-]{{0,31}}$/;
+    const nodeExplorerSupportedRenderKinds = Object.freeze([
+      "text",
+      "chip",
+      "pill",
+      "badge",
+      "metric",
+      "bar",
+      "sparkline",
+      "timestamp",
+      "icon",
+    ]);
+    const nodeExplorerSupportedRenderKindSet = new Set(nodeExplorerSupportedRenderKinds);
+    const nodeExplorerSupportedValueTypes = new Set(["text", "number", "integer", "timestamp", "boolean"]);
+    function normalizeNodeExplorerRenderKind(value, fallback = "text") {{
       const clean = String(value || "").trim().toLowerCase();
-      return nodeExplorerFieldDefById.has(clean) ? clean : "";
+      if (nodeExplorerSupportedRenderKindSet.has(clean)) return clean;
+      const cleanFallback = String(fallback || "").trim().toLowerCase();
+      return nodeExplorerSupportedRenderKindSet.has(cleanFallback) ? cleanFallback : "text";
     }}
 
-    function nodeExplorerFieldDef(fieldId) {{
-      const clean = normalizeNodeExplorerFieldId(fieldId);
-      return clean ? (nodeExplorerFieldDefById.get(clean) || null) : null;
+    function normalizeNodeExplorerRenderKinds(value, fallback = "text") {{
+      const source = Array.isArray(value) ? value : [fallback];
+      const out = [];
+      for (const item of source) {{
+        const clean = normalizeNodeExplorerRenderKind(item, "");
+        if (!clean || out.includes(clean)) continue;
+        out.push(clean);
+      }}
+      if (out.length > 0) return Object.freeze(out);
+      return Object.freeze([normalizeNodeExplorerRenderKind(fallback, "text")]);
     }}
 
-    function nodeExplorerRosterMetadataFieldDefs() {{
-      return nodeExplorerFieldDefs.filter((def) => !!(def && def.rosterMeta));
+    function nodeExplorerPluginRuntimeFieldRows(state = null) {{
+      const safeState = state && typeof state === "object"
+        ? state
+        : ((typeof latestState !== "undefined" && latestState && typeof latestState === "object") ? latestState : null);
+      const summary = safeState && safeState.summary && typeof safeState.summary === "object"
+        ? safeState.summary
+        : null;
+      const plugins = summary && summary.plugins && typeof summary.plugins === "object"
+        ? summary.plugins
+        : null;
+      const runtime = plugins && plugins.runtime && typeof plugins.runtime === "object"
+        ? plugins.runtime
+        : null;
+      const rows = runtime && Array.isArray(runtime.node_fields) ? runtime.node_fields : [];
+      return rows.filter((row) => row && typeof row === "object");
     }}
 
-    function nodeExplorerDefaultRosterMetadataFieldIds() {{
-      return nodeExplorerFieldDefs
+    function nodeExplorerPluginFieldDefsFromState(state = null) {{
+      const defs = [];
+      const seen = new Set();
+      for (const row of nodeExplorerPluginRuntimeFieldRows(state)) {{
+        const namespacedId = String(row.id || "").trim().toLowerCase();
+        const pluginId = String(row.plugin_id || "").trim().toLowerCase();
+        const pluginFieldId = String(row.field_id || "").trim().toLowerCase();
+        const fieldId = nodeExplorerPluginFieldIdPattern.test(namespacedId)
+          ? namespacedId
+          : (
+              pluginId && pluginFieldId
+                ? `plugin:${{pluginId}}:${{pluginFieldId}}`
+                : ""
+            );
+        if (!fieldId || !nodeExplorerPluginFieldIdPattern.test(fieldId) || seen.has(fieldId)) continue;
+        const label = String(row.label || pluginFieldId || fieldId).trim().slice(0, 32) || pluginFieldId || fieldId;
+        const groupLabel = String(row.group || "Plugins").trim().slice(0, 24) || "Plugins";
+        const valueTypeRaw = String(row.value_type || "text").trim().toLowerCase();
+        const valueType = nodeExplorerSupportedValueTypes.has(valueTypeRaw) ? valueTypeRaw : "text";
+        const renderKinds = normalizeNodeExplorerRenderKinds(row.render_kinds, row.default_render_kind || "text");
+        const defaultRenderKind = renderKinds.includes(String(row.default_render_kind || "").trim().toLowerCase())
+          ? String(row.default_render_kind || "").trim().toLowerCase()
+          : renderKinds[0];
+        seen.add(fieldId);
+        defs.push(Object.freeze({{
+          id: fieldId,
+          label,
+          sortable: !!row.sortable,
+          rosterMeta: true,
+          rosterDefault: !!row.default_visible,
+          rosterSort: !!row.sortable,
+          rosterSortLabel: label,
+          source: "plugin",
+          pluginId: pluginId || fieldId.split(":")[1],
+          pluginFieldId: pluginFieldId || fieldId.split(":")[2],
+          group: groupLabel,
+          valueType,
+          renderKinds,
+          defaultRenderKind,
+          rosterSlot: "fields",
+        }}));
+      }}
+      return defs;
+    }}
+
+    function nodeExplorerFieldDefsForState(state = null) {{
+      return nodeExplorerFieldDefs.concat(nodeExplorerPluginFieldDefsFromState(state));
+    }}
+
+    function nodeExplorerPluginFieldDef(fieldId, state = null) {{
+      const clean = String(fieldId || "").trim().toLowerCase();
+      if (!nodeExplorerPluginFieldIdPattern.test(clean)) return null;
+      return nodeExplorerPluginFieldDefsFromState(state).find((def) => String(def && def.id || "") === clean) || null;
+    }}
+
+    function normalizeNodeExplorerFieldId(value, state = null) {{
+      const clean = String(value || "").trim().toLowerCase();
+      if (nodeExplorerFieldDefById.has(clean)) return clean;
+      return nodeExplorerPluginFieldDef(clean, state) ? clean : "";
+    }}
+
+    function nodeExplorerFieldDef(fieldId, state = null) {{
+      const clean = normalizeNodeExplorerFieldId(fieldId, state);
+      if (!clean) return null;
+      return nodeExplorerFieldDefById.get(clean) || nodeExplorerPluginFieldDef(clean, state);
+    }}
+
+    function nodeExplorerRosterMetadataFieldDefs(state = null) {{
+      return nodeExplorerFieldDefsForState(state).filter((def) => !!(def && def.rosterMeta));
+    }}
+
+    function nodeExplorerDefaultRosterMetadataFieldIds(state = null) {{
+      return nodeExplorerFieldDefsForState(state)
         .filter((def) => !!(def && def.rosterMeta && def.rosterDefault))
         .map((def) => String(def.id || ""))
         .filter((id) => !!id);
@@ -77,7 +184,7 @@
         .map((def) => Object.freeze({{
           id: String(def.id || ""),
           label: String(def.rosterSortLabel || def.label || def.id || ""),
-          source: "node_field",
+          source: String(def && def.source || "node_field"),
           fieldId: String(def.id || ""),
         }}));
     }}
@@ -104,24 +211,28 @@
     );
     const chatNodeNavigatorOptionGroupDefs = Object.freeze([
       Object.freeze({{ id: "fields", label: "Fields" }}),
+      Object.freeze({{ id: "plugins", label: "Plugins" }}),
       Object.freeze({{ id: "display", label: "Display" }}),
       Object.freeze({{ id: "order", label: "Order" }}),
     ]);
-    function chatNodeNavigatorFieldOptionDefs() {{
-      return nodeExplorerRosterMetadataFieldDefs().map((def) => {{
-        const fieldId = normalizeNodeExplorerFieldId(def && def.id);
+    function chatNodeNavigatorFieldOptionDefs(state = null) {{
+      return nodeExplorerRosterMetadataFieldDefs(state).map((def) => {{
+        const fieldId = normalizeNodeExplorerFieldId(def && def.id, state);
         return Object.freeze({{
           id: `field:${{fieldId}}`,
           label: String(def && (def.rosterLabel || def.label) || fieldId),
           kind: "meta",
           fieldId,
-          source: "node_field",
-          group: "fields",
+          source: String(def && def.source || "node_field"),
+          group: String(def && def.source || "") === "plugin" ? "plugins" : "fields",
+          fieldGroup: String(def && def.group || "").trim(),
+          renderKinds: Array.isArray(def && def.renderKinds) ? def.renderKinds : Object.freeze([]),
+          defaultRenderKind: String(def && def.defaultRenderKind || ""),
         }});
       }}).filter((def) => !!(def && def.fieldId));
     }}
-    function chatNodeNavigatorOptionDefs() {{
-      return chatNodeNavigatorFieldOptionDefs().concat(chatNodeNavigatorToggleOptionDefs);
+    function chatNodeNavigatorOptionDefs(state = null) {{
+      return chatNodeNavigatorFieldOptionDefs(state).concat(chatNodeNavigatorToggleOptionDefs);
     }}
     function chatNodeNavigatorDefaultToggleOptionValue(optionId) {{
       const def = chatNodeNavigatorToggleOptionDefById.get(String(optionId || "").trim().toLowerCase());
@@ -290,6 +401,59 @@
         location_points: {{ sort: positionPoints, text: String(positionPoints), title: locationPointsTitle }},
         favorite: {{ sort: favorite ? 1 : 0, text: tagName, title: tagTitle }},
       }};
+      const pluginFieldsRaw = (
+        node
+        && typeof node === "object"
+        && node.plugin_fields
+        && typeof node.plugin_fields === "object"
+      )
+        ? node.plugin_fields
+        : null;
+      for (const def of nodeExplorerPluginFieldDefsFromState(opts.state || null)) {{
+        const fieldId = String(def && def.id || "");
+        const pluginId = String(def && def.pluginId || "");
+        const pluginFieldId = String(def && def.pluginFieldId || "");
+        if (!fieldId || fields[fieldId]) continue;
+        let rawValue = null;
+        if (pluginFieldsRaw) {{
+          if (Object.prototype.hasOwnProperty.call(pluginFieldsRaw, fieldId)) {{
+            rawValue = pluginFieldsRaw[fieldId];
+          }} else if (
+            pluginId
+            && pluginFieldId
+            && pluginFieldsRaw[pluginId]
+            && typeof pluginFieldsRaw[pluginId] === "object"
+            && Object.prototype.hasOwnProperty.call(pluginFieldsRaw[pluginId], pluginFieldId)
+          ) {{
+            rawValue = pluginFieldsRaw[pluginId][pluginFieldId];
+          }}
+        }}
+        const rawObject = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)
+          ? rawValue
+          : null;
+        const displayValue = rawObject && rawObject.value != null
+          ? rawObject.value
+          : (rawObject && rawObject.text != null ? rawObject.text : rawValue);
+        let text = "n/a";
+        if (displayValue != null) {{
+          if (def.valueType === "boolean") {{
+            text = displayValue ? "yes" : "no";
+          }} else if (def.valueType === "timestamp" && Number.isFinite(Number(displayValue)) && typeof formatLocalChatTime === "function") {{
+            text = formatLocalChatTime(Number(displayValue), "n/a", nowUnix);
+          }} else {{
+            text = String(displayValue).trim() || "n/a";
+          }}
+        }}
+        const sortValue = rawObject && rawObject.sort != null
+          ? rawObject.sort
+          : (
+              def.valueType === "number" || def.valueType === "integer" || def.valueType === "timestamp"
+                ? (Number.isFinite(Number(displayValue)) ? Number(displayValue) : "")
+                : text
+            );
+        const title = String(rawObject && rawObject.title != null ? rawObject.title : `${{def.label || pluginFieldId || fieldId}}: ${{text}}`).trim();
+        fields[fieldId] = {{ sort: sortValue, text, title }};
+      }}
 
       return {{
         node,

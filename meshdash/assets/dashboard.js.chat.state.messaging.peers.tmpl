@@ -100,20 +100,30 @@
     function normalizeChatNodeNavigatorMetaFieldIdsPref(rawIds, options = null) {{
       const opts = options && typeof options === "object" ? options : {{}};
       const fallbackToDefaults = opts.fallbackToDefaults !== false;
-      const defs = chatNodeNavigatorFieldOptionDefs();
+      const state = opts.state && typeof opts.state === "object" ? opts.state : null;
+      const defs = chatNodeNavigatorFieldOptionDefs(state);
       const allowed = new Set(defs.map((def) => String(def && def.fieldId || "")));
       const source = Array.isArray(rawIds)
         ? rawIds
         : (rawIds == null ? [] : [rawIds]);
       const normalized = [];
       for (const value of source) {{
-        const fieldId = normalizeNodeExplorerFieldId(value);
-        if (!fieldId || !allowed.has(fieldId) || normalized.includes(fieldId)) continue;
+        const cleanValue = String(value || "").trim().toLowerCase();
+        const fieldId = normalizeNodeExplorerFieldId(value, state)
+          || (nodeExplorerPluginFieldIdPattern.test(cleanValue) ? cleanValue : "");
+        const pluginFieldsLoaded = typeof nodeExplorerPluginRuntimeFieldRows === "function"
+          && nodeExplorerPluginRuntimeFieldRows(state).length > 0;
+        const preserveDeferredPluginField = (
+          nodeExplorerPluginFieldIdPattern.test(fieldId)
+          && !pluginFieldsLoaded
+          && opts.preserveDeferredPluginFields !== false
+        );
+        if (!fieldId || (!allowed.has(fieldId) && !preserveDeferredPluginField) || normalized.includes(fieldId)) continue;
         normalized.push(fieldId);
       }}
       if (normalized.length > 0) return normalized;
       return fallbackToDefaults
-        ? nodeExplorerDefaultRosterMetadataFieldIds()
+        ? nodeExplorerDefaultRosterMetadataFieldIds(state)
         : [];
     }}
 
@@ -1754,6 +1764,25 @@
       return byNode;
     }}
 
+    function chatNodeNavigatorFieldRenderKind(def, fallback = "chip") {{
+      if (!def || typeof def !== "object") return normalizeNodeExplorerRenderKind(fallback, "chip");
+      return normalizeNodeExplorerRenderKind(def.defaultRenderKind, fallback);
+    }}
+
+    function buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
+      const label = String(opts.label || (def && def.label) || cleanFieldId).trim() || cleanFieldId;
+      const value = String((field && field.text != null) ? field.text : "n/a").trim() || "n/a";
+      const title = String((field && field.title != null) ? field.title : value).trim() || value;
+      const renderKind = chatNodeNavigatorFieldRenderKind(def, "chip");
+      const source = String(def && def.source || "node_field").trim().toLowerCase() || "node_field";
+      return `<span class="chat-member-metadata-chip" data-node-field-id="${{escAttr(cleanFieldId)}}" data-node-field-source="${{escAttr(source)}}" data-node-field-render-kind="${{escAttr(renderKind)}}" title="${{escAttr(`${{label}}: ${{title}}`)}}">
+        <span class="chat-member-metadata-key">${{escAttr(label)}}</span>
+        <span class="chat-member-metadata-value">${{escAttr(value)}}</span>
+      </span>`;
+    }}
+
     function buildChatNodeNavigatorMemberHtml(item, context) {{
       try {{
         const ctx = context && typeof context === "object" ? context : {{}};
@@ -1800,6 +1829,7 @@
           node || {{ id: nodeId, long_name: (item && item.name) || nodeId }},
           {{
             nowUnix,
+            state,
             historyCaps: historyCapsById.get(nodeId) || null,
             linkQuality: linkQualityByNode.get(nodeId) || null,
             freshnessUnix: snapshot && snapshot.lastSeenUnix,
@@ -1945,6 +1975,7 @@
           ? ctx.visibleMetaFieldIds
           : normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
               fallbackToDefaults: false,
+              state,
             }});
         const showLinkQuality = Array.isArray(visibleMetaFieldIds)
           && visibleMetaFieldIds.includes("link_quality");
@@ -2085,18 +2116,12 @@
           if (visibleFieldIds.length <= 0) return "";
           const chips = [];
           for (const fieldIdRaw of visibleFieldIds) {{
-            const fieldId = normalizeNodeExplorerFieldId(fieldIdRaw);
+            const fieldId = normalizeNodeExplorerFieldId(fieldIdRaw, state);
             if (!fieldId || fieldId === "favorite" || fieldId === "hops" || fieldId === "link_quality" || fieldId === "snr" || fieldId === "last_heard") continue;
-            const def = nodeExplorerFieldDef(fieldId);
+            const def = nodeExplorerFieldDef(fieldId, state);
             const field = nodeProjection && nodeProjection.fields ? nodeProjection.fields[fieldId] : null;
             if (!def || !field) continue;
-            const chipLabel = String(def.label || fieldId).trim() || fieldId;
-            const chipValue = String((field.text != null) ? field.text : "n/a").trim() || "n/a";
-            const chipTitle = `${{chipLabel}}: ${{String((field.title != null) ? field.title : chipValue)}}`;
-            chips.push(`<span class="chat-member-metadata-chip" title="${{escAttr(chipTitle)}}">
-              <span class="chat-member-metadata-key">${{escAttr(chipLabel)}}</span>
-              <span class="chat-member-metadata-value">${{escAttr(chipValue)}}</span>
-            </span>`);
+            chips.push(buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field));
           }}
           if (chips.length <= 0) return "";
           return `<span class="chat-member-fields-row">${{chips.join("")}}</span>`;
@@ -2598,6 +2623,7 @@
       const directHistoryPeerIds = chatNodeNavigatorDirectHistoryPeerIds(safeState);
       const visibleMetaFieldIds = normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
         fallbackToDefaults: false,
+        state: safeState,
       }});
       const shouldComputeLinkQuality = chatNodeNavigatorShouldComputeLinkQuality(
         visibleMetaFieldIds,
@@ -2935,9 +2961,10 @@
         const selected = new Set(
           normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
             fallbackToDefaults: false,
+            state: latestState,
           }})
         );
-        const optionDefs = chatNodeNavigatorOptionDefs();
+        const optionDefs = chatNodeNavigatorOptionDefs(latestState);
         const checkedByOptionId = new Map(optionDefs.map((def) => {{
           const optionId = String(def && def.id || "");
           const kind = String(def && def.kind || "").trim().toLowerCase();
@@ -2950,7 +2977,7 @@
           const optionId = String(def && def.id || "").trim();
           if (!optionId) return "";
           const kind = String(def && def.kind || "toggle").trim().toLowerCase();
-          const fieldId = kind === "meta" ? normalizeNodeExplorerFieldId(def && def.fieldId) : "";
+          const fieldId = kind === "meta" ? normalizeNodeExplorerFieldId(def && def.fieldId, latestState) : "";
           if (kind === "meta" && !fieldId) return "";
           const checked = !!checkedByOptionId.get(optionId);
           const checkedAttr = checked ? " checked" : "";

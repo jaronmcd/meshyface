@@ -47,6 +47,11 @@ _COMMAND_NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _TICKER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _VIEW_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _VIEW_ICON_RE = re.compile(r"[A-Z0-9]{1,4}\Z")
+_NODE_FIELD_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_NODE_FIELD_VALUE_TYPES = frozenset({"text", "number", "integer", "timestamp", "boolean"})
+_NODE_FIELD_RENDER_KINDS = frozenset(
+    {"text", "chip", "pill", "badge", "metric", "bar", "sparkline", "timestamp", "icon"}
+)
 _MESH_ACCESS_VALUES = frozenset({"none", "read_only", "read_write", "unknown"})
 _QUIT_COMMANDS = {"!quit", "!exit"}
 _RESERVED_NODE_IDS = {"!00000000", "!ffffffff"}
@@ -781,6 +786,7 @@ class PluginRuntime:
                 runtime_status = "error"
             plugins: dict[str, dict[str, object]] = {}
             tickers: list[dict[str, object]] = []
+            node_fields: list[dict[str, object]] = []
             for plugin_id, registration in self._registry.items():
                 public_registration = dict(registration)
                 registration_error = sanitize_plugin_status_error(registration.get("error"))
@@ -830,6 +836,36 @@ class PluginRuntime:
                                 "runtime_status": plugin_status,
                             }
                         )
+                field_definitions = registration.get("node_fields")
+                if isinstance(field_definitions, list):
+                    for definition in field_definitions:
+                        if not isinstance(definition, Mapping):
+                            continue
+                        field_id = str(definition.get("id") or "").strip().lower()
+                        if not field_id:
+                            continue
+                        render_kinds = definition.get("render_kinds")
+                        node_fields.append(
+                            {
+                                "id": f"plugin:{plugin_id}:{field_id}",
+                                "plugin_id": plugin_id,
+                                "field_id": field_id,
+                                "label": str(definition.get("label") or field_id),
+                                "group": str(definition.get("group") or "Plugins"),
+                                "value_type": str(definition.get("value_type") or "text"),
+                                "render_kinds": list(render_kinds)
+                                if isinstance(render_kinds, list)
+                                else [],
+                                "default_render_kind": str(
+                                    definition.get("default_render_kind") or "text"
+                                ),
+                                "default_visible": bool(
+                                    definition.get("default_visible", False)
+                                ),
+                                "sortable": bool(definition.get("sortable", False)),
+                                "runtime_status": plugin_status,
+                            }
+                        )
             return {
                 "enabled": True,
                 "status": runtime_status,
@@ -857,6 +893,7 @@ class PluginRuntime:
                 "debug": list(self._debug_records),
                 "plugins": plugins,
                 "tickers": tickers,
+                "node_fields": node_fields,
             }
 
     def close(self) -> None:
@@ -1253,6 +1290,9 @@ class PluginRuntime:
                 clean_registration["views"] = list(
                     self._validated_view_definitions(row.get("views"))
                 )
+                clean_registration["node_fields"] = list(
+                    self._validated_node_field_definitions(row.get("node_fields"))
+                )
                 clean_registration["mesh_access"] = _validated_mesh_access(
                     row.get("mesh_access")
                 )
@@ -1270,6 +1310,7 @@ class PluginRuntime:
                         "mesh_access": "unknown",
                         "tickers": [],
                         "views": [definition.to_dict(include_content=False) for definition in manifest.views],
+                        "node_fields": [],
                         "error": self._quarantine_error(manifest.id),
                         "failures": self._plugin_failures.get(manifest.id, 0),
                         "last_error": self._plugin_last_errors.get(manifest.id, ""),
@@ -1340,6 +1381,7 @@ class PluginRuntime:
                 "mesh_access": "unknown",
                 "tickers": [],
                 "views": [definition.to_dict(include_content=False) for definition in manifest.views],
+                "node_fields": [],
                 "error": self._quarantine_error(manifest.id),
                 "failures": self._plugin_failures.get(manifest.id, 0),
                 "last_error": self._plugin_last_errors.get(manifest.id, ""),
@@ -1697,6 +1739,75 @@ class PluginRuntime:
                     "icon": icon,
                     "description": description,
                     "content": content,
+                }
+            )
+        return tuple(definitions)
+
+    def _validated_node_field_definitions(
+        self,
+        raw: object,
+    ) -> tuple[dict[str, object], ...]:
+        if raw is None:
+            return ()
+        if not isinstance(raw, list) or len(raw) > 32:
+            raise ValueError("plugin registry has an invalid node field list")
+        definitions: list[dict[str, object]] = []
+        seen: set[str] = set()
+        expected = {
+            "id",
+            "label",
+            "group",
+            "value_type",
+            "render_kinds",
+            "default_render_kind",
+            "default_visible",
+            "sortable",
+        }
+        for item in raw:
+            if not isinstance(item, Mapping) or set(item) != expected:
+                raise ValueError("plugin node field definition has invalid fields")
+            field_id = str(item.get("id") or "")
+            label = str(item.get("label") or "")
+            group = str(item.get("group") or "")
+            value_type = str(item.get("value_type") or "")
+            render_kinds_raw = item.get("render_kinds")
+            render_kinds = (
+                [str(kind) for kind in render_kinds_raw]
+                if isinstance(render_kinds_raw, list)
+                else []
+            )
+            default_render_kind = str(item.get("default_render_kind") or "")
+            default_visible = item.get("default_visible")
+            sortable = item.get("sortable")
+            if _NODE_FIELD_ID_RE.fullmatch(field_id) is None or field_id in seen:
+                raise ValueError("plugin node field definition has an invalid or duplicate ID")
+            if not label or label != label.strip() or len(label) > 32:
+                raise ValueError("plugin node field definition has an invalid label")
+            if not group or group != group.strip() or len(group) > 24:
+                raise ValueError("plugin node field definition has an invalid group")
+            if value_type not in _NODE_FIELD_VALUE_TYPES:
+                raise ValueError("plugin node field definition has an invalid value type")
+            if (
+                not render_kinds
+                or len(render_kinds) > 8
+                or any(kind not in _NODE_FIELD_RENDER_KINDS for kind in render_kinds)
+            ):
+                raise ValueError("plugin node field definition has invalid render kinds")
+            if default_render_kind not in render_kinds:
+                raise ValueError("plugin node field default render kind is invalid")
+            if not isinstance(default_visible, bool) or not isinstance(sortable, bool):
+                raise ValueError("plugin node field definition flags must be booleans")
+            seen.add(field_id)
+            definitions.append(
+                {
+                    "id": field_id,
+                    "label": label,
+                    "group": group,
+                    "value_type": value_type,
+                    "render_kinds": render_kinds,
+                    "default_render_kind": default_render_kind,
+                    "default_visible": default_visible,
+                    "sortable": sortable,
                 }
             )
         return tuple(definitions)

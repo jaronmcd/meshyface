@@ -573,6 +573,7 @@ def plugin_worker_main(connection: object) -> None:
                         "mesh_access": "unknown",
                         "tickers": [],
                         "views": [definition.to_dict() for definition in manifest.views],
+                        "node_fields": [],
                     }
                 )
             else:
@@ -589,6 +590,9 @@ def plugin_worker_main(connection: object) -> None:
                         "mesh_access": _script_mesh_access(script),
                         "tickers": [definition.to_dict() for definition in script.tickers.values()],
                         "views": [definition.to_dict() for definition in script.views.values()],
+                        "node_fields": [
+                            definition.to_dict() for definition in script.node_fields.values()
+                        ],
                     }
                 )
         send_bytes(encode_message({"type": "ready", "registry": registry}))

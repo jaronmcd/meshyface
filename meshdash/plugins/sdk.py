@@ -22,6 +22,11 @@ _COMMAND_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _TICKER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _VIEW_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _VIEW_ICON_RE = re.compile(r"[A-Z0-9]{1,4}\Z")
+_NODE_FIELD_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_NODE_FIELD_VALUE_TYPES = frozenset({"text", "number", "integer", "timestamp", "boolean"})
+_NODE_FIELD_RENDER_KINDS = frozenset(
+    {"text", "chip", "pill", "badge", "metric", "bar", "sparkline", "timestamp", "icon"}
+)
 
 
 def _nonempty_string(value: object, field: str, *, maximum: int | None = None) -> str:
@@ -139,6 +144,54 @@ class ViewDefinition:
         if include_content:
             payload["content"] = self.content
         return payload
+
+
+@dataclass(frozen=True, slots=True)
+class NodeFieldDefinition:
+    """One node-list field declaration contributed by a Script."""
+
+    id: str
+    label: str
+    group: str = "Plugins"
+    value_type: Literal["text", "number", "integer", "timestamp", "boolean"] = "text"
+    render_kinds: tuple[str, ...] = ("text",)
+    default_render_kind: str = "text"
+    default_visible: bool = False
+    sortable: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or _NODE_FIELD_ID_RE.fullmatch(self.id) is None:
+            raise ValueError("node field id must match [a-z][a-z0-9_-]{0,31}")
+        _nonempty_string(self.label, "node field label", maximum=32)
+        group = _nonempty_string(self.group, "node field group", maximum=24)
+        object.__setattr__(self, "group", group)
+        if self.value_type not in _NODE_FIELD_VALUE_TYPES:
+            raise ValueError("node field value_type is unsupported")
+        if (
+            not isinstance(self.render_kinds, tuple)
+            or not self.render_kinds
+            or len(self.render_kinds) > 8
+            or any(kind not in _NODE_FIELD_RENDER_KINDS for kind in self.render_kinds)
+        ):
+            raise ValueError("node field render_kinds contains unsupported values")
+        if self.default_render_kind not in self.render_kinds:
+            raise ValueError("node field default_render_kind must be in render_kinds")
+        if not isinstance(self.default_visible, bool):
+            raise ValueError("node field default_visible must be a boolean")
+        if not isinstance(self.sortable, bool):
+            raise ValueError("node field sortable must be a boolean")
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "id": self.id,
+            "label": self.label,
+            "group": self.group,
+            "value_type": self.value_type,
+            "render_kinds": list(self.render_kinds),
+            "default_render_kind": self.default_render_kind,
+            "default_visible": self.default_visible,
+            "sortable": self.sortable,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -498,6 +551,8 @@ class Script:
         self._tickers_view: Mapping[str, TickerDefinition] = MappingProxyType(self._tickers)
         self._views: dict[str, ViewDefinition] = {}
         self._views_view: Mapping[str, ViewDefinition] = MappingProxyType(self._views)
+        self._node_fields: dict[str, NodeFieldDefinition] = {}
+        self._node_fields_view: Mapping[str, NodeFieldDefinition] = MappingProxyType(self._node_fields)
         self._message_handler: ScriptHandler | None = None
         self._packet_handler: ScriptHandler | None = None
         self._session_handler: ScriptHandler | None = None
@@ -533,6 +588,12 @@ class Script:
         """Live, read-only view of dashboard workspace view declarations."""
 
         return self._views_view
+
+    @property
+    def node_fields(self) -> Mapping[str, NodeFieldDefinition]:
+        """Live, read-only view of node-list field declarations."""
+
+        return self._node_fields_view
 
     @property
     def message_handler(self) -> ScriptHandler | None:
@@ -609,6 +670,35 @@ class Script:
         if definition.id in self._views:
             raise ValueError(f"view {definition.id!r} is already registered")
         self._views[definition.id] = definition
+        return definition
+
+    def node_field(
+        self,
+        field_id: str,
+        *,
+        label: str,
+        group: str = "Plugins",
+        value_type: Literal["text", "number", "integer", "timestamp", "boolean"] = "text",
+        render_kinds: tuple[str, ...] = ("text",),
+        default_render_kind: str = "text",
+        default_visible: bool = False,
+        sortable: bool = False,
+    ) -> NodeFieldDefinition:
+        """Declare one optional node-list field owned by this Script."""
+
+        definition = NodeFieldDefinition(
+            id=field_id,
+            label=label,
+            group=group,
+            value_type=value_type,
+            render_kinds=render_kinds,
+            default_render_kind=default_render_kind,
+            default_visible=default_visible,
+            sortable=sortable,
+        )
+        if definition.id in self._node_fields:
+            raise ValueError(f"node field {definition.id!r} is already registered")
+        self._node_fields[definition.id] = definition
         return definition
 
     def on_message(self, handler: ScriptHandler) -> ScriptHandler:

@@ -199,6 +199,39 @@ script.view(
     )
 
 
+def _write_node_field_plugin(root: Path) -> None:
+    directory = root / "nodefields"
+    directory.mkdir(parents=True)
+    (directory / "plugin.toml").write_text(
+        """api_version = 1
+id = "nodefields"
+name = "Node Fields"
+version = "1.0.0"
+entrypoint = "script.py:script"
+commands = []
+default_enabled = true
+""",
+        encoding="utf-8",
+    )
+    (directory / "script.py").write_text(
+        """
+from meshdash.plugins import Script
+script = Script(id="nodefields", name="Node Fields", version="1.0.0")
+script.node_field(
+    "quality",
+    label="Quality",
+    group="Signal",
+    value_type="number",
+    render_kinds=("metric", "pill", "bar"),
+    default_render_kind="metric",
+    default_visible=True,
+    sortable=True,
+)
+""",
+        encoding="utf-8",
+    )
+
+
 def _wait_until(predicate, timeout: float = 4.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -580,6 +613,53 @@ def test_plugin_status_exposes_manifest_views_with_runtime_content(tmp_path) -> 
         assert disabled_script["active"] is True
         assert disabled_script["view_enabled"] is False
         assert disabled_script["views"][0]["content"] == "# Viewer\n\nRuntime view body."
+    finally:
+        subsystem.close()
+
+
+def test_plugin_status_exposes_runtime_node_field_definitions(tmp_path) -> None:
+    plugin_root = tmp_path / "plugins"
+    _write_node_field_plugin(plugin_root)
+    subsystem = build_plugin_subsystem(
+        args=_args(tmp_path, plugin_enable=["nodefields"]),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        _wait_until(
+            lambda: len(subsystem.status()["runtime"].get("node_fields", [])) == 1  # type: ignore[union-attr]
+        )
+        status = subsystem.status()
+
+        assert status["runtime"]["node_fields"] == [  # type: ignore[index]
+            {
+                "id": "plugin:nodefields:quality",
+                "plugin_id": "nodefields",
+                "field_id": "quality",
+                "label": "Quality",
+                "group": "Signal",
+                "value_type": "number",
+                "render_kinds": ["metric", "pill", "bar"],
+                "default_render_kind": "metric",
+                "default_visible": True,
+                "sortable": True,
+                "runtime_status": "running",
+            }
+        ]
+        assert status["runtime"]["plugins"]["nodefields"]["node_fields"] == [  # type: ignore[index]
+            {
+                "id": "quality",
+                "label": "Quality",
+                "group": "Signal",
+                "value_type": "number",
+                "render_kinds": ["metric", "pill", "bar"],
+                "default_render_kind": "metric",
+                "default_visible": True,
+                "sortable": True,
+            }
+        ]
     finally:
         subsystem.close()
 

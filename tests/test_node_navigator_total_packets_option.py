@@ -58,7 +58,7 @@ def test_dashboard_js_adds_link_quality_metadata_field_and_sort_option() -> None
         in js
     )
     assert "function chatNodeNavigatorFieldSortDefs() {" in js
-    assert 'source: "node_field"' in js
+    assert 'source: String(def && def.source || "node_field")' in js
     assert "function buildChatNodeNavigatorLinkQualityByNode(" in js
     assert "function chatNodeNavigatorInferLinkQuality(" in js
     assert 'showLinkQuality = Array.isArray(visibleMetaFieldIds)' in js
@@ -244,11 +244,12 @@ def test_dashboard_groups_node_navigator_options_from_registry() -> None:
 
     assert "const chatNodeNavigatorOptionGroupDefs = Object.freeze([" in js
     assert 'Object.freeze({ id: "fields", label: "Fields" })' in js
+    assert 'Object.freeze({ id: "plugins", label: "Plugins" })' in js
     assert 'Object.freeze({ id: "display", label: "Display" })' in js
     assert 'Object.freeze({ id: "order", label: "Order" })' in js
     assert 'id: "city", label: "City", prefKey: "showCity", defaultValue: true, sortAffects: false, group: "display"' in js
     assert 'id: "direct-history", label: "DM history first", prefKey: "pinDirectHistory", defaultValue: false, sortAffects: true, group: "order"' in js
-    assert 'group: "fields"' in js
+    assert 'group: String(def && def.source || "") === "plugin" ? "plugins" : "fields"' in js
     assert "const optionDefsByGroup = new Map();" in js
     assert 'data-nav-option-group="${escAttr(groupId)}"' in js
     assert 'class="chat-node-navigator-field-option${checkedClass}"' in js
@@ -257,6 +258,26 @@ def test_dashboard_groups_node_navigator_options_from_registry() -> None:
     assert ".chat-node-navigator-option-section {" in css
     assert ".chat-node-navigator-option-grid {" in css
     assert ".chat-node-navigator-field-option.is-checked {" in css
+
+
+def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "const nodeExplorerPluginFieldIdPattern = /^plugin:" in js
+    assert "function nodeExplorerPluginRuntimeFieldRows(state = null) {" in js
+    assert "runtime.node_fields" in js
+    assert 'source: "plugin"' in js
+    assert 'group: String(def && def.source || "") === "plugin" ? "plugins" : "fields"' in js
+    assert "function chatNodeNavigatorFieldRenderKind(def, fallback = \"chip\") {" in js
+    assert "function buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field, options = null) {" in js
+    assert 'data-node-field-source="${escAttr(source)}"' in js
+    assert 'data-node-field-render-kind="${escAttr(renderKind)}"' in js
+    assert "node.plugin_fields" in js
+    assert "nodeExplorerPluginFieldDefsFromState(opts.state || null)" in js
 
 
 def test_dashboard_js_only_applies_saved_peer_pin_sorting_in_direct_mode() -> None:
