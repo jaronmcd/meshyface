@@ -63,15 +63,23 @@ def _node_snapshot(iface: object) -> list[dict[str, object]]:
             continue
         user = value.get("user")
         user_id = user.get("id") if isinstance(user, Mapping) else None
+        metrics = value.get("deviceMetrics")
+        metrics = metrics if isinstance(metrics, Mapping) else {}
         numeric = to_int(node_num)
+        last_heard = value.get("lastHeard")
+        hops_away = value.get("hopsAway")
         row: dict[str, object] = {
             "id": str(user_id or (f"!{numeric:08x}" if numeric is not None else "")),
             "node_num": numeric,
             "long_name": user.get("longName") if isinstance(user, Mapping) else None,
             "short_name": user.get("shortName") if isinstance(user, Mapping) else None,
-            "last_heard": value.get("lastHeard"),
+            "hardware_model": user.get("hwModel") if isinstance(user, Mapping) else None,
+            "last_heard": last_heard,
+            "last_heard_unix": last_heard,
             "snr": value.get("snr"),
-            "hops": value.get("hopsAway"),
+            "hops": hops_away,
+            "hops_away": hops_away,
+            "battery_level": metrics.get("batteryLevel"),
         }
         position = value.get("position")
         coordinates = extract_position_fields(position)

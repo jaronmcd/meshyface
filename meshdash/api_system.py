@@ -11,6 +11,8 @@ _PUBLIC_PLUGIN_COMMAND_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _PUBLIC_PLUGIN_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 _PUBLIC_PLUGIN_VIEW_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _PUBLIC_PLUGIN_VIEW_ICON_RE = re.compile(r"[A-Z0-9]{1,4}\Z")
+_PUBLIC_PLUGIN_NODE_FIELD_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_PUBLIC_NODE_ID_RE = re.compile(r"![0-9a-f]{8}\Z")
 
 
 def _truthy_query_flag(query: str, key: str) -> bool:
@@ -115,6 +117,92 @@ def _public_plugin_tickers(
             }
         )
     return safe_tickers
+
+
+def _public_plugin_node_fields(
+    runtime: Mapping[str, object],
+) -> tuple[list[dict[str, object]], set[tuple[str, str]]]:
+    rows = runtime.get("node_fields")
+    if not isinstance(rows, list):
+        return [], set()
+    safe_fields: list[dict[str, object]] = []
+    declared: set[tuple[str, str]] = set()
+    public_fields = {
+        "id",
+        "plugin_id",
+        "field_id",
+        "label",
+        "group",
+        "value_type",
+        "render_kinds",
+        "default_render_kind",
+        "default_visible",
+        "sortable",
+        "runtime_status",
+    }
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        plugin_id = str(row.get("plugin_id") or "").strip().lower()
+        field_id = str(row.get("field_id") or "").strip().lower()
+        namespaced_id = str(row.get("id") or "").strip().lower()
+        if (
+            _PUBLIC_PLUGIN_ID_RE.fullmatch(plugin_id) is None
+            or _PUBLIC_PLUGIN_NODE_FIELD_RE.fullmatch(field_id) is None
+            or namespaced_id != f"plugin:{plugin_id}:{field_id}"
+        ):
+            continue
+        declared.add((plugin_id, field_id))
+        safe_fields.append(
+            {
+                str(key): value
+                for key, value in row.items()
+                if str(key) in public_fields
+            }
+        )
+    return safe_fields, declared
+
+
+def _public_plugin_node_field_values(
+    runtime: Mapping[str, object],
+    declared_node_fields: set[tuple[str, str]],
+) -> list[dict[str, object]]:
+    rows = runtime.get("node_field_values")
+    if not isinstance(rows, list):
+        return []
+    safe_values: list[dict[str, object]] = []
+    public_fields = {
+        "id",
+        "plugin_id",
+        "field_id",
+        "node_id",
+        "value",
+        "sort",
+        "title",
+        "updated_at",
+        "runtime_status",
+    }
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        plugin_id = str(row.get("plugin_id") or "").strip().lower()
+        field_id = str(row.get("field_id") or "").strip().lower()
+        node_id = str(row.get("node_id") or "").strip().lower()
+        namespaced_id = str(row.get("id") or "").strip().lower()
+        if (
+            (plugin_id, field_id) not in declared_node_fields
+            or _PUBLIC_NODE_ID_RE.fullmatch(node_id) is None
+            or namespaced_id != f"plugin:{plugin_id}:{field_id}"
+        ):
+            continue
+        safe_values.append(
+            {
+                str(key): value
+                for key, value in row.items()
+                if str(key) in public_fields
+            }
+        )
+    return safe_values
 
 
 def _public_plugin_console_commands(plugins: Mapping[str, object]) -> list[dict[str, object]]:
@@ -232,10 +320,16 @@ def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
     else:
         health = "enabled"
     enabled_plugins = plugins.get("enabled_plugins")
+    node_fields, declared_node_fields = _public_plugin_node_fields(runtime)
     public_runtime: dict[str, object] = {
         "tickers": _public_plugin_tickers(
             runtime,
             ticker_enabled_by_plugin=ticker_enabled_by_plugin,
+        ),
+        "node_fields": node_fields,
+        "node_field_values": _public_plugin_node_field_values(
+            runtime,
+            declared_node_fields,
         ),
     }
     if runtime_status:

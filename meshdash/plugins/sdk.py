@@ -525,6 +525,16 @@ class ScriptContext(Protocol):
         metric_value: float | int | None = None,
     ) -> None: ...
 
+    def set_node_field(
+        self,
+        node_id: str,
+        field_id: str,
+        *,
+        value: JsonValue = "n/a",
+        sort: JsonValue | None = None,
+        title: str = "",
+    ) -> None: ...
+
     def debug(self, *values: object) -> None: ...
 
 

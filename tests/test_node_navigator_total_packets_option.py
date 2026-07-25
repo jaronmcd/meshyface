@@ -269,7 +269,10 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
 
     assert "const nodeExplorerPluginFieldIdPattern = /^plugin:" in js
     assert "function nodeExplorerPluginRuntimeFieldRows(state = null) {" in js
+    assert "function nodeExplorerPluginRuntimeFieldValueRows(state = null) {" in js
+    assert "function nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, state = null) {" in js
     assert "runtime.node_fields" in js
+    assert "runtime.node_field_values" in js
     assert 'source: "plugin"' in js
     assert 'group: String(def && def.source || "") === "plugin" ? "plugins" : "fields"' in js
     assert "function chatNodeNavigatorFieldRenderKind(def, fallback = \"chip\") {" in js
@@ -278,6 +281,7 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
     assert 'data-node-field-render-kind="${escAttr(renderKind)}"' in js
     assert "node.plugin_fields" in js
     assert "nodeExplorerPluginFieldDefsFromState(opts.state || null)" in js
+    assert "nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, opts.state || null)" in js
 
 
 def test_dashboard_js_only_applies_saved_peer_pin_sorting_in_direct_mode() -> None:

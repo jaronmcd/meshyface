@@ -596,6 +596,44 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                                 "runtime_status": "running",
                             }
                         ],
+                        "node_fields": [
+                            {
+                                "id": "plugin:weather:quality",
+                                "plugin_id": "weather",
+                                "field_id": "quality",
+                                "label": "Quality",
+                                "group": "Signal",
+                                "value_type": "number",
+                                "render_kinds": ["metric", "pill"],
+                                "default_render_kind": "metric",
+                                "default_visible": False,
+                                "sortable": True,
+                                "runtime_status": "running",
+                                "private_field": "drop me",
+                            }
+                        ],
+                        "node_field_values": [
+                            {
+                                "id": "plugin:weather:quality",
+                                "plugin_id": "weather",
+                                "field_id": "quality",
+                                "node_id": "!01020304",
+                                "value": 87,
+                                "sort": 87,
+                                "title": "Quality: 87",
+                                "updated_at": 123.5,
+                                "runtime_status": "running",
+                                "private_field": "drop me",
+                            },
+                            {
+                                "id": "plugin:weather:unknown",
+                                "plugin_id": "weather",
+                                "field_id": "unknown",
+                                "node_id": "!01020304",
+                                "value": "hidden",
+                                "runtime_status": "running",
+                            },
+                        ],
                     },
                 }
             },
@@ -655,6 +693,34 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                     "detail": "public ticker detail",
                     "metric": True,
                     "default_enabled": True,
+                    "runtime_status": "running",
+                }
+            ],
+            "node_fields": [
+                {
+                    "id": "plugin:weather:quality",
+                    "plugin_id": "weather",
+                    "field_id": "quality",
+                    "label": "Quality",
+                    "group": "Signal",
+                    "value_type": "number",
+                    "render_kinds": ["metric", "pill"],
+                    "default_render_kind": "metric",
+                    "default_visible": False,
+                    "sortable": True,
+                    "runtime_status": "running",
+                }
+            ],
+            "node_field_values": [
+                {
+                    "id": "plugin:weather:quality",
+                    "plugin_id": "weather",
+                    "field_id": "quality",
+                    "node_id": "!01020304",
+                    "value": 87,
+                    "sort": 87,
+                    "title": "Quality: 87",
+                    "updated_at": 123.5,
                     "runtime_status": "running",
                 }
             ],

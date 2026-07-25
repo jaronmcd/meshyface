@@ -11,7 +11,7 @@ from meshdash.file_transfer_protocol import (
     encode_file_transfer_frame,
     parse_file_transfer_frame_text,
 )
-from meshdash.plugin_composition import PluginSubsystem, build_plugin_subsystem
+from meshdash.plugin_composition import PluginSubsystem, _node_snapshot, build_plugin_subsystem
 from meshdash.plugin_state import PluginStateStore
 
 
@@ -85,6 +85,43 @@ def echo(ctx):
 """,
         encoding="utf-8",
     )
+
+
+def test_plugin_node_snapshot_exposes_node_list_fields() -> None:
+    snapshot = _node_snapshot(
+        SimpleNamespace(
+            nodesByNum={
+                0x01020304: {
+                    "user": {
+                        "id": "!01020304",
+                        "longName": "Long",
+                        "shortName": "Shrt",
+                        "hwModel": "T-Echo",
+                    },
+                    "deviceMetrics": {"batteryLevel": 87},
+                    "lastHeard": 1_700_000_100,
+                    "hopsAway": 2,
+                    "snr": 7.5,
+                }
+            }
+        )
+    )
+
+    assert snapshot == [
+        {
+            "id": "!01020304",
+            "node_num": 0x01020304,
+            "long_name": "Long",
+            "short_name": "Shrt",
+            "hardware_model": "T-Echo",
+            "last_heard": 1_700_000_100,
+            "last_heard_unix": 1_700_000_100,
+            "snr": 7.5,
+            "hops": 2,
+            "hops_away": 2,
+            "battery_level": 87,
+        }
+    ]
 
 
 def _write_config_plugin(root: Path) -> None:
@@ -227,6 +264,15 @@ script.node_field(
     default_visible=True,
     sortable=True,
 )
+@script.on_start
+def start(ctx):
+    ctx.set_node_field(
+        "!01020304",
+        "quality",
+        value=87,
+        sort=87,
+        title="Quality: 87",
+    )
 """,
         encoding="utf-8",
     )
@@ -630,6 +676,7 @@ def test_plugin_status_exposes_runtime_node_field_definitions(tmp_path) -> None:
     try:
         _wait_until(
             lambda: len(subsystem.status()["runtime"].get("node_fields", [])) == 1  # type: ignore[union-attr]
+            and len(subsystem.status()["runtime"].get("node_field_values", [])) == 1  # type: ignore[union-attr]
         )
         status = subsystem.status()
 
@@ -645,6 +692,19 @@ def test_plugin_status_exposes_runtime_node_field_definitions(tmp_path) -> None:
                 "default_render_kind": "metric",
                 "default_visible": True,
                 "sortable": True,
+                "runtime_status": "running",
+            }
+        ]
+        assert status["runtime"]["node_field_values"] == [  # type: ignore[index]
+            {
+                "id": "plugin:nodefields:quality",
+                "plugin_id": "nodefields",
+                "field_id": "quality",
+                "node_id": "!01020304",
+                "value": 87,
+                "sort": 87,
+                "title": "Quality: 87",
+                "updated_at": status["runtime"]["node_field_values"][0]["updated_at"],  # type: ignore[index]
                 "runtime_status": "running",
             }
         ]

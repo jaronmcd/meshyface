@@ -77,6 +77,48 @@
       return rows.filter((row) => row && typeof row === "object");
     }}
 
+    function nodeExplorerPluginRuntimeFieldValueRows(state = null) {{
+      const safeState = state && typeof state === "object"
+        ? state
+        : ((typeof latestState !== "undefined" && latestState && typeof latestState === "object") ? latestState : null);
+      const summary = safeState && safeState.summary && typeof safeState.summary === "object"
+        ? safeState.summary
+        : null;
+      const plugins = summary && summary.plugins && typeof summary.plugins === "object"
+        ? summary.plugins
+        : null;
+      const runtime = plugins && plugins.runtime && typeof plugins.runtime === "object"
+        ? plugins.runtime
+        : null;
+      const rows = runtime && Array.isArray(runtime.node_field_values) ? runtime.node_field_values : [];
+      return rows.filter((row) => row && typeof row === "object");
+    }}
+
+    function nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, state = null) {{
+      const cleanNodeId = (typeof normalizeNodeId === "function")
+        ? normalizeNodeId(nodeId)
+        : String(nodeId || "").trim().toLowerCase();
+      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
+      if (!cleanNodeId || !nodeExplorerPluginFieldIdPattern.test(cleanFieldId)) return null;
+      for (const row of nodeExplorerPluginRuntimeFieldValueRows(state)) {{
+        const rowNodeId = (typeof normalizeNodeId === "function")
+          ? normalizeNodeId(row.node_id)
+          : String(row.node_id || "").trim().toLowerCase();
+        const namespacedId = String(row.id || "").trim().toLowerCase();
+        const pluginId = String(row.plugin_id || "").trim().toLowerCase();
+        const pluginFieldId = String(row.field_id || "").trim().toLowerCase();
+        const rowFieldId = nodeExplorerPluginFieldIdPattern.test(namespacedId)
+          ? namespacedId
+          : (
+              pluginId && pluginFieldId
+                ? `plugin:${{pluginId}}:${{pluginFieldId}}`
+                : ""
+            );
+        if (rowNodeId === cleanNodeId && rowFieldId === cleanFieldId) return row;
+      }}
+      return null;
+    }}
+
     function nodeExplorerPluginFieldDefsFromState(state = null) {{
       const defs = [];
       const seen = new Set();
@@ -427,6 +469,9 @@
           ) {{
             rawValue = pluginFieldsRaw[pluginId][pluginFieldId];
           }}
+        }}
+        if (rawValue == null) {{
+          rawValue = nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, opts.state || null);
         }}
         const rawObject = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)
           ? rawValue

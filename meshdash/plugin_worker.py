@@ -7,6 +7,7 @@ import importlib.util
 import json
 import logging
 import math
+import re
 import sys
 import dis
 from collections.abc import Mapping, MutableMapping, Sequence
@@ -41,7 +42,13 @@ MAX_HANDLER_ACTIONS = 16
 MAX_HANDLER_DEBUG_CALLS = 16
 MAX_HANDLER_DEBUG_BYTES = 16 * 1024
 MAX_HANDLER_TICKER_UPDATES = 8
+MAX_HANDLER_NODE_FIELD_UPDATES = 64
 MAX_TICKER_ROWS = 8
+MAX_NODE_FIELD_VALUE_BYTES = 96
+MAX_NODE_FIELD_TITLE_BYTES = 160
+
+_NODE_ID_RE = re.compile(r"![0-9a-f]{8}\Z")
+_RESERVED_NODE_IDS = {"!00000000", "!ffffffff"}
 
 _MESH_READ_CALLS = frozenset(
     {
@@ -314,6 +321,8 @@ class _WorkerContext:
     debug_entries: list[list[JsonValue]]
     declared_ticker_ids: frozenset[str]
     ticker_updates: dict[str, dict[str, JsonValue]]
+    declared_node_field_ids: frozenset[str]
+    node_field_updates: dict[tuple[str, str], dict[str, JsonValue]]
 
     @property
     def packet(self) -> Mapping[str, JsonValue] | None:
@@ -383,6 +392,56 @@ class _WorkerContext:
             "state": clean_state,
             "detail": clean_detail,
             "metric_value": metric_value,
+        }
+
+    def set_node_field(
+        self,
+        node_id: str,
+        field_id: str,
+        *,
+        value: JsonValue = "n/a",
+        sort: JsonValue | None = None,
+        title: str = "",
+    ) -> None:
+        clean_node_id = str(node_id or "").strip().lower()
+        if _NODE_ID_RE.fullmatch(clean_node_id) is None or clean_node_id in _RESERVED_NODE_IDS:
+            raise ValueError("node field node_id must be a canonical node ID")
+        clean_field_id = str(field_id or "").strip().lower()
+        if clean_field_id not in self.declared_node_field_ids:
+            raise ValueError(f"node field {clean_field_id!r} was not declared by this plugin")
+        key = (clean_node_id, clean_field_id)
+        if (
+            key not in self.node_field_updates
+            and len(self.node_field_updates) >= MAX_HANDLER_NODE_FIELD_UPDATES
+        ):
+            raise ValueError("plugin handler updated too many node fields")
+        clean_value = _ticker_scalar(
+            value,
+            "node field value",
+            maximum=MAX_NODE_FIELD_VALUE_BYTES,
+        )
+        clean_sort = (
+            None
+            if sort is None
+            else _ticker_scalar(
+                sort,
+                "node field sort",
+                maximum=MAX_NODE_FIELD_VALUE_BYTES,
+            )
+        )
+        if not isinstance(title, str):
+            raise ValueError("node field title must be a string")
+        clean_title = " ".join(title.split()).strip()
+        if len(clean_title) > MAX_NODE_FIELD_TITLE_BYTES:
+            raise ValueError(
+                f"node field title must be at most {MAX_NODE_FIELD_TITLE_BYTES} characters"
+            )
+        self.node_field_updates[key] = {
+            "node_id": clean_node_id,
+            "field_id": clean_field_id,
+            "value": clean_value,
+            "sort": clean_sort,
+            "title": clean_title,
         }
 
     def debug(self, *values: object) -> None:
@@ -481,6 +540,7 @@ def _handle_invoke(scripts: Mapping[str, Script], message: Mapping[str, object])
     session = _WorkerSession(initial_session_active)
     debug_entries: list[list[JsonValue]] = []
     ticker_updates: dict[str, dict[str, JsonValue]] = {}
+    node_field_updates: dict[tuple[str, str], dict[str, JsonValue]] = {}
     context = _WorkerContext(
         message=event,
         state=state,
@@ -492,6 +552,8 @@ def _handle_invoke(scripts: Mapping[str, Script], message: Mapping[str, object])
         debug_entries=debug_entries,
         declared_ticker_ids=frozenset(script.tickers),
         ticker_updates=ticker_updates,
+        declared_node_field_ids=frozenset(script.node_fields),
+        node_field_updates=node_field_updates,
     )
     if handler_kind == "command":
         command = str(message.get("command") or "")
@@ -527,6 +589,7 @@ def _handle_invoke(scripts: Mapping[str, Script], message: Mapping[str, object])
         "actions": actions,
         "debug": debug_entries,
         "tickers": list(ticker_updates.values()),
+        "node_fields": list(node_field_updates.values()),
     }
 
 

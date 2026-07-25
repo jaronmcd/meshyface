@@ -52,6 +52,9 @@ _NODE_FIELD_VALUE_TYPES = frozenset({"text", "number", "integer", "timestamp", "
 _NODE_FIELD_RENDER_KINDS = frozenset(
     {"text", "chip", "pill", "badge", "metric", "bar", "sparkline", "timestamp", "icon"}
 )
+_MAX_PLUGIN_NODE_FIELD_UPDATES = 64
+_MAX_PLUGIN_NODE_FIELD_VALUE_BYTES = 96
+_MAX_PLUGIN_NODE_FIELD_TITLE_BYTES = 160
 _MESH_ACCESS_VALUES = frozenset({"none", "read_only", "read_write", "unknown"})
 _QUIT_COMMANDS = {"!quit", "!exit"}
 _RESERVED_NODE_IDS = {"!00000000", "!ffffffff"}
@@ -420,6 +423,7 @@ class PluginRuntime:
         self._status_lock = threading.Lock()
         self._registry: dict[str, dict[str, object]] = {}
         self._ticker_values: dict[tuple[str, str], dict[str, object]] = {}
+        self._node_field_values: dict[tuple[str, str, str], dict[str, object]] = {}
         self._process: object | None = None
         self._connection: object | None = None
         self._worker_ready = False
@@ -787,6 +791,7 @@ class PluginRuntime:
             plugins: dict[str, dict[str, object]] = {}
             tickers: list[dict[str, object]] = []
             node_fields: list[dict[str, object]] = []
+            node_field_values: list[dict[str, object]] = []
             for plugin_id, registration in self._registry.items():
                 public_registration = dict(registration)
                 registration_error = sanitize_plugin_status_error(registration.get("error"))
@@ -838,12 +843,14 @@ class PluginRuntime:
                         )
                 field_definitions = registration.get("node_fields")
                 if isinstance(field_definitions, list):
+                    declared_field_ids: set[str] = set()
                     for definition in field_definitions:
                         if not isinstance(definition, Mapping):
                             continue
                         field_id = str(definition.get("id") or "").strip().lower()
                         if not field_id:
                             continue
+                        declared_field_ids.add(field_id)
                         render_kinds = definition.get("render_kinds")
                         node_fields.append(
                             {
@@ -863,6 +870,23 @@ class PluginRuntime:
                                     definition.get("default_visible", False)
                                 ),
                                 "sortable": bool(definition.get("sortable", False)),
+                                "runtime_status": plugin_status,
+                            }
+                        )
+                    for key, value in self._node_field_values.items():
+                        value_plugin_id, node_id, field_id = key
+                        if value_plugin_id != plugin_id or field_id not in declared_field_ids:
+                            continue
+                        node_field_values.append(
+                            {
+                                "id": f"plugin:{plugin_id}:{field_id}",
+                                "plugin_id": plugin_id,
+                                "field_id": field_id,
+                                "node_id": node_id,
+                                "value": value.get("value", "n/a"),
+                                "sort": value.get("sort"),
+                                "title": str(value.get("title") or ""),
+                                "updated_at": value.get("updated_at"),
                                 "runtime_status": plugin_status,
                             }
                         )
@@ -894,6 +918,7 @@ class PluginRuntime:
                 "plugins": plugins,
                 "tickers": tickers,
                 "node_fields": node_fields,
+                "node_field_values": node_field_values,
             }
 
     def close(self) -> None:
@@ -1061,6 +1086,11 @@ class PluginRuntime:
                 self._ticker_values = {
                     key: value
                     for key, value in self._ticker_values.items()
+                    if key[0] in enabled_ids
+                }
+                self._node_field_values = {
+                    key: value
+                    for key, value in self._node_field_values.items()
                     if key[0] in enabled_ids
                 }
             while True:
@@ -1315,8 +1345,24 @@ class PluginRuntime:
                         "failures": self._plugin_failures.get(manifest.id, 0),
                         "last_error": self._plugin_last_errors.get(manifest.id, ""),
                     }
+            declared_node_fields: set[tuple[str, str]] = set()
+            for plugin_id, registration in registry.items():
+                raw_node_fields = registration.get("node_fields")
+                if not isinstance(raw_node_fields, list):
+                    continue
+                for definition in raw_node_fields:
+                    if not isinstance(definition, Mapping):
+                        continue
+                    field_id = str(definition.get("id") or "").strip().lower()
+                    if field_id:
+                        declared_node_fields.add((plugin_id, field_id))
             with self._status_lock:
                 self._registry = registry
+                self._node_field_values = {
+                    key: value
+                    for key, value in self._node_field_values.items()
+                    if (key[0], key[2]) in declared_node_fields
+                }
                 self._last_error = ""
                 self._worker_ready = True
             self._worker_plugin_ids = active_plugin_ids
@@ -1489,6 +1535,10 @@ class PluginRuntime:
                 invocation.plugin_id,
                 response.get("tickers"),
             )
+            node_field_updates = self._validated_node_field_updates(
+                invocation.plugin_id,
+                response.get("node_fields"),
+            )
             session_actions = [action for action in actions if isinstance(action, SessionAction)]
             if len(session_actions) > 1:
                 raise ValueError("plugin result contains conflicting session actions")
@@ -1582,6 +1632,8 @@ class PluginRuntime:
                 capture_actions.extend(external_script_actions)
             if ticker_updates:
                 self._publish_ticker_updates(invocation.plugin_id, ticker_updates)
+            if node_field_updates:
+                self._publish_node_field_updates(invocation.plugin_id, node_field_updates)
             self._publish_debug(invocation.plugin_id, debug_entries)
             self._plugin_failures[invocation.plugin_id] = 0
             self._plugin_last_errors.pop(invocation.plugin_id, None)
@@ -1883,17 +1935,87 @@ class PluginRuntime:
             )
         return tuple(updates)
 
+    def _validated_node_field_updates(
+        self,
+        plugin_id: str,
+        raw: object,
+    ) -> tuple[dict[str, object], ...]:
+        if raw is None:
+            return ()
+        if not isinstance(raw, list) or len(raw) > _MAX_PLUGIN_NODE_FIELD_UPDATES:
+            raise ValueError("plugin result has an invalid node field update list")
+        registration = self._registry.get(plugin_id, {})
+        definitions = registration.get("node_fields")
+        definition_rows = definitions if isinstance(definitions, list) else []
+        declared_ids = {
+            str(item.get("id") or "")
+            for item in definition_rows
+            if isinstance(item, Mapping)
+        }
+        expected = {"node_id", "field_id", "value", "sort", "title"}
+        updates: list[dict[str, object]] = []
+        seen: set[tuple[str, str]] = set()
+        for item in raw:
+            if not isinstance(item, Mapping) or set(item) != expected:
+                raise ValueError("plugin node field update has invalid fields")
+            node_id = str(item.get("node_id") or "").strip().lower()
+            if _NODE_ID_RE.fullmatch(node_id) is None or node_id in _RESERVED_NODE_IDS:
+                raise ValueError("plugin node field update has an invalid node ID")
+            field_id = str(item.get("field_id") or "").strip().lower()
+            key = (node_id, field_id)
+            if field_id not in declared_ids or key in seen:
+                raise ValueError(
+                    "plugin node field update references an undeclared or duplicate ID"
+                )
+            value = self._validated_ticker_scalar(
+                item.get("value"),
+                maximum=_MAX_PLUGIN_NODE_FIELD_VALUE_BYTES,
+                label="node field value",
+            )
+            raw_sort = item.get("sort")
+            sort_value = (
+                None
+                if raw_sort is None
+                else self._validated_ticker_scalar(
+                    raw_sort,
+                    maximum=_MAX_PLUGIN_NODE_FIELD_VALUE_BYTES,
+                    label="node field sort",
+                )
+            )
+            title = item.get("title")
+            if not isinstance(title, str):
+                raise ValueError("plugin node field update has invalid title")
+            clean_title = " ".join(title.split()).strip()
+            if len(clean_title) > _MAX_PLUGIN_NODE_FIELD_TITLE_BYTES:
+                raise ValueError("plugin node field title is too large")
+            seen.add(key)
+            updates.append(
+                {
+                    "node_id": node_id,
+                    "field_id": field_id,
+                    "value": value,
+                    "sort": sort_value,
+                    "title": clean_title,
+                }
+            )
+        return tuple(updates)
+
     @staticmethod
-    def _validated_ticker_scalar(value: object, *, maximum: int) -> object:
+    def _validated_ticker_scalar(
+        value: object,
+        *,
+        maximum: int,
+        label: str = "ticker value",
+    ) -> object:
         if value is None or isinstance(value, (bool, int)):
             return value
         if isinstance(value, float):
             if not math.isfinite(value):
-                raise ValueError("plugin ticker value must be finite")
+                raise ValueError(f"plugin {label} must be finite")
             return value
         if isinstance(value, str) and len(value) <= maximum:
             return value
-        raise ValueError("plugin ticker value must be a bounded JSON scalar")
+        raise ValueError(f"plugin {label} must be a bounded JSON scalar")
 
     def _publish_ticker_updates(
         self,
@@ -1910,6 +2032,24 @@ class PluginRuntime:
                     "state": str(update.get("state") or "neutral"),
                     "detail": str(update.get("detail") or ""),
                     "metric_value": update.get("metric_value"),
+                    "updated_at": updated_at,
+                }
+        self._notify_state_changed()
+
+    def _publish_node_field_updates(
+        self,
+        plugin_id: str,
+        updates: Sequence[Mapping[str, object]],
+    ) -> None:
+        updated_at = time.time()
+        with self._status_lock:
+            for update in updates:
+                node_id = str(update.get("node_id") or "")
+                field_id = str(update.get("field_id") or "")
+                self._node_field_values[(plugin_id, node_id, field_id)] = {
+                    "value": update.get("value"),
+                    "sort": update.get("sort"),
+                    "title": str(update.get("title") or ""),
                     "updated_at": updated_at,
                 }
         self._notify_state_changed()
