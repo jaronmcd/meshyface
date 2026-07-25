@@ -3,6 +3,7 @@
     const consoleCommandHistoryMax = 120;
     const consoleFontSizePxByKey = Object.freeze({{ sm: 10, md: 12, lg: 14, xl: 16 }});
     const consoleCommandRegistry = new Map();
+    const consolePluginCommandNames = new Set();
     const tableSortState = {{
       "nodes-table": {{ index: 0, dir: "desc" }},
       "links-table": {{ index: 2, dir: "desc" }},

@@ -43,6 +43,7 @@ class _OutboundCapture:
 
 def _args(tmp_path: Path, **overrides: object) -> SimpleNamespace:
     values: dict[str, object] = {
+        "plugins_included_directory": None,
         "plugins_directory": str(tmp_path / "plugins"),
         "plugins_state_db": str(tmp_path / "plugin-state.sqlite3"),
         "plugins_files_directory": str(tmp_path / "files"),

@@ -1,3 +1,4 @@
+import re
 from collections.abc import Mapping
 from urllib.parse import parse_qs
 
@@ -5,6 +6,8 @@ from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import StateFn, WriteJsonResponseFn
 from .http_responses import _send_no_store_headers
 from .state_payload_contracts import normalize_state_payload_for_api
+
+_PUBLIC_PLUGIN_COMMAND_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 
 
 def _truthy_query_flag(query: str, key: str) -> bool:
@@ -89,6 +92,41 @@ def _public_plugin_tickers(runtime: Mapping[str, object]) -> list[dict[str, obje
     return safe_tickers
 
 
+def _public_plugin_console_commands(plugins: Mapping[str, object]) -> list[dict[str, object]]:
+    scripts = plugins.get("scripts")
+    if not isinstance(scripts, list):
+        return []
+    commands: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for script in scripts:
+        if not isinstance(script, Mapping):
+            continue
+        if script.get("enabled") is not True or script.get("active") is not True:
+            continue
+        runtime_status = str(script.get("runtime_status") or "").strip().lower()
+        if runtime_status in {"disabled", "error", "restart_pending"}:
+            continue
+        plugin_id = str(script.get("id") or "").strip().lower()
+        plugin_name = str(script.get("name") or plugin_id).strip() or plugin_id
+        raw_commands = script.get("commands")
+        if not plugin_id or not isinstance(raw_commands, list):
+            continue
+        for raw_command in raw_commands:
+            command = str(raw_command or "").strip().lower()
+            if _PUBLIC_PLUGIN_COMMAND_RE.fullmatch(command) is None or command in seen:
+                continue
+            seen.add(command)
+            commands.append(
+                {
+                    "name": command,
+                    "plugin_id": plugin_id,
+                    "plugin_name": plugin_name,
+                    "runtime_status": runtime_status or "starting",
+                }
+            )
+    return commands
+
+
 def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
     enabled = plugins.get("enabled") is True
     runtime_raw = plugins.get("runtime")
@@ -118,6 +156,7 @@ def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
         "active_count": (
             len(enabled_plugins) if isinstance(enabled_plugins, list) else 0
         ),
+        "console_commands": _public_plugin_console_commands(plugins),
         "runtime": public_runtime,
     }
     for key in ("available", "discovered"):

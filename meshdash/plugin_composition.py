@@ -488,6 +488,32 @@ class PluginSubsystem:
                 result["settings_migrated"] = settings_migrated
             return result
 
+    def run_console_command(
+        self,
+        *,
+        command: object,
+        text: object = "",
+        session_id: object = None,
+        handler: object = "auto",
+    ) -> dict[str, object]:
+        with self._lifecycle_lock:
+            runtime = self._runtime
+            closed = self._closed
+        if closed or runtime is None:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": self._error or "Plugin runtime is unavailable",
+                },
+            }
+        return runtime.run_console_command(
+            command=command,
+            text=text,
+            session_id=session_id,
+            handler=handler,
+        )
+
     def set_plugin_settings(
         self,
         plugin_id: object,
@@ -602,7 +628,11 @@ def build_plugin_subsystem(
     runtime: PluginRuntime | None = None
     try:
         local_directory = str(getattr(args, "plugins_directory", "mesh_dashboard_plugins"))
-        included_directory = Path(__file__).with_name("included_plugins")
+        included_directory = getattr(
+            args,
+            "plugins_included_directory",
+            Path(__file__).with_name("included_plugins"),
+        )
         discovery_errors: list[str] = []
         discovery_error_count = 0
 

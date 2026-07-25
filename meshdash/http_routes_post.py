@@ -31,6 +31,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/meshyface/profile/settings",
     "/api/meshyface/profile/theme",
     "/api/games/zork",
+    "/api/plugins/console",
     "/api/tools/network",
     "/api/settings/radio",
     "/api/settings/channels",
@@ -56,6 +57,7 @@ _PRIVATE_MODE_BLOCKED_POST_PATHS = {
     "/api/files/send",
     "/api/meshyface/profile/theme",
     "/api/games/zork",
+    "/api/plugins/console",
     "/api/tools/network",
     "/api/maps/packs/build",
     "/api/maps/packs/build/cancel",
@@ -251,6 +253,27 @@ def _read_plugin_config_request(handler: DashboardHttpHandler) -> dict[str, obje
     }
 
 
+def _read_plugin_console_request(handler: DashboardHttpHandler) -> dict[str, object]:
+    parsed = _read_json_object_request(handler, max_bytes=8192)
+    allowed = {"command", "text", "session_id", "handler"}
+    if not set(parsed).issubset(allowed):
+        raise ValueError(
+            "request body may contain only command, text, session_id, and handler"
+        )
+    command = parsed.get("command")
+    if not isinstance(command, str) or not command.strip():
+        raise ValueError("command must be a non-empty string")
+    raw_handler = str(parsed.get("handler") or "auto").strip().lower() or "auto"
+    if raw_handler not in {"auto", "command", "session", "message"}:
+        raise ValueError("handler must be auto, command, session, or message")
+    return {
+        "command": command.strip().lower(),
+        "text": parsed.get("text", ""),
+        "session_id": parsed.get("session_id"),
+        "handler": raw_handler,
+    }
+
+
 def _plugin_package_digest(value: object) -> str:
     digest = str(value or "").strip().lower()
     if (
@@ -295,6 +318,18 @@ def _map_pack_response_status(payload_obj: Mapping[str, object]) -> int:
         return int(payload_obj.get("http_status") or 200)
     except (TypeError, ValueError):
         return 200
+
+
+def _plugin_console_response_status(payload_obj: Mapping[str, object]) -> int:
+    if payload_obj.get("ok") is not False:
+        return 200
+    error = payload_obj.get("error")
+    code = str(error.get("code") or "") if isinstance(error, Mapping) else ""
+    if code in {"invalid_command", "invalid_handler", "empty_command", "invalid_request"}:
+        return 400
+    if code == "unknown_command":
+        return 404
+    return 503
 
 
 def handle_dashboard_post(
@@ -508,6 +543,77 @@ def handle_dashboard_post(
             validate_content_length_fn=deps.validate_content_length_fn,
             parse_standalone_zork_request_fn=deps.parse_standalone_zork_request_fn,
             write_json_response_fn=deps.write_json_response_fn,
+        )
+        return
+
+    if path == "/api/plugins/console":
+        runner = deps.run_plugin_console_command_fn
+        if not callable(runner):
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_unavailable",
+                        "message": "Plugin console is unavailable",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        try:
+            request = _read_plugin_console_request(handler)
+            response_obj = runner(
+                command=request["command"],
+                text=request.get("text", ""),
+                session_id=request.get("session_id"),
+                handler=request.get("handler", "auto"),
+            )
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={
+                    "ok": False,
+                    "error": {"code": "invalid_request", "message": str(exc)},
+                },
+                no_store=True,
+            )
+            return
+        except Exception:
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_console_failed",
+                        "message": "Plugin console command failed",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        if not isinstance(response_obj, Mapping):
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_console_failed",
+                        "message": "Plugin console command returned an invalid response",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        deps.write_json_response_fn(
+            handler,
+            status_code=_plugin_console_response_status(response_obj),
+            payload_obj=response_obj,
+            no_store=True,
         )
         return
 

@@ -61,6 +61,8 @@ def _context(
 ):
     replies: list[str] = []
     tickers: list[dict[str, object]] = []
+    session_actions: list[str] = []
+    session = SimpleNamespace(active=False)
 
     def _reply_long(value: str) -> ReplyAction:
         replies.append(value)
@@ -68,6 +70,17 @@ def _context(
 
     def _set_ticker(ticker_id: str, **kwargs: object) -> None:
         tickers.append({"id": ticker_id, **kwargs})
+
+    def _session_start():
+        session.active = True
+        session_actions.append("start")
+
+    def _session_end():
+        session.active = False
+        session_actions.append("end")
+
+    session.start = _session_start
+    session.end = _session_end
 
     return SimpleNamespace(
         message=SimpleNamespace(
@@ -80,6 +93,8 @@ def _context(
         ),
         reply_long=_reply_long,
         set_ticker=_set_ticker,
+        session=session,
+        session_actions=session_actions,
         replies=replies,
         tickers=tickers,
     )
@@ -96,6 +111,7 @@ def test_zork_example_matches_manifest_and_preserves_direct_gameplay() -> None:
     assert manifest.commands == ("zork",)
     assert manifest.default_enabled is False
     assert tuple(script.tickers) == ("activity",)
+    assert script.session_handler is not None
 
     start_context = _context("zork")
     start = script.message_handler(start_context)
@@ -107,14 +123,17 @@ def test_zork_example_matches_manifest_and_preserves_direct_gameplay() -> None:
     assert start_context.tickers[-1]["state"] == "good"
     assert start_context.tickers[-1]["rows"]["Game"] == "Zork"
     assert start_context.tickers[-1]["rows"]["Sess"] == "1 active"
+    assert start_context.session_actions == ["start"]
 
-    look = script.message_handler(_context("look"))
+    look = script.session_handler(_context("look"))
     assert isinstance(look, ReplyAction)
     assert "West of House" in look.text
 
-    quit_reply = script.message_handler(_context("quit"))
+    quit_context = _context("quit")
+    quit_reply = script.session_handler(quit_context)
     assert isinstance(quit_reply, ReplyAction)
     assert "zork: session ended" in quit_reply.text
+    assert quit_context.session_actions == ["end"]
     assert script.message_handler(_context("look")) is None
 
 

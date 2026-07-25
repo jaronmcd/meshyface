@@ -121,6 +121,132 @@ def test_handle_dashboard_post_keeps_standalone_zork_route_available() -> None:
     ]
 
 
+def test_handle_dashboard_post_runs_plugin_console_command() -> None:
+    body = json.dumps(
+        {
+            "command": "zork",
+            "text": "zork",
+            "handler": "command",
+            "session_id": "session-1",
+        }
+    ).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    received: list[dict[str, object]] = []
+
+    def _write_json_response(handler, *, status_code, payload_obj, **kwargs):
+        calls.append((status_code, payload_obj))
+
+    def _run_plugin_console_command(**kwargs: object) -> dict[str, object]:
+        received.append(dict(kwargs))
+        return {
+            "ok": True,
+            "reply_text": "started",
+            "session_id": kwargs.get("session_id"),
+            "active_session": True,
+        }
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": _write_json_response,
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert received == [
+        {
+            "command": "zork",
+            "text": "zork",
+            "handler": "command",
+            "session_id": "session-1",
+        }
+    ]
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "reply_text": "started",
+                "session_id": "session-1",
+                "active_session": True,
+            },
+        )
+    ]
+
+
+def test_plugin_console_requires_api_token_when_configured() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 0
+    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
+def test_plugin_console_is_blocked_in_private_mode() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        private_mode=True,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 0
+    assert calls == [
+        (403, {"ok": False, "error": "This endpoint is disabled in private mode"})
+    ]
+
+
 def test_handle_dashboard_post_updates_raw_packet_capture_settings() -> None:
     body = json.dumps({"capture_enabled": True}).encode("utf-8")
     handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
@@ -980,13 +1106,18 @@ def test_make_http_handler_wires_plugin_management_hook(
         del expected_package_digest
         return {"ok": True, "plugin_id": plugin_id, "settings": settings}
 
+    def _run_plugin_console_command(**kwargs: object) -> dict[str, object]:
+        return {"ok": True, "command": kwargs.get("command")}
+
     setattr(_state_fn, "set_plugin_enabled_fn", _set_plugin_enabled)
     setattr(_state_fn, "set_plugin_settings_fn", _set_plugin_settings)
+    setattr(_state_fn, "run_plugin_console_command_fn", _run_plugin_console_command)
 
     make_http_handler("<html></html>", _state_fn)
 
     assert captured["set_plugin_enabled_fn"] is _set_plugin_enabled
     assert captured["set_plugin_settings_fn"] is _set_plugin_settings
+    assert captured["run_plugin_console_command_fn"] is _run_plugin_console_command
 
 
 def test_handle_dashboard_post_requires_token_for_raw_packet_capture_settings() -> None:

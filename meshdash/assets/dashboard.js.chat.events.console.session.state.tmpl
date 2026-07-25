@@ -11,6 +11,21 @@
           sessionId,
         }};
       }}
+      if (mode === "plugin") {{
+        const sessionId = String(payload.sessionId ?? payload.session_id ?? "").trim();
+        const command = String(payload.command || payload.name || "").trim().toLowerCase();
+        if (!sessionId || !/^[a-z][a-z0-9_-]{{0,31}}$/.test(command)) return null;
+        const pluginId = String(payload.pluginId || payload.plugin_id || "").trim().toLowerCase();
+        const pluginName = String(payload.pluginName || payload.plugin_name || command).trim() || command;
+        return {{
+          name: command,
+          mode: "plugin",
+          command,
+          pluginId,
+          pluginName,
+          sessionId,
+        }};
+      }}
       return null;
     }}
 
@@ -25,6 +40,19 @@
             interactiveSession = {{
               name,
               mode: "standalone",
+              sessionId,
+            }};
+          }}
+        }} else if (mode === "plugin") {{
+          const sessionId = String(consoleInteractiveSession.sessionId || "").trim();
+          const command = String(consoleInteractiveSession.command || consoleInteractiveSession.name || "").trim().toLowerCase();
+          if (sessionId && /^[a-z][a-z0-9_-]{{0,31}}$/.test(command)) {{
+            interactiveSession = {{
+              name: command,
+              mode: "plugin",
+              command,
+              pluginId: String(consoleInteractiveSession.pluginId || "").trim().toLowerCase(),
+              pluginName: String(consoleInteractiveSession.pluginName || command).trim() || command,
               sessionId,
             }};
           }}
@@ -416,7 +444,10 @@
     function isZorkConsoleInteractiveSession(session = consoleInteractiveSession) {{
       if (!session || typeof session !== "object") return false;
       const mode = String(session.mode || "").trim().toLowerCase();
-      return mode === "standalone";
+      if (mode === "standalone") return true;
+      if (mode !== "plugin") return false;
+      const name = String(session.command || session.name || "").trim().toLowerCase();
+      return name === "zork";
     }}
 
     function normalizeConsolePromptHostLabel(value) {{

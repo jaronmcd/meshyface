@@ -515,6 +515,11 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                     "scripts": [
                         {
                             "id": "weather",
+                            "name": "Weather",
+                            "commands": ["wx"],
+                            "enabled": True,
+                            "active": True,
+                            "runtime_status": "running",
                             "settings": {
                                 "api_token": "must-not-be-public",
                                 "client_secret": "also-private",
@@ -566,6 +571,14 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
         "health": "running",
         "active_count": 1,
         "discovered": 2,
+        "console_commands": [
+            {
+                "name": "wx",
+                "plugin_id": "weather",
+                "plugin_name": "Weather",
+                "runtime_status": "running",
+            }
+        ],
         "runtime": {
             "status": "running",
             "worker_alive": True,

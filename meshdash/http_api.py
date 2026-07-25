@@ -49,6 +49,7 @@ def make_http_handler(
     set_plugin_enabled_fn = getattr(state_fn, "set_plugin_enabled_fn", None)
     set_plugin_settings_fn = getattr(state_fn, "set_plugin_settings_fn", None)
     play_standalone_zork_fn = getattr(state_fn, "play_standalone_zork_fn", None)
+    run_plugin_console_command_fn = getattr(state_fn, "run_plugin_console_command_fn", None)
     run_network_tool_fn = getattr(state_fn, "run_network_tool_fn", None)
     schedule_backend_restart_fn = getattr(state_fn, "schedule_backend_restart_fn", None)
     clean_api_token = str(api_token or "").strip() or None
@@ -98,6 +99,11 @@ def make_http_handler(
             set_plugin_settings_fn if callable(set_plugin_settings_fn) else None
         ),
         play_standalone_zork_fn=play_standalone_zork_fn,
+        run_plugin_console_command_fn=(
+            run_plugin_console_command_fn
+            if callable(run_plugin_console_command_fn)
+            else None
+        ),
         run_network_tool_fn=run_network_tool_fn,
         schedule_backend_restart_fn=(
             schedule_backend_restart_fn if callable(schedule_backend_restart_fn) else None

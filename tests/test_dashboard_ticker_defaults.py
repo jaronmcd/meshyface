@@ -30,7 +30,7 @@ def test_dashboard_js_uses_curated_default_ticker_layout() -> None:
     assert "prefs.enabled[id] = !!defaults.enabled[id];" in js
 
 
-def test_dashboard_omits_static_script_ticker_and_keeps_standalone_zork() -> None:
+def test_dashboard_omits_static_script_ticker_and_uses_plugin_console_commands() -> None:
     html = render_html(
         refresh_ms=1000,
         packet_limit=200,
@@ -69,8 +69,8 @@ def test_dashboard_omits_static_script_ticker_and_keeps_standalone_zork() -> Non
         "/api/bots/",
     ):
         assert token not in js
-    assert 'fetch("/api/games/zork"' in js
-    assert 'name: "zork"' in js
+    assert 'fetch("/api/plugins/console"' in js
+    assert 'name: "zork"' not in js
 
 
 def test_dashboard_builds_opt_in_script_tickers_from_runtime_state() -> None:

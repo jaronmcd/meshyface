@@ -13,7 +13,7 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import cast
 
 from .plugins import (
@@ -43,11 +43,13 @@ from .plugin_worker import plugin_worker_main
 
 _NODE_ID_RE = re.compile(r"![0-9a-f]{8}\Z")
 _COMMAND_RE = re.compile(r"!([a-z][a-z0-9_-]{0,31})(?:\s|\Z)", re.IGNORECASE)
+_COMMAND_NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _TICKER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _QUIT_COMMANDS = {"!quit", "!exit"}
 _RESERVED_NODE_IDS = {"!00000000", "!ffffffff"}
 _ACKED_DELIVERY_STATES = {"ack", "acked", "delivered"}
 _QUEUE_STOP = object()
+_CONSOLE_LOCAL_NODE_ID = "!7a000001"
 _ABSOLUTE_PATH_RE = re.compile(
     r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/]|/)"
     r"(?:[^\\/\s:;,'\"()<>\[\]{}]+[\\/])*"
@@ -112,6 +114,21 @@ class _ReconfigureRequest:
     error: str = ""
 
 
+@dataclass
+class _ConsoleInvocationRequest:
+    plugin_id: str
+    command: str
+    event: MessageEvent
+    session_id: str
+    handler: str
+    ready: threading.Event
+    actions: list[ScriptAction] = field(default_factory=list)
+    ok: bool = False
+    error_code: str = ""
+    error_message: str = ""
+    active_session: bool = False
+
+
 def _validated_manifest_configuration(
     manifests: Sequence[PluginManifest],
     *,
@@ -168,6 +185,44 @@ def _system_event() -> MessageEvent:
         reply_packet_id=None,
         received_at=time.time(),
     )
+
+
+def _console_peer_id(plugin_id: str, session_id: str) -> str:
+    token = uuid.uuid5(
+        uuid.NAMESPACE_URL,
+        f"meshyface:plugin-console:{plugin_id}:{session_id}",
+    ).hex[:8]
+    return f"!{token}"
+
+
+def _console_command_text(command: str, text: object) -> str:
+    clean_text = str(text or "").strip()
+    if not clean_text:
+        return f"!{command}"
+    match = _COMMAND_RE.match(clean_text)
+    if match and match.group(1).lower() == command:
+        return clean_text
+    if clean_text.lower() == command:
+        return f"!{command}"
+    if clean_text.lower().startswith(f"{command} "):
+        return f"!{clean_text}"
+    return f"!{command} {clean_text}"
+
+
+def _console_action_summary(action: ScriptAction) -> dict[str, JsonValue]:
+    if isinstance(action, ReplyAction):
+        return {"type": "reply", "text": action.text, "long": action.long}
+    if isinstance(action, SendTextAction):
+        return {"type": "send_text", "suppressed": True}
+    if isinstance(action, SendChannelAction):
+        return {"type": "send_channel", "suppressed": True}
+    if isinstance(action, SendFileAction):
+        return {"type": "send_file", "suppressed": True}
+    if isinstance(action, AcceptFileOfferAction):
+        return {"type": "accept_file_offer", "suppressed": True}
+    if isinstance(action, SessionAction):
+        return {"type": "session", "operation": action.operation}
+    return {"type": "unknown", "suppressed": True}
 
 
 def sanitize_plugin_status_error(value: object) -> str:
@@ -312,6 +367,9 @@ class PluginRuntime:
         self._action_queue: queue.Queue[object] = queue.Queue(
             maxsize=max(1, int(config.action_queue_size))
         )
+        self._console_queue: queue.Queue[object] = queue.Queue(
+            maxsize=max(1, int(config.control_queue_size))
+        )
         self._management_queue: queue.Queue[_ReconfigureRequest] = queue.Queue(maxsize=4)
         self._stop = threading.Event()
         self._closing = threading.Event()
@@ -390,6 +448,140 @@ class PluginRuntime:
             with self._status_lock:
                 self._dropped_events += 1
             return False
+
+    def run_console_command(
+        self,
+        *,
+        command: object,
+        text: object = "",
+        session_id: object = None,
+        handler: object = "auto",
+    ) -> dict[str, object]:
+        """Invoke one manifest-declared command through a local direct-message session."""
+
+        if self._stop.is_set() or self._closing.is_set():
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": "Plugin runtime is closing",
+                },
+            }
+        clean_command = str(command or "").strip().lower()
+        if _COMMAND_NAME_RE.fullmatch(clean_command) is None:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "invalid_command",
+                    "message": "Plugin command must match [a-z][a-z0-9_-]{0,31}",
+                },
+            }
+        clean_handler = str(handler or "auto").strip().lower() or "auto"
+        if clean_handler not in {"auto", "command", "session", "message"}:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "invalid_handler",
+                    "message": "Plugin console handler must be auto, command, session, or message",
+                },
+            }
+        plugin_id = self._command_plugins.get(clean_command)
+        if not plugin_id:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "unknown_command",
+                    "message": "No enabled plugin declares that command",
+                },
+            }
+        clean_text = str(text or "").strip()
+        if not clean_text and clean_handler != "command":
+            return {
+                "ok": False,
+                "error": {"code": "empty_command", "message": "Enter a command."},
+            }
+        if len(clean_text.encode("utf-8")) > self._config.max_action_text_bytes:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "invalid_request",
+                    "message": "Plugin console command is too large",
+                },
+            }
+        clean_session_id = str(session_id or "").strip()[:128] or uuid.uuid4().hex
+        event_text = (
+            _console_command_text(clean_command, clean_text)
+            if clean_handler == "command"
+            else clean_text
+        )
+        event = MessageEvent(
+            text=event_text,
+            sender_id=_console_peer_id(plugin_id, clean_session_id),
+            destination_id=_CONSOLE_LOCAL_NODE_ID,
+            local_node_id=_CONSOLE_LOCAL_NODE_ID,
+            channel_index=0,
+            is_direct=True,
+            is_broadcast=False,
+            packet_id=0,
+            reply_packet_id=None,
+            received_at=time.time(),
+            portnum="TEXT_MESSAGE_APP",
+        )
+        request = _ConsoleInvocationRequest(
+            plugin_id=plugin_id,
+            command=clean_command,
+            event=event,
+            session_id=clean_session_id,
+            handler=clean_handler,
+            ready=threading.Event(),
+        )
+        try:
+            self._console_queue.put_nowait(request)
+        except queue.Full:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_console_busy",
+                    "message": "Plugin console queue is full",
+                },
+            }
+        wait_seconds = max(
+            2.0,
+            self._config.startup_timeout_seconds
+            + self._config.handler_timeout_seconds
+            + 1.0,
+        )
+        if not request.ready.wait(timeout=wait_seconds):
+            return {
+                "ok": False,
+                "session_id": clean_session_id,
+                "plugin_id": plugin_id,
+                "command": clean_command,
+                "active_session": False,
+                "error": {
+                    "code": "plugin_console_timeout",
+                    "message": "Plugin console command timed out",
+                },
+            }
+        response: dict[str, object] = {
+            "ok": request.ok,
+            "session_id": clean_session_id,
+            "plugin_id": plugin_id,
+            "command": clean_command,
+            "active_session": request.active_session,
+            "actions": [_console_action_summary(action) for action in request.actions],
+            "reply_text": "\n".join(
+                action.text
+                for action in request.actions
+                if isinstance(action, ReplyAction)
+            ).strip(),
+        }
+        if not request.ok:
+            response["error"] = {
+                "code": request.error_code or "plugin_console_failed",
+                "message": request.error_message or "Plugin console command failed",
+            }
+        return response
 
     def reconfigure(self, manifests: Sequence[PluginManifest]) -> None:
         """Replace the enabled plugin set without restarting MeshyFace."""
@@ -591,6 +783,15 @@ class PluginRuntime:
                 self._control_queue.get_nowait()
             except queue.Empty:
                 break
+        while True:
+            try:
+                item = self._console_queue.get_nowait()
+            except queue.Empty:
+                break
+            if isinstance(item, _ConsoleInvocationRequest):
+                item.error_code = "plugin_runtime_unavailable"
+                item.error_message = "Plugin runtime is closing"
+                item.ready.set()
         try:
             self._event_queue.put(_QUEUE_STOP, timeout=1.0)
         except queue.Full:
@@ -655,6 +856,13 @@ class PluginRuntime:
                     if registration.get("on_start") and not self._is_quarantined(plugin_id):
                         if not self._invoke(_Invocation(plugin_id, "start", _system_event())):
                             break
+                continue
+            try:
+                console_request = self._console_queue.get_nowait()
+            except queue.Empty:
+                console_request = None
+            if isinstance(console_request, _ConsoleInvocationRequest):
+                self._handle_console_invocation(console_request)
                 continue
             try:
                 item = self._event_queue.get(timeout=0.1)
@@ -731,6 +939,15 @@ class PluginRuntime:
                     self._event_queue.get_nowait()
                 except queue.Empty:
                     break
+            while True:
+                try:
+                    item = self._console_queue.get_nowait()
+                except queue.Empty:
+                    break
+                if isinstance(item, _ConsoleInvocationRequest):
+                    item.error_code = "plugin_reconfigured"
+                    item.error_message = "Plugin runtime was reconfigured"
+                    item.ready.set()
         except Exception as exc:
             request.error = f"{type(exc).__name__}: {exc}"
         finally:
@@ -769,6 +986,90 @@ class PluginRuntime:
             return
         if ended and not self._closing.is_set():
             self._queue_action(_QueuedAction("host", event, ReplyAction("Session ended.")))
+
+    def _console_session_active(self, plugin_id: str, event: MessageEvent) -> bool:
+        with self._session_lock:
+            return (
+                self._sessions.get(
+                    (
+                        event.local_node_id,
+                        event.sender_id,
+                        event.channel_index,
+                    )
+                )
+                == plugin_id
+            )
+
+    def _resolve_console_handler(
+        self,
+        request: _ConsoleInvocationRequest,
+    ) -> tuple[str, str, str]:
+        plugin_id = request.plugin_id
+        if self._command_plugins.get(request.command) != plugin_id:
+            return "", "unknown_command", "No enabled plugin declares that command"
+        if self._is_quarantined(plugin_id):
+            return "", "plugin_quarantined", "Plugin is temporarily quarantined"
+        registration = self._registry.get(plugin_id, {})
+        if registration.get("error"):
+            return (
+                "",
+                "plugin_unavailable",
+                sanitize_plugin_status_error(registration.get("error"))
+                or "Plugin is unavailable",
+            )
+
+        requested = request.handler
+        if requested == "command":
+            return "command", "", ""
+        if requested == "session":
+            if bool(registration.get("session")):
+                return "session", "", ""
+            return "", "plugin_handler_unavailable", "Plugin does not declare a session handler"
+        if requested == "message":
+            if bool(registration.get("on_message")):
+                return "message", "", ""
+            return "", "plugin_handler_unavailable", "Plugin does not declare a message handler"
+
+        command_match = _COMMAND_RE.match(request.event.text.strip())
+        if command_match and command_match.group(1).lower() == request.command:
+            return "command", "", ""
+        if self._console_session_active(plugin_id, request.event) and bool(
+            registration.get("session")
+        ):
+            return "session", "", ""
+        if bool(registration.get("on_message")):
+            return "message", "", ""
+        return "command", "", ""
+
+    def _handle_console_invocation(self, request: _ConsoleInvocationRequest) -> None:
+        try:
+            handler, error_code, error_message = self._resolve_console_handler(request)
+            if not handler:
+                request.error_code = error_code or "plugin_console_failed"
+                request.error_message = error_message or "Plugin console command failed"
+                return
+            invocation = _Invocation(
+                request.plugin_id,
+                handler,
+                request.event,
+                request.command if handler == "command" else "",
+            )
+            captured_actions: list[ScriptAction] = []
+            request.ok = self._invoke(invocation, capture_actions=captured_actions)
+            request.actions = captured_actions
+            request.active_session = self._console_session_active(
+                request.plugin_id,
+                request.event,
+            )
+            if not request.ok:
+                request.error_code = "plugin_worker_unavailable"
+                request.error_message = "Plugin worker is unavailable"
+        except Exception as exc:
+            request.ok = False
+            request.error_code = "plugin_console_failed"
+            request.error_message = sanitize_plugin_status_error(exc)
+        finally:
+            request.ready.set()
 
     def _ensure_worker(self) -> bool:
         active_manifests = [
@@ -942,7 +1243,12 @@ class PluginRuntime:
         with self._status_lock:
             self._registry = registry
 
-    def _invoke(self, invocation: _Invocation) -> bool:
+    def _invoke(
+        self,
+        invocation: _Invocation,
+        *,
+        capture_actions: list[ScriptAction] | None = None,
+    ) -> bool:
         connection = self._connection
         if connection is None:
             return False
@@ -1022,6 +1328,8 @@ class PluginRuntime:
                     invocation.plugin_id,
                     str(response.get("error") or "plugin handler failed"),
                 )
+                if capture_actions is not None:
+                    return False
                 return True
             if response.get("type") != "result":
                 raise RuntimeError("plugin worker returned an invalid result")
@@ -1046,14 +1354,20 @@ class PluginRuntime:
                 returned_peer_state, Mapping
             ):
                 raise ValueError("plugin worker returned invalid state")
-            external_actions = tuple(
-                self._queued_external_action(
-                    invocation.plugin_id,
-                    invocation.event,
-                    action,
+            external_script_actions = tuple(
+                action for action in actions if not isinstance(action, SessionAction)
+            )
+            external_actions = (
+                ()
+                if capture_actions is not None
+                else tuple(
+                    self._queued_external_action(
+                        invocation.plugin_id,
+                        invocation.event,
+                        action,
+                    )
+                    for action in external_script_actions
                 )
-                for action in actions
-                if not isinstance(action, SessionAction)
             )
             action_batch: _QueuedActionBatch | None = None
             if external_actions:
@@ -1108,6 +1422,8 @@ class PluginRuntime:
                 raise
             if action_batch is not None:
                 action_batch.ready.set()
+            if capture_actions is not None:
+                capture_actions.extend(external_script_actions)
             if ticker_updates:
                 self._publish_ticker_updates(invocation.plugin_id, ticker_updates)
             self._publish_debug(invocation.plugin_id, debug_entries)

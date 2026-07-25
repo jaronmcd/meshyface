@@ -1,11 +1,15 @@
-"""Compatibility wrapper for the former built-in Meshyface Zork script."""
+"""Zork plugin for mesh and local console sessions."""
 
 from __future__ import annotations
 
 import time
 
 from meshdash.plugins import Script
-from meshdash.games.zork import ZorkGame
+
+try:
+    from .zork_core import ZorkGame
+except ImportError:  # pragma: no cover - supports direct runpy-based examples.
+    from meshdash.included_plugins.zork.zork_core import ZorkGame
 
 
 script = Script(id="zork", name="Zork", version="1.0.0")
@@ -57,6 +61,17 @@ def zork_start(ctx):
     _publish_activity_ticker(ctx, int(time.time()))
 
 
+def _sync_host_session(ctx, *, active_before: bool, active_after: bool) -> None:
+    message = ctx.message
+    session = getattr(ctx, "session", None)
+    if session is None or not getattr(message, "is_direct", False):
+        return
+    if active_after:
+        session.start()
+    elif active_before:
+        session.end()
+
+
 def _run_zork(ctx, *, allow_public_start: bool):
     global _last_activity_unix, _reply_count, _request_count
 
@@ -77,6 +92,7 @@ def _run_zork(ctx, *, allow_public_start: bool):
         return None
 
     now_unix = int(time.time())
+    active_before = _game.has_active_session(message.sender_id)
     result = _game.try_handle_message(
         text=text,
         from_id=message.sender_id,
@@ -87,6 +103,11 @@ def _run_zork(ctx, *, allow_public_start: bool):
     )
     if not result.handled:
         return None
+    _sync_host_session(
+        ctx,
+        active_before=active_before,
+        active_after=_game.has_active_session(message.sender_id),
+    )
     _request_count += 1
     reply = str(result.reply_text or "").strip()
     if reply:
@@ -100,6 +121,11 @@ def _run_zork(ctx, *, allow_public_start: bool):
 def zork_command(ctx):
     # A public !zork was not an old-script trigger; public starts remain exact
     # unprefixed "zork" messages. Direct !zork starts or restarts normally.
+    return _run_zork(ctx, allow_public_start=False)
+
+
+@script.session
+def zork_session(ctx):
     return _run_zork(ctx, allow_public_start=False)
 
 

@@ -274,6 +274,7 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
     (plugin_dir / "script.py").write_text("script = None\n", encoding="utf-8")
     subsystem = build_plugin_subsystem(
         args=SimpleNamespace(
+            plugins_included_directory=None,
             plugins_directory=str(tmp_path / "plugins"),
             plugins_state_db=str(tmp_path / "plugin-state.sqlite3"),
             plugins_files_directory=str(tmp_path / "files"),

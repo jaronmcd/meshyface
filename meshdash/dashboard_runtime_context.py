@@ -689,6 +689,11 @@ def build_dashboard_runtime_context(
                 "set_plugin_settings_fn",
                 plugin_subsystem.set_plugin_settings,
             )
+            setattr(
+                loaders.state_fn,
+                "run_plugin_console_command_fn",
+                plugin_subsystem.run_console_command,
+            )
             # The ordinary state loader may redact values such as "password".
             # Authenticated plugin administration must use the subsystem's
             # direct status instead so a redaction sentinel is never posted
@@ -712,6 +717,11 @@ def build_dashboard_runtime_context(
                 )
                 setattr(
                     state_lite_fn,
+                    "run_plugin_console_command_fn",
+                    plugin_subsystem.run_console_command,
+                )
+                setattr(
+                    state_lite_fn,
                     "plugin_admin_status_fn",
                     plugin_subsystem.status,
                 )
@@ -724,6 +734,24 @@ def build_dashboard_runtime_context(
                 plugin_error_status,
             )
             setattr(loaders.state_fn, "plugin_admin_status_fn", plugin_error_status)
+            setattr(
+                loaders.state_fn,
+                "run_plugin_console_command_fn",
+                lambda **_kwargs: {
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_unavailable",
+                        "message": plugin_error,
+                    },
+                },
+            )
+            state_lite_fn = getattr(loaders.state_fn, "lite", None)
+            if callable(state_lite_fn):
+                setattr(
+                    state_lite_fn,
+                    "run_plugin_console_command_fn",
+                    getattr(loaders.state_fn, "run_plugin_console_command_fn"),
+                )
     else:
         # Static status only: no discovery, state store, worker, or thread exists.
         plugin_disabled_status = lambda: {"enabled": False}
@@ -760,12 +788,23 @@ def build_dashboard_runtime_context(
                 },
             }
 
+        def _plugin_console_disabled(**_kwargs) -> dict[str, object]:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
         setattr(loaders.state_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
         setattr(loaders.state_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
+        setattr(loaders.state_fn, "run_plugin_console_command_fn", _plugin_console_disabled)
         state_lite_fn = getattr(loaders.state_fn, "lite", None)
         if callable(state_lite_fn):
             setattr(state_lite_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
             setattr(state_lite_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
+            setattr(state_lite_fn, "run_plugin_console_command_fn", _plugin_console_disabled)
             setattr(state_lite_fn, "plugin_admin_status_fn", plugin_disabled_status)
 
     # Activate only after optional post-accept consumers are attached so text

@@ -452,12 +452,23 @@ def _build_offline_runtime_context(
                 },
             }
 
+        def _plugin_console_disabled(**_kwargs) -> dict[str, object]:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
         setattr(state_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
         setattr(state_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
+        setattr(state_fn, "run_plugin_console_command_fn", _plugin_console_disabled)
         state_lite_fn = getattr(state_fn, "lite", None)
         if callable(state_lite_fn):
             setattr(state_lite_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
             setattr(state_lite_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
+            setattr(state_lite_fn, "run_plugin_console_command_fn", _plugin_console_disabled)
     if bool(getattr(args, "games_enable", False)):
         _attach_standalone_zork_service(state_fn)
     return DashboardRuntimeContext(

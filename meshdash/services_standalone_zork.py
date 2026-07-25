@@ -3,7 +3,7 @@ import secrets
 import threading
 import time
 
-from .games.zork import ZorkGame
+from .included_plugins.zork.zork_core import ZorkGame
 
 _STANDALONE_ZORK_LOCAL_NODE_ID = "!7a000001"
 _STANDALONE_ZORK_SESSION_PEER_HEX_CHARS = 16

@@ -96,12 +96,11 @@ def test_render_html_exposes_games_flag_when_enabled() -> None:
     html = _render_html(games_enabled=True)
 
     assert 'const gamesFeatureEnabled = !!Number(1);' in html
-    assert "if (gamesFeatureEnabled) {" in html
     assert 'data-app-view="games"' in html
     assert '<section class="card games workspace-app-shell" aria-label="Games">' in html
     assert 'id="games-library-select"' in html
-    assert 'fetch("/api/games/zork"' in html
-    assert 'name: "zork"' in html
+    assert 'fetch("/api/plugins/console"' in html
+    assert 'name: "zork"' not in html
     assert 'data-app-view="bots"' not in html
 
 

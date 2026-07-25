@@ -257,6 +257,18 @@ class PlayStandaloneZorkFn(Protocol):
         ...
 
 
+class RunPluginConsoleCommandFn(Protocol):
+    def __call__(
+        self,
+        *,
+        command: object,
+        text: object = "",
+        session_id: object = None,
+        handler: object = "auto",
+    ) -> dict[str, object]:
+        ...
+
+
 class RunNetworkToolFn(Protocol):
     def __call__(self, request: NetworkToolRequest) -> dict[str, object]:
         ...
@@ -374,6 +386,7 @@ class DashboardPostRouteDependencies:
     parse_channel_settings_request_fn: Optional[ParseChannelSettingsRequestFn] = None
     play_standalone_zork_fn: Optional[PlayStandaloneZorkFn] = None
     parse_standalone_zork_request_fn: Optional[ParseStandaloneZorkRequestFn] = None
+    run_plugin_console_command_fn: Optional[RunPluginConsoleCommandFn] = None
     run_network_tool_fn: Optional[RunNetworkToolFn] = None
     parse_network_tool_request_fn: Optional[ParseNetworkToolRequestFn] = None
     schedule_backend_restart_fn: Optional[ScheduleBackendRestartFn] = None

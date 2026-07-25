@@ -76,7 +76,8 @@ it, so no plugin copy step is required.
 Additional bundled reference plugins are available under
 `meshdash/included_plugins/`.
 `packet_city` demonstrates packet handlers and dashboard tickers, while `zork`
-demonstrates long replies and peer-specific interactive gameplay.
+demonstrates long replies, peer-specific interactive gameplay, and the local
+Console command bridge.
 
 ## Runtime Configuration
 
@@ -167,9 +168,10 @@ tunnel. Do not send the token or plugin settings over untrusted plain-text
 networks. Saved text settings are returned to the authorized Scripts workspace
 for editing, so treat that page and its browser session as secret-bearing.
 
-The normal state response exposes only minimal plugin health, counts, and
-display tickers. Installed-package metadata, settings, debug records, and file
-job details are available through the loopback-or-token-protected
+The normal state response exposes only minimal plugin health, counts, active
+console command names, and display tickers. Installed-package metadata,
+settings, debug records, and file job details are available through the
+loopback-or-token-protected
 `/api/admin/plugins` endpoint used by the Scripts workspace.
 
 The alpha workspace intentionally has no code editor, package installer, or
@@ -330,6 +332,13 @@ messages never continue sessions, and direct `!quit` or `!exit` is handled by
 the host even if the script worker is unavailable. Sessions are scoped by local
 node, peer, and channel, so a conversation on one channel cannot resume on
 another.
+
+Enabled manifest commands are also registered as local browser Console
+commands. Console execution runs through the same script worker, command
+handler, peer state, and direct-message session routing used for mesh messages,
+but the host captures reply actions for the browser instead of sending radio
+traffic. Keep bot logic in the shared command/session handlers so a plugin can
+be tested locally before using it on the mesh.
 
 `ctx.reply_long(...)` is split on UTF-8 byte boundaries and paced by the host.
 One handler result may schedule at most 64 synchronous radio frames, preventing

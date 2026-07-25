@@ -146,6 +146,73 @@ def hello(ctx):
     assert runtime.status()["status"] == "stopped"
 
 
+def test_console_command_invokes_plugin_handlers_without_radio_sends(tmp_path) -> None:
+    manifest = _write_plugin(
+        tmp_path,
+        "console",
+        commands=("hello",),
+        source="""
+from meshdash.plugins import Script
+
+script = Script(id="console", name="Console", version="1.0.0")
+
+@script.command("hello")
+def hello(ctx):
+    ctx.peer_state["command_text"] = ctx.message.text
+    ctx.session.start()
+    return ctx.reply(f"command:{ctx.message.text}")
+
+@script.session
+def session(ctx):
+    ctx.peer_state["session_text"] = ctx.message.text
+    if ctx.message.text == "done":
+        ctx.session.end()
+    return ctx.reply(f"session:{ctx.message.text}")
+""",
+    )
+    store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    sends: list[dict[str, object]] = []
+    runtime = PluginRuntime(
+        manifests=[manifest],
+        state_store=store,
+        send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)),
+    )
+    try:
+        start = runtime.run_console_command(
+            command="hello",
+            text="hello",
+            handler="command",
+        )
+        assert start["ok"] is True
+        assert start["reply_text"] == "command:!hello"
+        assert start["active_session"] is True
+        assert start["session_id"]
+
+        follow_up = runtime.run_console_command(
+            command="hello",
+            text="look",
+            session_id=start["session_id"],
+            handler="auto",
+        )
+        assert follow_up["ok"] is True
+        assert follow_up["reply_text"] == "session:look"
+        assert follow_up["active_session"] is True
+
+        done = runtime.run_console_command(
+            command="hello",
+            text="done",
+            session_id=start["session_id"],
+            handler="auto",
+        )
+        assert done["ok"] is True
+        assert done["reply_text"] == "session:done"
+        assert done["active_session"] is False
+        assert sends == []
+    finally:
+        runtime.close()
+        store.close()
+
+
 def test_peer_state_and_sessions_are_isolated_by_channel(tmp_path) -> None:
     manifest = _write_plugin(
         tmp_path,

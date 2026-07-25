@@ -674,6 +674,9 @@
           (rawState && rawState.history_caps) || null
         );
         latestState = state;
+        if (typeof syncPluginConsoleCommands === "function") {{
+          syncPluginConsoleCommands(state);
+        }}
         const meshyfaceSharingChanged = (
           typeof syncMeshyfaceThemeSharingFromState === "function"
           && syncMeshyfaceThemeSharingFromState(state)
