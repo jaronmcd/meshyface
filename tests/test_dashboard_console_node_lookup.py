@@ -20,6 +20,22 @@ def test_dashboard_js_registers_console_node_lookup_commands() -> None:
     assert 'resolveConsoleNodeLookupMatches' in js
 
 
+def test_dashboard_js_reuses_one_shot_plugin_console_session_ids() -> None:
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert "const pluginConsoleCommandSessionIds = new Map();" in js
+    assert "function getPluginConsoleCommandSessionId(command, pluginId = \"\")" in js
+    assert "function setPluginConsoleCommandSessionId(command, pluginId, sessionId)" in js
+    assert "pluginCommandSessions: Array.from(pluginConsoleCommandSessionIds.entries())" in js
+    assert "const sessionId = getPluginConsoleCommandSessionId(command, pluginId);" in js
+    assert 'await postPluginConsoleCommand(command, line, sessionId, "command");' in js
+    assert "setPluginConsoleCommandSessionId(command, nextPluginId, nextSessionId);" in js
+
+
 def test_dashboard_js_registers_console_nodes_aliases() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,

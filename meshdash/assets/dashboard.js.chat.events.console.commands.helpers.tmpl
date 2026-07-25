@@ -165,6 +165,7 @@
           if (current && current.source === "plugin") {{
             consoleCommandRegistry.delete(name);
           }}
+          deletePluginConsoleCommandSessionId(name, current && current.pluginId);
           consolePluginCommandNames.delete(name);
         }}
       }}
@@ -187,18 +188,24 @@
       if (command === "zork") {{
         clearConsoleOutput({{ renderNow: false }});
       }}
-      const payload = await postPluginConsoleCommand(command, line, "", "command");
+      const pluginId = String(def.pluginId || "").trim().toLowerCase();
+      const sessionId = getPluginConsoleCommandSessionId(command, pluginId);
+      const payload = await postPluginConsoleCommand(command, line, sessionId, "command");
       const nextSessionId = String(payload && payload.session_id ? payload.session_id : "").trim();
+      const nextPluginId = String(payload && payload.plugin_id ? payload.plugin_id : pluginId).trim().toLowerCase();
       if (payload && payload.active_session === true && nextSessionId) {{
         consoleInteractiveSession = {{
           name: command,
           mode: "plugin",
           command,
-          pluginId: String(payload.plugin_id || def.pluginId || "").trim(),
+          pluginId: nextPluginId,
           pluginName: String(def.pluginName || command).trim() || command,
           sessionId: nextSessionId,
         }};
         syncConsoleCommandInputState();
+      }} else if (payload && nextSessionId) {{
+        setPluginConsoleCommandSessionId(command, nextPluginId, nextSessionId);
+        persistConsoleSessionState();
       }}
       const replyTextRaw = String(
         payload && Object.prototype.hasOwnProperty.call(payload, "reply_text")
