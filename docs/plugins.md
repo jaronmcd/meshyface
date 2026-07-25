@@ -2,8 +2,8 @@
 
 Meshyface can run administrator-installed Python plugins in a spawned worker.
 Each plugin is an installed, versioned package that currently exports one
-executable `Script`. The runtime is disabled by default. Its management surface is
-**Apps → Scripts (Alpha)**, where an administrator can inspect installed
+executable `Script`. The runtime is enabled by default, so its management surface
+is shown as **Apps → Scripts (Alpha)**, where an administrator can inspect installed
 plugins, inspect their scripts, save plugin enablement changes, and edit any
 configuration fields declared by their manifests.
 
@@ -56,10 +56,10 @@ system sandbox; local plugin source remains fully trusted.
 The repository includes a minimal bundled reference plugin at
 `meshdash/included_plugins/hello`. Bundled plugins are discovered independently
 of the configurable local plugin directory, so start or restart Meshyface once
-with both the runtime and the reference plugin enabled:
+with the reference plugin enabled:
 
 ```bash
-python mesh_dashboard.py --plugins-enable --plugin-enable hello
+python mesh_dashboard.py --plugin-enable hello
 ```
 
 Keep the rest of the arguments required by your radio and HTTP setup. If a
@@ -68,10 +68,10 @@ and restart that service instead of launching a second dashboard. Open
 **Apps → Scripts (Alpha)** and confirm that **Hello** is running, then send
 `!hello` on the mesh. The reply count is stored separately for each sender.
 
-For a container installation, set `MESH_DASH_PLUGINS_ENABLE=1` plus
-`MESH_DASH_PLUGIN_ENABLE=hello` before recreating the container. The bundled
-plugin already ships in the image. Standard systemd deployments also include
-it, so no plugin copy step is required.
+For a container installation, set `MESH_DASH_PLUGIN_ENABLE=hello` before
+recreating the container. The bundled plugin already ships in the image.
+Standard systemd deployments also include it, so no plugin copy step is
+required.
 
 Additional bundled reference plugins are available under
 `meshdash/included_plugins/`.
@@ -81,19 +81,19 @@ Console command bridge.
 
 ## Runtime Configuration
 
-The end-to-end master switch is off by default:
+The end-to-end master switch is on by default:
 
 ```bash
-python mesh_dashboard.py --plugins-enable
+python mesh_dashboard.py --no-plugins-enable
 ```
 
 The equivalent environment setting is:
 
 ```bash
-MESH_DASH_PLUGINS_ENABLE=true
+MESH_DASH_PLUGINS_ENABLE=false
 ```
 
-`--no-plugins-enable` overrides an enabled environment default. When the master
+`--plugins-enable` overrides a disabled environment default. When the master
 switch is off, Meshyface hides the Scripts workspace and does not discover
 plugins, open script state, start a worker or dispatcher, route messages,
 restore sessions, or execute script actions. Normal dashboard messaging and all
@@ -374,9 +374,10 @@ the new fingerprint; a plugin that was already enabled resumes automatically.
 
 ## Troubleshooting
 
-- **The Scripts workspace is missing:** add `--plugins-enable` or set
-  `MESH_DASH_PLUGINS_ENABLE=true`, then restart Meshyface. This one master switch
-  controls both workspace visibility and the trusted Python runtime.
+- **The Scripts workspace is missing:** remove `--no-plugins-enable`, confirm
+  `MESH_DASH_PLUGINS_ENABLE` is not set to `false` or `0`, then restart
+  Meshyface. This one master switch controls both workspace visibility and the
+  trusted Python runtime.
 - **The workspace shows zero scripts:** check the configured directory shown in
   the empty state, confirm each plugin is one direct child containing
   `plugin.toml`, and restart after copying it.

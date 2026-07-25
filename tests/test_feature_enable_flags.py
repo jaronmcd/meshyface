@@ -50,7 +50,7 @@ def _build_parser(**overrides: object) -> argparse.ArgumentParser:
         "env_theme_preset": None,
         "env_theme_settings_file": None,
         "default_file_transfer_enable": False,
-        "default_plugins_enable": False,
+        "default_plugins_enable": True,
         "default_games_enable": False,
         "default_file_transfer_max_bytes": 64 * 1024,
         "env_file_transfer_enable": None,
@@ -72,18 +72,18 @@ def test_render_html_omits_removed_bbs_and_legacy_bot_workspaces() -> None:
     assert "/api/settings/bbs" not in html
     assert "/api/bbs/host" not in html
     assert 'const gamesFeatureEnabled = !!Number(0);' in html
-    assert 'const pluginsFeatureEnabled = !!Number(0);' in html
+    assert 'const pluginsFeatureEnabled = !!Number(1);' in html
     assert 'data-app-view="games"' in html
     scripts_tab = html.split('data-app-view="scripts"', 1)[1].split(">", 1)[0]
     scripts_section = html.split(
         '<section class="card scripts workspace-app-shell"',
         1,
     )[1].split(">", 1)[0]
-    assert 'hidden disabled aria-hidden="true"' in scripts_tab
-    assert 'hidden aria-hidden="true"' in scripts_section
+    assert 'hidden disabled aria-hidden="true"' not in scripts_tab
+    assert 'hidden aria-hidden="true"' not in scripts_section
     assert (
         '<span id="layout-view-menu-apps-meta" '
-        'class="topbar-view-menu-item-meta">Games</span>'
+        'class="topbar-view-menu-item-meta">Games and scripts</span>'
     ) in html
     assert '<section class="card games workspace-app-shell" aria-label="Games">' in html
     assert 'data-app-view="bots"' not in html
@@ -149,7 +149,7 @@ def test_dashboard_parser_supports_master_plugins_enable_flag_and_env_default() 
     parser = _build_parser()
 
     default_args = parser.parse_args([])
-    assert default_args.plugins_enable is False
+    assert default_args.plugins_enable is True
 
     explicit_enable_args = parser.parse_args(["--plugins-enable"])
     assert explicit_enable_args.plugins_enable is True

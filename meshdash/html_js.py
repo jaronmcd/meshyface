@@ -180,7 +180,7 @@ def build_dashboard_js(
     reset_ticker_scale_on_restart: bool = True,
     debug_mode: bool = False,
     file_transfer_enabled: bool = False,
-    plugins_enabled: bool = False,
+    plugins_enabled: bool = True,
     games_enabled: bool = False,
     file_transfer_max_bytes: int = _DEFAULT_FILE_TRANSFER_MAX_BYTES,
 ) -> str:

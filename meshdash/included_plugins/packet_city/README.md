@@ -12,4 +12,4 @@ the ticker tooltip. Packets without a resolvable city are counted as **No city**
 and **Seen** shows the latest packet time. Scores reset when the script worker
 restarts, so the example works without configuration in any region.
 
-Enable it with `--plugins-enable --plugin-enable packet_city`.
+Enable it with `--plugin-enable packet_city`.

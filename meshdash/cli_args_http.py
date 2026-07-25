@@ -39,7 +39,7 @@ def add_http_runtime_args(
     default_private_mode: bool = False,
     default_api_token: str | None = None,
     default_file_transfer_enable: bool = False,
-    default_plugins_enable: bool = False,
+    default_plugins_enable: bool = True,
     default_plugins_directory: str = "mesh_dashboard_plugins",
     default_plugins_state_db: str = "mesh_dashboard_plugin_state.sqlite3",
     default_plugins_files_directory: str = "mesh_dashboard_plugin_files",

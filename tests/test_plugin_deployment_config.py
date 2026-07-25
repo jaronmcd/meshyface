@@ -2,17 +2,17 @@ import subprocess
 from pathlib import Path
 
 
-def test_container_plugin_storage_is_persistent_and_disabled_by_default() -> None:
+def test_container_plugin_storage_is_persistent_and_enabled_by_default() -> None:
     dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
     compose = Path("compose.yaml").read_text(encoding="utf-8")
 
-    assert "MESH_DASH_PLUGINS_ENABLE=0" in dockerfile
+    assert "MESH_DASH_PLUGINS_ENABLE=1" in dockerfile
     assert "MESH_DASH_PLUGINS_DIRECTORY=/data/plugins" in dockerfile
     assert "MESH_DASH_PLUGINS_STATE_DB=/data/plugin-state.sqlite3" in dockerfile
     assert "MESH_DASH_PLUGINS_FILES_DIRECTORY=/data/plugin-files" in dockerfile
     assert 'VOLUME ["/data"]' in dockerfile
 
-    assert 'MESH_DASH_PLUGINS_ENABLE: "${MESH_DASH_PLUGINS_ENABLE:-0}"' in compose
+    assert 'MESH_DASH_PLUGINS_ENABLE: "${MESH_DASH_PLUGINS_ENABLE:-1}"' in compose
     assert "${MESH_DASH_PLUGINS_DIRECTORY:-/data/plugins}" in compose
     assert "${MESH_DASH_PLUGINS_STATE_DB:-/data/plugin-state.sqlite3}" in compose
     assert "${MESH_DASH_PLUGINS_FILES_DIRECTORY:-/data/plugin-files}" in compose

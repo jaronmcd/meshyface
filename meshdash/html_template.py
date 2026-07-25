@@ -25,7 +25,7 @@ def render_html(
     light_theme_vars: dict | None = None,
     dark_theme_vars: dict | None = None,
     file_transfer_enabled: bool = False,
-    plugins_enabled: bool = False,
+    plugins_enabled: bool = True,
     games_enabled: bool = False,
     file_transfer_max_bytes: int = _DEFAULT_FILE_TRANSFER_MAX_BYTES,
     initial_background_settings: dict | None = None,

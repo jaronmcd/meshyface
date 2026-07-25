@@ -21,13 +21,11 @@ command and session handlers as mesh play, but replies are returned to the
 browser instead of sent over the radio.
 
 This reference plugin is bundled with Meshyface and included in standard
-systemd and container deployments. Enable the plugin runtime and Zork during a
-systemd deployment with:
+systemd and container deployments. Enable Zork during a systemd deployment with:
 
 ```bash
-MESH_DASH_DEPLOY_PLUGIN_ENABLE=zork ./scripts/deploy_meshyface.sh --target j@192.168.1.67 --plugins-enable
+MESH_DASH_DEPLOY_PLUGIN_ENABLE=zork ./scripts/deploy_meshyface.sh --target j@192.168.1.67
 ```
 
-No plugin copy step is required. Alternatively, start Meshyface with the plugin
-runtime enabled and enable **Zork** from **Apps → Scripts**. The plugin runtime
-requires `--plugins-enable`; it does not require `--games-enable`.
+No plugin copy step is required. Alternatively, enable **Zork** from
+**Apps → Scripts**. The plugin runtime does not require `--games-enable`.
