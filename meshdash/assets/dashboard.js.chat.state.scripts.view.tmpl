@@ -8,6 +8,7 @@
     let scriptsAdminLastFetchMs = 0;
     let scriptsAdminAccessState = "";
     let scriptsAdminAccessMessage = "";
+    let scriptsActiveTab = "plugins";
     const scriptsAdminTokenStorageKey = "meshDashboardScriptsApiTokenV1";
     const scriptsPendingRequests = new Map();
     const scriptsPendingConfigRequests = new Set();
@@ -361,6 +362,33 @@
       const clean = String(message || "").trim();
       panel.textContent = clean;
       panel.hidden = !clean;
+    }}
+
+    function normalizeScriptsTab(value) {{
+      const clean = String(value || "").trim().toLowerCase();
+      return clean === "debug" ? "debug" : "plugins";
+    }}
+
+    function applyScriptsTab(value) {{
+      const next = normalizeScriptsTab(value);
+      scriptsActiveTab = next;
+      document.querySelectorAll("[data-scripts-tab]").forEach((button) => {{
+        if (!(button instanceof HTMLButtonElement)) return;
+        const active = normalizeScriptsTab(button.dataset.scriptsTab) === next;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+      }});
+      const pluginsPanel = document.getElementById("scripts-panel-plugins");
+      const debugPanel = document.getElementById("scripts-panel-debug");
+      if (pluginsPanel instanceof HTMLElement) {{
+        pluginsPanel.hidden = next !== "plugins";
+      }}
+      if (debugPanel instanceof HTMLElement) {{
+        debugPanel.hidden = next !== "debug";
+      }}
+      if (next === "debug") {{
+        renderScriptsDebug(scriptsRuntimeSummary(latestState));
+      }}
     }}
 
     function scriptsRuntimePresentation(runtimeSummary, rows) {{
@@ -967,6 +995,18 @@
       const list = document.getElementById("scripts-list");
       if (!(list instanceof HTMLElement) || list.dataset.bound === "1") return;
       list.dataset.bound = "1";
+      const tabs = document.getElementById("scripts-tabs");
+      if (tabs instanceof HTMLElement && tabs.dataset.bound !== "1") {{
+        tabs.dataset.bound = "1";
+        tabs.addEventListener("click", (event) => {{
+          const target = event.target instanceof Element
+            ? event.target.closest("[data-scripts-tab]")
+            : null;
+          if (!(target instanceof HTMLButtonElement)) return;
+          applyScriptsTab(target.dataset.scriptsTab);
+        }});
+      }}
+      applyScriptsTab(scriptsActiveTab);
       scriptsSyncAdminAccessControls();
       const accessForm = document.getElementById("scripts-admin-access");
       if (accessForm instanceof HTMLFormElement) {{

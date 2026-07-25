@@ -41,29 +41,48 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert 'data-app-view="scripts"' in html
     assert '<span class="topbar-view-submenu-item-label">Scripts</span>' in html
     assert '<span class="topbar-view-submenu-item-alpha">ALPHA</span>' in html
+    scripts_section = html.split('<section class="card scripts workspace-app-shell"', 1)[1].split(
+        '<section class="card games workspace-app-shell"', 1
+    )[0]
     assert 'class="card scripts workspace-app-shell"' in html
-    assert 'id="scripts-runtime-status"' in html
+    assert 'class="scripts-head workspace-chrome-bar workspace-stack-head-shell"' in scripts_section
+    assert 'class="scripts-toolbar workspace-chrome-row"' in scripts_section
+    assert 'id="scripts-tabs"' in scripts_section
+    assert 'class="scripts-tabs workspace-pillbar"' in scripts_section
+    assert 'id="scripts-tab-plugins"' in scripts_section
+    assert 'data-scripts-tab="plugins"' in scripts_section
+    assert 'id="scripts-tab-debug"' in scripts_section
+    assert 'data-scripts-tab="debug"' in scripts_section
+    assert 'id="scripts-panel-plugins"' in scripts_section
+    assert 'id="scripts-panel-debug"' in scripts_section
     assert 'id="scripts-list"' in html
     assert 'id="scripts-debug-output"' in html
     assert 'id="scripts-debug-clear"' in html
     assert 'id="scripts-admin-access"' in html
     assert 'id="scripts-admin-token"' in html
     assert 'type="password"' in html
-    assert "New scripts start disabled." in html
-    assert "are not sandboxed" in html
+    assert "Administrator-installed Python automations" not in html
+    assert "New scripts start disabled." not in html
+    assert "are not sandboxed" not in html
+    assert "<h2>Scripts</h2>" not in scripts_section
+    assert "scripts-alpha-badge" not in scripts_section
+    assert "scripts-runtime-status" not in scripts_section
+    assert "Installed scripts" not in scripts_section
+    assert "scripts-count" not in scripts_section
+    assert "scripts-list-head" not in scripts_section
     assert "No code editor" not in html
     assert (
         'type="file"'
-        not in html.split('<section class="card scripts workspace-app-shell"', 1)[1].split(
-            '<section class="card games workspace-app-shell"', 1
-        )[0]
+        not in scripts_section
     )
 
     assert ".layout.view-scripts .scripts {" in css
-    assert ".scripts-runtime-status.is-enabled {" in css
-    assert ".scripts-runtime-status.is-disabled {" in css
-    assert ".scripts-runtime-status.is-error {" in css
+    assert ".scripts-tab-panel[hidden] {" in css
+    assert ".scripts-tab-panel-plugins {" in css
     assert ".scripts-list {" in css
+    scripts_list_css = css.split(".scripts-list {", 1)[1].split("}", 1)[0]
+    assert "display: flex;" in scripts_list_css
+    assert "flex-direction: column;" in scripts_list_css
     assert ".scripts-debug-console {" in css
     assert ".scripts-admin-access {" in css
 
@@ -82,6 +101,8 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert "function renderScriptsDebug(runtimeSummary)" in scripts_js
     assert "Array.isArray(runtime.debug)" in scripts_js
     assert "scriptsDebugClearedThrough" in scripts_js
+    assert "function applyScriptsTab(value)" in scripts_js
+    assert 'event.target.closest("[data-scripts-tab]")' in scripts_js
 
 
 def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> None:

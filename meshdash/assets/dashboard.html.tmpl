@@ -2898,47 +2898,65 @@
       <div class="body">
         <div class="scripts-shell">
           <header class="scripts-head workspace-chrome-bar workspace-stack-head-shell">
-            <div class="scripts-head-copy">
-              <div class="scripts-title-row">
-                <h2>Scripts</h2>
-                <span class="scripts-alpha-badge">ALPHA</span>
+            <div class="scripts-toolbar workspace-chrome-row">
+              <div id="scripts-tabs" class="scripts-tabs workspace-pillbar" role="tablist" aria-label="Scripts sections">
+                <button
+                  id="scripts-tab-plugins"
+                  class="scripts-tab-btn workspace-pill-btn is-active"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="scripts-panel-plugins"
+                  data-scripts-tab="plugins"
+                >Plugins</button>
+                <button
+                  id="scripts-tab-debug"
+                  class="scripts-tab-btn workspace-pill-btn"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="scripts-panel-debug"
+                  data-scripts-tab="debug"
+                >Debug</button>
               </div>
-              <p>Administrator-installed Python automations for incoming mesh events.</p>
-            </div>
-            <div id="scripts-runtime-status" class="scripts-runtime-status is-unavailable" role="status" aria-live="polite">
-              <span class="scripts-runtime-status-dot" aria-hidden="true"></span>
-              <span id="scripts-runtime-status-text">Waiting for runtime status</span>
             </div>
           </header>
-          <div id="scripts-runtime-message" class="scripts-runtime-message" role="alert" hidden></div>
-          <form id="scripts-admin-access" class="scripts-admin-access" hidden>
-            <span id="scripts-admin-access-status" class="scripts-admin-access-status">
-              Enter the dashboard API token to manage scripts.
-            </span>
-            <input
-              id="scripts-admin-token"
-              class="scripts-admin-token"
-              type="password"
-              name="api-token"
-              autocomplete="off"
-              spellcheck="false"
-              placeholder="Dashboard API token"
-              aria-label="Dashboard API token"
-            >
-            <button id="scripts-admin-token-submit" class="btn btn-primary" type="submit">Unlock</button>
-            <button id="scripts-admin-token-forget" class="btn btn-secondary" type="button" hidden>Forget token</button>
-          </form>
-          <div class="scripts-list-head">
-            <div>
-              <h3>Installed scripts</h3>
-              <p>New scripts start disabled. Enabled scripts run as Meshyface's OS user and are not sandboxed.</p>
+          <div
+            id="scripts-panel-plugins"
+            class="scripts-tab-panel scripts-tab-panel-plugins"
+            role="tabpanel"
+            aria-labelledby="scripts-tab-plugins"
+          >
+            <div id="scripts-runtime-message" class="scripts-runtime-message" role="alert" hidden></div>
+            <form id="scripts-admin-access" class="scripts-admin-access" hidden>
+              <span id="scripts-admin-access-status" class="scripts-admin-access-status">
+                Enter the dashboard API token to manage scripts.
+              </span>
+              <input
+                id="scripts-admin-token"
+                class="scripts-admin-token"
+                type="password"
+                name="api-token"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Dashboard API token"
+                aria-label="Dashboard API token"
+              >
+              <button id="scripts-admin-token-submit" class="btn btn-primary" type="submit">Unlock</button>
+              <button id="scripts-admin-token-forget" class="btn btn-secondary" type="button" hidden>Forget token</button>
+            </form>
+            <div id="scripts-list" class="scripts-list" aria-live="polite">
+              <div class="scripts-empty">Loading scripts…</div>
             </div>
-            <span id="scripts-count" class="scripts-count">0 scripts</span>
           </div>
-          <div id="scripts-list" class="scripts-list" aria-live="polite">
-            <div class="scripts-empty">Loading scripts…</div>
-          </div>
-          <section class="scripts-debug-console" aria-label="Script debug output">
+          <section
+            id="scripts-panel-debug"
+            class="scripts-debug-console scripts-tab-panel"
+            aria-label="Script debug output"
+            role="tabpanel"
+            aria-labelledby="scripts-tab-debug"
+            hidden
+          >
             <div class="scripts-debug-head">
               <div>
                 <h3>Script debug output</h3>
