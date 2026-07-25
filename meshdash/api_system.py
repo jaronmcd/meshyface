@@ -8,6 +8,9 @@ from .http_responses import _send_no_store_headers
 from .state_payload_contracts import normalize_state_payload_for_api
 
 _PUBLIC_PLUGIN_COMMAND_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_PUBLIC_PLUGIN_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
+_PUBLIC_PLUGIN_VIEW_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_PUBLIC_PLUGIN_VIEW_ICON_RE = re.compile(r"[A-Z0-9]{1,4}\Z")
 
 
 def _truthy_query_flag(query: str, key: str) -> bool:
@@ -153,6 +156,64 @@ def _public_plugin_console_commands(plugins: Mapping[str, object]) -> list[dict[
     return commands
 
 
+def _public_plugin_views(plugins: Mapping[str, object]) -> list[dict[str, object]]:
+    if plugins.get("runtime_enabled") is False:
+        return []
+    scripts = plugins.get("scripts")
+    if not isinstance(scripts, list):
+        return []
+    views: list[dict[str, object]] = []
+    for script in scripts:
+        if not isinstance(script, Mapping):
+            continue
+        plugin_id = str(script.get("id") or "").strip().lower()
+        plugin_name = str(script.get("name") or plugin_id).strip() or plugin_id
+        if _PUBLIC_PLUGIN_ID_RE.fullmatch(plugin_id) is None:
+            continue
+        if script.get("enabled") is not True:
+            continue
+        if script.get("view_enabled") is False:
+            continue
+        raw_views = script.get("views")
+        if not isinstance(raw_views, list):
+            continue
+        runtime_status = str(script.get("runtime_status") or "").strip().lower()
+        for raw_view in raw_views:
+            if not isinstance(raw_view, Mapping):
+                continue
+            view_id = str(raw_view.get("id") or "").strip().lower()
+            label = str(raw_view.get("label") or "").strip()
+            icon = str(raw_view.get("icon") or "").strip().upper()
+            description = str(raw_view.get("description") or "").strip()
+            content = str(raw_view.get("content") or "")
+            if _PUBLIC_PLUGIN_VIEW_RE.fullmatch(view_id) is None:
+                continue
+            if not label or len(label) > 32:
+                continue
+            if _PUBLIC_PLUGIN_VIEW_ICON_RE.fullmatch(icon) is None:
+                icon = label[:2].upper()
+            if len(description) > 120:
+                description = description[:120].rstrip()
+            if len(content) > 16 * 1024:
+                content = content[: 16 * 1024]
+            views.append(
+                {
+                    "id": f"plugin:{plugin_id}:{view_id}",
+                    "plugin_id": plugin_id,
+                    "plugin_name": plugin_name,
+                    "view_id": view_id,
+                    "label": label,
+                    "icon": icon,
+                    "description": description,
+                    "content": content,
+                    "enabled": True,
+                    "active": script.get("active") is True,
+                    "runtime_status": runtime_status or "starting",
+                }
+            )
+    return views
+
+
 def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
     enabled = plugins.get("enabled") is True
     runtime_enabled = enabled and plugins.get("runtime_enabled") is not False
@@ -189,6 +250,7 @@ def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
             len(enabled_plugins) if isinstance(enabled_plugins, list) else 0
         ),
         "console_commands": _public_plugin_console_commands(plugins),
+        "views": _public_plugin_views(plugins),
         "runtime": public_runtime,
     }
     for key in ("available", "discovered"):

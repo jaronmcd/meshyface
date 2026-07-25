@@ -2343,7 +2343,8 @@
     }}
     .workspace-shell[data-layout-view="games"] .workspace-main,
     .workspace-shell[data-layout-view="files"] .workspace-main,
-    .workspace-shell[data-layout-view="scripts"] .workspace-main {{
+    .workspace-shell[data-layout-view="scripts"] .workspace-main,
+    .workspace-shell[data-layout-view="plugin"] .workspace-main {{
       gap: 8px;
       grid-template-columns: minmax(0, 1fr);
       grid-template-rows: minmax(0, 1fr);
@@ -2351,7 +2352,8 @@
     }}
     .workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,
     .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files,
-    .workspace-shell[data-layout-view="scripts"] .workspace-main > .layout.view-scripts {{
+    .workspace-shell[data-layout-view="scripts"] .workspace-main > .layout.view-scripts,
+    .workspace-shell[data-layout-view="plugin"] .workspace-main > .layout.view-plugin {{
       grid-column: 1;
       grid-row: 1;
       min-width: 0;
@@ -2368,12 +2370,14 @@
     @media (max-width: 1180px) {{
       .workspace-shell[data-layout-view="games"] .workspace-main,
       .workspace-shell[data-layout-view="files"] .workspace-main,
-      .workspace-shell[data-layout-view="scripts"] .workspace-main {{
+      .workspace-shell[data-layout-view="scripts"] .workspace-main,
+      .workspace-shell[data-layout-view="plugin"] .workspace-main {{
         grid-template-columns: minmax(0, 1fr);
       }}
       .workspace-shell[data-layout-view="games"] .workspace-main > .layout.view-games,
       .workspace-shell[data-layout-view="files"] .workspace-main > .layout.view-files,
-      .workspace-shell[data-layout-view="scripts"] .workspace-main > .layout.view-scripts {{
+      .workspace-shell[data-layout-view="scripts"] .workspace-main > .layout.view-scripts,
+      .workspace-shell[data-layout-view="plugin"] .workspace-main > .layout.view-plugin {{
         grid-column: 1;
       }}
     }}

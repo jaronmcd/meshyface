@@ -591,6 +591,9 @@
           if (activeLayoutView === "scripts") {{
             renderScriptsViewSafely(latestState, "poll.notModified.scripts");
           }}
+          if (activeLayoutView === "plugin") {{
+            renderPluginWorkspaceView(latestState);
+          }}
           if (activeLayoutView === "settings" && activeSettingsTab === "channels") {{
             renderChannelsView(latestState);
           }}
@@ -724,6 +727,9 @@
         syncBoardGameNetworkState("chess", state);
         syncBoardGameNetworkState("wallchess", state);
         syncAppsLauncherNotifications(state);
+        if (activeLayoutView === "plugin") {{
+          syncLayoutViewMenu(activeLayoutView);
+        }}
         renderSelfRadioPill(state);
         markPollPerfPhase(pollPerfRun, "state-sync");
         const hiddenStatePoll = (typeof document !== "undefined") && !!document.hidden;
@@ -854,6 +860,9 @@
         }}
         if (activeLayoutView === "scripts") {{
           renderScriptsViewSafely(state, "poll.updated.scripts");
+        }}
+        if (activeLayoutView === "plugin") {{
+          renderPluginWorkspaceView(state);
         }}
         if (networkOverviewActive) {{
           if (weeklySummary && !weeklySummary.error) {{

@@ -54,6 +54,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="layout-view-menu-apps-current"' in html
     assert 'id="layout-view-menu-apps-meta"' in html
     assert 'id="layout-view-menu-apps-submenu"' in html
+    assert 'class="card plugin-workspace workspace-app-shell"' in html
+    assert 'id="plugin-workspace-host"' in html
     assert 'class="topbar-view-submenu-item is-active"' in html
     assert 'id="settings-about-version"' not in html
     assert 'id="settings-about-commit"' not in html
@@ -187,6 +189,14 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".topbar-view-submenu[data-side=\"overlay\"] {" in css
     assert ".topbar-view-submenu-item {" in css
     assert "z-index: 1350;" in css
+    assert ".layout.view-plugin {" in css
+    assert ".layout.view-plugin .plugin-workspace {" in css
+    assert ".plugin-workspace-host {" in css
+    plugin_heading_section = css.split(".plugin-workspace-content h2,", 1)[1].split("}", 1)[0]
+    assert "background: transparent;" in plugin_heading_section
+    assert "border: 0;" in plugin_heading_section
+    assert "letter-spacing: 0;" in plugin_heading_section
+    assert "text-transform: none;" in plugin_heading_section
     topbar_section = css.split(".topbar {", 1)[1].split("}", 1)[0]
     topbar_sub_section = css.split(".topbar .sub {", 1)[1].split("}", 1)[0]
     _topbar_summary_row_padding_section = css.split(".topbar .sub .summary-ticker-row {", 3)[2].split("}", 1)[0]
@@ -272,6 +282,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     )
 
     assert "function syncLayoutViewLauncherButtonState(viewName = activeLayoutView) {" in js
+    assert "function normalizePluginViewKey(raw)" in js
+    assert "topbar-view-menu-item-plugin" in js
+    assert "function renderPluginWorkspaceView(state = latestState)" in js
     assert "TopbarUpdateTicker" not in js
     assert "topbarUpdateTicker" not in js
     assert "topbar-update-ticker" not in js

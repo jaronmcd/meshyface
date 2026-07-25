@@ -814,9 +814,17 @@ def build_dashboard_runtime_context(
             mesh_enabled: bool,
             console_enabled: bool,
             ticker_enabled: bool,
+            view_enabled: bool,
             expected_package_digest: object | None = None,
         ) -> dict[str, object]:
-            del plugin_id, mesh_enabled, console_enabled, ticker_enabled, expected_package_digest
+            del (
+                plugin_id,
+                mesh_enabled,
+                console_enabled,
+                ticker_enabled,
+                view_enabled,
+                expected_package_digest,
+            )
             return {
                 "ok": False,
                 "error": {

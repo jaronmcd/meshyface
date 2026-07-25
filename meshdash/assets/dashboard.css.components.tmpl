@@ -7076,6 +7076,178 @@
       padding: 0;
       box-shadow: none;
     }}
+    .plugin-workspace-host {{
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+    }}
+    .plugin-workspace-shell {{
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+      gap: 8px;
+      width: 100%;
+    }}
+    .plugin-workspace-head {{
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+      padding: 8px 10px;
+    }}
+    .plugin-workspace-title {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }}
+    .plugin-workspace-icon {{
+      display: inline-flex;
+      flex: 0 0 34px;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--surface-tint-border);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--ui-panel) 82%, var(--ui-accent-soft) 18%);
+      color: var(--ui-text);
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+    }}
+    .plugin-workspace-copy {{
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }}
+    .plugin-workspace-label {{
+      color: var(--ui-text);
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.15;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .plugin-workspace-meta {{
+      color: var(--ui-muted);
+      font-size: 11px;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .plugin-workspace-scripts-btn {{
+      flex: 0 0 auto;
+    }}
+    .plugin-workspace-scroll {{
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      padding: 12px 10px 18px;
+    }}
+    .plugin-workspace-description {{
+      max-width: 980px;
+      margin: 0 0 12px;
+      color: var(--ui-muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }}
+    .plugin-workspace-content {{
+      max-width: 980px;
+      color: var(--ui-text);
+      font-size: 13px;
+      line-height: 1.55;
+    }}
+    .plugin-workspace-content h2,
+    .plugin-workspace-content h3,
+    .plugin-workspace-content h4 {{
+      margin: 16px 0 8px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--ui-text);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0;
+      line-height: 1.2;
+      text-transform: none;
+    }}
+    .plugin-workspace-content h2:first-child,
+    .plugin-workspace-content h3:first-child,
+    .plugin-workspace-content h4:first-child {{
+      margin-top: 0;
+    }}
+    .plugin-workspace-content p {{
+      margin: 0 0 10px;
+    }}
+    .plugin-workspace-content ul {{
+      margin: 0 0 12px 18px;
+      padding: 0;
+    }}
+    .plugin-workspace-content li {{
+      margin: 4px 0;
+    }}
+    .plugin-workspace-content code {{
+      border: 1px solid var(--surface-tint-border);
+      border-radius: 4px;
+      padding: 1px 4px;
+      background: color-mix(in srgb, var(--ui-panel) 88%, black 12%);
+      color: var(--ui-text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.94em;
+    }}
+    .plugin-workspace-content pre {{
+      max-width: 100%;
+      overflow: auto;
+      border: 1px solid var(--surface-tint-border);
+      border-radius: 8px;
+      padding: 10px;
+      background: color-mix(in srgb, var(--ui-panel) 88%, black 12%);
+    }}
+    .plugin-workspace-content pre code {{
+      border: 0;
+      padding: 0;
+      background: transparent;
+    }}
+    .plugin-workspace-empty {{
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 180px;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 18px;
+      color: var(--ui-muted);
+    }}
+    .plugin-workspace-empty h2 {{
+      margin: 0 0 6px;
+      color: var(--ui-text);
+      font-size: 18px;
+      line-height: 1.2;
+    }}
+    .plugin-workspace-empty p {{
+      margin: 0;
+      font-size: 12px;
+    }}
+    @media (max-width: 760px) {{
+      .plugin-workspace-head {{
+        align-items: stretch;
+        flex-direction: column;
+      }}
+      .plugin-workspace-scripts-btn {{
+        width: 100%;
+      }}
+      .plugin-workspace-scroll {{
+        padding: 10px 8px 16px;
+      }}
+    }}
     [data-theme="dark"] .games-board-wrap {{
       --games-board-accent: var(--ui-accent-soft);
       --games-board-accent-strong: var(--ui-accent);

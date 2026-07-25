@@ -11,6 +11,7 @@ from meshdash.plugins.manifest import (
     MAX_MANIFEST_BYTES,
     MAX_PLUGIN_COMMANDS,
     MAX_PLUGIN_README_BYTES,
+    MAX_PLUGIN_VIEWS,
     PluginDefinitionError,
     DuplicatePluginIdError,
     ManifestError,
@@ -215,6 +216,31 @@ default = ["!AABBCCDD", "!aabbccdd", "!01020304"]
     assert manifest.settings[3].default == ("!aabbccdd", "!01020304")
 
 
+def test_manifest_declares_plugin_workspace_views(tmp_path: Path) -> None:
+    plugin = _write_plugin(
+        tmp_path,
+        "viewed",
+        extra_toml="""
+[[views]]
+id = "reply_lab"
+label = "Reply Lab"
+icon = "RL"
+description = "Test reply matching workspace"
+""",
+    )
+
+    manifest = parse_manifest(plugin / "plugin.toml")
+
+    assert [view.to_dict(include_content=False) for view in manifest.views] == [
+        {
+            "id": "reply_lab",
+            "label": "Reply Lab",
+            "icon": "RL",
+            "description": "Test reply matching workspace",
+        }
+    ]
+
+
 @pytest.mark.parametrize(
     ("setting_toml", "message"),
     [
@@ -245,6 +271,33 @@ def test_manifest_rejects_invalid_setting_definitions(
         tmp_path,
         "configured",
         extra_toml=f"[[settings]]\n{setting_toml}",
+    )
+
+    with pytest.raises(ManifestError, match=message):
+        parse_manifest(plugin / "plugin.toml")
+
+
+@pytest.mark.parametrize(
+    ("view_toml", "message"),
+    [
+        ('id = "Bad View"\nlabel = "Bad"', "id must match"),
+        ('id = "main"\nlabel = ""', "label must be a non-empty"),
+        ('id = "main"\nlabel = "Main"\nicon = "TOOLONG"', "icon must be at most"),
+        (
+            'id = "main"\nlabel = "Main"\nicon = "🙂"',
+            "view icon must contain",
+        ),
+    ],
+)
+def test_manifest_rejects_invalid_view_definitions(
+    tmp_path: Path,
+    view_toml: str,
+    message: str,
+) -> None:
+    plugin = _write_plugin(
+        tmp_path,
+        "viewed",
+        extra_toml=f"[[views]]\n{view_toml}",
     )
 
     with pytest.raises(ManifestError, match=message):
@@ -402,6 +455,14 @@ def test_manifest_and_command_metadata_limits_are_enforced(tmp_path: Path) -> No
     with pytest.raises(ManifestError, match="commands may contain at most"):
         parse_manifest(plugin / "plugin.toml")
 
+    views_toml = "\n".join(
+        f'[[views]]\nid = "v{index}"\nlabel = "View {index}"'
+        for index in range(MAX_PLUGIN_VIEWS + 1)
+    )
+    plugin = _write_plugin(tmp_path, "views", extra_toml=views_toml)
+    with pytest.raises(ManifestError, match="views may contain at most"):
+        parse_manifest(plugin / "plugin.toml")
+
 
 def test_discovery_is_deterministic_and_does_not_import_python(tmp_path: Path) -> None:
     included = tmp_path / "included"
@@ -461,7 +522,18 @@ def hello(ctx):
 
 
 def test_worker_validation_enforces_authoritative_manifest_metadata(tmp_path: Path) -> None:
-    plugin = _write_plugin(tmp_path, "example", commands=("hello", "status"))
+    plugin = _write_plugin(
+        tmp_path,
+        "example",
+        commands=("hello", "status"),
+        extra_toml="""
+[[views]]
+id = "main"
+label = "Main"
+icon = "MN"
+description = "Main workspace"
+""",
+    )
     manifest = parse_manifest(plugin / "plugin.toml")
     script = Script(id="example", name="Example", version="1.0.0")
 
@@ -475,6 +547,17 @@ def test_worker_validation_enforces_authoritative_manifest_metadata(tmp_path: Pa
     @script.command("status")
     def status(ctx: object) -> None:
         return None
+
+    with pytest.raises(PluginDefinitionError, match="missing view declarations: main"):
+        validate_script_against_manifest(manifest, script)
+
+    script.view(
+        "main",
+        label="Main",
+        icon="MN",
+        description="Main workspace",
+        content="# Main",
+    )
 
     assert validate_script_against_manifest(manifest, script) is script
 

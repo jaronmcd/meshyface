@@ -520,6 +520,15 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                             "enabled": True,
                             "active": True,
                             "runtime_status": "running",
+                            "views": [
+                                {
+                                    "id": "forecast",
+                                    "label": "Forecast",
+                                    "icon": "WX",
+                                    "description": "Weather station view",
+                                    "content": "# Forecast\n\nPublic view body.",
+                                }
+                            ],
                             "settings": {
                                 "api_token": "must-not-be-public",
                                 "client_secret": "also-private",
@@ -538,7 +547,17 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                             "active": True,
                             "console_enabled": False,
                             "ticker_enabled": False,
+                            "view_enabled": False,
                             "runtime_status": "running",
+                            "views": [
+                                {
+                                    "id": "hidden",
+                                    "label": "Hidden",
+                                    "icon": "HD",
+                                    "description": "Hidden plugin view",
+                                    "content": "Hidden view body",
+                                }
+                            ],
                         }
                     ],
                     "file_jobs": {
@@ -607,6 +626,21 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                 "runtime_status": "running",
             }
         ],
+        "views": [
+            {
+                "id": "plugin:weather:forecast",
+                "plugin_id": "weather",
+                "plugin_name": "Weather",
+                "view_id": "forecast",
+                "label": "Forecast",
+                "icon": "WX",
+                "description": "Weather station view",
+                "content": "# Forecast\n\nPublic view body.",
+                "enabled": True,
+                "active": True,
+                "runtime_status": "running",
+            },
+        ],
         "runtime": {
             "status": "running",
             "worker_alive": True,
@@ -631,6 +665,7 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
     assert "also-private" not in serialized
     assert "private-readme-content" not in serialized
     assert "private.bin" not in serialized
+    assert "Hidden view body" not in serialized
     assert "hidden ticker detail" not in serialized
     assert "private debug" not in serialized
     assert "worker_pid" not in serialized

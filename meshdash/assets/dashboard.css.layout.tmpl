@@ -1039,7 +1039,8 @@
    }}
    .workspace-main > .layout.view-chat,
     .workspace-main > .layout.view-console,
-    .workspace-main > .layout.view-settings {{
+    .workspace-main > .layout.view-settings,
+    .workspace-main > .layout.view-plugin {{
       grid-row: 1 / -1;
     }}
     .layout.view-chat {{
@@ -1301,6 +1302,7 @@
     .layout.view-chat .map,
     .layout.view-chat .map-data,
     .layout.view-chat .summary,
+    .layout.view-chat .plugin-workspace,
     .layout.view-chat .nodes,
     .layout.view-chat .console,
     .layout.view-chat .splitter,
@@ -1340,6 +1342,7 @@
     .layout.view-files .chat,
     .layout.view-files .settings,
     .layout.view-files .games,
+    .layout.view-files .plugin-workspace,
     .layout.view-files .nodes,
     .layout.view-files .map,
     .layout.view-files .map-data,
@@ -1384,6 +1387,7 @@
     .layout.view-scripts .files,
     .layout.view-scripts .settings,
     .layout.view-scripts .games,
+    .layout.view-scripts .plugin-workspace,
     .layout.view-scripts .nodes,
     .layout.view-scripts .map,
     .layout.view-scripts .map-data,
@@ -1393,6 +1397,57 @@
     .layout.view-scripts .hsplitter[data-target="top"],
     .layout.view-scripts .hsplitter[data-target="mid"],
     .layout.view-scripts .hsplitter[data-target="low"] {{
+      display: none !important;
+    }}
+
+    .layout.view-plugin {{
+      height: 100%;
+      min-height: 0;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+      background: transparent;
+      overflow: visible;
+    }}
+    .layout.view-plugin .plugin-workspace {{
+      grid-column: 1;
+      grid-row: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      height: 100%;
+      min-height: 0;
+      max-height: 100%;
+      width: 100%;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      overflow: visible;
+    }}
+    .layout.view-plugin .plugin-workspace .body {{
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      overflow: hidden;
+      background: transparent;
+      padding: 0;
+    }}
+    .layout.view-plugin .chat,
+    .layout.view-plugin .files,
+    .layout.view-plugin .scripts,
+    .layout.view-plugin .settings,
+    .layout.view-plugin .games,
+    .layout.view-plugin .nodes,
+    .layout.view-plugin .map,
+    .layout.view-plugin .map-data,
+    .layout.view-plugin .console,
+    .layout.view-plugin .summary,
+    .layout.view-plugin .splitter,
+    .layout.view-plugin .hsplitter[data-target="top"],
+    .layout.view-plugin .hsplitter[data-target="mid"],
+    .layout.view-plugin .hsplitter[data-target="low"] {{
       display: none !important;
     }}
 
@@ -1615,6 +1670,7 @@
     }}
     .layout.view-network .map-data,
     .layout.view-network .chat,
+    .layout.view-network .plugin-workspace,
     .layout.view-network .console,
     .layout.view-network .hsplitter[data-target="top"],
     .layout.view-network .hsplitter[data-target="mid"],
@@ -1683,6 +1739,7 @@
     }}
     .layout.view-console .chat,
     .layout.view-console .nodes,
+    .layout.view-console .plugin-workspace,
     .layout.view-console .map,
     .layout.view-console .map-data,
     .layout.view-console .splitter,
@@ -1746,6 +1803,7 @@
     }}
     .layout.view-settings .chat,
     .layout.view-settings .nodes,
+    .layout.view-settings .plugin-workspace,
     .layout.view-settings .map,
     .layout.view-settings .map-data,
     .layout.view-settings .splitter,
@@ -1785,6 +1843,7 @@
     }}
     .layout.view-games .chat,
     .layout.view-games .settings,
+    .layout.view-games .plugin-workspace,
     .layout.view-games .nodes,
     .layout.view-games .map,
     .layout.view-games .map-data,

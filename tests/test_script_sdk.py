@@ -14,6 +14,7 @@ from meshdash.plugins import (
     SendTextAction,
     SessionAction,
     TickerDefinition,
+    ViewDefinition,
     action_from_dict,
     action_to_dict,
 )
@@ -65,6 +66,13 @@ def test_script_registers_commands_and_handlers_with_read_only_registry() -> Non
         return None
 
     ticker = script.ticker("activity", label="Activity", default_enabled=True)
+    view = script.view(
+        "reply_lab",
+        label="Reply Lab",
+        icon="RL",
+        description="Reply matching workspace",
+        content="# Reply Lab",
+    )
 
     assert script.id == "example_script"
     assert script.name == "Example Script"
@@ -77,10 +85,33 @@ def test_script_registers_commands_and_handlers_with_read_only_registry() -> Non
     assert script.stop_handler is stop
     assert ticker == TickerDefinition("activity", "Activity")
     assert script.tickers == {"activity": ticker}
+    assert view == ViewDefinition(
+        "reply_lab",
+        "Reply Lab",
+        "RL",
+        "Reply matching workspace",
+        "# Reply Lab",
+    )
+    assert view.to_dict() == {
+        "id": "reply_lab",
+        "label": "Reply Lab",
+        "icon": "RL",
+        "description": "Reply matching workspace",
+        "content": "# Reply Lab",
+    }
+    assert view.to_dict(include_content=False) == {
+        "id": "reply_lab",
+        "label": "Reply Lab",
+        "icon": "RL",
+        "description": "Reply matching workspace",
+    }
+    assert script.views == {"reply_lab": view}
     with pytest.raises(TypeError):
         script.commands["other"] = hello  # type: ignore[index]
     with pytest.raises(TypeError):
         script.tickers["other"] = ticker  # type: ignore[index]
+    with pytest.raises(TypeError):
+        script.views["other"] = view  # type: ignore[index]
 
 
 def test_script_validates_ticker_declarations() -> None:
@@ -93,6 +124,24 @@ def test_script_validates_ticker_declarations() -> None:
         script.ticker("Bad ticker", label="Bad")
     with pytest.raises(ValueError, match="ticker label"):
         script.ticker("other", label="x" * 27)
+
+
+def test_script_validates_view_declarations() -> None:
+    script = Script(id="example", name="Example", version="1")
+
+    view = script.view("main", label="Main View")
+
+    assert view.icon == "MV"
+    with pytest.raises(ValueError, match="already registered"):
+        script.view("main", label="Duplicate")
+    with pytest.raises(ValueError, match="view id"):
+        script.view("Bad View", label="Bad")
+    with pytest.raises(ValueError, match="view label"):
+        script.view("other", label="x" * 33)
+    with pytest.raises(ValueError, match="view icon"):
+        script.view("other", label="Other", icon="TOOLONG")
+    with pytest.raises(ValueError, match="view content"):
+        script.view("large", label="Large", content="x" * (16 * 1024 + 1))
 
 
 @pytest.mark.parametrize("name", ["Hello", "two words", "!hello", "", "a" * 33])

@@ -159,21 +159,25 @@ def test_plugin_sessions_and_enablement_are_host_owned(tmp_path) -> None:
         "mesh_enabled": True,
         "console_enabled": True,
         "ticker_enabled": True,
+        "view_enabled": True,
     }
     assert store.set_plugin_route_policy(
         "example",
         mesh_enabled=False,
         console_enabled=True,
         ticker_enabled=False,
+        view_enabled=False,
     ) == {
         "mesh_enabled": False,
         "console_enabled": True,
         "ticker_enabled": False,
+        "view_enabled": False,
     }
     assert store.plugin_route_policy("example") == {
         "mesh_enabled": False,
         "console_enabled": True,
         "ticker_enabled": False,
+        "view_enabled": False,
     }
     store.close()
 

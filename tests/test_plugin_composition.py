@@ -163,6 +163,42 @@ def ticker(ctx):
     )
 
 
+def _write_view_plugin(root: Path) -> None:
+    directory = root / "viewer"
+    directory.mkdir(parents=True)
+    (directory / "plugin.toml").write_text(
+        """api_version = 1
+id = "viewer"
+name = "Viewer"
+version = "1.0.0"
+entrypoint = "script.py:script"
+commands = []
+default_enabled = true
+
+[[views]]
+id = "main"
+label = "Viewer"
+icon = "VW"
+description = "Plugin view test"
+""",
+        encoding="utf-8",
+    )
+    (directory / "script.py").write_text(
+        """
+from meshdash.plugins import Script
+script = Script(id="viewer", name="Viewer", version="1.0.0")
+script.view(
+    "main",
+    label="Viewer",
+    icon="VW",
+    description="Plugin view test",
+    content="# Viewer\\n\\nRuntime view body.",
+)
+""",
+        encoding="utf-8",
+    )
+
+
 def _wait_until(predicate, timeout: float = 4.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -466,12 +502,84 @@ def test_plugin_ticker_policy_filters_runtime_tickers_without_disabling_script(t
             "mesh_enabled": True,
             "console_enabled": True,
             "ticker_enabled": False,
+            "view_enabled": True,
         }
         filtered_status = subsystem.status()
         assert filtered_status["enabled_plugins"] == ["ticker"]
         assert filtered_status["scripts"][0]["enabled"] is True  # type: ignore[index]
         assert filtered_status["scripts"][0]["ticker_enabled"] is False  # type: ignore[index]
+        assert filtered_status["scripts"][0]["view_enabled"] is True  # type: ignore[index]
         assert filtered_status["runtime"]["tickers"] == []  # type: ignore[index]
+    finally:
+        subsystem.close()
+
+
+def test_plugin_status_exposes_manifest_views_with_runtime_content(tmp_path) -> None:
+    plugin_root = tmp_path / "plugins"
+    _write_view_plugin(plugin_root)
+    subsystem = build_plugin_subsystem(
+        args=_args(tmp_path, plugin_enable=["viewer"]),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        _wait_until(
+            lambda: subsystem.status()["scripts"][0]["runtime_status"] == "running"  # type: ignore[index]
+        )
+        status = subsystem.status()
+        script = status["scripts"][0]  # type: ignore[index]
+
+        assert script["view_enabled"] is True
+        assert script["views"] == [
+            {
+                "id": "main",
+                "label": "Viewer",
+                "icon": "VW",
+                "description": "Plugin view test",
+                "plugin_id": "viewer",
+                "plugin_name": "Viewer",
+                "enabled": True,
+                "active": True,
+                "runtime_status": "running",
+                "content": "# Viewer\n\nRuntime view body.",
+            }
+        ]
+        assert status["runtime"]["plugins"]["viewer"]["views"] == [  # type: ignore[index]
+            {
+                "id": "main",
+                "label": "Viewer",
+                "icon": "VW",
+                "description": "Plugin view test",
+                "content": "# Viewer\n\nRuntime view body.",
+            }
+        ]
+
+        result = subsystem.set_plugin_route_policy(
+            "viewer",
+            mesh_enabled=True,
+            console_enabled=True,
+            ticker_enabled=True,
+            view_enabled=False,
+            expected_package_digest=script["package_digest"],
+        )
+
+        assert result == {
+            "ok": True,
+            "plugin_id": "viewer",
+            "mesh_enabled": True,
+            "console_enabled": True,
+            "ticker_enabled": True,
+            "view_enabled": False,
+        }
+        disabled_status = subsystem.status()
+        disabled_script = disabled_status["scripts"][0]  # type: ignore[index]
+        assert disabled_status["enabled_plugins"] == ["viewer"]
+        assert disabled_script["enabled"] is True
+        assert disabled_script["active"] is True
+        assert disabled_script["view_enabled"] is False
+        assert disabled_script["views"][0]["content"] == "# Viewer\n\nRuntime view body."
     finally:
         subsystem.close()
 

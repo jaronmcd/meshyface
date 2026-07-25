@@ -247,11 +247,11 @@
     }}
 
     function scriptsReadmeInlineHtml(value) {{
-      return escAttr(value).replace(/`([^`\\n]{{1,160}})`/g, "<code>$1</code>");
+      return escAttr(value).replace(/`([^`\n]{{1,160}})`/g, "<code>$1</code>");
     }}
 
     function scriptsReadmeMarkdownHtml(value) {{
-      const lines = String(value || "").replace(/\\r\\n?/g, "\\n").split("\\n");
+      const lines = String(value || "").replace(/\r\n?/g, "\n").split("\n");
       const html = [];
       let paragraph = [];
       let listOpen = false;
@@ -270,7 +270,7 @@
         paragraph = [];
       }};
       const flushCode = () => {{
-        html.push(`<pre><code>${{escAttr(codeLines.join("\\n"))}}</code></pre>`);
+        html.push(`<pre><code>${{escAttr(codeLines.join("\n"))}}</code></pre>`);
         codeLines = [];
       }};
 
@@ -298,7 +298,7 @@
           closeList();
           continue;
         }}
-        const heading = /^(#{{1,4}})\\s+(.+)$/.exec(trimmed);
+        const heading = /^(#{{1,4}})\s+(.+)$/.exec(trimmed);
         if (heading) {{
           flushParagraph();
           closeList();
@@ -306,7 +306,7 @@
           html.push(`<h${{level}}>${{scriptsReadmeInlineHtml(heading[2])}}</h${{level}}>`);
           continue;
         }}
-        const listItem = /^[-*]\\s+(.+)$/.exec(trimmed);
+        const listItem = /^[-*]\s+(.+)$/.exec(trimmed);
         if (listItem) {{
           flushParagraph();
           if (!listOpen) {{
@@ -820,6 +820,9 @@
       const tickerDefinitions = registryEntry && Array.isArray(registryEntry.tickers)
         ? registryEntry.tickers
         : [];
+      const viewDefinitions = Array.isArray(row.views)
+        ? row.views.filter((definition) => definition && typeof definition === "object")
+        : [];
       const consoleRouteVisible = commands.length > 0;
       const meshRouteVisible = (
         commands.length > 0
@@ -831,6 +834,7 @@
         || registryEntry.on_stop === true
       );
       const tickerRouteVisible = tickerDefinitions.length > 0 || row.ticker_enabled === false;
+      const viewRouteVisible = viewDefinitions.length > 0 || row.view_enabled === false;
       const commandHtml = commands.length > 0
         ? commands.map((command) => `<span class="scripts-command">!${{escAttr(command)}}</span>`).join("")
         : '<span class="scripts-command">No commands</span>';
@@ -846,6 +850,7 @@
       const meshEnabled = row.mesh_enabled !== false;
       const consoleEnabled = row.console_enabled !== false;
       const tickerEnabled = row.ticker_enabled !== false;
+      const viewEnabled = row.view_enabled !== false;
       return `
         <article class="scripts-item" data-script-id="${{escAttr(scriptId)}}">
           <div class="scripts-item-head">
@@ -882,7 +887,7 @@
           <div class="scripts-item-actions">
             <span class="scripts-item-action-copy">${{escAttr(scriptsItemActionCopy(row, itemState))}}</span>
             <div class="scripts-item-controls">
-              ${{meshRouteVisible || consoleRouteVisible || tickerRouteVisible ? `
+              ${{meshRouteVisible || consoleRouteVisible || tickerRouteVisible || viewRouteVisible ? `
                 <div class="scripts-route-toggles" aria-label="Script options">
                   ${{meshRouteVisible ? `
                     <label class="scripts-route-toggle">
@@ -921,6 +926,19 @@
                         ${{routeControlsDisabled ? "disabled" : ""}}
                       >
                       <span>Ticker</span>
+                    </label>
+                  ` : ""}}
+                  ${{viewRouteVisible ? `
+                    <label class="scripts-route-toggle">
+                      <input
+                        type="checkbox"
+                        data-script-route-toggle="${{escAttr(scriptId)}}"
+                        data-route-key="view"
+                        data-package-digest="${{escAttr(packageDigest)}}"
+                        ${{viewEnabled ? "checked" : ""}}
+                        ${{routeControlsDisabled ? "disabled" : ""}}
+                      >
+                      <span>View</span>
                     </label>
                   ` : ""}}
                 </div>
@@ -1146,10 +1164,11 @@
         meshEnabled: !match || match.mesh_enabled !== false,
         consoleEnabled: !match || match.console_enabled !== false,
         tickerEnabled: !match || match.ticker_enabled !== false,
+        viewEnabled: !match || match.view_enabled !== false,
       }};
     }}
 
-    function scriptsUpdateCachedRoutePolicy(scriptId, meshEnabled, consoleEnabled, tickerEnabled) {{
+    function scriptsUpdateCachedRoutePolicy(scriptId, meshEnabled, consoleEnabled, tickerEnabled, viewEnabled) {{
       const runtimeSummary = scriptsRuntimeSummary(latestState);
       const rows = scriptsRuntimeEntries(runtimeSummary);
       const match = rows.find((row) => String(row.id || "") === scriptId);
@@ -1157,6 +1176,7 @@
         match.mesh_enabled = !!meshEnabled;
         match.console_enabled = !!consoleEnabled;
         match.ticker_enabled = !!tickerEnabled;
+        match.view_enabled = !!viewEnabled;
       }}
     }}
 
@@ -1330,6 +1350,7 @@
       meshEnabled,
       consoleEnabled,
       tickerEnabled,
+      viewEnabled,
       control
     ) {{
       const cleanId = String(scriptId || "").trim();
@@ -1346,7 +1367,8 @@
         cleanId,
         !!meshEnabled,
         !!consoleEnabled,
-        !!tickerEnabled
+        !!tickerEnabled,
+        !!viewEnabled
       );
       scriptsTransientErrorMessage = "";
       if (control instanceof HTMLInputElement) control.disabled = true;
@@ -1361,6 +1383,7 @@
             mesh_enabled: !!meshEnabled,
             console_enabled: !!consoleEnabled,
             ticker_enabled: !!tickerEnabled,
+            view_enabled: !!viewEnabled,
           }}),
           cache: "no-store",
         }});
@@ -1385,7 +1408,8 @@
           cleanId,
           payload.mesh_enabled !== false,
           payload.console_enabled !== false,
-          payload.ticker_enabled !== false
+          payload.ticker_enabled !== false,
+          payload.view_enabled !== false
         );
         if (typeof forceNextStatePollFresh === "function") {{
           forceNextStatePollFresh("script-routes");
@@ -1400,7 +1424,8 @@
           cleanId,
           previous.meshEnabled,
           previous.consoleEnabled,
-          previous.tickerEnabled
+          previous.tickerEnabled,
+          previous.viewEnabled
         );
         const message = err instanceof Error ? err.message : String(err || "Unknown error");
         scriptsTransientErrorMessage = `Could not update routes for ${{cleanId}}: ${{message}}`;
@@ -1604,6 +1629,9 @@
         const tickerInput = item instanceof HTMLElement
           ? item.querySelector('[data-script-route-toggle][data-route-key="ticker"]')
           : null;
+        const viewInput = item instanceof HTMLElement
+          ? item.querySelector('[data-script-route-toggle][data-route-key="view"]')
+          : null;
         const previous = scriptsRoutePolicyFor(scriptId);
         const meshEnabled = meshInput instanceof HTMLInputElement
           ? meshInput.checked
@@ -1614,12 +1642,16 @@
         const tickerEnabled = tickerInput instanceof HTMLInputElement
           ? tickerInput.checked
           : previous.tickerEnabled;
+        const viewEnabled = viewInput instanceof HTMLInputElement
+          ? viewInput.checked
+          : previous.viewEnabled;
         void setScriptRoutePolicy(
           scriptId,
           packageDigest,
           meshEnabled,
           consoleEnabled,
           tickerEnabled,
+          viewEnabled,
           target
         );
       }});

@@ -123,6 +123,49 @@ def _script_runtime_health(
     return "error", worker_error or "Script worker is not running", False
 
 
+def _script_view_statuses(
+    *,
+    manifest: PluginManifest,
+    is_enabled: bool,
+    is_active: bool,
+    health: str,
+    runtime_status: Mapping[str, object],
+) -> list[dict[str, object]]:
+    runtime_plugins = runtime_status.get("plugins")
+    registration = (
+        runtime_plugins.get(manifest.id)
+        if isinstance(runtime_plugins, Mapping)
+        else None
+    )
+    runtime_views = registration.get("views") if isinstance(registration, Mapping) else None
+    runtime_views_by_id = {
+        str(row.get("id") or ""): row
+        for row in runtime_views
+        if isinstance(row, Mapping)
+    } if isinstance(runtime_views, list) else {}
+    views: list[dict[str, object]] = []
+    for definition in manifest.views:
+        row: dict[str, object] = definition.to_dict(include_content=False)
+        runtime_view = runtime_views_by_id.get(definition.id)
+        content = (
+            str(runtime_view.get("content") or "")
+            if isinstance(runtime_view, Mapping)
+            else ""
+        )
+        row.update(
+            {
+                "plugin_id": manifest.id,
+                "plugin_name": manifest.name,
+                "enabled": bool(is_enabled),
+                "active": bool(is_active),
+                "runtime_status": health,
+                "content": content,
+            }
+        )
+        views.append(row)
+    return views
+
+
 class PluginSubsystem:
     def __init__(
         self,
@@ -173,6 +216,7 @@ class PluginSubsystem:
                     "mesh_enabled": True,
                     "console_enabled": True,
                     "ticker_enabled": True,
+                    "view_enabled": True,
                 }
                 for manifest in manifests
             }
@@ -314,6 +358,7 @@ class PluginSubsystem:
                     "mesh_enabled": True,
                     "console_enabled": True,
                     "ticker_enabled": True,
+                    "view_enabled": True,
                 },
             )
             package_revision_status, identity_changed = package_revision_states[
@@ -360,6 +405,7 @@ class PluginSubsystem:
                 "mesh_enabled": bool(route_policy.get("mesh_enabled", True)),
                 "console_enabled": bool(route_policy.get("console_enabled", True)),
                 "ticker_enabled": bool(route_policy.get("ticker_enabled", True)),
+                "view_enabled": bool(route_policy.get("view_enabled", True)),
                 "runtime_status": health,
                 "runtime_error": runtime_error,
                 "restart_required": restart_required,
@@ -367,6 +413,13 @@ class PluginSubsystem:
                     definition.to_dict() for definition in manifest.settings
                 ],
                 "settings": settings,
+                "views": _script_view_statuses(
+                    manifest=manifest,
+                    is_enabled=is_enabled,
+                    is_active=is_active,
+                    health=health,
+                    runtime_status=runtime_status,
+                ),
             }
             if manifest.readme is not None:
                 script_status["readme"] = manifest.readme.to_dict()
@@ -718,6 +771,7 @@ class PluginSubsystem:
         mesh_enabled: bool,
         console_enabled: bool,
         ticker_enabled: bool | None = None,
+        view_enabled: bool | None = None,
         expected_package_digest: object,
     ) -> dict[str, object]:
         if self._state_store is None:
@@ -754,6 +808,7 @@ class PluginSubsystem:
         requested_mesh = bool(mesh_enabled)
         requested_console = bool(console_enabled)
         requested_ticker = None if ticker_enabled is None else bool(ticker_enabled)
+        requested_view = None if view_enabled is None else bool(view_enabled)
         with self._lifecycle_lock:
             if self._closed:
                 return {
@@ -768,6 +823,7 @@ class PluginSubsystem:
                 mesh_enabled=requested_mesh,
                 console_enabled=requested_console,
                 ticker_enabled=requested_ticker,
+                view_enabled=requested_view,
             )
             runtime = self._runtime
             if not requested_mesh:
@@ -797,6 +853,7 @@ class PluginSubsystem:
             "mesh_enabled": policy["mesh_enabled"],
             "console_enabled": policy["console_enabled"],
             "ticker_enabled": policy["ticker_enabled"],
+            "view_enabled": policy["view_enabled"],
         }
 
     def set_plugin_settings(

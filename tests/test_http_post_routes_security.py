@@ -528,7 +528,7 @@ def test_plugin_management_returns_structured_invalid_request_error() -> None:
             {"plugin_id": "echo", "mesh_enabled": True, "console_enabled": True},
             (
                 "request body must contain only plugin_id, mesh_enabled, "
-                "console_enabled, ticker_enabled, and package_digest"
+                "console_enabled, ticker_enabled, view_enabled, and package_digest"
             ),
         ),
     ),
@@ -573,9 +573,10 @@ def test_plugin_mutations_require_package_digest(
         mesh_enabled: bool,
         console_enabled: bool,
         ticker_enabled: bool,
+        view_enabled: bool,
         expected_package_digest: object,
     ) -> dict[str, object]:
-        del mesh_enabled, console_enabled, ticker_enabled
+        del mesh_enabled, console_enabled, ticker_enabled, view_enabled
         updates.append(str(expected_package_digest))
         return {"ok": True}
 
@@ -670,6 +671,7 @@ def test_plugin_route_policy_applies_validated_booleans() -> None:
         mesh_enabled=False,
         console_enabled=True,
         ticker_enabled=False,
+        view_enabled=False,
     )
     handler = _FakeHandler(
         body,
@@ -679,7 +681,7 @@ def test_plugin_route_policy_applies_validated_booleans() -> None:
         },
     )
     calls: list[tuple[int, object]] = []
-    received: list[tuple[object, bool, bool, bool, object]] = []
+    received: list[tuple[object, bool, bool, bool, bool, object]] = []
     deps = build_post_route_dependencies(
         send_chat_fn=None,
         set_plugin_route_policy_fn=(
@@ -688,6 +690,7 @@ def test_plugin_route_policy_applies_validated_booleans() -> None:
             mesh_enabled,
             console_enabled,
             ticker_enabled,
+            view_enabled,
             expected_package_digest=None: (
                 received.append(
                     (
@@ -695,6 +698,7 @@ def test_plugin_route_policy_applies_validated_booleans() -> None:
                         mesh_enabled,
                         console_enabled,
                         ticker_enabled,
+                        view_enabled,
                         expected_package_digest,
                     )
                 )
@@ -704,6 +708,7 @@ def test_plugin_route_policy_applies_validated_booleans() -> None:
                     "mesh_enabled": mesh_enabled,
                     "console_enabled": console_enabled,
                     "ticker_enabled": ticker_enabled,
+                    "view_enabled": view_enabled,
                 }
             )
         ),
@@ -720,7 +725,7 @@ def test_plugin_route_policy_applies_validated_booleans() -> None:
 
     handle_dashboard_post(handler, path="/api/settings/plugins/routes", deps=deps)
 
-    assert received == [("echo", False, True, False, _PLUGIN_PACKAGE_DIGEST)]
+    assert received == [("echo", False, True, False, False, _PLUGIN_PACKAGE_DIGEST)]
     assert calls == [
         (
             200,
@@ -730,6 +735,7 @@ def test_plugin_route_policy_applies_validated_booleans() -> None:
                 "mesh_enabled": False,
                 "console_enabled": True,
                 "ticker_enabled": False,
+                "view_enabled": False,
             },
         )
     ]
@@ -1303,6 +1309,7 @@ def test_make_http_handler_wires_plugin_management_hook(
         mesh_enabled: bool,
         console_enabled: bool,
         ticker_enabled: bool,
+        view_enabled: bool,
         expected_package_digest: object | None = None,
     ) -> dict[str, object]:
         del expected_package_digest
@@ -1312,6 +1319,7 @@ def test_make_http_handler_wires_plugin_management_hook(
             "mesh_enabled": mesh_enabled,
             "console_enabled": console_enabled,
             "ticker_enabled": ticker_enabled,
+            "view_enabled": view_enabled,
         }
 
     def _set_plugin_runtime_enabled(enabled: bool) -> dict[str, object]:

@@ -167,6 +167,7 @@ class PluginStateStore:
                 mesh_enabled INTEGER NOT NULL,
                 console_enabled INTEGER NOT NULL,
                 ticker_enabled INTEGER NOT NULL DEFAULT 1,
+                view_enabled INTEGER NOT NULL DEFAULT 1,
                 updated_unix INTEGER NOT NULL
             );
             CREATE TABLE IF NOT EXISTS plugin_runtime_settings (
@@ -231,6 +232,11 @@ class PluginStateStore:
             self._connection.execute(
                 "ALTER TABLE plugin_route_policy "
                 "ADD COLUMN ticker_enabled INTEGER NOT NULL DEFAULT 1"
+            )
+        if "view_enabled" not in route_policy_columns:
+            self._connection.execute(
+                "ALTER TABLE plugin_route_policy "
+                "ADD COLUMN view_enabled INTEGER NOT NULL DEFAULT 1"
             )
         self._connection.commit()
 
@@ -1055,7 +1061,7 @@ class PluginStateStore:
         with self._lock:
             row = self._connection.execute(
                 """
-                SELECT mesh_enabled, console_enabled, ticker_enabled
+                SELECT mesh_enabled, console_enabled, ticker_enabled, view_enabled
                 FROM plugin_route_policy
                 WHERE plugin_id=?
                 """,
@@ -1066,11 +1072,13 @@ class PluginStateStore:
                 "mesh_enabled": True,
                 "console_enabled": True,
                 "ticker_enabled": True,
+                "view_enabled": True,
             }
         return {
             "mesh_enabled": bool(int(row[0])),
             "console_enabled": bool(int(row[1])),
             "ticker_enabled": bool(int(row[2])),
+            "view_enabled": bool(int(row[3])),
         }
 
     def set_plugin_route_policy(
@@ -1080,12 +1088,19 @@ class PluginStateStore:
         mesh_enabled: bool,
         console_enabled: bool,
         ticker_enabled: bool | None = None,
+        view_enabled: bool | None = None,
     ) -> dict[str, bool]:
         clean_plugin = _canonical_id(plugin_id, label="plugin id")
+        existing_policy = self.plugin_route_policy(clean_plugin)
         clean_ticker_enabled = (
             bool(ticker_enabled)
             if ticker_enabled is not None
-            else self.plugin_route_policy(clean_plugin)["ticker_enabled"]
+            else existing_policy["ticker_enabled"]
+        )
+        clean_view_enabled = (
+            bool(view_enabled)
+            if view_enabled is not None
+            else existing_policy["view_enabled"]
         )
         with self._lock:
             self._connection.execute(
@@ -1095,13 +1110,15 @@ class PluginStateStore:
                     mesh_enabled,
                     console_enabled,
                     ticker_enabled,
+                    view_enabled,
                     updated_unix
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(plugin_id) DO UPDATE SET
                     mesh_enabled=excluded.mesh_enabled,
                     console_enabled=excluded.console_enabled,
                     ticker_enabled=excluded.ticker_enabled,
+                    view_enabled=excluded.view_enabled,
                     updated_unix=excluded.updated_unix
                 """,
                 (
@@ -1109,6 +1126,7 @@ class PluginStateStore:
                     1 if mesh_enabled else 0,
                     1 if console_enabled else 0,
                     1 if clean_ticker_enabled else 0,
+                    1 if clean_view_enabled else 0,
                     max(0, int(self._now_fn())),
                 ),
             )
@@ -1117,6 +1135,7 @@ class PluginStateStore:
             "mesh_enabled": bool(mesh_enabled),
             "console_enabled": bool(console_enabled),
             "ticker_enabled": clean_ticker_enabled,
+            "view_enabled": clean_view_enabled,
         }
 
 

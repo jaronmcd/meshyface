@@ -139,6 +139,7 @@ class SetPluginRoutePolicyFn(Protocol):
         mesh_enabled: bool,
         console_enabled: bool,
         ticker_enabled: bool,
+        view_enabled: bool,
         expected_package_digest: object,
     ) -> dict[str, object]:
         ...

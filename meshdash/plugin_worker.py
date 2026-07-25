@@ -29,6 +29,7 @@ from .plugins import (
     action_to_dict,
     compute_plugin_package_digest,
     validate_script_against_manifest,
+    ViewDefinition,
 )
 from .helpers_json import JsonValue, to_jsonable
 from .offline_atlas import nearest_city
@@ -40,6 +41,24 @@ MAX_HANDLER_DEBUG_CALLS = 16
 MAX_HANDLER_DEBUG_BYTES = 16 * 1024
 MAX_HANDLER_TICKER_UPDATES = 8
 MAX_TICKER_ROWS = 8
+
+
+def _view_definitions_from_payload(raw: object) -> tuple[ViewDefinition, ...]:
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes, bytearray)):
+        return ()
+    definitions: list[ViewDefinition] = []
+    for item in raw:
+        if not isinstance(item, Mapping):
+            continue
+        definitions.append(
+            ViewDefinition(
+                id=str(item.get("id") or ""),
+                label=str(item.get("label") or ""),
+                icon=str(item.get("icon") or ""),
+                description=str(item.get("description") or ""),
+            )
+        )
+    return tuple(definitions)
 
 
 def _manifest_from_payload(payload: Mapping[str, object]) -> PluginManifest:
@@ -57,6 +76,7 @@ def _manifest_from_payload(payload: Mapping[str, object]) -> PluginManifest:
         entrypoint_object=str(payload["entrypoint_object"]),
         source=cast(PluginSource, str(payload["source"])),
         package_digest=str(payload["package_digest"]),
+        views=_view_definitions_from_payload(payload.get("views")),
     )
 
 
@@ -429,6 +449,7 @@ def plugin_worker_main(connection: object) -> None:
                         "on_start": False,
                         "on_stop": False,
                         "tickers": [],
+                        "views": [definition.to_dict() for definition in manifest.views],
                     }
                 )
             else:
@@ -443,6 +464,7 @@ def plugin_worker_main(connection: object) -> None:
                         "on_start": script.start_handler is not None,
                         "on_stop": script.stop_handler is not None,
                         "tickers": [definition.to_dict() for definition in script.tickers.values()],
+                        "views": [definition.to_dict() for definition in script.views.values()],
                     }
                 )
         send_bytes(encode_message({"type": "ready", "registry": registry}))

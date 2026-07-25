@@ -45,6 +45,8 @@ _NODE_ID_RE = re.compile(r"![0-9a-f]{8}\Z")
 _COMMAND_RE = re.compile(r"!([a-z][a-z0-9_-]{0,31})(?:\s|\Z)", re.IGNORECASE)
 _COMMAND_NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _TICKER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_VIEW_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_VIEW_ICON_RE = re.compile(r"[A-Z0-9]{1,4}\Z")
 _QUIT_COMMANDS = {"!quit", "!exit"}
 _RESERVED_NODE_IDS = {"!00000000", "!ffffffff"}
 _ACKED_DELIVERY_STATES = {"ack", "acked", "delivered"}
@@ -193,6 +195,7 @@ def _manifest_payload(manifest: PluginManifest) -> dict[str, JsonValue]:
         "entrypoint_path": str(manifest.entrypoint_path),
         "entrypoint_object": manifest.entrypoint_object,
         "source": manifest.source,
+        "views": [definition.to_dict(include_content=False) for definition in manifest.views],
     }
 
 
@@ -1241,6 +1244,9 @@ class PluginRuntime:
                 clean_registration["tickers"] = list(
                     self._validated_ticker_definitions(row.get("tickers"))
                 )
+                clean_registration["views"] = list(
+                    self._validated_view_definitions(row.get("views"))
+                )
                 registry[plugin_id] = clean_registration
             for manifest in self._manifests:
                 if manifest.id not in registry:
@@ -1253,6 +1259,7 @@ class PluginRuntime:
                         "on_start": False,
                         "on_stop": False,
                         "tickers": [],
+                        "views": [definition.to_dict(include_content=False) for definition in manifest.views],
                         "error": self._quarantine_error(manifest.id),
                         "failures": self._plugin_failures.get(manifest.id, 0),
                         "last_error": self._plugin_last_errors.get(manifest.id, ""),
@@ -1321,6 +1328,7 @@ class PluginRuntime:
                 "on_start": False,
                 "on_stop": False,
                 "tickers": [],
+                "views": [definition.to_dict(include_content=False) for definition in manifest.views],
                 "error": self._quarantine_error(manifest.id),
                 "failures": self._plugin_failures.get(manifest.id, 0),
                 "last_error": self._plugin_last_errors.get(manifest.id, ""),
@@ -1637,6 +1645,47 @@ class PluginRuntime:
                     "label": label,
                     "metric": metric,
                     "default_enabled": default_enabled,
+                }
+            )
+        return tuple(definitions)
+
+    def _validated_view_definitions(
+        self,
+        raw: object,
+    ) -> tuple[dict[str, object], ...]:
+        if raw is None:
+            return ()
+        if not isinstance(raw, list) or len(raw) > 8:
+            raise ValueError("plugin registry has an invalid view list")
+        definitions: list[dict[str, object]] = []
+        seen: set[str] = set()
+        expected = {"id", "label", "icon", "description", "content"}
+        for item in raw:
+            if not isinstance(item, Mapping) or set(item) != expected:
+                raise ValueError("plugin view definition has invalid fields")
+            view_id = str(item.get("id") or "")
+            label = str(item.get("label") or "")
+            icon = str(item.get("icon") or "")
+            description = str(item.get("description") or "")
+            content = str(item.get("content") or "")
+            if _VIEW_ID_RE.fullmatch(view_id) is None or view_id in seen:
+                raise ValueError("plugin view definition has an invalid or duplicate ID")
+            if not label or label != label.strip() or len(label) > 32:
+                raise ValueError("plugin view definition has an invalid label")
+            if _VIEW_ICON_RE.fullmatch(icon) is None:
+                raise ValueError("plugin view definition has an invalid icon")
+            if description != description.strip() or len(description) > 120:
+                raise ValueError("plugin view definition has an invalid description")
+            if len(content) > 16 * 1024:
+                raise ValueError("plugin view definition content is too large")
+            seen.add(view_id)
+            definitions.append(
+                {
+                    "id": view_id,
+                    "label": label,
+                    "icon": icon,
+                    "description": description,
+                    "content": content,
                 }
             )
         return tuple(definitions)

@@ -165,13 +165,17 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert 'document.getElementById("scripts-readme-modal")' in js
     assert "const consoleRouteVisible = commands.length > 0;" in js
     assert "const tickerRouteVisible = tickerDefinitions.length > 0 || row.ticker_enabled === false;" in js
+    assert "const viewRouteVisible = viewDefinitions.length > 0 || row.view_enabled === false;" in js
     assert "registryEntry.on_packet === true" in js
     assert "registryEntry.on_start === true" in js
     assert "registryEntry.on_stop === true" in js
     assert "previous.consoleEnabled" in js
     assert "previous.tickerEnabled" in js
+    assert "previous.viewEnabled" in js
     assert 'data-route-key="ticker"' in js
+    assert 'data-route-key="view"' in js
     assert "ticker_enabled: !!tickerEnabled" in js
+    assert "view_enabled: !!viewEnabled" in js
     assert "data-package-digest" in js
     assert 'data-setting-type="node_ids"' in js
     assert ".scripts-config-form {" in build_dashboard_css(theme_css="")
@@ -193,6 +197,23 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert "scriptsUpdateCachedEnabled(cleanId, !!payload.enabled, !!payload.active)" in js
     assert "scriptsUpdateCachedRuntimeMaster(" in js
     assert "Restart MeshyFace to apply the change." not in _html()
+
+
+def test_scripts_readme_markdown_helper_uses_real_js_escape_sequences() -> None:
+    js = _js()
+    helper = js.split("function scriptsReadmeInlineHtml", 1)[1].split(
+        "function scriptsCloseReadme", 1
+    )[0]
+
+    assert 'replace(/`([^`\\n]{1,160})`/g, "<code>$1</code>")' in helper
+    assert 'replace(/\\r\\n?/g, "\\n").split("\\n")' in helper
+    assert 'codeLines.join("\\n")' in helper
+    assert '/^(#{1,4})\\s+(.+)$/.exec(trimmed)' in helper
+    assert '/^[-*]\\s+(.+)$/.exec(trimmed)' in helper
+    assert 'replace(/`([^`\\\\n]{1,160})`/g, "<code>$1</code>")' not in helper
+    assert 'replace(/\\\\r\\\\n?/g, "\\\\n").split("\\\\n")' not in helper
+    assert '/^(#{1,4})\\\\s+(.+)$/.exec(trimmed)' not in helper
+    assert '/^[-*]\\\\s+(.+)$/.exec(trimmed)' not in helper
 
 
 def test_scripts_view_avoids_poll_churn_duplicate_writes_and_render_cascade_failures() -> None:
@@ -361,11 +382,13 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
                 "mesh_enabled": True,
                 "console_enabled": True,
                 "ticker_enabled": True,
+                "view_enabled": True,
                 "runtime_status": "disabled",
                 "runtime_error": "",
                 "restart_required": False,
                 "settings_schema": [],
                 "settings": {},
+                "views": [],
             }
         ]
         assert str(tmp_path) not in json.dumps(status["scripts"])
@@ -391,10 +414,12 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
             "mesh_enabled": False,
             "console_enabled": True,
             "ticker_enabled": True,
+            "view_enabled": True,
         }
         route_status = subsystem.status()["scripts"][0]
         assert route_status["mesh_enabled"] is False
         assert route_status["console_enabled"] is True
         assert route_status["ticker_enabled"] is True
+        assert route_status["view_enabled"] is True
     finally:
         subsystem.close()

@@ -12,7 +12,7 @@ import stat
 import tomllib
 from typing import Callable, Literal, Mapping
 
-from .sdk import Script
+from .sdk import Script, ViewDefinition
 
 
 SUPPORTED_API_VERSION = 1
@@ -20,6 +20,7 @@ MAX_MANIFEST_BYTES = 64 * 1024
 MAX_DISCOVERED_PLUGINS = 64
 MAX_DISCOVERY_ROOT_ENTRIES = 1024
 MAX_PLUGIN_COMMANDS = 64
+MAX_PLUGIN_VIEWS = 8
 MAX_PLUGIN_PACKAGE_ENTRIES = 1024
 MAX_PLUGIN_PACKAGE_BYTES = 64 * 1024 * 1024
 MAX_PLUGIN_README_BYTES = 128 * 1024
@@ -50,7 +51,7 @@ _REQUIRED_FIELDS = {
     "commands",
     "default_enabled",
 }
-_OPTIONAL_FIELDS = {"settings"}
+_OPTIONAL_FIELDS = {"settings", "views"}
 PluginSource = Literal["included", "local"]
 PluginSettingType = Literal["text", "boolean", "integer", "node_ids"]
 
@@ -124,6 +125,7 @@ class PluginManifest:
     source: PluginSource
     package_digest: str
     settings: tuple[PluginSettingDefinition, ...] = ()
+    views: tuple[ViewDefinition, ...] = ()
     readme: PluginReadme | None = None
 
     @property
@@ -193,6 +195,7 @@ def parse_manifest(
     entrypoint = _manifest_string(path, raw, "entrypoint")
     commands = _manifest_commands(path, raw["commands"])
     settings = _manifest_settings(path, raw.get("settings", []))
+    views = _manifest_views(path, raw.get("views", []))
     default_enabled = raw["default_enabled"]
     if not isinstance(default_enabled, bool):
         raise ManifestError(f"{path}: default_enabled must be a boolean")
@@ -231,6 +234,7 @@ def parse_manifest(
         source=source,
         package_digest=package_digest,
         settings=settings,
+        views=views,
         readme=readme,
     )
 
@@ -598,6 +602,33 @@ def validate_script_against_manifest(manifest: PluginManifest, script: object) -
             mismatches.append(f"missing command handlers: {', '.join(missing)}")
         if undeclared:
             mismatches.append(f"undeclared command handlers: {', '.join(undeclared)}")
+    script_views = set(script.views)
+    manifest_views = {definition.id for definition in manifest.views}
+    if script_views != manifest_views:
+        missing = sorted(manifest_views - script_views)
+        undeclared = sorted(script_views - manifest_views)
+        if missing:
+            mismatches.append(f"missing view declarations: {', '.join(missing)}")
+        if undeclared:
+            mismatches.append(f"undeclared view declarations: {', '.join(undeclared)}")
+    for manifest_view in manifest.views:
+        script_view = script.views.get(manifest_view.id)
+        if script_view is None:
+            continue
+        if script_view.label != manifest_view.label:
+            mismatches.append(
+                f"view {manifest_view.id!r} label is {script_view.label!r}, "
+                f"manifest declares {manifest_view.label!r}"
+            )
+        if script_view.icon != manifest_view.icon:
+            mismatches.append(
+                f"view {manifest_view.id!r} icon is {script_view.icon!r}, "
+                f"manifest declares {manifest_view.icon!r}"
+            )
+        if script_view.description != manifest_view.description:
+            mismatches.append(
+                f"view {manifest_view.id!r} description does not match manifest"
+            )
     if mismatches:
         raise PluginDefinitionError(f"script {manifest.id!r} does not match manifest: {'; '.join(mismatches)}")
     return script
@@ -647,6 +678,57 @@ def _manifest_commands(path: Path, value: object) -> tuple[str, ...]:
         seen.add(command_value)
         commands.append(command_value)
     return tuple(commands)
+
+
+def _manifest_views(path: Path, value: object) -> tuple[ViewDefinition, ...]:
+    if not isinstance(value, list):
+        raise ManifestError(f"{path}: views must be an array of tables")
+    if len(value) > MAX_PLUGIN_VIEWS:
+        raise ManifestError(f"{path}: views may contain at most {MAX_PLUGIN_VIEWS} entries")
+    definitions: list[ViewDefinition] = []
+    seen: set[str] = set()
+    for index, raw_view in enumerate(value):
+        prefix = f"{path}: views[{index}]"
+        if not isinstance(raw_view, Mapping):
+            raise ManifestError(f"{prefix} must be a table")
+        allowed = {"id", "label", "icon", "description"}
+        missing = {"id", "label"} - set(raw_view)
+        unknown = set(raw_view) - allowed
+        if missing:
+            raise ManifestError(f"{prefix} missing fields: {', '.join(sorted(missing))}")
+        if unknown:
+            raise ManifestError(f"{prefix} unknown fields: {', '.join(sorted(unknown))}")
+        view_id = _setting_string(prefix, raw_view.get("id"), "id", maximum=32)
+        if _COMMAND_RE.fullmatch(view_id) is None:
+            raise ManifestError(f"{prefix}.id must match [a-z][a-z0-9_-]{{0,31}}")
+        if view_id in seen:
+            raise ManifestError(f"{path}: duplicate view id {view_id!r}")
+        seen.add(view_id)
+        label = _setting_string(prefix, raw_view.get("label"), "label", maximum=32)
+        icon = _setting_optional_string(
+            prefix,
+            raw_view.get("icon", ""),
+            "icon",
+            maximum=4,
+        )
+        description = _setting_optional_string(
+            prefix,
+            raw_view.get("description", ""),
+            "description",
+            maximum=120,
+        )
+        try:
+            definitions.append(
+                ViewDefinition(
+                    id=view_id,
+                    label=label,
+                    icon=icon,
+                    description=description,
+                )
+            )
+        except ValueError as exc:
+            raise ManifestError(f"{prefix}.{exc}") from exc
+    return tuple(definitions)
 
 
 def _manifest_settings(path: Path, value: object) -> tuple[PluginSettingDefinition, ...]:

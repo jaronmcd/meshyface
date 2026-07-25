@@ -20,6 +20,8 @@ from meshdash.helpers_json import JsonValue
 _SCRIPT_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
 _COMMAND_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _TICKER_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_VIEW_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+_VIEW_ICON_RE = re.compile(r"[A-Z0-9]{1,4}\Z")
 
 
 def _nonempty_string(value: object, field: str, *, maximum: int | None = None) -> str:
@@ -59,6 +61,25 @@ def _optional_number(value: object, field: str) -> float | None:
     return _number(value, field)
 
 
+def _view_icon(value: object, label: str) -> str:
+    raw = str(value or "").strip().upper()
+    if not raw:
+        words = [
+            "".join(ch for ch in word.upper() if ch.isalnum())
+            for word in str(label or "").split()
+        ]
+        words = [word for word in words if word]
+        if len(words) >= 2:
+            raw = f"{words[0][0]}{words[1][0]}"
+        elif words:
+            raw = words[0][:2]
+        else:
+            raw = "PL"
+    if _VIEW_ICON_RE.fullmatch(raw) is None:
+        raise ValueError("view icon must contain 1 to 4 ASCII letters or digits")
+    return raw
+
+
 @dataclass(frozen=True, slots=True)
 class TickerDefinition:
     """One display-only dashboard ticker declared by a Script."""
@@ -84,6 +105,40 @@ class TickerDefinition:
             "metric": self.metric,
             "default_enabled": self.default_enabled,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class ViewDefinition:
+    """One first-class dashboard workspace view declared by a Script."""
+
+    id: str
+    label: str
+    icon: str = ""
+    description: str = ""
+    content: str = ""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or _VIEW_ID_RE.fullmatch(self.id) is None:
+            raise ValueError("view id must match [a-z][a-z0-9_-]{0,31}")
+        label = _nonempty_string(self.label, "view label", maximum=32)
+        object.__setattr__(self, "icon", _view_icon(self.icon, label))
+        if not isinstance(self.description, str) or len(self.description) > 120:
+            raise ValueError("view description must be a string at most 120 characters")
+        if self.description != self.description.strip():
+            raise ValueError("view description must be trimmed")
+        if not isinstance(self.content, str) or len(self.content) > 16 * 1024:
+            raise ValueError("view content must be a string at most 16384 characters")
+
+    def to_dict(self, *, include_content: bool = True) -> dict[str, JsonValue]:
+        payload: dict[str, JsonValue] = {
+            "id": self.id,
+            "label": self.label,
+            "icon": self.icon,
+            "description": self.description,
+        }
+        if include_content:
+            payload["content"] = self.content
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -441,6 +496,8 @@ class Script:
         self._commands_view: Mapping[str, ScriptHandler] = MappingProxyType(self._commands)
         self._tickers: dict[str, TickerDefinition] = {}
         self._tickers_view: Mapping[str, TickerDefinition] = MappingProxyType(self._tickers)
+        self._views: dict[str, ViewDefinition] = {}
+        self._views_view: Mapping[str, ViewDefinition] = MappingProxyType(self._views)
         self._message_handler: ScriptHandler | None = None
         self._packet_handler: ScriptHandler | None = None
         self._session_handler: ScriptHandler | None = None
@@ -470,6 +527,12 @@ class Script:
         """Live, read-only view of dashboard ticker declarations."""
 
         return self._tickers_view
+
+    @property
+    def views(self) -> Mapping[str, ViewDefinition]:
+        """Live, read-only view of dashboard workspace view declarations."""
+
+        return self._views_view
 
     @property
     def message_handler(self) -> ScriptHandler | None:
@@ -523,6 +586,29 @@ class Script:
         if definition.id in self._tickers:
             raise ValueError(f"ticker {definition.id!r} is already registered")
         self._tickers[definition.id] = definition
+        return definition
+
+    def view(
+        self,
+        view_id: str,
+        *,
+        label: str,
+        icon: str = "",
+        description: str = "",
+        content: str = "",
+    ) -> ViewDefinition:
+        """Declare one first-class dashboard workspace view owned by this Script."""
+
+        definition = ViewDefinition(
+            id=view_id,
+            label=label,
+            icon=icon,
+            description=description,
+            content=content,
+        )
+        if definition.id in self._views:
+            raise ValueError(f"view {definition.id!r} is already registered")
+        self._views[definition.id] = definition
         return definition
 
     def on_message(self, handler: ScriptHandler) -> ScriptHandler:

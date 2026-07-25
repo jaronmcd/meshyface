@@ -76,6 +76,7 @@ _DASHBOARD_JS_TEMPLATE_PARTS = (
     "dashboard.js.chat.state.files.maintenance.runner.tmpl",
     "dashboard.js.chat.state.files.view.tmpl",
     "dashboard.js.chat.state.scripts.view.tmpl",
+    "dashboard.js.chat.state.plugins.view.tmpl",
     "dashboard.js.chat.events.core.identity.node_self.tmpl",
     "dashboard.js.chat.events.core.identity.favorites_selection.search_dropdowns.tmpl",
     "dashboard.js.chat.events.core.identity.favorites_selection.favorites_state_ui.tmpl",
