@@ -22,6 +22,7 @@ MAX_DISCOVERY_ROOT_ENTRIES = 1024
 MAX_PLUGIN_COMMANDS = 64
 MAX_PLUGIN_PACKAGE_ENTRIES = 1024
 MAX_PLUGIN_PACKAGE_BYTES = 64 * 1024 * 1024
+MAX_PLUGIN_README_BYTES = 128 * 1024
 PACKAGE_DIGEST_PREFIX = "sha256:"
 _IGNORED_DEVELOPMENT_DIRECTORIES = frozenset(
     {
@@ -94,6 +95,20 @@ class PluginSettingDefinition:
 
 
 @dataclass(frozen=True, slots=True)
+class PluginReadme:
+    filename: str
+    content: str
+    truncated: bool = False
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "filename": self.filename,
+            "content": self.content,
+            "truncated": self.truncated,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class PluginManifest:
     api_version: int
     id: str
@@ -109,6 +124,7 @@ class PluginManifest:
     source: PluginSource
     package_digest: str
     settings: tuple[PluginSettingDefinition, ...] = ()
+    readme: PluginReadme | None = None
 
     @property
     def effective_default_enabled(self) -> bool:
@@ -189,6 +205,7 @@ def parse_manifest(
         entrypoint,
     )
     package_digest = compute_plugin_package_digest(plugin_directory)
+    readme = _read_optional_plugin_readme(plugin_directory)
     try:
         current_manifest_bytes = _read_regular_file(
             path,
@@ -214,6 +231,7 @@ def parse_manifest(
         source=source,
         package_digest=package_digest,
         settings=settings,
+        readme=readme,
     )
 
 
@@ -457,6 +475,31 @@ def _read_regular_file(path: Path, *, maximum_bytes: int, label: str) -> bytes:
         return data
     finally:
         os.close(descriptor)
+
+
+def _read_optional_plugin_readme(plugin_directory: Path) -> PluginReadme | None:
+    path = plugin_directory / "README.md"
+    if not path.exists():
+        return None
+    try:
+        data = _read_regular_file(
+            path,
+            maximum_bytes=MAX_PLUGIN_PACKAGE_BYTES,
+            label="plugin README",
+        )
+    except FileNotFoundError:
+        return None
+    truncated = len(data) > MAX_PLUGIN_README_BYTES
+    if truncated:
+        data = data[:MAX_PLUGIN_README_BYTES]
+    content = data.decode("utf-8", errors="replace").strip()
+    if not content:
+        return None
+    return PluginReadme(
+        filename=path.name,
+        content=content,
+        truncated=truncated,
+    )
 
 
 def _validate_trusted_file_metadata(

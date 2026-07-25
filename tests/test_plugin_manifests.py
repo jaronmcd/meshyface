@@ -10,6 +10,7 @@ from meshdash.plugins.manifest import (
     MAX_DISCOVERED_PLUGINS,
     MAX_MANIFEST_BYTES,
     MAX_PLUGIN_COMMANDS,
+    MAX_PLUGIN_README_BYTES,
     PluginDefinitionError,
     DuplicatePluginIdError,
     ManifestError,
@@ -100,6 +101,38 @@ def test_package_digest_covers_non_entrypoint_files_deterministically(tmp_path: 
     extra.write_text("changed package notes", encoding="utf-8")
     second = parse_manifest(plugin / "plugin.toml").package_digest
     assert second != first
+
+
+def test_parse_manifest_exposes_bounded_readme_text_for_host_ui(tmp_path: Path) -> None:
+    plugin = _write_plugin(tmp_path, "example")
+    (plugin / "README.md").write_text(
+        "# Example\n\n- Send `!hello` to test it.\n",
+        encoding="utf-8",
+    )
+
+    manifest = parse_manifest(plugin / "plugin.toml")
+
+    assert manifest.readme is not None
+    assert manifest.readme.to_dict() == {
+        "filename": "README.md",
+        "content": "# Example\n\n- Send `!hello` to test it.",
+        "truncated": False,
+    }
+    assert str(tmp_path) not in str(manifest.readme.to_dict())
+
+
+def test_parse_manifest_truncates_large_readme_payload(tmp_path: Path) -> None:
+    plugin = _write_plugin(tmp_path, "example")
+    (plugin / "README.md").write_text(
+        "a" * (MAX_PLUGIN_README_BYTES + 64),
+        encoding="utf-8",
+    )
+
+    manifest = parse_manifest(plugin / "plugin.toml")
+
+    assert manifest.readme is not None
+    assert len(manifest.readme.content) == MAX_PLUGIN_README_BYTES
+    assert manifest.readme.truncated is True
 
 
 def test_package_digest_ignores_common_local_development_metadata(tmp_path: Path) -> None:

@@ -2948,6 +2948,30 @@
             <div id="scripts-list" class="scripts-list" aria-live="polite">
               <div class="scripts-empty">Loading scripts…</div>
             </div>
+            <div
+              id="scripts-readme-modal"
+              class="scripts-readme-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="scripts-readme-title"
+              hidden
+            >
+              <div class="scripts-readme-panel">
+                <header class="scripts-readme-head">
+                  <div class="scripts-readme-title-block">
+                    <h3 id="scripts-readme-title">Plugin README</h3>
+                    <span id="scripts-readme-meta"></span>
+                  </div>
+                  <button
+                    id="scripts-readme-close"
+                    class="btn btn-secondary"
+                    type="button"
+                    data-script-readme-close
+                  >Close</button>
+                </header>
+                <div id="scripts-readme-body" class="scripts-readme-body"></div>
+              </div>
+            </div>
           </div>
           <section
             id="scripts-panel-debug"

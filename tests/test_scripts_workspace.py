@@ -56,6 +56,9 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert 'id="scripts-panel-plugins"' in scripts_section
     assert 'id="scripts-panel-debug"' in scripts_section
     assert 'id="scripts-list"' in html
+    assert 'id="scripts-readme-modal"' in html
+    assert 'id="scripts-readme-body"' in html
+    assert 'data-script-readme-close' in html
     assert 'id="scripts-debug-output"' in html
     assert 'id="scripts-debug-clear"' in html
     assert 'id="scripts-admin-access"' in html
@@ -83,6 +86,10 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     scripts_list_css = css.split(".scripts-list {", 1)[1].split("}", 1)[0]
     assert "display: flex;" in scripts_list_css
     assert "flex-direction: column;" in scripts_list_css
+    assert ".scripts-readme-modal {" in css
+    assert ".scripts-readme-body {" in css
+    assert ".scripts-settings-toggle {" in css
+    assert ".scripts-configure-btn {" not in css
     assert ".scripts-debug-console {" in css
     assert ".scripts-admin-access {" in css
 
@@ -138,7 +145,20 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert "localStorage" not in scripts_admin_js
     assert "data-script-configure" in js
     assert "data-script-config-form" in js
+    assert "scripts-settings-toggle" in js
+    assert 'aria-expanded="${configOpen ? "true" : "false"}"' in js
+    assert 'aria-controls="script-config-${escAttr(scriptId)}"' in js
+    assert ">Configure<" not in js
+    assert "scripts-configure-btn" not in js
     assert "data-script-route-toggle" in js
+    assert "data-script-readme" in js
+    assert "scriptsReadmeMarkdownHtml" in js
+    assert 'document.getElementById("scripts-readme-modal")' in js
+    assert "const consoleRouteVisible = commands.length > 0;" in js
+    assert "registryEntry.on_packet === true" in js
+    assert "registryEntry.on_start === true" in js
+    assert "registryEntry.on_stop === true" in js
+    assert "previous.consoleEnabled" in js
     assert "data-package-digest" in js
     assert 'data-setting-type="node_ids"' in js
     assert ".scripts-config-form {" in build_dashboard_css(theme_css="")

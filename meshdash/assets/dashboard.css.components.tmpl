@@ -6670,7 +6670,50 @@
     .scripts-item-identity {{
       min-width: 0;
     }}
+    .scripts-item-title-row {{
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }}
+    .scripts-settings-toggle {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      border: 1px solid var(--surface-tint-border);
+      border-radius: 6px;
+      background: var(--surface-tint-bg-soft);
+      color: var(--surface-tint-text-soft, var(--ui-text-soft));
+      cursor: pointer;
+    }}
+    .scripts-settings-toggle:hover,
+    .scripts-settings-toggle:focus-visible {{
+      border-color: color-mix(in srgb, var(--theme-accent, #1d9bf0) 58%, var(--surface-tint-border));
+      color: var(--surface-tint-text, var(--ui-text));
+    }}
+    .scripts-settings-toggle:disabled {{
+      cursor: not-allowed;
+      opacity: 0.55;
+    }}
+    .scripts-settings-toggle-icon {{
+      width: 13px;
+      height: 13px;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 2;
+      transition: transform 0.14s ease;
+    }}
+    .scripts-settings-toggle[aria-expanded="true"] .scripts-settings-toggle-icon {{
+      transform: rotate(90deg);
+    }}
     .scripts-item-name {{
+      min-width: 0;
       overflow: hidden;
       color: var(--surface-tint-text, var(--ui-text));
       font-size: 12px;
@@ -6796,9 +6839,116 @@
       flex: 0 0 auto;
       min-width: 72px;
     }}
-    .scripts-configure-btn {{
+    .scripts-readme-btn {{
       flex: 0 0 auto;
-      min-width: 78px;
+      min-width: 68px;
+    }}
+    .scripts-readme-modal {{
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: color-mix(in srgb, #020908 68%, transparent);
+    }}
+    .scripts-readme-modal[hidden] {{
+      display: none;
+    }}
+    .scripts-readme-panel {{
+      display: flex;
+      flex-direction: column;
+      width: min(820px, calc(100vw - 32px));
+      max-height: min(720px, calc(100vh - 32px));
+      overflow: hidden;
+      border: 1px solid var(--surface-tint-border);
+      border-radius: 8px;
+      background: var(--surface-tint-bg-alt);
+      box-shadow: 0 18px 60px color-mix(in srgb, #000 42%, transparent);
+    }}
+    .scripts-readme-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--surface-tint-border);
+      background: var(--surface-tint-bg-soft);
+    }}
+    .scripts-readme-title-block {{
+      min-width: 0;
+    }}
+    .scripts-readme-head h3 {{
+      margin: 0;
+      overflow: hidden;
+      color: var(--surface-tint-text, var(--ui-text));
+      font-size: 13px;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .scripts-readme-head span {{
+      display: block;
+      margin-top: 2px;
+      overflow: hidden;
+      color: var(--surface-tint-text-soft, var(--ui-text-soft));
+      font-family: var(--theme-monospace-font, ui-monospace, SFMono-Regular, Consolas, monospace);
+      font-size: 9px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .scripts-readme-body {{
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      padding: 14px 16px 18px;
+      color: var(--surface-tint-text, var(--ui-text));
+      font-size: 12px;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+    }}
+    .scripts-readme-body h2,
+    .scripts-readme-body h3,
+    .scripts-readme-body h4,
+    .scripts-readme-body h5 {{
+      margin: 16px 0 7px;
+      color: var(--surface-tint-text, var(--ui-text));
+      line-height: 1.25;
+    }}
+    .scripts-readme-body h2:first-child,
+    .scripts-readme-body h3:first-child,
+    .scripts-readme-body h4:first-child,
+    .scripts-readme-body h5:first-child {{
+      margin-top: 0;
+    }}
+    .scripts-readme-body p,
+    .scripts-readme-body ul {{
+      margin: 0 0 10px;
+    }}
+    .scripts-readme-body ul {{
+      padding-left: 20px;
+    }}
+    .scripts-readme-body code {{
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: var(--surface-tint-bg-soft);
+      font-family: var(--theme-monospace-font, ui-monospace, SFMono-Regular, Consolas, monospace);
+      font-size: 0.92em;
+    }}
+    .scripts-readme-body pre {{
+      margin: 0 0 12px;
+      overflow: auto;
+      padding: 10px;
+      border: 1px solid var(--surface-tint-border);
+      border-radius: 7px;
+      background: var(--surface-tint-bg-soft);
+    }}
+    .scripts-readme-body pre code {{
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+      white-space: pre;
     }}
     .scripts-config-form {{
       grid-column: 1 / -1;
@@ -6890,6 +7040,21 @@
       }}
       .scripts-item-buttons .btn {{
         flex: 1 1 0;
+      }}
+      .scripts-readme-modal {{
+        align-items: stretch;
+        padding: 10px;
+      }}
+      .scripts-readme-panel {{
+        width: 100%;
+        max-height: calc(100vh - 20px);
+      }}
+      .scripts-readme-head {{
+        align-items: flex-start;
+        flex-direction: column;
+      }}
+      .scripts-readme-head .btn {{
+        align-self: stretch;
       }}
     }}
     .card.workspace-app-shell,

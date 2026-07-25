@@ -170,6 +170,32 @@ def test_enabled_master_with_no_enabled_plugins_registers_live_management_listen
         subsystem.close()
 
 
+def test_status_exposes_readme_without_local_package_path(tmp_path) -> None:
+    plugin_root = tmp_path / "plugins"
+    _write_echo_plugin(plugin_root)
+    (plugin_root / "echo" / "README.md").write_text(
+        "# Echo\n\nUse `!echo` from the console or mesh.",
+        encoding="utf-8",
+    )
+    subsystem = build_plugin_subsystem(
+        args=_args(tmp_path),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=_Tracker(),
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        script_status = subsystem.status()["scripts"][0]  # type: ignore[index]
+        assert script_status["readme"] == {
+            "filename": "README.md",
+            "content": "# Echo\n\nUse `!echo` from the console or mesh.",
+            "truncated": False,
+        }
+        assert str(tmp_path) not in str(script_status["readme"])
+    finally:
+        subsystem.close()
+
+
 def test_individual_enablement_loads_in_worker_and_routes_accepted_event(tmp_path) -> None:
     plugin_root = tmp_path / "plugins"
     _write_echo_plugin(plugin_root)

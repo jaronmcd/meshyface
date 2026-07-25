@@ -9,6 +9,7 @@
     let scriptsAdminAccessState = "";
     let scriptsAdminAccessMessage = "";
     let scriptsActiveTab = "plugins";
+    let scriptsReadmeReturnFocusId = "";
     const scriptsAdminTokenStorageKey = "meshDashboardScriptsApiTokenV1";
     const scriptsPendingRequests = new Map();
     const scriptsPendingRouteRequests = new Set();
@@ -54,6 +55,7 @@
         }}
       }}
       scriptsOpenConfigId = "";
+      scriptsCloseReadme();
       scriptsConfigDrafts.clear();
       scriptsPendingRouteRequests.clear();
       scriptsAdminRuntimeSummary = null;
@@ -191,10 +193,170 @@
         }});
     }}
 
+    function scriptsRuntimeEntryById(scriptId) {{
+      const cleanId = String(scriptId || "").trim();
+      if (!cleanId) return null;
+      const rows = scriptsRuntimeEntries(scriptsRuntimeSummary(latestState));
+      return rows.find((row) => String(row.id || "").trim() === cleanId) || null;
+    }}
+
     function scriptsRuntimeDetails(runtimeSummary) {{
       return runtimeSummary && runtimeSummary.runtime && typeof runtimeSummary.runtime === "object"
         ? runtimeSummary.runtime
         : {{}};
+    }}
+
+    function scriptsReadmePayload(row) {{
+      const readme = row && row.readme && typeof row.readme === "object"
+        ? row.readme
+        : null;
+      if (!readme) return null;
+      const content = String(readme.content || readme.text || "");
+      if (!content.trim()) return null;
+      const filename = String(readme.filename || "README.md").trim() || "README.md";
+      return {{
+        filename,
+        content,
+        truncated: readme.truncated === true,
+      }};
+    }}
+
+    function scriptsReadmeInlineHtml(value) {{
+      return escAttr(value).replace(/`([^`\\n]{{1,160}})`/g, "<code>$1</code>");
+    }}
+
+    function scriptsReadmeMarkdownHtml(value) {{
+      const lines = String(value || "").replace(/\\r\\n?/g, "\\n").split("\\n");
+      const html = [];
+      let paragraph = [];
+      let listOpen = false;
+      let inCode = false;
+      let codeLines = [];
+
+      const closeList = () => {{
+        if (!listOpen) return;
+        html.push("</ul>");
+        listOpen = false;
+      }};
+      const flushParagraph = () => {{
+        if (paragraph.length <= 0) return;
+        closeList();
+        html.push(`<p>${{scriptsReadmeInlineHtml(paragraph.join(" "))}}</p>`);
+        paragraph = [];
+      }};
+      const flushCode = () => {{
+        html.push(`<pre><code>${{escAttr(codeLines.join("\\n"))}}</code></pre>`);
+        codeLines = [];
+      }};
+
+      for (const rawLine of lines) {{
+        const line = String(rawLine || "");
+        const trimmed = line.trim();
+        if (/^```/.test(trimmed)) {{
+          if (inCode) {{
+            flushCode();
+            inCode = false;
+          }} else {{
+            flushParagraph();
+            closeList();
+            inCode = true;
+            codeLines = [];
+          }}
+          continue;
+        }}
+        if (inCode) {{
+          codeLines.push(line);
+          continue;
+        }}
+        if (!trimmed) {{
+          flushParagraph();
+          closeList();
+          continue;
+        }}
+        const heading = /^(#{{1,4}})\\s+(.+)$/.exec(trimmed);
+        if (heading) {{
+          flushParagraph();
+          closeList();
+          const level = Math.min(4, Math.max(2, heading[1].length + 1));
+          html.push(`<h${{level}}>${{scriptsReadmeInlineHtml(heading[2])}}</h${{level}}>`);
+          continue;
+        }}
+        const listItem = /^[-*]\\s+(.+)$/.exec(trimmed);
+        if (listItem) {{
+          flushParagraph();
+          if (!listOpen) {{
+            html.push("<ul>");
+            listOpen = true;
+          }}
+          html.push(`<li>${{scriptsReadmeInlineHtml(listItem[1])}}</li>`);
+          continue;
+        }}
+        paragraph.push(trimmed);
+      }}
+      if (inCode) flushCode();
+      flushParagraph();
+      closeList();
+      return html.length > 0 ? html.join("") : "<p>No README content.</p>";
+    }}
+
+    function scriptsCloseReadme() {{
+      const modal = document.getElementById("scripts-readme-modal");
+      const body = document.getElementById("scripts-readme-body");
+      if (body instanceof HTMLElement) body.innerHTML = "";
+      if (modal instanceof HTMLElement) modal.hidden = true;
+      const returnFocusId = scriptsReadmeReturnFocusId;
+      scriptsReadmeReturnFocusId = "";
+      if (returnFocusId) {{
+        const escapedId = typeof cssEscapeAttrValue === "function"
+          ? cssEscapeAttrValue(returnFocusId)
+          : returnFocusId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        const button = document.querySelector(`[data-script-readme="${{escapedId}}"]`);
+        if (button instanceof HTMLButtonElement) {{
+          try {{
+            button.focus({{ preventScroll: true }});
+          }} catch (_err) {{
+            button.focus();
+          }}
+        }}
+      }}
+    }}
+
+    function scriptsOpenReadme(row, button = null) {{
+      const readme = scriptsReadmePayload(row);
+      if (!readme) return false;
+      const modal = document.getElementById("scripts-readme-modal");
+      const title = document.getElementById("scripts-readme-title");
+      const meta = document.getElementById("scripts-readme-meta");
+      const body = document.getElementById("scripts-readme-body");
+      const close = document.getElementById("scripts-readme-close");
+      if (
+        !(modal instanceof HTMLElement)
+        || !(title instanceof HTMLElement)
+        || !(meta instanceof HTMLElement)
+        || !(body instanceof HTMLElement)
+      ) {{
+        return false;
+      }}
+      const scriptId = String(row.id || "").trim();
+      const scriptName = String(row.name || scriptId || "Script").trim();
+      title.textContent = `${{scriptName}} README`;
+      meta.textContent = readme.truncated
+        ? `${{readme.filename}} · truncated to 128 KB`
+        : readme.filename;
+      body.innerHTML = scriptsReadmeMarkdownHtml(readme.content);
+      scriptsReadmeReturnFocusId = scriptId;
+      modal.hidden = false;
+      if (button instanceof HTMLButtonElement) {{
+        scriptsReadmeReturnFocusId = String(button.dataset.scriptReadme || scriptId).trim();
+      }}
+      if (close instanceof HTMLButtonElement) {{
+        try {{
+          close.focus({{ preventScroll: true }});
+        }} catch (_err) {{
+          close.focus();
+        }}
+      }}
+      return true;
     }}
 
     function scriptsDebugRecords(runtimeSummary) {{
@@ -585,6 +747,7 @@
       const packageDigest = String(row.package_digest || "").trim().toLowerCase();
       return `
         <form
+          id="script-config-${{escAttr(scriptId)}}"
           class="scripts-config-form"
           data-script-config-form="${{escAttr(scriptId)}}"
           data-package-digest="${{escAttr(packageDigest)}}"
@@ -617,6 +780,21 @@
       const settingsSchema = Array.isArray(row.settings_schema)
         ? row.settings_schema.filter((definition) => definition && typeof definition === "object")
         : [];
+      const hasSettings = settingsSchema.length > 0;
+      const configOpen = scriptsOpenConfigId === scriptId;
+      const readme = scriptsReadmePayload(row);
+      const registryEntry = scriptsRegistryEntry(row, runtimeSummary);
+      const registryKnown = !!registryEntry;
+      const consoleRouteVisible = commands.length > 0;
+      const meshRouteVisible = (
+        commands.length > 0
+        || !registryKnown
+        || registryEntry.on_message === true
+        || registryEntry.on_packet === true
+        || registryEntry.session === true
+        || registryEntry.on_start === true
+        || registryEntry.on_stop === true
+      );
       const commandHtml = commands.length > 0
         ? commands.map((command) => `<span class="scripts-command">!${{escAttr(command)}}</span>`).join("")
         : '<span class="scripts-command">No commands</span>';
@@ -635,7 +813,25 @@
         <article class="scripts-item" data-script-id="${{escAttr(scriptId)}}">
           <div class="scripts-item-head">
             <div class="scripts-item-identity">
-              <div class="scripts-item-name" title="${{escAttr(scriptName)}}">${{escAttr(scriptName)}}</div>
+              <div class="scripts-item-title-row">
+                ${{hasSettings ? `
+                  <button
+                    class="scripts-settings-toggle"
+                    type="button"
+                    data-script-configure="${{escAttr(scriptId)}}"
+                    aria-expanded="${{configOpen ? "true" : "false"}}"
+                    aria-controls="script-config-${{escAttr(scriptId)}}"
+                    title="Plugin settings"
+                    aria-label="Toggle plugin settings for ${{escAttr(scriptName)}}"
+                    ${{runtimeEnabled && hasPackageDigest && !configPending ? "" : "disabled"}}
+                  >
+                    <svg class="scripts-settings-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                      <path d="M6 4l4 4-4 4" />
+                    </svg>
+                  </button>
+                ` : ""}}
+                <div class="scripts-item-name" title="${{escAttr(scriptName)}}">${{escAttr(scriptName)}}</div>
+              </div>
               <div class="scripts-item-id">${{escAttr(scriptId)}}</div>
             </div>
             <span class="scripts-item-state ${{itemState.className}}">${{escAttr(itemState.label)}}</span>
@@ -649,38 +845,43 @@
           <div class="scripts-item-actions">
             <span class="scripts-item-action-copy">${{escAttr(scriptsItemActionCopy(row, itemState))}}</span>
             <div class="scripts-item-controls">
-              <div class="scripts-route-toggles" aria-label="Allowed routes">
-                <label class="scripts-route-toggle">
-                  <input
-                    type="checkbox"
-                    data-script-route-toggle="${{escAttr(scriptId)}}"
-                    data-route-key="mesh"
-                    data-package-digest="${{escAttr(packageDigest)}}"
-                    ${{meshEnabled ? "checked" : ""}}
-                    ${{routeControlsDisabled ? "disabled" : ""}}
-                  >
-                  <span>Mesh</span>
-                </label>
-                <label class="scripts-route-toggle">
-                  <input
-                    type="checkbox"
-                    data-script-route-toggle="${{escAttr(scriptId)}}"
-                    data-route-key="console"
-                    data-package-digest="${{escAttr(packageDigest)}}"
-                    ${{consoleEnabled ? "checked" : ""}}
-                    ${{routeControlsDisabled ? "disabled" : ""}}
-                  >
-                  <span>Console</span>
-                </label>
-              </div>
+              ${{meshRouteVisible || consoleRouteVisible ? `
+                <div class="scripts-route-toggles" aria-label="Allowed routes">
+                  ${{meshRouteVisible ? `
+                    <label class="scripts-route-toggle">
+                      <input
+                        type="checkbox"
+                        data-script-route-toggle="${{escAttr(scriptId)}}"
+                        data-route-key="mesh"
+                        data-package-digest="${{escAttr(packageDigest)}}"
+                        ${{meshEnabled ? "checked" : ""}}
+                        ${{routeControlsDisabled ? "disabled" : ""}}
+                      >
+                      <span>Mesh</span>
+                    </label>
+                  ` : ""}}
+                  ${{consoleRouteVisible ? `
+                    <label class="scripts-route-toggle">
+                      <input
+                        type="checkbox"
+                        data-script-route-toggle="${{escAttr(scriptId)}}"
+                        data-route-key="console"
+                        data-package-digest="${{escAttr(packageDigest)}}"
+                        ${{consoleEnabled ? "checked" : ""}}
+                        ${{routeControlsDisabled ? "disabled" : ""}}
+                      >
+                      <span>Console</span>
+                    </label>
+                  ` : ""}}
+                </div>
+              ` : ""}}
               <div class="scripts-item-buttons">
-                ${{settingsSchema.length > 0 ? `
+                ${{readme ? `
                   <button
-                    class="btn btn-secondary scripts-configure-btn"
+                    class="btn btn-secondary scripts-readme-btn"
                     type="button"
-                    data-script-configure="${{escAttr(scriptId)}}"
-                    ${{runtimeEnabled && hasPackageDigest && !configPending ? "" : "disabled"}}
-                  >${{scriptsOpenConfigId === scriptId ? "Close" : "Configure"}}</button>
+                    data-script-readme="${{escAttr(scriptId)}}"
+                  >Readme</button>
                 ` : ""}}
                 <button
                   class="btn btn-secondary scripts-toggle-btn"
@@ -1166,7 +1367,33 @@
           void refreshScriptsAdminSummary(true);
         }});
       }}
+      const readmeModal = document.getElementById("scripts-readme-modal");
+      if (readmeModal instanceof HTMLElement && readmeModal.dataset.bound !== "1") {{
+        readmeModal.dataset.bound = "1";
+        readmeModal.addEventListener("click", (event) => {{
+          const closeTarget = event.target instanceof Element
+            ? event.target.closest("[data-script-readme-close]")
+            : null;
+          if (closeTarget || event.target === readmeModal) {{
+            scriptsCloseReadme();
+          }}
+        }});
+        document.addEventListener("keydown", (event) => {{
+          if (event.key === "Escape" && readmeModal.hidden === false) {{
+            scriptsCloseReadme();
+          }}
+        }});
+      }}
       list.addEventListener("click", (event) => {{
+        const readmeButton = event.target instanceof Element
+          ? event.target.closest("[data-script-readme]")
+          : null;
+        if (readmeButton instanceof HTMLButtonElement && !readmeButton.disabled) {{
+          const scriptId = String(readmeButton.dataset.scriptReadme || "").trim();
+          const row = scriptsRuntimeEntryById(scriptId);
+          if (row) scriptsOpenReadme(row, readmeButton);
+          return;
+        }}
         const configure = event.target instanceof Element
           ? event.target.closest("[data-script-configure]")
           : null;
@@ -1212,12 +1439,13 @@
         const consoleInput = item instanceof HTMLElement
           ? item.querySelector('[data-script-route-toggle][data-route-key="console"]')
           : null;
+        const previous = scriptsRoutePolicyFor(scriptId);
         const meshEnabled = meshInput instanceof HTMLInputElement
           ? meshInput.checked
-          : true;
+          : previous.meshEnabled;
         const consoleEnabled = consoleInput instanceof HTMLInputElement
           ? consoleInput.checked
-          : true;
+          : previous.consoleEnabled;
         void setScriptRoutePolicy(
           scriptId,
           packageDigest,

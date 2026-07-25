@@ -524,6 +524,11 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                                 "api_token": "must-not-be-public",
                                 "client_secret": "also-private",
                             },
+                            "readme": {
+                                "filename": "README.md",
+                                "content": "private-readme-content",
+                                "truncated": False,
+                            },
                         },
                         {
                             "id": "local-test",
@@ -610,6 +615,7 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
     serialized = str(plugins)
     assert "must-not-be-public" not in serialized
     assert "also-private" not in serialized
+    assert "private-readme-content" not in serialized
     assert "private.bin" not in serialized
     assert "private debug" not in serialized
     assert "worker_pid" not in serialized

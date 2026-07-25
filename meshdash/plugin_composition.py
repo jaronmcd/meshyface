@@ -295,34 +295,33 @@ class PluginSubsystem:
                 )
             except ValueError:
                 settings = normalize_plugin_settings(manifest, {}, require_all=False)
-            scripts.append(
-                {
-                    "id": manifest.id,
-                    "name": manifest.name,
-                    "version": manifest.version,
-                    "commands": list(manifest.commands),
-                    "source": manifest.source,
-                    "default_enabled": manifest.effective_default_enabled,
-                    "declared_default_enabled": manifest.default_enabled,
-                    "package_digest": manifest.package_digest,
-                    # Compatibility key retained for the current Scripts API.
-                    "approval_status": package_revision_status,
-                    "identity_changed": identity_changed,
-                    "enabled": is_enabled,
-                    "active": is_active,
-                    "mesh_enabled": bool(route_policy.get("mesh_enabled", True)),
-                    "console_enabled": bool(
-                        route_policy.get("console_enabled", True)
-                    ),
-                    "runtime_status": health,
-                    "runtime_error": runtime_error,
-                    "restart_required": restart_required,
-                    "settings_schema": [
-                        definition.to_dict() for definition in manifest.settings
-                    ],
-                    "settings": settings,
-                }
-            )
+            script_status: dict[str, object] = {
+                "id": manifest.id,
+                "name": manifest.name,
+                "version": manifest.version,
+                "commands": list(manifest.commands),
+                "source": manifest.source,
+                "default_enabled": manifest.effective_default_enabled,
+                "declared_default_enabled": manifest.default_enabled,
+                "package_digest": manifest.package_digest,
+                # Compatibility key retained for the current Scripts API.
+                "approval_status": package_revision_status,
+                "identity_changed": identity_changed,
+                "enabled": is_enabled,
+                "active": is_active,
+                "mesh_enabled": bool(route_policy.get("mesh_enabled", True)),
+                "console_enabled": bool(route_policy.get("console_enabled", True)),
+                "runtime_status": health,
+                "runtime_error": runtime_error,
+                "restart_required": restart_required,
+                "settings_schema": [
+                    definition.to_dict() for definition in manifest.settings
+                ],
+                "settings": settings,
+            }
+            if manifest.readme is not None:
+                script_status["readme"] = manifest.readme.to_dict()
+            scripts.append(script_status)
         return {
             "enabled": True,
             "error": self._error,
