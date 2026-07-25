@@ -524,6 +524,15 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                                 "api_token": "must-not-be-public",
                                 "client_secret": "also-private",
                             },
+                        },
+                        {
+                            "id": "local-test",
+                            "name": "Local Test",
+                            "commands": ["local"],
+                            "enabled": True,
+                            "active": True,
+                            "console_enabled": False,
+                            "runtime_status": "running",
                         }
                     ],
                     "file_jobs": {

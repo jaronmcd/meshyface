@@ -128,6 +128,7 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert 'label: "Error"' in js
     assert 'fetch("/api/settings/plugins"' in js
     assert 'fetch("/api/settings/plugins/config"' in js
+    assert 'fetch("/api/settings/plugins/routes"' in js
     assert 'fetch("/api/admin/plugins"' in js
     assert "window.sessionStorage.setItem(scriptsAdminTokenStorageKey, clean)" in js
     assert 'headers["X-API-Token"] = token' in js
@@ -137,20 +138,24 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert "localStorage" not in scripts_admin_js
     assert "data-script-configure" in js
     assert "data-script-config-form" in js
+    assert "data-script-route-toggle" in js
     assert "data-package-digest" in js
     assert 'data-setting-type="node_ids"' in js
     assert ".scripts-config-form {" in build_dashboard_css(theme_css="")
+    assert ".scripts-route-toggles {" in build_dashboard_css(theme_css="")
     assert "const hasPackageDigest = /^sha256:[0-9a-f]{64}$/.test(packageDigest);" in js
     assert "`sha256:${packageDigest.slice(7, 19)}…`" in js
     assert 'title="${escAttr(packageDigest || "Package identity unavailable")}"' in js
     assert "package_digest: expectedPackageDigest" in js
     assert "scriptsPackageDigest" not in js
     assert "async function saveScriptConfig(scriptId, packageDigest, settings)" in js
+    assert "async function setScriptRoutePolicy(" in js
     assert "async function setScriptEnabled(scriptId, packageDigest, enabled, button)" in js
     assert "form.dataset.packageDigest" in js
     assert "target.dataset.packageDigest" in js
     assert "draft.packageDigest === packageDigest" in js
     assert "packageDigest: expectedPackageDigest" in js
+    assert "scriptsUpdateCachedRoutePolicy(cleanId" in js
     assert "scriptsUpdateCachedEnabled(cleanId, !!payload.enabled, !!payload.active)" in js
     assert "Restart MeshyFace to apply the change." not in _html()
 
@@ -159,9 +164,13 @@ def test_scripts_view_avoids_poll_churn_duplicate_writes_and_render_cascade_fail
     js = _js()
 
     assert "const scriptsPendingRequests = new Map();" in js
+    assert "const scriptsPendingRouteRequests = new Set();" in js
     assert "if (!cleanId || scriptsPendingRequests.has(cleanId)) return false;" in js
+    assert "if (!cleanId || scriptsPendingRouteRequests.has(cleanId)) return false;" in js
     assert "scriptsPendingRequests.set(cleanId, { enabled: !!enabled });" in js
+    assert "scriptsPendingRouteRequests.add(cleanId);" in js
     assert "scriptsPendingRequests.delete(cleanId);" in js
+    assert "scriptsPendingRouteRequests.delete(cleanId);" in js
     assert "if (signature === scriptsLastRenderSignature) return false;" in js
     assert "const focusedScriptId = activeElement instanceof HTMLElement" in js
     assert "replacement.focus({ preventScroll: true });" in js
@@ -182,12 +191,13 @@ def test_scripts_view_binds_mutations_and_drafts_to_rendered_package_identity() 
     assert "const packageDigest = String(target.dataset.packageDigest || \"\").trim();" in js
     assert "void saveScriptConfig(scriptId, packageDigest, settings);" in js
     assert "void setScriptEnabled(scriptId, packageDigest, enabled, target);" in js
+    assert "void setScriptRoutePolicy(" in js
     assert "scriptsPackageDigest" not in js
     assert "draft.packageDigest === packageDigest" in js
     assert "if (draft && !draftMatchesPackage)" in js
     assert "scriptsConfigDrafts.delete(scriptId);" in js
     assert "packageDigest: expectedPackageDigest" in js
-    assert js.count("if (response.status === 409)") == 2
+    assert js.count("if (response.status === 409)") == 3
     stale_config_handler = js.split("if (response.status === 409)", 1)[1].split(
         "throw new Error",
         1,
@@ -308,6 +318,8 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
                 "identity_changed": False,
                 "enabled": False,
                 "active": False,
+                "mesh_enabled": True,
+                "console_enabled": True,
                 "runtime_status": "disabled",
                 "runtime_error": "",
                 "restart_required": False,
@@ -326,5 +338,20 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
         assert result["active"] is True
         assert subsystem.status()["scripts"][0]["enabled"] is True
         assert subsystem.status()["scripts"][0]["active"] is True
+        route_result = subsystem.set_plugin_route_policy(
+            "weather",
+            mesh_enabled=False,
+            console_enabled=True,
+            expected_package_digest=package_digest,
+        )
+        assert route_result == {
+            "ok": True,
+            "plugin_id": "weather",
+            "mesh_enabled": False,
+            "console_enabled": True,
+        }
+        route_status = subsystem.status()["scripts"][0]
+        assert route_status["mesh_enabled"] is False
+        assert route_status["console_enabled"] is True
     finally:
         subsystem.close()

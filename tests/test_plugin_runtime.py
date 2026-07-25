@@ -213,6 +213,67 @@ def session(ctx):
         store.close()
 
 
+def test_route_policy_separates_console_and_mesh_access(tmp_path) -> None:
+    manifest = _write_plugin(
+        tmp_path,
+        "routes",
+        commands=("hello",),
+        source="""
+from meshdash.plugins import Script
+
+script = Script(id="routes", name="Routes", version="1.0.0")
+
+@script.command("hello")
+def hello(ctx):
+    return ctx.reply(f"nodes={len(ctx.mesh.list_nodes())}")
+""",
+    )
+    store = PluginStateStore(str(tmp_path / "state.sqlite3"))
+    sends: list[dict[str, object]] = []
+    runtime = PluginRuntime(
+        manifests=[manifest],
+        state_store=store,
+        send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)),
+        node_snapshot_fn=lambda: [{"id": "!00000003"}],
+        route_policy={
+            "routes": {"mesh_enabled": False, "console_enabled": True}
+        },
+    )
+    try:
+        console = runtime.run_console_command(
+            command="hello",
+            text="hello",
+            handler="command",
+        )
+        assert console["ok"] is True
+        assert console["reply_text"] == "nodes=0"
+        assert runtime._route_event(_event("!hello")) == ()
+
+        batch = _QueuedActionBatch(
+            (_QueuedAction("routes", _event("ignored"), ReplyAction("blocked")),),
+            threading.Event(),
+        )
+        runtime._action_queue.put_nowait(batch)
+        batch.ready.set()
+        _wait_until(lambda: runtime.status()["action_queue_depth"] == 0)
+        assert sends == []
+
+        runtime.update_route_policy(
+            {"routes": {"mesh_enabled": True, "console_enabled": False}}
+        )
+        blocked = runtime.run_console_command(
+            command="hello",
+            text="hello",
+            handler="command",
+        )
+        assert blocked["ok"] is False
+        assert blocked["error"]["code"] == "plugin_console_disabled"  # type: ignore[index]
+        assert runtime._route_event(_event("!hello"))[0].plugin_id == "routes"
+    finally:
+        runtime.close()
+        store.close()
+
+
 def test_peer_state_and_sessions_are_isolated_by_channel(tmp_path) -> None:
     manifest = _write_plugin(
         tmp_path,

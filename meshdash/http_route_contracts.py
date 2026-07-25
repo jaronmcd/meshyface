@@ -131,6 +131,18 @@ class SetPluginSettingsFn(Protocol):
         ...
 
 
+class SetPluginRoutePolicyFn(Protocol):
+    def __call__(
+        self,
+        plugin_id: object,
+        *,
+        mesh_enabled: bool,
+        console_enabled: bool,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        ...
+
+
 class ToIntFn(Protocol):
     def __call__(self, value: object) -> Optional[int]:
         ...
@@ -379,6 +391,7 @@ class DashboardPostRouteDependencies:
     set_raw_packet_capture_settings_fn: Optional[SetRawPacketCaptureSettingsFn] = None
     set_plugin_enabled_fn: Optional[SetPluginEnabledFn] = None
     set_plugin_settings_fn: Optional[SetPluginSettingsFn] = None
+    set_plugin_route_policy_fn: Optional[SetPluginRoutePolicyFn] = None
     parse_raw_packet_capture_settings_request_fn: Optional[ParseRawPacketCaptureSettingsRequestFn] = None
     apply_radio_settings_fn: Optional[ApplyRadioSettingsFn] = None
     parse_radio_settings_request_fn: Optional[ParseRadioSettingsRequestFn] = None

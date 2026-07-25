@@ -158,6 +158,20 @@ class PluginSubsystem:
         self._lifecycle_lock = threading.RLock()
         self._closed = False
 
+    def _route_policy_for_manifests(
+        self,
+        manifests: Sequence[PluginManifest],
+    ) -> dict[str, dict[str, bool]]:
+        if self._state_store is None:
+            return {
+                manifest.id: {"mesh_enabled": True, "console_enabled": True}
+                for manifest in manifests
+            }
+        return {
+            manifest.id: self._state_store.plugin_route_policy(manifest.id)
+            for manifest in manifests
+        }
+
     def on_receive(self, packet: object, interface: object, *, local_node_id_fn) -> None:
         if self._closed:
             return
@@ -250,6 +264,11 @@ class PluginSubsystem:
         scripts: list[dict[str, object]] = []
         for manifest in self._manifests:
             is_enabled = configured_enabled[manifest.id]
+            route_policy = (
+                self._state_store.plugin_route_policy(manifest.id)
+                if self._state_store is not None
+                else {"mesh_enabled": True, "console_enabled": True}
+            )
             package_revision_status, identity_changed = package_revision_states[
                 manifest.id
             ]
@@ -291,6 +310,10 @@ class PluginSubsystem:
                     "identity_changed": identity_changed,
                     "enabled": is_enabled,
                     "active": is_active,
+                    "mesh_enabled": bool(route_policy.get("mesh_enabled", True)),
+                    "console_enabled": bool(
+                        route_policy.get("console_enabled", True)
+                    ),
                     "runtime_status": health,
                     "runtime_error": runtime_error,
                     "restart_required": restart_required,
@@ -453,9 +476,14 @@ class PluginSubsystem:
                         self._runtime = runtime
                         self._outbound_files = outbound
                     elif target_ids != current_ids:
-                        runtime.reconfigure(target_manifests)
+                        runtime.reconfigure(
+                            target_manifests,
+                            route_policy=self._route_policy_for_manifests(
+                                target_manifests
+                            ),
+                        )
                 elif runtime is not None:
-                    runtime.reconfigure(())
+                    runtime.reconfigure((), route_policy={})
                     runtime.close()
                     self._runtime = None
                 self._enabled_plugin_ids = tuple(manifest.id for manifest in target_manifests)
@@ -513,6 +541,90 @@ class PluginSubsystem:
             session_id=session_id,
             handler=handler,
         )
+
+    def set_plugin_route_policy(
+        self,
+        plugin_id: object,
+        *,
+        mesh_enabled: bool,
+        console_enabled: bool,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        if self._state_store is None:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": self._error or "Plugin runtime is unavailable",
+                },
+            }
+        clean_id = str(plugin_id or "").strip().lower()
+        manifest = next(
+            (candidate for candidate in self._manifests if candidate.id == clean_id),
+            None,
+        )
+        if manifest is None:
+            return {
+                "ok": False,
+                "error": {"code": "unknown_plugin", "message": "Unknown plugin ID"},
+            }
+        expected_digest = str(expected_package_digest or "").strip().lower()
+        if expected_digest != manifest.package_digest:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_identity_changed",
+                    "message": (
+                        "Plugin package revision is stale; refresh the Scripts "
+                        "workspace and retry this change"
+                    ),
+                },
+                "package_digest": manifest.package_digest,
+            }
+        requested_mesh = bool(mesh_enabled)
+        requested_console = bool(console_enabled)
+        with self._lifecycle_lock:
+            if self._closed:
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_unavailable",
+                        "message": "Plugin runtime is closed",
+                    },
+                }
+            policy = self._state_store.set_plugin_route_policy(
+                clean_id,
+                mesh_enabled=requested_mesh,
+                console_enabled=requested_console,
+            )
+            runtime = self._runtime
+            if not requested_mesh:
+                if runtime is None:
+                    self._state_store.clear_sessions_for_plugin(clean_id)
+                else:
+                    runtime.clear_sessions_for_plugin(clean_id)
+            if runtime is not None:
+                active_ids = set(self._enabled_plugin_ids)
+                runtime.update_route_policy(
+                    self._route_policy_for_manifests(
+                        [
+                            manifest
+                            for manifest in self._manifests
+                            if manifest.id in active_ids
+                        ]
+                    )
+                )
+        if self._state_changed_fn is not None:
+            try:
+                self._state_changed_fn()
+            except Exception:
+                pass
+        return {
+            "ok": True,
+            "plugin_id": clean_id,
+            "mesh_enabled": policy["mesh_enabled"],
+            "console_enabled": policy["console_enabled"],
+        }
 
     def set_plugin_settings(
         self,
@@ -749,6 +861,14 @@ def build_plugin_subsystem(
 
         delivery_state_fn = getattr(tracker, "get_delivery_state", None)
 
+        def _route_policy_for(
+            manifests: Sequence[PluginManifest],
+        ) -> dict[str, dict[str, bool]]:
+            return {
+                manifest.id: state_store.plugin_route_policy(manifest.id)
+                for manifest in manifests
+            }
+
         def _runtime_factory(
             manifests: Sequence[PluginManifest],
         ) -> tuple[PluginRuntime, OutboundFileTransferService | None]:
@@ -780,6 +900,7 @@ def build_plugin_subsystem(
                     delivery_state_fn if callable(delivery_state_fn) else None
                 ),
                 config=runtime_config,
+                route_policy=_route_policy_for(manifests),
                 state_changed_fn=_mark_state_changed,
             )
             return new_runtime, outbound

@@ -11,6 +11,7 @@
     let scriptsActiveTab = "plugins";
     const scriptsAdminTokenStorageKey = "meshDashboardScriptsApiTokenV1";
     const scriptsPendingRequests = new Map();
+    const scriptsPendingRouteRequests = new Set();
     const scriptsPendingConfigRequests = new Set();
     const scriptsConfigDrafts = new Map();
 
@@ -54,6 +55,7 @@
       }}
       scriptsOpenConfigId = "";
       scriptsConfigDrafts.clear();
+      scriptsPendingRouteRequests.clear();
       scriptsAdminRuntimeSummary = null;
       scriptsLastDebugSignature = "";
       scriptsLastRenderSignature = "";
@@ -625,6 +627,10 @@
         ? (pendingRequest.enabled ? "Enabling…" : "Disabling…")
         : (enabled ? "Disable" : "Enable");
       const configPending = scriptsPendingConfigRequests.has(scriptId);
+      const routePending = scriptsPendingRouteRequests.has(scriptId);
+      const routeControlsDisabled = !runtimeEnabled || !hasPackageDigest || routePending;
+      const meshEnabled = row.mesh_enabled !== false;
+      const consoleEnabled = row.console_enabled !== false;
       return `
         <article class="scripts-item" data-script-id="${{escAttr(scriptId)}}">
           <div class="scripts-item-head">
@@ -642,23 +648,49 @@
           <div class="scripts-commands" aria-label="Declared commands">${{commandHtml}}</div>
           <div class="scripts-item-actions">
             <span class="scripts-item-action-copy">${{escAttr(scriptsItemActionCopy(row, itemState))}}</span>
-            <div class="scripts-item-buttons">
-              ${{settingsSchema.length > 0 ? `
+            <div class="scripts-item-controls">
+              <div class="scripts-route-toggles" aria-label="Allowed routes">
+                <label class="scripts-route-toggle">
+                  <input
+                    type="checkbox"
+                    data-script-route-toggle="${{escAttr(scriptId)}}"
+                    data-route-key="mesh"
+                    data-package-digest="${{escAttr(packageDigest)}}"
+                    ${{meshEnabled ? "checked" : ""}}
+                    ${{routeControlsDisabled ? "disabled" : ""}}
+                  >
+                  <span>Mesh</span>
+                </label>
+                <label class="scripts-route-toggle">
+                  <input
+                    type="checkbox"
+                    data-script-route-toggle="${{escAttr(scriptId)}}"
+                    data-route-key="console"
+                    data-package-digest="${{escAttr(packageDigest)}}"
+                    ${{consoleEnabled ? "checked" : ""}}
+                    ${{routeControlsDisabled ? "disabled" : ""}}
+                  >
+                  <span>Console</span>
+                </label>
+              </div>
+              <div class="scripts-item-buttons">
+                ${{settingsSchema.length > 0 ? `
+                  <button
+                    class="btn btn-secondary scripts-configure-btn"
+                    type="button"
+                    data-script-configure="${{escAttr(scriptId)}}"
+                    ${{runtimeEnabled && hasPackageDigest && !configPending ? "" : "disabled"}}
+                  >${{scriptsOpenConfigId === scriptId ? "Close" : "Configure"}}</button>
+                ` : ""}}
                 <button
-                  class="btn btn-secondary scripts-configure-btn"
+                  class="btn btn-secondary scripts-toggle-btn"
                   type="button"
-                  data-script-configure="${{escAttr(scriptId)}}"
-                  ${{runtimeEnabled && hasPackageDigest && !configPending ? "" : "disabled"}}
-                >${{scriptsOpenConfigId === scriptId ? "Close" : "Configure"}}</button>
-              ` : ""}}
-              <button
-                class="btn btn-secondary scripts-toggle-btn"
-                type="button"
-                data-script-toggle="${{escAttr(scriptId)}}"
-                data-next-enabled="${{enabled ? "false" : "true"}}"
-                data-package-digest="${{escAttr(packageDigest)}}"
-                ${{runtimeEnabled && hasPackageDigest && !pending ? "" : "disabled"}}
-              >${{escAttr(buttonLabel)}}</button>
+                  data-script-toggle="${{escAttr(scriptId)}}"
+                  data-next-enabled="${{enabled ? "false" : "true"}}"
+                  data-package-digest="${{escAttr(packageDigest)}}"
+                  ${{runtimeEnabled && hasPackageDigest && !pending ? "" : "disabled"}}
+                >${{escAttr(buttonLabel)}}</button>
+              </div>
             </div>
           </div>
           ${{scriptsConfigHtml(row, settingsSchema)}}
@@ -822,6 +854,26 @@
       }}
     }}
 
+    function scriptsRoutePolicyFor(scriptId) {{
+      const runtimeSummary = scriptsRuntimeSummary(latestState);
+      const rows = scriptsRuntimeEntries(runtimeSummary);
+      const match = rows.find((row) => String(row.id || "") === scriptId);
+      return {{
+        meshEnabled: !match || match.mesh_enabled !== false,
+        consoleEnabled: !match || match.console_enabled !== false,
+      }};
+    }}
+
+    function scriptsUpdateCachedRoutePolicy(scriptId, meshEnabled, consoleEnabled) {{
+      const runtimeSummary = scriptsRuntimeSummary(latestState);
+      const rows = scriptsRuntimeEntries(runtimeSummary);
+      const match = rows.find((row) => String(row.id || "") === scriptId);
+      if (match) {{
+        match.mesh_enabled = !!meshEnabled;
+        match.console_enabled = !!consoleEnabled;
+      }}
+    }}
+
     function scriptsDiscardStaleConfig(scriptId) {{
       const cleanId = String(scriptId || "").trim();
       scriptsConfigDrafts.delete(cleanId);
@@ -927,6 +979,84 @@
         scriptsPendingConfigRequests.delete(cleanId);
         scriptsLastRenderSignature = "";
         renderScriptsViewSafely(latestState, "scripts.config.complete");
+      }}
+    }}
+
+    async function setScriptRoutePolicy(
+      scriptId,
+      packageDigest,
+      meshEnabled,
+      consoleEnabled,
+      control
+    ) {{
+      const cleanId = String(scriptId || "").trim();
+      if (!cleanId || scriptsPendingRouteRequests.has(cleanId)) return false;
+      const expectedPackageDigest = String(packageDigest || "").trim().toLowerCase();
+      if (!/^sha256:[0-9a-f]{{64}}$/.test(expectedPackageDigest)) {{
+        scriptsTransientErrorMessage = `Could not update routes for ${{cleanId}}: refresh to load its current package fingerprint.`;
+        void refreshScriptsAdminSummary(true);
+        return false;
+      }}
+      const previous = scriptsRoutePolicyFor(cleanId);
+      scriptsPendingRouteRequests.add(cleanId);
+      scriptsUpdateCachedRoutePolicy(cleanId, !!meshEnabled, !!consoleEnabled);
+      scriptsTransientErrorMessage = "";
+      if (control instanceof HTMLInputElement) control.disabled = true;
+      renderScriptsViewSafely(latestState, "scripts.routes.pending");
+      try {{
+        const response = await fetch("/api/settings/plugins/routes", {{
+          method: "POST",
+          headers: scriptsAdminRequestHeaders({{ json: true }}),
+          body: JSON.stringify({{
+            plugin_id: cleanId,
+            package_digest: expectedPackageDigest,
+            mesh_enabled: !!meshEnabled,
+            console_enabled: !!consoleEnabled,
+          }}),
+          cache: "no-store",
+        }});
+        const text = await response.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const error = payload && payload.error;
+        const errorMessage = error && typeof error === "object"
+          ? String(error.message || error.code || "")
+          : String(error || (payload && payload.message) || text || `HTTP ${{response.status}}`);
+        if (!response.ok || !payload || payload.ok !== true) {{
+          if (response.status === 409) {{
+            scriptsAdminRuntimeSummary = null;
+            void refreshScriptsAdminSummary(true);
+          }}
+          throw new Error(errorMessage || `HTTP ${{response.status}}`);
+        }}
+        scriptsUpdateCachedRoutePolicy(
+          cleanId,
+          payload.mesh_enabled !== false,
+          payload.console_enabled !== false
+        );
+        if (typeof forceNextStatePollFresh === "function") {{
+          forceNextStatePollFresh("script-routes");
+        }}
+        if (typeof requestImmediatePoll === "function") {{
+          requestImmediatePoll(0);
+        }}
+        void refreshScriptsAdminSummary(true);
+        return true;
+      }} catch (err) {{
+        scriptsUpdateCachedRoutePolicy(
+          cleanId,
+          previous.meshEnabled,
+          previous.consoleEnabled
+        );
+        const message = err instanceof Error ? err.message : String(err || "Unknown error");
+        scriptsTransientErrorMessage = `Could not update routes for ${{cleanId}}: ${{message}}`;
+        return false;
+      }} finally {{
+        scriptsPendingRouteRequests.delete(cleanId);
+        renderScriptsViewSafely(latestState, "scripts.routes.complete");
       }}
     }}
 
@@ -1067,6 +1197,34 @@
         const packageDigest = String(target.dataset.packageDigest || "").trim();
         const enabled = String(target.dataset.nextEnabled || "false") === "true";
         void setScriptEnabled(scriptId, packageDigest, enabled, target);
+      }});
+      list.addEventListener("change", (event) => {{
+        const target = event.target instanceof Element
+          ? event.target.closest("[data-script-route-toggle]")
+          : null;
+        if (!(target instanceof HTMLInputElement) || target.disabled) return;
+        const scriptId = String(target.dataset.scriptRouteToggle || "").trim();
+        const packageDigest = String(target.dataset.packageDigest || "").trim();
+        const item = target.closest("[data-script-id]");
+        const meshInput = item instanceof HTMLElement
+          ? item.querySelector('[data-script-route-toggle][data-route-key="mesh"]')
+          : null;
+        const consoleInput = item instanceof HTMLElement
+          ? item.querySelector('[data-script-route-toggle][data-route-key="console"]')
+          : null;
+        const meshEnabled = meshInput instanceof HTMLInputElement
+          ? meshInput.checked
+          : true;
+        const consoleEnabled = consoleInput instanceof HTMLInputElement
+          ? consoleInput.checked
+          : true;
+        void setScriptRoutePolicy(
+          scriptId,
+          packageDigest,
+          meshEnabled,
+          consoleEnabled,
+          target
+        );
       }});
       list.addEventListener("submit", (event) => {{
         const form = event.target;

@@ -103,6 +103,8 @@ def _public_plugin_console_commands(plugins: Mapping[str, object]) -> list[dict[
             continue
         if script.get("enabled") is not True or script.get("active") is not True:
             continue
+        if script.get("console_enabled") is False:
+            continue
         runtime_status = str(script.get("runtime_status") or "").strip().lower()
         if runtime_status in {"disabled", "error", "restart_pending"}:
             continue

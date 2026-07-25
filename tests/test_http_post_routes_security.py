@@ -519,6 +519,14 @@ def test_plugin_management_returns_structured_invalid_request_error() -> None:
             {"plugin_id": "echo", "settings": {}},
             "request body must contain only plugin_id, settings, and package_digest",
         ),
+        (
+            "/api/settings/plugins/routes",
+            {"plugin_id": "echo", "mesh_enabled": True, "console_enabled": True},
+            (
+                "request body must contain only plugin_id, mesh_enabled, "
+                "console_enabled, and package_digest"
+            ),
+        ),
     ),
 )
 def test_plugin_mutations_require_package_digest(
@@ -555,10 +563,22 @@ def test_plugin_mutations_require_package_digest(
         updates.append(str(expected_package_digest))
         return {"ok": True}
 
+    def _set_routes(
+        _plugin_id: object,
+        *,
+        mesh_enabled: bool,
+        console_enabled: bool,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        del mesh_enabled, console_enabled
+        updates.append(str(expected_package_digest))
+        return {"ok": True}
+
     deps = build_post_route_dependencies(
         send_chat_fn=None,
         set_plugin_enabled_fn=_set_enabled,
         set_plugin_settings_fn=_set_settings,
+        set_plugin_route_policy_fn=_set_routes,
         to_int_fn=to_int,
     )
     deps = type(deps)(
@@ -634,6 +654,72 @@ def test_plugin_configuration_applies_validated_settings() -> None:
                 "ok": True,
                 "plugin_id": "configured",
                 "settings": {"allowed_nodes": ["!01020304"]},
+            },
+        )
+    ]
+
+
+def test_plugin_route_policy_applies_validated_booleans() -> None:
+    body = _plugin_request_body(
+        plugin_id="echo",
+        mesh_enabled=False,
+        console_enabled=True,
+    )
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[tuple[object, bool, bool, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_route_policy_fn=(
+            lambda plugin_id,
+            *,
+            mesh_enabled,
+            console_enabled,
+            expected_package_digest=None: (
+                received.append(
+                    (
+                        plugin_id,
+                        mesh_enabled,
+                        console_enabled,
+                        expected_package_digest,
+                    )
+                )
+                or {
+                    "ok": True,
+                    "plugin_id": plugin_id,
+                    "mesh_enabled": mesh_enabled,
+                    "console_enabled": console_enabled,
+                }
+            )
+        ),
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins/routes", deps=deps)
+
+    assert received == [("echo", False, True, _PLUGIN_PACKAGE_DIGEST)]
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "plugin_id": "echo",
+                "mesh_enabled": False,
+                "console_enabled": True,
             },
         )
     ]
@@ -1106,17 +1192,34 @@ def test_make_http_handler_wires_plugin_management_hook(
         del expected_package_digest
         return {"ok": True, "plugin_id": plugin_id, "settings": settings}
 
+    def _set_plugin_route_policy(
+        plugin_id: object,
+        *,
+        mesh_enabled: bool,
+        console_enabled: bool,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        del expected_package_digest
+        return {
+            "ok": True,
+            "plugin_id": plugin_id,
+            "mesh_enabled": mesh_enabled,
+            "console_enabled": console_enabled,
+        }
+
     def _run_plugin_console_command(**kwargs: object) -> dict[str, object]:
         return {"ok": True, "command": kwargs.get("command")}
 
     setattr(_state_fn, "set_plugin_enabled_fn", _set_plugin_enabled)
     setattr(_state_fn, "set_plugin_settings_fn", _set_plugin_settings)
+    setattr(_state_fn, "set_plugin_route_policy_fn", _set_plugin_route_policy)
     setattr(_state_fn, "run_plugin_console_command_fn", _run_plugin_console_command)
 
     make_http_handler("<html></html>", _state_fn)
 
     assert captured["set_plugin_enabled_fn"] is _set_plugin_enabled
     assert captured["set_plugin_settings_fn"] is _set_plugin_settings
+    assert captured["set_plugin_route_policy_fn"] is _set_plugin_route_policy
     assert captured["run_plugin_console_command_fn"] is _run_plugin_console_command
 
 

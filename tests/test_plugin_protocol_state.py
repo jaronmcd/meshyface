@@ -149,6 +149,22 @@ def test_plugin_sessions_and_enablement_are_host_owned(tmp_path) -> None:
         )
         is False
     )
+    assert store.plugin_route_policy("example") == {
+        "mesh_enabled": True,
+        "console_enabled": True,
+    }
+    assert store.set_plugin_route_policy(
+        "example",
+        mesh_enabled=False,
+        console_enabled=True,
+    ) == {
+        "mesh_enabled": False,
+        "console_enabled": True,
+    }
+    assert store.plugin_route_policy("example") == {
+        "mesh_enabled": False,
+        "console_enabled": True,
+    }
     store.close()
 
 

@@ -371,6 +371,24 @@ def test_offline_runtime_reports_and_rejects_disabled_plugin_management(tmp_path
         },
     }
     assert getattr(context.state_fn.lite, "set_plugin_enabled_fn", None) is setter
+    route_setter = getattr(context.state_fn, "set_plugin_route_policy_fn", None)
+    assert callable(route_setter)
+    assert route_setter(
+        "echo",
+        mesh_enabled=False,
+        console_enabled=True,
+        expected_package_digest=f"sha256:{'0' * 64}",
+    ) == {
+        "ok": False,
+        "error": {
+            "code": "plugin_runtime_disabled",
+            "message": "Python plugin runtime is disabled at startup",
+        },
+    }
+    assert (
+        getattr(context.state_fn.lite, "set_plugin_route_policy_fn", None)
+        is route_setter
+    )
 
 
 def test_offline_runtime_does_not_report_enabled_master_as_disabled(tmp_path) -> None:

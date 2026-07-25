@@ -43,6 +43,7 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/maps/packs/install",
     "/api/settings/plugins",
     "/api/settings/plugins/config",
+    "/api/settings/plugins/routes",
     "/api/maps/packs/build",
     "/api/maps/packs/build/cancel",
     "/api/maps/packs/install",
@@ -253,6 +254,47 @@ def _read_plugin_config_request(handler: DashboardHttpHandler) -> dict[str, obje
     }
 
 
+def _read_plugin_route_policy_request(
+    handler: DashboardHttpHandler,
+) -> dict[str, object]:
+    raw_length = _header_value(getattr(handler, "headers", None), "Content-Length").strip()
+    try:
+        length = int(raw_length)
+    except ValueError as exc:
+        raise ValueError("invalid Content-Length") from exc
+    if length <= 0 or length > 2048:
+        raise ValueError("invalid request size")
+    try:
+        parsed = json.loads(handler.rfile.read(length).decode("utf-8"))
+    except Exception as exc:
+        raise ValueError("invalid JSON request body") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("request body must be an object")
+    if set(parsed) != {
+        "plugin_id",
+        "mesh_enabled",
+        "console_enabled",
+        "package_digest",
+    }:
+        raise ValueError(
+            "request body must contain only plugin_id, mesh_enabled, "
+            "console_enabled, and package_digest"
+        )
+    plugin_id = parsed.get("plugin_id")
+    if not isinstance(plugin_id, str) or not plugin_id.strip():
+        raise ValueError("plugin_id must be a non-empty string")
+    if not isinstance(parsed.get("mesh_enabled"), bool):
+        raise ValueError("mesh_enabled must be a boolean")
+    if not isinstance(parsed.get("console_enabled"), bool):
+        raise ValueError("console_enabled must be a boolean")
+    return {
+        "plugin_id": plugin_id.strip().lower(),
+        "mesh_enabled": parsed["mesh_enabled"],
+        "console_enabled": parsed["console_enabled"],
+        "package_digest": _plugin_package_digest(parsed.get("package_digest")),
+    }
+
+
 def _read_plugin_console_request(handler: DashboardHttpHandler) -> dict[str, object]:
     parsed = _read_json_object_request(handler, max_bytes=8192)
     allowed = {"command", "text", "session_id", "handler"}
@@ -329,6 +371,8 @@ def _plugin_console_response_status(payload_obj: Mapping[str, object]) -> int:
         return 400
     if code == "unknown_command":
         return 404
+    if code == "plugin_console_disabled":
+        return 403
     return 503
 
 
@@ -801,6 +845,90 @@ def handle_dashboard_post(
                     "error": {
                         "code": "plugin_settings_update_failed",
                         "message": "Plugin settings update returned an invalid response",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        error = response_obj.get("error")
+        error_code = str(error.get("code") or "") if isinstance(error, Mapping) else ""
+        status_code = 200
+        if response_obj.get("ok") is False:
+            if error_code == "unknown_plugin":
+                status_code = 404
+            elif error_code == "plugin_identity_changed":
+                status_code = 409
+            else:
+                status_code = 503
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
+            payload_obj=response_obj,
+            no_store=True,
+        )
+        return
+
+    if path == "/api/settings/plugins/routes":
+        setter = deps.set_plugin_route_policy_fn
+        if not callable(setter):
+            response_obj = {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": "Plugin route management is unavailable",
+                },
+            }
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj=response_obj,
+                no_store=True,
+            )
+            return
+        try:
+            request = _read_plugin_route_policy_request(handler)
+            response_obj = setter(
+                request["plugin_id"],
+                mesh_enabled=bool(request["mesh_enabled"]),
+                console_enabled=bool(request["console_enabled"]),
+                expected_package_digest=request["package_digest"],
+            )
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={
+                    "ok": False,
+                    "error": {"code": "invalid_request", "message": str(exc)},
+                },
+                no_store=True,
+            )
+            return
+        except Exception as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_route_policy_update_failed",
+                        "message": f"Plugin route policy update failed: {exc}",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        if not isinstance(response_obj, Mapping):
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_route_policy_update_failed",
+                        "message": (
+                            "Plugin route policy update returned an invalid response"
+                        ),
                     },
                 },
                 no_store=True,

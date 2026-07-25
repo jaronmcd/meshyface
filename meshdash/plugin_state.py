@@ -161,6 +161,12 @@ class PluginStateStore:
                 package_digest TEXT,
                 updated_unix INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS plugin_route_policy (
+                plugin_id TEXT PRIMARY KEY,
+                mesh_enabled INTEGER NOT NULL,
+                console_enabled INTEGER NOT NULL,
+                updated_unix INTEGER NOT NULL
+            );
             """
         )
         self._migrate_channel_scopes()
@@ -985,6 +991,57 @@ class PluginStateStore:
             )
             self._connection.commit()
         return dict(settings)
+
+    def plugin_route_policy(self, plugin_id: object) -> dict[str, bool]:
+        clean_plugin = _canonical_id(plugin_id, label="plugin id")
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT mesh_enabled, console_enabled
+                FROM plugin_route_policy
+                WHERE plugin_id=?
+                """,
+                (clean_plugin,),
+            ).fetchone()
+        if row is None:
+            return {"mesh_enabled": True, "console_enabled": True}
+        return {
+            "mesh_enabled": bool(int(row[0])),
+            "console_enabled": bool(int(row[1])),
+        }
+
+    def set_plugin_route_policy(
+        self,
+        plugin_id: object,
+        *,
+        mesh_enabled: bool,
+        console_enabled: bool,
+    ) -> dict[str, bool]:
+        clean_plugin = _canonical_id(plugin_id, label="plugin id")
+        with self._lock:
+            self._connection.execute(
+                """
+                INSERT INTO plugin_route_policy(
+                    plugin_id, mesh_enabled, console_enabled, updated_unix
+                )
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(plugin_id) DO UPDATE SET
+                    mesh_enabled=excluded.mesh_enabled,
+                    console_enabled=excluded.console_enabled,
+                    updated_unix=excluded.updated_unix
+                """,
+                (
+                    clean_plugin,
+                    1 if mesh_enabled else 0,
+                    1 if console_enabled else 0,
+                    max(0, int(self._now_fn())),
+                ),
+            )
+            self._connection.commit()
+        return {
+            "mesh_enabled": bool(mesh_enabled),
+            "console_enabled": bool(console_enabled),
+        }
 
 
 __all__ = [

@@ -293,6 +293,12 @@ def test_management_mutations_require_current_package_identity(tmp_path) -> None
             subsystem.set_plugin_enabled("echo", True)  # type: ignore[call-arg]
         with pytest.raises(TypeError, match="expected_package_digest"):
             subsystem.set_plugin_settings("echo", {})  # type: ignore[call-arg]
+        with pytest.raises(TypeError, match="expected_package_digest"):
+            subsystem.set_plugin_route_policy(  # type: ignore[call-arg]
+                "echo",
+                mesh_enabled=False,
+                console_enabled=True,
+            )
         stale_result = subsystem.set_plugin_enabled(
             "echo",
             True,
@@ -300,6 +306,14 @@ def test_management_mutations_require_current_package_identity(tmp_path) -> None
         )
         assert stale_result["ok"] is False
         assert stale_result["error"]["code"] == "plugin_identity_changed"  # type: ignore[index]
+        stale_route_result = subsystem.set_plugin_route_policy(
+            "echo",
+            mesh_enabled=False,
+            console_enabled=True,
+            expected_package_digest=f"sha256:{'0' * 64}",
+        )
+        assert stale_route_result["ok"] is False
+        assert stale_route_result["error"]["code"] == "plugin_identity_changed"  # type: ignore[index]
         assert subsystem.status()["enabled_plugins"] == []
     finally:
         subsystem.close()

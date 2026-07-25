@@ -98,6 +98,12 @@ class _QueuedAction:
     radio_bytes: int = 0
 
 
+@dataclass(frozen=True)
+class _RoutePolicy:
+    mesh_enabled: bool = True
+    console_enabled: bool = True
+
+
 @dataclass
 class _QueuedActionBatch:
     actions: tuple[_QueuedAction, ...]
@@ -110,6 +116,7 @@ class _ReconfigureRequest:
     manifests: tuple[PluginManifest, ...]
     manifest_by_id: dict[str, PluginManifest]
     command_plugins: dict[str, str]
+    route_policy: dict[str, _RoutePolicy]
     ready: threading.Event
     error: str = ""
 
@@ -152,6 +159,23 @@ def _validated_manifest_configuration(
                 )
             command_plugins[command] = manifest.id
     return configured, manifest_by_id, command_plugins
+
+
+def _validated_route_policy(
+    manifest_by_id: Mapping[str, PluginManifest],
+    route_policy: Mapping[str, Mapping[str, object]] | None,
+) -> dict[str, _RoutePolicy]:
+    policies: dict[str, _RoutePolicy] = {}
+    for plugin_id in manifest_by_id:
+        raw = route_policy.get(plugin_id) if route_policy is not None else None
+        if isinstance(raw, Mapping):
+            policies[plugin_id] = _RoutePolicy(
+                mesh_enabled=bool(raw.get("mesh_enabled", True)),
+                console_enabled=bool(raw.get("console_enabled", True)),
+            )
+        else:
+            policies[plugin_id] = _RoutePolicy()
+    return policies
 
 
 def _manifest_payload(manifest: PluginManifest) -> dict[str, JsonValue]:
@@ -339,6 +363,7 @@ class PluginRuntime:
         accept_file_offer_fn: Callable[[Mapping[str, JsonValue]], object] | None = None,
         get_delivery_state_fn: Callable[[object], object] | None = None,
         config: PluginRuntimeConfig = PluginRuntimeConfig(),
+        route_policy: Mapping[str, Mapping[str, object]] | None = None,
         mp_context: object | None = None,
         monotonic_fn: Callable[[], float] = time.monotonic,
         state_changed_fn: Callable[[], object] | None = None,
@@ -355,6 +380,11 @@ class PluginRuntime:
         self._accept_file_offer_fn = accept_file_offer_fn
         self._get_delivery_state_fn = get_delivery_state_fn
         self._config = config
+        self._route_policy_lock = threading.Lock()
+        self._route_policy = _validated_route_policy(
+            self._manifest_by_id,
+            route_policy,
+        )
         self._mp = mp_context or multiprocessing.get_context("spawn")
         self._monotonic_fn = monotonic_fn
         self._state_changed_fn = state_changed_fn
@@ -494,6 +524,14 @@ class PluginRuntime:
                     "message": "No enabled plugin declares that command",
                 },
             }
+        if not self._console_route_enabled(plugin_id):
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_console_disabled",
+                    "message": "Plugin console route is disabled",
+                },
+            }
         clean_text = str(text or "").strip()
         if not clean_text and clean_handler != "command":
             return {
@@ -583,7 +621,12 @@ class PluginRuntime:
             }
         return response
 
-    def reconfigure(self, manifests: Sequence[PluginManifest]) -> None:
+    def reconfigure(
+        self,
+        manifests: Sequence[PluginManifest],
+        *,
+        route_policy: Mapping[str, Mapping[str, object]] | None = None,
+    ) -> None:
         """Replace the enabled plugin set without restarting MeshyFace."""
 
         configured, manifest_by_id, command_plugins = _validated_manifest_configuration(
@@ -596,6 +639,7 @@ class PluginRuntime:
             manifests=configured,
             manifest_by_id=manifest_by_id,
             command_plugins=command_plugins,
+            route_policy=_validated_route_policy(manifest_by_id, route_policy),
             ready=threading.Event(),
         )
         try:
@@ -629,13 +673,42 @@ class PluginRuntime:
                 self._sessions.pop(key, None)
         return max(removed_from_store, len(session_keys))
 
+    def update_route_policy(
+        self,
+        route_policy: Mapping[str, Mapping[str, object]],
+    ) -> None:
+        with self._route_policy_lock:
+            self._route_policy = _validated_route_policy(
+                self._manifest_by_id,
+                route_policy,
+            )
+
+    def _route_enabled(self, plugin_id: str, route: str) -> bool:
+        with self._route_policy_lock:
+            policy = self._route_policy.get(plugin_id, _RoutePolicy())
+        if route == "mesh":
+            return policy.mesh_enabled
+        if route == "console":
+            return policy.console_enabled
+        return True
+
+    def _mesh_route_enabled(self, plugin_id: str) -> bool:
+        return self._route_enabled(plugin_id, "mesh")
+
+    def _console_route_enabled(self, plugin_id: str) -> bool:
+        return self._route_enabled(plugin_id, "console")
+
     def _route_event(self, event: MessageEvent) -> tuple[_Invocation, ...]:
         if event.packet is not None:
             with self._status_lock:
                 packet_plugins = [
                     plugin_id
                     for plugin_id, registration in self._registry.items()
-                    if bool(registration.get("on_packet")) and not registration.get("error")
+                    if (
+                        bool(registration.get("on_packet"))
+                        and not registration.get("error")
+                        and self._mesh_route_enabled(plugin_id)
+                    )
                 ]
             return tuple(_Invocation(plugin_id, "packet", event) for plugin_id in packet_plugins)
         clean_text = event.text.strip()
@@ -644,7 +717,7 @@ class PluginRuntime:
         if command_match:
             command = command_match.group(1).lower()
             plugin_id = self._command_plugins.get(command)
-            if plugin_id:
+            if plugin_id and self._mesh_route_enabled(plugin_id):
                 invocations.append(_Invocation(plugin_id, "command", event, command))
             else:
                 return ()
@@ -658,14 +731,22 @@ class PluginRuntime:
                     )
                 )
             registration = self._registry.get(session_plugin or "", {})
-            if session_plugin and bool(registration.get("session")):
+            if (
+                session_plugin
+                and bool(registration.get("session"))
+                and self._mesh_route_enabled(session_plugin)
+            ):
                 invocations.append(_Invocation(session_plugin, "session", event))
         if not invocations:
             with self._status_lock:
                 message_plugins = [
                     plugin_id
                     for plugin_id, registration in self._registry.items()
-                    if bool(registration.get("on_message")) and not registration.get("error")
+                    if (
+                        bool(registration.get("on_message"))
+                        and not registration.get("error")
+                        and self._mesh_route_enabled(plugin_id)
+                    )
                 ]
             invocations.extend(
                 _Invocation(plugin_id, "message", event) for plugin_id in message_plugins
@@ -890,6 +971,8 @@ class PluginRuntime:
             self._manifests = request.manifests
             self._manifest_by_id = request.manifest_by_id
             self._command_plugins = request.command_plugins
+            with self._route_policy_lock:
+                self._route_policy = request.route_policy
             self._stop_worker(force=True)
             self._started_generation = self._generation
             enabled_ids = set(self._manifest_by_id)
@@ -1007,6 +1090,8 @@ class PluginRuntime:
         plugin_id = request.plugin_id
         if self._command_plugins.get(request.command) != plugin_id:
             return "", "unknown_command", "No enabled plugin declares that command"
+        if not self._console_route_enabled(plugin_id):
+            return "", "plugin_console_disabled", "Plugin console route is disabled"
         if self._is_quarantined(plugin_id):
             return "", "plugin_quarantined", "Plugin is temporarily quarantined"
         registration = self._registry.get(plugin_id, {})
@@ -1252,6 +1337,7 @@ class PluginRuntime:
         connection = self._connection
         if connection is None:
             return False
+        mesh_route_enabled = self._mesh_route_enabled(invocation.plugin_id)
         registration = self._registry.get(invocation.plugin_id, {})
         if registration.get("error"):
             return True
@@ -1282,12 +1368,15 @@ class PluginRuntime:
             session_active = self._sessions.get(session_key) == invocation.plugin_id
             session_version = self._session_versions.get(session_key, 0)
         request_id = uuid.uuid4().hex
-        try:
-            raw_nodes = self._node_snapshot_fn()
-            nodes = to_jsonable(list(raw_nodes))
-            if not isinstance(nodes, list):
+        if mesh_route_enabled:
+            try:
+                raw_nodes = self._node_snapshot_fn()
+                nodes = to_jsonable(list(raw_nodes))
+                if not isinstance(nodes, list):
+                    nodes = []
+            except Exception:
                 nodes = []
-        except Exception:
+        else:
             nodes = []
         request = {
             "type": "invoke",
@@ -1357,6 +1446,12 @@ class PluginRuntime:
             external_script_actions = tuple(
                 action for action in actions if not isinstance(action, SessionAction)
             )
+            if (
+                not mesh_route_enabled
+                and capture_actions is None
+                and external_script_actions
+            ):
+                raise ValueError("plugin mesh route is disabled")
             external_actions = (
                 ()
                 if capture_actions is not None
@@ -1724,6 +1819,10 @@ class PluginRuntime:
                     if self._stop.is_set() or self._closing.is_set():
                         return
                     if action.plugin_id != "host" and action.plugin_id not in self._manifest_by_id:
+                        continue
+                    if action.plugin_id != "host" and not self._mesh_route_enabled(
+                        action.plugin_id
+                    ):
                         continue
                     self._execute_action(action)
             except Exception as exc:
