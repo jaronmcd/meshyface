@@ -537,6 +537,7 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                             "enabled": True,
                             "active": True,
                             "console_enabled": False,
+                            "ticker_enabled": False,
                             "runtime_status": "running",
                         }
                     ],
@@ -562,6 +563,18 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                                 "default_enabled": True,
                                 "runtime_status": "running",
                                 "unapproved_field": "drop me",
+                            },
+                            {
+                                "id": "script:local-test:activity",
+                                "plugin_id": "local-test",
+                                "ticker_id": "activity",
+                                "label": "Local",
+                                "value": "hidden",
+                                "state": "neutral",
+                                "detail": "hidden ticker detail",
+                                "metric": False,
+                                "default_enabled": True,
+                                "runtime_status": "running",
                             }
                         ],
                     },
@@ -618,6 +631,7 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
     assert "also-private" not in serialized
     assert "private-readme-content" not in serialized
     assert "private.bin" not in serialized
+    assert "hidden ticker detail" not in serialized
     assert "private debug" not in serialized
     assert "worker_pid" not in serialized
 

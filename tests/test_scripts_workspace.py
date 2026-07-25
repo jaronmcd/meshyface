@@ -164,10 +164,14 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert "scriptsReadmeMarkdownHtml" in js
     assert 'document.getElementById("scripts-readme-modal")' in js
     assert "const consoleRouteVisible = commands.length > 0;" in js
+    assert "const tickerRouteVisible = tickerDefinitions.length > 0 || row.ticker_enabled === false;" in js
     assert "registryEntry.on_packet === true" in js
     assert "registryEntry.on_start === true" in js
     assert "registryEntry.on_stop === true" in js
     assert "previous.consoleEnabled" in js
+    assert "previous.tickerEnabled" in js
+    assert 'data-route-key="ticker"' in js
+    assert "ticker_enabled: !!tickerEnabled" in js
     assert "data-package-digest" in js
     assert 'data-setting-type="node_ids"' in js
     assert ".scripts-config-form {" in build_dashboard_css(theme_css="")
@@ -185,7 +189,7 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert "target.dataset.packageDigest" in js
     assert "draft.packageDigest === packageDigest" in js
     assert "packageDigest: expectedPackageDigest" in js
-    assert "scriptsUpdateCachedRoutePolicy(cleanId" in js
+    assert "scriptsUpdateCachedRoutePolicy(\n        cleanId" in js
     assert "scriptsUpdateCachedEnabled(cleanId, !!payload.enabled, !!payload.active)" in js
     assert "scriptsUpdateCachedRuntimeMaster(" in js
     assert "Restart MeshyFace to apply the change." not in _html()
@@ -356,6 +360,7 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
                 "active": False,
                 "mesh_enabled": True,
                 "console_enabled": True,
+                "ticker_enabled": True,
                 "runtime_status": "disabled",
                 "runtime_error": "",
                 "restart_required": False,
@@ -385,9 +390,11 @@ def test_plugin_status_exposes_safe_script_metadata_and_configured_state(tmp_pat
             "plugin_id": "weather",
             "mesh_enabled": False,
             "console_enabled": True,
+            "ticker_enabled": True,
         }
         route_status = subsystem.status()["scripts"][0]
         assert route_status["mesh_enabled"] is False
         assert route_status["console_enabled"] is True
+        assert route_status["ticker_enabled"] is True
     finally:
         subsystem.close()

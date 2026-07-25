@@ -59,11 +59,30 @@ def _private_mode_state_payload(payload: object) -> object:
     return out
 
 
-def _public_plugin_tickers(runtime: Mapping[str, object]) -> list[dict[str, object]]:
+def _plugin_ticker_enabled_map(plugins: Mapping[str, object]) -> dict[str, bool]:
+    scripts = plugins.get("scripts")
+    if not isinstance(scripts, list):
+        return {}
+    enabled_by_plugin: dict[str, bool] = {}
+    for script in scripts:
+        if not isinstance(script, Mapping):
+            continue
+        plugin_id = str(script.get("id") or "").strip().lower()
+        if plugin_id:
+            enabled_by_plugin[plugin_id] = script.get("ticker_enabled") is not False
+    return enabled_by_plugin
+
+
+def _public_plugin_tickers(
+    runtime: Mapping[str, object],
+    *,
+    ticker_enabled_by_plugin: Mapping[str, bool] | None = None,
+) -> list[dict[str, object]]:
     tickers = runtime.get("tickers")
     if not isinstance(tickers, list):
         return []
     safe_tickers: list[dict[str, object]] = []
+    ticker_policy = ticker_enabled_by_plugin or {}
     public_fields = {
         "id",
         "plugin_id",
@@ -81,6 +100,9 @@ def _public_plugin_tickers(runtime: Mapping[str, object]) -> list[dict[str, obje
     }
     for ticker in tickers:
         if not isinstance(ticker, Mapping):
+            continue
+        plugin_id = str(ticker.get("plugin_id") or "").strip().lower()
+        if ticker_policy.get(plugin_id) is False:
             continue
         safe_tickers.append(
             {
@@ -136,6 +158,7 @@ def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
     runtime_enabled = enabled and plugins.get("runtime_enabled") is not False
     runtime_raw = plugins.get("runtime")
     runtime = runtime_raw if isinstance(runtime_raw, Mapping) else {}
+    ticker_enabled_by_plugin = _plugin_ticker_enabled_map(plugins)
     runtime_status = str(runtime.get("status") or "").strip().lower()
     worker_alive = runtime.get("worker_alive") is True
     has_error = bool(plugins.get("error") or runtime.get("last_error"))
@@ -149,7 +172,10 @@ def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
         health = "enabled"
     enabled_plugins = plugins.get("enabled_plugins")
     public_runtime: dict[str, object] = {
-        "tickers": _public_plugin_tickers(runtime),
+        "tickers": _public_plugin_tickers(
+            runtime,
+            ticker_enabled_by_plugin=ticker_enabled_by_plugin,
+        ),
     }
     if runtime_status:
         public_runtime["status"] = runtime_status

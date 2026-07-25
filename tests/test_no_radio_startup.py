@@ -377,6 +377,7 @@ def test_offline_runtime_reports_and_rejects_disabled_plugin_management(tmp_path
         "echo",
         mesh_enabled=False,
         console_enabled=True,
+        ticker_enabled=True,
         expected_package_digest=f"sha256:{'0' * 64}",
     ) == {
         "ok": False,

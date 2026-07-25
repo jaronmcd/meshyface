@@ -9,7 +9,20 @@
       const runtime = plugins.runtime && typeof plugins.runtime === "object"
         ? plugins.runtime
         : {{}};
-      return Array.isArray(runtime.tickers) ? runtime.tickers : [];
+      const tickers = Array.isArray(runtime.tickers) ? runtime.tickers : [];
+      const scripts = Array.isArray(plugins.scripts) ? plugins.scripts : [];
+      const tickerEnabledByPlugin = new Map();
+      for (const row of scripts) {{
+        if (!row || typeof row !== "object") continue;
+        const pluginId = String(row.id || "").trim().toLowerCase();
+        if (!pluginId) continue;
+        tickerEnabledByPlugin.set(pluginId, row.ticker_enabled !== false);
+      }}
+      return tickers.filter((ticker) => {{
+        if (!ticker || typeof ticker !== "object") return true;
+        const pluginId = String(ticker.plugin_id || "").trim().toLowerCase();
+        return tickerEnabledByPlugin.get(pluginId) !== false;
+      }});
     }}
 
     function pluginTickerDomToken(tickerId) {{

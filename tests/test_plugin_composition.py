@@ -133,6 +133,36 @@ def configured(ctx):
     )
 
 
+def _write_ticker_plugin(root: Path) -> None:
+    directory = root / "ticker"
+    directory.mkdir(parents=True)
+    (directory / "plugin.toml").write_text(
+        """api_version = 1
+id = "ticker"
+name = "Ticker"
+version = "1.0.0"
+entrypoint = "script.py:script"
+commands = ["ticker"]
+default_enabled = true
+""",
+        encoding="utf-8",
+    )
+    (directory / "script.py").write_text(
+        """
+from meshdash.plugins import Script
+script = Script(id="ticker", name="Ticker", version="1.0.0")
+script.ticker("activity", label="Ticker", default_enabled=True)
+@script.on_start
+def start(ctx):
+    ctx.set_ticker("activity", value="on")
+@script.command("ticker")
+def ticker(ctx):
+    return ctx.reply("ticker")
+""",
+        encoding="utf-8",
+    )
+
+
 def _wait_until(predicate, timeout: float = 4.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -401,6 +431,47 @@ def test_management_mutations_require_current_package_identity(tmp_path) -> None
         assert stale_route_result["ok"] is False
         assert stale_route_result["error"]["code"] == "plugin_identity_changed"  # type: ignore[index]
         assert subsystem.status()["enabled_plugins"] == []
+    finally:
+        subsystem.close()
+
+
+def test_plugin_ticker_policy_filters_runtime_tickers_without_disabling_script(tmp_path) -> None:
+    plugin_root = tmp_path / "plugins"
+    _write_ticker_plugin(plugin_root)
+    tracker = _Tracker()
+    subsystem = build_plugin_subsystem(
+        args=_args(tmp_path, plugin_enable=["ticker"]),
+        iface=SimpleNamespace(nodesByNum={}),
+        tracker=tracker,
+        send_chat_fn=lambda **_kwargs: {"ok": True},
+        local_node_id_fn=lambda: "!00000002",
+    )
+    try:
+        _wait_until(lambda: len(subsystem.status()["runtime"].get("tickers", [])) == 1)  # type: ignore[union-attr]
+        status = subsystem.status()
+        package_digest = status["scripts"][0]["package_digest"]  # type: ignore[index]
+        assert status["scripts"][0]["ticker_enabled"] is True  # type: ignore[index]
+
+        result = subsystem.set_plugin_route_policy(
+            "ticker",
+            mesh_enabled=True,
+            console_enabled=True,
+            ticker_enabled=False,
+            expected_package_digest=package_digest,
+        )
+
+        assert result == {
+            "ok": True,
+            "plugin_id": "ticker",
+            "mesh_enabled": True,
+            "console_enabled": True,
+            "ticker_enabled": False,
+        }
+        filtered_status = subsystem.status()
+        assert filtered_status["enabled_plugins"] == ["ticker"]
+        assert filtered_status["scripts"][0]["enabled"] is True  # type: ignore[index]
+        assert filtered_status["scripts"][0]["ticker_enabled"] is False  # type: ignore[index]
+        assert filtered_status["runtime"]["tickers"] == []  # type: ignore[index]
     finally:
         subsystem.close()
 

@@ -169,7 +169,11 @@ class PluginSubsystem:
     ) -> dict[str, dict[str, bool]]:
         if self._state_store is None:
             return {
-                manifest.id: {"mesh_enabled": True, "console_enabled": True}
+                manifest.id: {
+                    "mesh_enabled": True,
+                    "console_enabled": True,
+                    "ticker_enabled": True,
+                }
                 for manifest in manifests
             }
         return {
@@ -254,6 +258,23 @@ class PluginSubsystem:
             runtime_enabled = self._runtime_enabled
             active_ids = set(active_plugin_ids)
         runtime_status = runtime.status() if runtime is not None else {}
+        route_policies = self._route_policy_for_manifests(self._manifests)
+        ticker_enabled_by_id = {
+            plugin_id: bool(policy.get("ticker_enabled", True))
+            for plugin_id, policy in route_policies.items()
+        }
+        raw_tickers = runtime_status.get("tickers")
+        if isinstance(raw_tickers, list):
+            runtime_status = dict(runtime_status)
+            runtime_status["tickers"] = [
+                ticker
+                for ticker in raw_tickers
+                if not isinstance(ticker, Mapping)
+                or ticker_enabled_by_id.get(
+                    str(ticker.get("plugin_id") or "").strip().lower(),
+                    True,
+                )
+            ]
         configured_enabled: dict[str, bool] = {}
         package_revision_states: dict[str, tuple[str, bool]] = {}
         for manifest in self._manifests:
@@ -287,10 +308,13 @@ class PluginSubsystem:
         scripts: list[dict[str, object]] = []
         for manifest in self._manifests:
             is_enabled = configured_enabled[manifest.id]
-            route_policy = (
-                self._state_store.plugin_route_policy(manifest.id)
-                if self._state_store is not None
-                else {"mesh_enabled": True, "console_enabled": True}
+            route_policy = route_policies.get(
+                manifest.id,
+                {
+                    "mesh_enabled": True,
+                    "console_enabled": True,
+                    "ticker_enabled": True,
+                },
             )
             package_revision_status, identity_changed = package_revision_states[
                 manifest.id
@@ -335,6 +359,7 @@ class PluginSubsystem:
                 "active": is_active,
                 "mesh_enabled": bool(route_policy.get("mesh_enabled", True)),
                 "console_enabled": bool(route_policy.get("console_enabled", True)),
+                "ticker_enabled": bool(route_policy.get("ticker_enabled", True)),
                 "runtime_status": health,
                 "runtime_error": runtime_error,
                 "restart_required": restart_required,
@@ -692,6 +717,7 @@ class PluginSubsystem:
         *,
         mesh_enabled: bool,
         console_enabled: bool,
+        ticker_enabled: bool | None = None,
         expected_package_digest: object,
     ) -> dict[str, object]:
         if self._state_store is None:
@@ -727,6 +753,7 @@ class PluginSubsystem:
             }
         requested_mesh = bool(mesh_enabled)
         requested_console = bool(console_enabled)
+        requested_ticker = None if ticker_enabled is None else bool(ticker_enabled)
         with self._lifecycle_lock:
             if self._closed:
                 return {
@@ -740,6 +767,7 @@ class PluginSubsystem:
                 clean_id,
                 mesh_enabled=requested_mesh,
                 console_enabled=requested_console,
+                ticker_enabled=requested_ticker,
             )
             runtime = self._runtime
             if not requested_mesh:
@@ -768,6 +796,7 @@ class PluginSubsystem:
             "plugin_id": clean_id,
             "mesh_enabled": policy["mesh_enabled"],
             "console_enabled": policy["console_enabled"],
+            "ticker_enabled": policy["ticker_enabled"],
         }
 
     def set_plugin_settings(

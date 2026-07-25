@@ -817,6 +817,9 @@
       const readme = scriptsReadmePayload(row);
       const registryEntry = scriptsRegistryEntry(row, runtimeSummary);
       const registryKnown = !!registryEntry;
+      const tickerDefinitions = registryEntry && Array.isArray(registryEntry.tickers)
+        ? registryEntry.tickers
+        : [];
       const consoleRouteVisible = commands.length > 0;
       const meshRouteVisible = (
         commands.length > 0
@@ -827,6 +830,7 @@
         || registryEntry.on_start === true
         || registryEntry.on_stop === true
       );
+      const tickerRouteVisible = tickerDefinitions.length > 0 || row.ticker_enabled === false;
       const commandHtml = commands.length > 0
         ? commands.map((command) => `<span class="scripts-command">!${{escAttr(command)}}</span>`).join("")
         : '<span class="scripts-command">No commands</span>';
@@ -841,6 +845,7 @@
       const routeControlsDisabled = !runtimeEnabled || !hasPackageDigest || routePending;
       const meshEnabled = row.mesh_enabled !== false;
       const consoleEnabled = row.console_enabled !== false;
+      const tickerEnabled = row.ticker_enabled !== false;
       return `
         <article class="scripts-item" data-script-id="${{escAttr(scriptId)}}">
           <div class="scripts-item-head">
@@ -877,8 +882,8 @@
           <div class="scripts-item-actions">
             <span class="scripts-item-action-copy">${{escAttr(scriptsItemActionCopy(row, itemState))}}</span>
             <div class="scripts-item-controls">
-              ${{meshRouteVisible || consoleRouteVisible ? `
-                <div class="scripts-route-toggles" aria-label="Allowed routes">
+              ${{meshRouteVisible || consoleRouteVisible || tickerRouteVisible ? `
+                <div class="scripts-route-toggles" aria-label="Script options">
                   ${{meshRouteVisible ? `
                     <label class="scripts-route-toggle">
                       <input
@@ -903,6 +908,19 @@
                         ${{routeControlsDisabled ? "disabled" : ""}}
                       >
                       <span>Console</span>
+                    </label>
+                  ` : ""}}
+                  ${{tickerRouteVisible ? `
+                    <label class="scripts-route-toggle">
+                      <input
+                        type="checkbox"
+                        data-script-route-toggle="${{escAttr(scriptId)}}"
+                        data-route-key="ticker"
+                        data-package-digest="${{escAttr(packageDigest)}}"
+                        ${{tickerEnabled ? "checked" : ""}}
+                        ${{routeControlsDisabled ? "disabled" : ""}}
+                      >
+                      <span>Ticker</span>
                     </label>
                   ` : ""}}
                 </div>
@@ -1127,16 +1145,18 @@
       return {{
         meshEnabled: !match || match.mesh_enabled !== false,
         consoleEnabled: !match || match.console_enabled !== false,
+        tickerEnabled: !match || match.ticker_enabled !== false,
       }};
     }}
 
-    function scriptsUpdateCachedRoutePolicy(scriptId, meshEnabled, consoleEnabled) {{
+    function scriptsUpdateCachedRoutePolicy(scriptId, meshEnabled, consoleEnabled, tickerEnabled) {{
       const runtimeSummary = scriptsRuntimeSummary(latestState);
       const rows = scriptsRuntimeEntries(runtimeSummary);
       const match = rows.find((row) => String(row.id || "") === scriptId);
       if (match) {{
         match.mesh_enabled = !!meshEnabled;
         match.console_enabled = !!consoleEnabled;
+        match.ticker_enabled = !!tickerEnabled;
       }}
     }}
 
@@ -1309,6 +1329,7 @@
       packageDigest,
       meshEnabled,
       consoleEnabled,
+      tickerEnabled,
       control
     ) {{
       const cleanId = String(scriptId || "").trim();
@@ -1321,7 +1342,12 @@
       }}
       const previous = scriptsRoutePolicyFor(cleanId);
       scriptsPendingRouteRequests.add(cleanId);
-      scriptsUpdateCachedRoutePolicy(cleanId, !!meshEnabled, !!consoleEnabled);
+      scriptsUpdateCachedRoutePolicy(
+        cleanId,
+        !!meshEnabled,
+        !!consoleEnabled,
+        !!tickerEnabled
+      );
       scriptsTransientErrorMessage = "";
       if (control instanceof HTMLInputElement) control.disabled = true;
       renderScriptsViewSafely(latestState, "scripts.routes.pending");
@@ -1334,6 +1360,7 @@
             package_digest: expectedPackageDigest,
             mesh_enabled: !!meshEnabled,
             console_enabled: !!consoleEnabled,
+            ticker_enabled: !!tickerEnabled,
           }}),
           cache: "no-store",
         }});
@@ -1357,7 +1384,8 @@
         scriptsUpdateCachedRoutePolicy(
           cleanId,
           payload.mesh_enabled !== false,
-          payload.console_enabled !== false
+          payload.console_enabled !== false,
+          payload.ticker_enabled !== false
         );
         if (typeof forceNextStatePollFresh === "function") {{
           forceNextStatePollFresh("script-routes");
@@ -1371,7 +1399,8 @@
         scriptsUpdateCachedRoutePolicy(
           cleanId,
           previous.meshEnabled,
-          previous.consoleEnabled
+          previous.consoleEnabled,
+          previous.tickerEnabled
         );
         const message = err instanceof Error ? err.message : String(err || "Unknown error");
         scriptsTransientErrorMessage = `Could not update routes for ${{cleanId}}: ${{message}}`;
@@ -1572,6 +1601,9 @@
         const consoleInput = item instanceof HTMLElement
           ? item.querySelector('[data-script-route-toggle][data-route-key="console"]')
           : null;
+        const tickerInput = item instanceof HTMLElement
+          ? item.querySelector('[data-script-route-toggle][data-route-key="ticker"]')
+          : null;
         const previous = scriptsRoutePolicyFor(scriptId);
         const meshEnabled = meshInput instanceof HTMLInputElement
           ? meshInput.checked
@@ -1579,11 +1611,15 @@
         const consoleEnabled = consoleInput instanceof HTMLInputElement
           ? consoleInput.checked
           : previous.consoleEnabled;
+        const tickerEnabled = tickerInput instanceof HTMLInputElement
+          ? tickerInput.checked
+          : previous.tickerEnabled;
         void setScriptRoutePolicy(
           scriptId,
           packageDigest,
           meshEnabled,
           consoleEnabled,
+          tickerEnabled,
           target
         );
       }});

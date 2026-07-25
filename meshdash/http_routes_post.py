@@ -275,11 +275,12 @@ def _read_plugin_route_policy_request(
         "plugin_id",
         "mesh_enabled",
         "console_enabled",
+        "ticker_enabled",
         "package_digest",
     }:
         raise ValueError(
             "request body must contain only plugin_id, mesh_enabled, "
-            "console_enabled, and package_digest"
+            "console_enabled, ticker_enabled, and package_digest"
         )
     plugin_id = parsed.get("plugin_id")
     if not isinstance(plugin_id, str) or not plugin_id.strip():
@@ -288,10 +289,13 @@ def _read_plugin_route_policy_request(
         raise ValueError("mesh_enabled must be a boolean")
     if not isinstance(parsed.get("console_enabled"), bool):
         raise ValueError("console_enabled must be a boolean")
+    if not isinstance(parsed.get("ticker_enabled"), bool):
+        raise ValueError("ticker_enabled must be a boolean")
     return {
         "plugin_id": plugin_id.strip().lower(),
         "mesh_enabled": parsed["mesh_enabled"],
         "console_enabled": parsed["console_enabled"],
+        "ticker_enabled": parsed["ticker_enabled"],
         "package_digest": _plugin_package_digest(parsed.get("package_digest")),
     }
 
@@ -973,6 +977,7 @@ def handle_dashboard_post(
                 request["plugin_id"],
                 mesh_enabled=bool(request["mesh_enabled"]),
                 console_enabled=bool(request["console_enabled"]),
+                ticker_enabled=bool(request["ticker_enabled"]),
                 expected_package_digest=request["package_digest"],
             )
         except ValueError as exc:
