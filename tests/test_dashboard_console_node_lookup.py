@@ -32,6 +32,8 @@ def test_dashboard_js_reuses_one_shot_plugin_console_session_ids() -> None:
     assert "function setPluginConsoleCommandSessionId(command, pluginId, sessionId)" in js
     assert "pluginCommandSessions: Array.from(pluginConsoleCommandSessionIds.entries())" in js
     assert "const sessionId = getPluginConsoleCommandSessionId(command, pluginId);" in js
+    assert 'const resp = await fetch("/api/plugins/console"' in js
+    assert "scriptsAdminRequestHeaders({ json: true })" in js
     assert 'await postPluginConsoleCommand(command, line, sessionId, "command");' in js
     assert "setPluginConsoleCommandSessionId(command, nextPluginId, nextSessionId);" in js
 

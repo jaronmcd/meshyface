@@ -375,6 +375,36 @@ def _write_request_is_authorized(
     return compare_digest(supplied_token, required_token)
 
 
+def _request_has_browser_provenance_metadata(handler: DashboardHttpHandler) -> bool:
+    headers = getattr(handler, "headers", None)
+    return bool(
+        _header_value(headers, "Origin").strip()
+        or _header_value(headers, "Sec-Fetch-Site").strip()
+    )
+
+
+def _request_declares_body(handler: DashboardHttpHandler) -> bool:
+    raw_length = _header_value(getattr(handler, "headers", None), "Content-Length").strip()
+    if not raw_length:
+        return False
+    try:
+        return int(raw_length) > 0
+    except ValueError:
+        return True
+
+
+def _protected_browser_write_rejection(
+    handler: DashboardHttpHandler,
+) -> tuple[int, str] | None:
+    if not _request_has_browser_provenance_metadata(handler):
+        return None
+    if _request_declares_body(handler) and not request_has_json_content_type(handler):
+        return 415, "Write endpoints require application/json"
+    if not plugin_browser_write_is_same_origin(handler):
+        return 403, "Cross-origin writes are not allowed"
+    return None
+
+
 def _map_pack_response_status(payload_obj: Mapping[str, object]) -> int:
     try:
         return int(payload_obj.get("http_status") or 200)
@@ -454,20 +484,29 @@ def handle_dashboard_post(
             )
             return
 
-    if (
-        path in _TOKEN_PROTECTED_WRITE_PATHS
-        and path not in PLUGIN_ADMIN_WRITE_PATHS
-        and not _write_request_is_authorized(handler, deps=deps)
-    ):
-        _record_write_auth_denied(deps)
-        deps.write_json_response_fn(
-            handler,
-            status_code=401,
-            payload_obj={"ok": False, "error": "API token required for write endpoint"},
-            no_store=True,
-            extra_headers={"WWW-Authenticate": "Bearer"},
-        )
-        return
+    if path in _TOKEN_PROTECTED_WRITE_PATHS and path not in PLUGIN_ADMIN_WRITE_PATHS:
+        if not _write_request_is_authorized(handler, deps=deps):
+            _record_write_auth_denied(deps)
+            deps.write_json_response_fn(
+                handler,
+                status_code=401,
+                payload_obj={"ok": False, "error": "API token required for write endpoint"},
+                no_store=True,
+                extra_headers={"WWW-Authenticate": "Bearer"},
+            )
+            return
+        browser_write_rejection = _protected_browser_write_rejection(handler)
+        if browser_write_rejection is not None:
+            status_code, error_message = browser_write_rejection
+            if status_code == 403:
+                _record_write_auth_denied(deps)
+            deps.write_json_response_fn(
+                handler,
+                status_code=status_code,
+                payload_obj={"ok": False, "error": error_message},
+                no_store=True,
+            )
+            return
 
     if path == "/api/maps/packs/build":
         try:

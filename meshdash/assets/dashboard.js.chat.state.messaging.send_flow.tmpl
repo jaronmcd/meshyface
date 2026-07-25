@@ -229,9 +229,12 @@
       if (cleanSessionId) {{
         body.session_id = cleanSessionId;
       }}
+      const headers = (typeof scriptsAdminRequestHeaders === "function")
+        ? scriptsAdminRequestHeaders({{ json: true }})
+        : {{ "Content-Type": "application/json" }};
       const resp = await fetch("/api/plugins/console", {{
         method: "POST",
-        headers: {{ "Content-Type": "application/json" }},
+        headers,
         body: JSON.stringify(body),
       }});
       const payload = await resp.json().catch(() => ({{}}));

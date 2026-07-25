@@ -798,13 +798,13 @@
     function scriptsMeshAccess(row) {{
       const clean = String(row && row.mesh_access || "").trim().toLowerCase();
       if (clean === "read_write") {{
-        return {{ key: "read-write", label: "Read/Write" }};
+        return {{ key: "read-write", label: "Detected Write" }};
       }}
       if (clean === "read_only") {{
-        return {{ key: "read-only", label: "Read Only" }};
+        return {{ key: "read-only", label: "Detected Read" }};
       }}
       if (clean === "none") {{
-        return {{ key: "none", label: "No Mesh" }};
+        return {{ key: "none", label: "No Mesh Detected" }};
       }}
       return {{ key: "unknown", label: "Unknown" }};
     }}

@@ -134,7 +134,13 @@ def test_handle_dashboard_post_runs_plugin_console_command() -> None:
             "session_id": "session-1",
         }
     ).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
     calls: list[tuple[int, object]] = []
     received: list[dict[str, object]] = []
 
@@ -183,6 +189,143 @@ def test_handle_dashboard_post_runs_plugin_console_command() -> None:
             },
         )
     ]
+
+
+def test_plugin_console_requires_json_content_type() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "text/plain",
+            "Host": "127.0.0.1:8877",
+            "Origin": "http://127.0.0.1:8877",
+            "Sec-Fetch-Site": "same-origin",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 0
+    assert calls == [
+        (
+            415,
+            {
+                "ok": False,
+                "error": "Write endpoints require application/json",
+            },
+        )
+    ]
+
+
+def test_plugin_console_rejects_cross_origin_browser_write() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json; charset=utf-8",
+            "Host": "127.0.0.1:8877",
+            "Origin": "https://attacker.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 0
+    assert calls == [
+        (
+            403,
+            {
+                "ok": False,
+                "error": "Cross-origin writes are not allowed",
+            },
+        )
+    ]
+
+
+def test_remote_plugin_console_client_can_use_configured_token() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "dashboard.example",
+            "X-API-Token": "secret",
+        },
+        client_host="192.168.1.42",
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 1
+    assert calls == [(200, {"ok": True})]
 
 
 def test_plugin_console_requires_api_token_when_configured() -> None:
@@ -249,6 +392,100 @@ def test_plugin_console_is_blocked_in_private_mode() -> None:
     assert calls == [
         (403, {"ok": False, "error": "This endpoint is disabled in private mode"})
     ]
+
+
+def test_token_protected_write_rejects_cross_origin_browser_request() -> None:
+    body = json.dumps({"text": "hello"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "127.0.0.1:8877",
+            "Origin": "https://attacker.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+
+    deps = build_post_route_dependencies(send_chat_fn=None, to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/chat/send", deps=deps)
+
+    assert calls == [(403, {"ok": False, "error": "Cross-origin writes are not allowed"})]
+
+
+def test_token_protected_browser_write_requires_json_content_type() -> None:
+    body = json.dumps({"text": "hello"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "text/plain",
+            "Host": "127.0.0.1:8877",
+            "Origin": "http://127.0.0.1:8877",
+            "Sec-Fetch-Site": "same-origin",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+
+    deps = build_post_route_dependencies(send_chat_fn=None, to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/chat/send", deps=deps)
+
+    assert calls == [(415, {"ok": False, "error": "Write endpoints require application/json"})]
+
+
+def test_tokenless_protected_write_allows_same_origin_lan_client() -> None:
+    body = json.dumps({"text": "hello"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "192.168.1.10:8877",
+            "Origin": "http://192.168.1.10:8877",
+            "Sec-Fetch-Site": "same-origin",
+        },
+        client_host="192.168.1.42",
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _send_chat(**_kwargs: object) -> None:
+        nonlocal runs
+        runs += 1
+
+    deps = build_post_route_dependencies(send_chat_fn=_send_chat, to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/chat/send", deps=deps)
+
+    assert runs == 1
+    assert calls[0][0] == 200
 
 
 def test_handle_dashboard_post_updates_raw_packet_capture_settings() -> None:

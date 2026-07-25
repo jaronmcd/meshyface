@@ -1375,7 +1375,12 @@ def test_dashboard_post_starts_map_pack_build_job(monkeypatch: pytest.MonkeyPatc
     received: list[object] = []
 
     class _FakeHandler:
-        headers = {"Content-Length": str(len(body))}
+        headers = {
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "127.0.0.1:8877",
+        }
+        client_address = ("127.0.0.1", 12345)
         rfile = io.BytesIO(body)
 
     def _write_json(_handler, *, status_code, payload_obj, **_kwargs):

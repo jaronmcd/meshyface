@@ -16,7 +16,9 @@ from meshdash.http_routes_post import handle_dashboard_post
 class _FakeHandler:
     def __init__(self, body: bytes = b"", *, headers: dict[str, object] | None = None) -> None:
         self.path = "/api/tools/network"
-        self.headers = headers or {}
+        self.headers = dict(headers or {})
+        self.headers.setdefault("Host", "127.0.0.1:8877")
+        self.client_address = ("127.0.0.1", 12345)
         self.rfile = io.BytesIO(body)
         self.wfile = io.BytesIO()
 

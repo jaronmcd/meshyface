@@ -166,8 +166,9 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert "const consoleRouteVisible = commands.length > 0;" in js
     assert "const tickerRouteVisible = tickerDefinitions.length > 0 || row.ticker_enabled === false;" in js
     assert "const viewRouteVisible = viewDefinitions.length > 0 || row.view_enabled === false;" in js
-    assert 'return { key: "read-write", label: "Read/Write" };' in js
-    assert 'return { key: "read-only", label: "Read Only" };' in js
+    assert 'return { key: "read-write", label: "Detected Write" };' in js
+    assert 'return { key: "read-only", label: "Detected Read" };' in js
+    assert 'return { key: "none", label: "No Mesh Detected" };' in js
     assert "registryEntry.on_packet === true" in js
     assert "registryEntry.on_start === true" in js
     assert "registryEntry.on_stop === true" in js
