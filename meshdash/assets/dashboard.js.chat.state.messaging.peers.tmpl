@@ -2846,18 +2846,26 @@
         menuBtn.setAttribute("aria-expanded", chatNodeNavigatorMenuOpen ? "true" : "false");
       }}
       if (menu instanceof HTMLElement) {{
+        const dockHost = document.querySelector(".chat-left-bottom-bar");
         menu.hidden = !chatNodeNavigatorMenuOpen;
         if (!chatNodeNavigatorMenuOpen) {{
+          if (dockHost instanceof HTMLElement && menu.parentElement !== dockHost) {{
+            dockHost.appendChild(menu);
+          }}
           menu.style.removeProperty("position");
           menu.style.removeProperty("top");
           menu.style.removeProperty("left");
           menu.style.removeProperty("right");
           menu.style.removeProperty("bottom");
           menu.style.removeProperty("max-height");
+          menu.style.removeProperty("min-width");
           menu.style.removeProperty("z-index");
           menu.style.removeProperty("visibility");
           menu.style.removeProperty("width");
         }} else if (menuBtn instanceof HTMLElement && typeof positionFloatingPanelNearAnchor === "function") {{
+          if (menu.parentElement !== document.body) {{
+            document.body.appendChild(menu);
+          }}
           positionFloatingPanelNearAnchor(menu, menuBtn, {{
             alignX: "right",
             preferY: "above",

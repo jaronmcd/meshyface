@@ -912,15 +912,16 @@ def test_chat_header_pills_follow_workspace_shell_tab_tokens() -> None:
 def test_node_navigator_menu_follows_workspace_shell_tokens() -> None:
     css = build_dashboard_css(theme_css="")
 
-    menu_section = css.split("[data-theme=\"dark\"] .chat-node-navigator-menu,", 1)[1].split("}", 1)[0]
+    menu_section = css.split("[data-theme=\"dark\"] .chat-node-navigator-menu {", 1)[1].split("}", 1)[0]
     sort_btn_section = css.split("[data-theme=\"dark\"] .chat-node-navigator-sort-dir-btn,", 1)[1].split("}", 1)[0]
     label_section = css.split("[data-theme=\"dark\"] .chat-node-navigator-label,", 1)[1].split("}", 1)[0]
     head_section = css.split("[data-theme=\"dark\"] .chat-node-navigator-fields-head {", 1)[1].split("}", 1)[0]
     sort_btn_hover_section = css.split("[data-theme=\"dark\"] .chat-node-navigator-sort-dir-btn:hover,", 1)[1].split("}", 1)[0]
     checkbox_section = css.split(".chat-node-navigator-field-option input {", 1)[1].split("}", 1)[0]
 
-    assert "var(--workspace-shell-bg)" in menu_section
-    assert "var(--workspace-shell-border)" in menu_section
+    assert "color-mix(in srgb, var(--workspace-shell-bg) 88%, black)" in menu_section
+    assert "color-mix(in srgb, var(--workspace-shell-border) 72%, var(--ui-border))" in menu_section
+    assert "0 18px 38px rgba(0, 0, 0, 0.6)" in menu_section
     assert "var(--workspace-shell-bg-alt)" in sort_btn_section
     assert "var(--workspace-shell-border-muted)" in sort_btn_section
     assert "var(--workspace-shell-text-soft)" in sort_btn_section
