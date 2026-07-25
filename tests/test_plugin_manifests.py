@@ -349,6 +349,14 @@ def test_parse_manifest_rejects_missing_unknown_and_malformed_fields(tmp_path: P
     with pytest.raises(ManifestError, match="unknown fields: typo_enabled"):
         parse_manifest(plugin / "plugin.toml")
 
+    plugin = _write_plugin(
+        tmp_path,
+        "fake_caps",
+        extra_toml='capabilities = ["mesh.write"]',
+    )
+    with pytest.raises(ManifestError, match="unknown fields: capabilities"):
+        parse_manifest(plugin / "plugin.toml")
+
     (plugin / "plugin.toml").write_text("not = [valid", encoding="utf-8")
     with pytest.raises(ManifestError, match="invalid TOML"):
         parse_manifest(plugin / "plugin.toml")

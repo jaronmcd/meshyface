@@ -5,6 +5,9 @@ Scope: the alpha Python plugin runtime, package discovery, administration UI and
 HTTP endpoints, persisted state, radio actions, file transfer integration, and
 deployment defaults.
 
+Update: 2026-07-25. The post-review console bridge, route toggles, README
+viewer, and mesh-access indicator are covered by this document.
+
 ## Executive conclusion
 
 No stop-ship security issue remains under the selected threat model:
@@ -26,6 +29,12 @@ running as the Meshyface service user. It can read that user's files, access the
 network, import shared dependencies, start subprocesses, and deliberately
 interfere with the host process. Internet-facing or third-party marketplace
 plugins require a materially stronger isolation design.
+
+Meshyface intentionally preserves a low-friction local plugin development loop.
+The manifest carries identity, entrypoint, command, view, setting, and
+enablement metadata that the host actually uses. It does not carry advisory
+capability labels because non-enforced author claims would be easy to
+misinterpret as a security boundary.
 
 ## Threat model
 
@@ -152,6 +161,24 @@ POSIX owner/mode bits are checked, but extended ACLs are not; remove
 write-granting ACLs and keep the discovery root and its parents
 administrator-controlled.
 
+### Mesh access indicator
+
+Status: documented as a best-effort review hint.
+
+- The Scripts workspace shows the worker's detected Mesh access classification:
+  `Detected Write`, `Detected Read`, `No Mesh Detected`, or `Unknown`.
+- The indicator is computed from registered handlers and bytecode after the
+  trusted script is loaded. It is not manifest-authored and not a policy gate.
+- Route toggles remain the enforcement point for Mesh, Console, Ticker, and
+  View delivery.
+- The manifest intentionally has no optional `capabilities` field. A future
+  capability model should be enforced at the SDK/host boundary before it is
+  presented as a security signal.
+
+Residual: the detector can miss helper-module or dynamic behavior and can
+over-classify broad handler access. Treat it as a quick review hint, not as a
+hostile-code boundary.
+
 ### State, settings, and sessions
 
 Status: fixed.
@@ -254,6 +281,8 @@ surface but do not make hostile Python safe.
 - Active conversational sessions clear on a fingerprint change; global and
   peer state continue.
 - Ordinary enable/disable and configuration changes remain live.
+- The Mesh access badge is best-effort display only. It does not change routing
+  or plugin execution behavior.
 - Cross-origin iframe embedding is intentionally blocked; direct use and
   same-origin embedding still work.
 - Limits affect pathological packages or behavior, not the normal SDK surface:

@@ -36,6 +36,10 @@ Dependencies installed into Meshyface's shared Python environment are
 host-level trusted code and are also outside the package fingerprint. Pin and
 manage them as part of the local Meshyface installation.
 
+The Scripts workspace shows a best-effort Mesh access badge derived from the
+loaded script's registered handlers and bytecode. It is an operational hint,
+not a manifest-declared promise, policy gate, or sandbox.
+
 Meshyface does not pass the live radio, tracker, HTTP server, SQLite connection,
 or internal locks to a script. Events, state snapshots, and requested actions
 cross the worker boundary as strictly validated JSON bytes.
@@ -215,6 +219,15 @@ Local packages always begin disabled: a local manifest's `default_enabled = true
 cannot grant its own code permission to execute. That field is honored only for
 plugins shipped inside Meshyface. Enable a new local package in the Scripts
 workspace or with `--plugin-enable` when you intend to run it.
+
+The manifest intentionally has no advisory `capabilities` field. Non-enforced
+claims would add noise without changing what a trusted Python plugin can do.
+The Mesh badge in the Scripts workspace is computed after the worker loads the
+script and can show **Detected Write**, **Detected Read**, **No Mesh Detected**,
+or **Unknown**. Treat it as a review hint only: helper-module calls and dynamic
+behavior can be missed, and broad handlers can be conservatively classified.
+The route toggles remain the enforcement point for Mesh, Console, Ticker, and
+View delivery.
 
 Package directories, manifests, and files must be ordinary directories and
 regular files rather than symlinks or special filesystem objects. Discovery
