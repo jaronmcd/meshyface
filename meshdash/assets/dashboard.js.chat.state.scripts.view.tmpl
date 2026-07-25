@@ -661,16 +661,6 @@
       }};
     }}
 
-    function scriptsItemActionCopy(row, itemState) {{
-      if (itemState.label === "Applying") return "Applying the live runtime change.";
-      if (itemState.label === "Error") {{
-        return itemState.error ? `Error: ${{itemState.error}}` : "Failed to start.";
-      }}
-      if (itemState.label === "Starting") return "Worker startup is in progress.";
-      if (itemState.label === "Running") return "Enabled for this runtime.";
-      return "Not started by this runtime.";
-    }}
-
     function scriptsSettingValue(row, definition) {{
       const scriptId = String(row.id || "").trim();
       const draft = scriptsConfigDrafts.get(scriptId);
@@ -900,7 +890,6 @@
           </div>
           <div class="scripts-commands" aria-label="Declared commands">${{commandHtml}}</div>
           <div class="scripts-item-actions">
-            <span class="scripts-item-action-copy">${{escAttr(scriptsItemActionCopy(row, itemState))}}</span>
             <div class="scripts-item-controls">
               ${{meshRouteVisible || consoleRouteVisible || tickerRouteVisible || viewRouteVisible ? `
                 <div class="scripts-route-toggles" aria-label="Script options">

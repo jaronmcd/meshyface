@@ -140,6 +140,10 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert 'label: "Applying"' in js
     assert 'label: "Starting"' in js
     assert 'label: "Running"' in js
+    assert "function scriptsItemActionCopy" not in js
+    assert "scripts-item-action-copy" not in js
+    assert '"Enabled for this runtime."' not in js
+    assert '"Not started by this runtime."' not in js
     assert 'label: "Error"' in js
     assert 'label: "Scripts disabled"' in js
     assert 'fetch("/api/settings/plugins"' in js
