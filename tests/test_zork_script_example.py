@@ -18,7 +18,7 @@ from meshdash.plugin_state import PluginStateStore
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ZORK_EXAMPLE = REPO_ROOT / "mesh_dashboard_plugins" / "zork"
+ZORK_EXAMPLE = REPO_ROOT / "meshdash" / "included_plugins" / "zork"
 
 
 def _wait_until(predicate, *, timeout: float = 5.0) -> None:
@@ -239,9 +239,9 @@ def test_zork_example_documents_install_and_runtime_boundaries() -> None:
 
     for token in (
         "exact public `zork`",
+        "bundled with Meshyface",
         "MESH_DASH_DEPLOY_PLUGIN_ENABLE=zork",
-        "scp -r mesh_dashboard_plugins/zork",
-        "/home/j/mesh/plugins/",
+        "No plugin copy step is required",
         "--plugins-enable",
         "does not require `--games-enable`",
     ):

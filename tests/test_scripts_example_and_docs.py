@@ -17,8 +17,8 @@ from meshdash.config import DEFAULT_PLUGINS_DIRECTORY
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PLUGIN_ROOT = REPO_ROOT / "mesh_dashboard_plugins"
-HELLO_EXAMPLE = DEFAULT_PLUGIN_ROOT / "hello"
+INCLUDED_PLUGIN_ROOT = REPO_ROOT / "meshdash" / "included_plugins"
+HELLO_EXAMPLE = INCLUDED_PLUGIN_ROOT / "hello"
 
 
 class _Tracker:
@@ -43,7 +43,7 @@ def _wait_until(predicate, *, timeout: float = 5.0) -> None:
 
 def _example_args(tmp_path: Path, *, enable: bool) -> SimpleNamespace:
     return SimpleNamespace(
-        plugins_directory=str(DEFAULT_PLUGIN_ROOT),
+        plugins_directory=str(tmp_path / "local-plugins"),
         plugins_state_db=str(tmp_path / "plugin-state.sqlite3"),
         plugins_files_directory=str(tmp_path / "plugin-files"),
         plugins_event_queue_size=8,
@@ -92,10 +92,10 @@ def test_hello_example_is_copyable_and_matches_its_manifest(tmp_path: Path) -> N
     assert peer_state == {"visits": 2}
 
 
-def test_hello_example_uses_default_source_checkout_plugin_directory() -> None:
+def test_hello_example_is_bundled_separately_from_local_plugin_directory() -> None:
     assert HELLO_EXAMPLE.is_dir()
     assert Path(DEFAULT_PLUGINS_DIRECTORY) == Path("mesh_dashboard_plugins")
-    assert not (REPO_ROOT / "meshdash" / "included_plugins" / "hello").exists()
+    assert HELLO_EXAMPLE.parent == INCLUDED_PLUGIN_ROOT
 
 
 def test_hello_example_runs_in_spawned_runtime_and_persists_peer_state(
@@ -148,12 +148,12 @@ def test_plugins_docs_define_package_and_script_vocabulary() -> None:
         "meshdash.plugins",
         "--plugins-*",
         "MESH_DASH_PLUGINS_*",
-        "mesh_dashboard_plugins/hello",
+        "meshdash/included_plugins/hello",
         "one direct child",
         "## Troubleshooting",
         "There is no filesystem hot reload.",
     ):
         assert token in docs
-    assert "default plugin directory" in docs
+    assert "configurable local plugin directory" in docs
     assert "--plugin-enable hello" in docs
     assert "**Apps → Scripts (Alpha)**" in readme

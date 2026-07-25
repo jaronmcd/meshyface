@@ -53,10 +53,10 @@ system sandbox; local plugin source remains fully trusted.
 
 ## Try The Hello Reference Plugin With One Restart
 
-The repository includes a minimal reference plugin at
-`mesh_dashboard_plugins/hello`. Local source checkouts use
-`mesh_dashboard_plugins` as the default plugin directory, so start or restart
-Meshyface once with both the runtime and the reference plugin enabled:
+The repository includes a minimal bundled reference plugin at
+`meshdash/included_plugins/hello`. Bundled plugins are discovered independently
+of the configurable local plugin directory, so start or restart Meshyface once
+with both the runtime and the reference plugin enabled:
 
 ```bash
 python mesh_dashboard.py --plugins-enable --plugin-enable hello
@@ -68,16 +68,15 @@ and restart that service instead of launching a second dashboard. Open
 **Apps → Scripts (Alpha)** and confirm that **Hello** is running, then send
 `!hello` on the mesh. The reply count is stored separately for each sender.
 
-For a container installation, place the directory under the persistent
-`/data/plugins` volume and set `MESH_DASH_PLUGINS_ENABLE=1` plus
-`MESH_DASH_PLUGIN_ENABLE=hello` before recreating the container. For a systemd
-installation, use writable paths under `/var/lib/meshyface` rather than placing
-local plugins inside the update-managed application checkout.
+For a container installation, set `MESH_DASH_PLUGINS_ENABLE=1` plus
+`MESH_DASH_PLUGIN_ENABLE=hello` before recreating the container. The bundled
+plugin already ships in the image. Standard systemd deployments also include
+it, so no plugin copy step is required.
 
-More reference plugins are available under `mesh_dashboard_plugins/`.
-`test_reply` shows a configurable bot that replies to wildcard-matched messages
-like `*test*` and `*ping*` with response-template macros such as `{hops}`,
-`{nearest_city}`, and `{sender}`.
+Additional bundled reference plugins are available under
+`meshdash/included_plugins/`.
+`packet_city` demonstrates packet handlers and dashboard tickers, while `zork`
+demonstrates long replies and peer-specific interactive gameplay.
 
 ## Runtime Configuration
 
