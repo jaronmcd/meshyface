@@ -15,8 +15,8 @@ script.node_field(
     label="HW",
     group="Node List",
     value_type="text",
-    render_kinds=("chip", "text", "badge"),
-    default_render_kind="chip",
+    render_kinds=("text", "chip", "badge"),
+    default_render_kind="text",
     default_visible=False,
     sortable=True,
 )
@@ -25,8 +25,8 @@ script.node_field(
     label="Battery",
     group="Node List",
     value_type="integer",
-    render_kinds=("metric", "pill", "bar", "chip", "text"),
-    default_render_kind="chip",
+    render_kinds=("text", "pill", "chip", "metric", "bar"),
+    default_render_kind="text",
     default_visible=False,
     sortable=True,
 )
@@ -35,8 +35,8 @@ script.node_field(
     label="Hops",
     group="Node List",
     value_type="integer",
-    render_kinds=("metric", "chip", "pill", "text"),
-    default_render_kind="metric",
+    render_kinds=("text", "pill", "chip", "metric"),
+    default_render_kind="text",
     default_visible=False,
     sortable=True,
 )
@@ -45,8 +45,8 @@ script.node_field(
     label="Last Heard",
     group="Node List",
     value_type="timestamp",
-    render_kinds=("timestamp", "text", "chip"),
-    default_render_kind="timestamp",
+    render_kinds=("text", "timestamp", "chip"),
+    default_render_kind="text",
     default_visible=False,
     sortable=True,
 )

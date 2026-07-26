@@ -58,13 +58,17 @@ def test_node_list_plugin_declares_node_fields() -> None:
     assert manifest.commands == ()
     assert manifest.default_enabled is False
     assert tuple(script.node_fields) == ("hardware", "battery", "hops", "last_heard")
+    assert all(field.default_render_kind == "text" for field in script.node_fields.values())
+    assert script.node_fields["hardware"].render_kinds == ("text", "chip", "badge")
     assert script.node_fields["battery"].render_kinds == (
-        "metric",
-        "pill",
-        "bar",
-        "chip",
         "text",
+        "pill",
+        "chip",
+        "metric",
+        "bar",
     )
+    assert script.node_fields["hops"].render_kinds == ("text", "pill", "chip", "metric")
+    assert script.node_fields["last_heard"].render_kinds == ("text", "timestamp", "chip")
 
 
 def test_node_list_plugin_publishes_initial_node_fields() -> None:

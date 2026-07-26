@@ -1769,6 +1769,12 @@
       return normalizeNodeExplorerRenderKind(def.defaultRenderKind, fallback);
     }}
 
+    function chatNodeNavigatorFieldRenderShape(renderKind) {{
+      const kind = normalizeNodeExplorerRenderKind(renderKind, "chip");
+      if (kind === "text" || kind === "timestamp") return "text";
+      return "pill";
+    }}
+
     function buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field, options = null) {{
       const opts = options && typeof options === "object" ? options : {{}};
       const cleanFieldId = String(fieldId || "").trim().toLowerCase();
@@ -1776,7 +1782,14 @@
       const value = String((field && field.text != null) ? field.text : "n/a").trim() || "n/a";
       const title = String((field && field.title != null) ? field.title : value).trim() || value;
       const renderKind = chatNodeNavigatorFieldRenderKind(def, "chip");
+      const renderShape = chatNodeNavigatorFieldRenderShape(renderKind);
       const source = String(def && def.source || "node_field").trim().toLowerCase() || "node_field";
+      if (renderShape === "text") {{
+        return `<span class="chat-member-metadata-text" data-node-field-id="${{escAttr(cleanFieldId)}}" data-node-field-source="${{escAttr(source)}}" data-node-field-render-kind="${{escAttr(renderKind)}}" title="${{escAttr(`${{label}}: ${{title}}`)}}">
+          <span class="chat-member-metadata-text-key">${{escAttr(label)}}</span>
+          <span class="chat-member-metadata-text-value">${{escAttr(value)}}</span>
+        </span>`;
+      }}
       return `<span class="chat-member-metadata-chip" data-node-field-id="${{escAttr(cleanFieldId)}}" data-node-field-source="${{escAttr(source)}}" data-node-field-render-kind="${{escAttr(renderKind)}}" title="${{escAttr(`${{label}}: ${{title}}`)}}">
         <span class="chat-member-metadata-key">${{escAttr(label)}}</span>
         <span class="chat-member-metadata-value">${{escAttr(value)}}</span>

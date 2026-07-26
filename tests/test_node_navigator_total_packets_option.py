@@ -276,9 +276,13 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
     assert 'source: "plugin"' in js
     assert 'group: String(def && def.source || "") === "plugin" ? "plugins" : "fields"' in js
     assert "function chatNodeNavigatorFieldRenderKind(def, fallback = \"chip\") {" in js
+    assert "function chatNodeNavigatorFieldRenderShape(renderKind) {" in js
+    assert 'if (kind === "text" || kind === "timestamp") return "text";' in js
     assert "function buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field, options = null) {" in js
+    assert 'class="chat-member-metadata-text"' in js
     assert 'data-node-field-source="${escAttr(source)}"' in js
     assert 'data-node-field-render-kind="${escAttr(renderKind)}"' in js
+    assert 'class="chat-member-metadata-chip"' in js
     assert "node.plugin_fields" in js
     assert "nodeExplorerPluginFieldDefsFromState(opts.state || null)" in js
     assert "nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, opts.state || null)" in js

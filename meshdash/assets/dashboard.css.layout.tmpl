@@ -3610,10 +3610,31 @@
     .chat-member-fields-row {{
       display: flex;
       flex-wrap: wrap;
+      align-items: baseline;
       gap: 4px;
       margin-top: 2px;
       min-width: 0;
       width: 100%;
+    }}
+    .chat-member-metadata-text {{
+      display: inline-flex;
+      align-items: baseline;
+      gap: 3px;
+      min-width: 0;
+      max-width: 100%;
+      font-size: 9px;
+      line-height: 1.25;
+      color: var(--surface-tint-text-soft);
+      opacity: 0.72;
+      white-space: nowrap;
+    }}
+    .chat-member-metadata-text-key {{
+      flex: 0 0 auto;
+    }}
+    .chat-member-metadata-text-value {{
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }}
     .chat-member-metadata-chip {{
       border: 1px solid color-mix(in srgb, var(--surface-tint-border) 58%, transparent);

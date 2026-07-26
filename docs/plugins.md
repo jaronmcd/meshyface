@@ -324,6 +324,27 @@ to eight key/value rows, a bounded detail tooltip, and a semantic `neutral`,
 `metric_value` to use the standard trend display. Ticker IDs are namespaced by
 Script, and disabling its plugin hides the tickers automatically.
 
+Scripts may also declare optional node-list fields. The field definition
+controls how the roster presents values: use `default_render_kind="text"` for
+plain inline writing such as `Hops 2`, or `default_render_kind="pill"` for the
+framed metadata style. The default must be one of the field's `render_kinds`.
+
+```python
+script.node_field(
+    "hops",
+    label="Hops",
+    group="Node List",
+    value_type="integer",
+    render_kinds=("text", "pill"),
+    default_render_kind="text",
+    sortable=True,
+)
+```
+
+Publish values from handlers with `ctx.set_node_field(...)`. Node IDs and field
+IDs are validated by the host, and disabling the plugin removes its fields from
+the roster.
+
 State and session changes are committed only after a complete valid handler
 result. Exceptions, malformed results, crashes, and timeouts send no actions and
 commit no state. A timed-out invocation is dropped rather than replayed after
