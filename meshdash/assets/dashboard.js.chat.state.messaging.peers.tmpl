@@ -89,6 +89,10 @@
         const prefKey = String(def && def.prefKey || "");
         const optionId = String(def && def.id || "");
         if (!prefKey || !optionId) continue;
+        if (typeof chatNodeNavigatorToggleOptionIsRetiredByPlugin === "function" && chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, latestState)) {{
+          payload[prefKey] = false;
+          continue;
+        }}
         payload[prefKey] = normalizeChatNodeNavigatorTogglePref(
           optionId,
           chatNodeNavigatorToggleOptionValue(optionId)
@@ -118,6 +122,7 @@
           && !pluginFieldsLoaded
           && opts.preserveDeferredPluginFields !== false
         );
+        if (typeof nodeExplorerNativeFieldIsRetiredByPlugin === "function" && nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state)) continue;
         if (!fieldId || (!allowed.has(fieldId) && !preserveDeferredPluginField) || normalized.includes(fieldId)) continue;
         normalized.push(fieldId);
       }}
@@ -301,6 +306,9 @@
           : chatNodeNavigatorToggleOptionValue(optionId);
         if (optionId === "idle" && prefs[prefKey] == null && legacyLastHeardMetaAsFreshness) {{
           rawValue = true;
+        }}
+        if (typeof chatNodeNavigatorToggleOptionIsRetiredByPlugin === "function" && chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, latestState)) {{
+          rawValue = false;
         }}
         nextToggleValues.set(optionId, normalizeChatNodeNavigatorTogglePref(optionId, rawValue));
       }}
@@ -1893,9 +1901,13 @@
         const idleText = Number.isFinite(Number(snapshot && snapshot.lastSeenUnix))
           ? formatIdleAge(snapshot.lastSeenUnix, nowUnix)
           : "n/a";
-        const showIdle = (typeof normalizeChatNodeNavigatorShowIdlePref === "function")
-          ? normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle)
-          : !!chatNodeNavigatorShowIdle;
+        const nativeLastHeardRetired = (typeof nodeExplorerNativeFieldIsRetiredByPlugin === "function")
+          && nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);
+        const showIdle = !nativeLastHeardRetired && (
+          (typeof normalizeChatNodeNavigatorShowIdlePref === "function")
+            ? normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle)
+            : !!chatNodeNavigatorShowIdle
+        );
         const showCity = (typeof normalizeChatNodeNavigatorShowCityPref === "function")
           ? normalizeChatNodeNavigatorShowCityPref(chatNodeNavigatorShowCity)
           : !!chatNodeNavigatorShowCity;
@@ -1992,11 +2004,13 @@
             }});
         const showLinkQuality = Array.isArray(visibleMetaFieldIds)
           && visibleMetaFieldIds.includes("link_quality");
-        const showHops = Array.isArray(visibleMetaFieldIds)
+        const nativeHopsRetired = (typeof nodeExplorerNativeFieldIsRetiredByPlugin === "function")
+          && nodeExplorerNativeFieldIsRetiredByPlugin("hops", state);
+        const showHops = !nativeHopsRetired && Array.isArray(visibleMetaFieldIds)
           && visibleMetaFieldIds.includes("hops");
         const showSnr = Array.isArray(visibleMetaFieldIds)
           && visibleMetaFieldIds.includes("snr");
-        const showLastHeardMeta = Array.isArray(visibleMetaFieldIds)
+        const showLastHeardMeta = !nativeLastHeardRetired && Array.isArray(visibleMetaFieldIds)
           && visibleMetaFieldIds.includes("last_heard");
         const linkQuality = linkQualityByNode.get(nodeId) || null;
         const linkQualityBarsRaw = Number(linkQuality && linkQuality.bars);

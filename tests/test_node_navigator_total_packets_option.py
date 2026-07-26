@@ -63,7 +63,7 @@ def test_dashboard_js_adds_link_quality_metadata_field_and_sort_option() -> None
     assert "function chatNodeNavigatorInferLinkQuality(" in js
     assert 'showLinkQuality = Array.isArray(visibleMetaFieldIds)' in js
     assert 'visibleMetaFieldIds.includes("link_quality")' in js
-    assert 'showHops = Array.isArray(visibleMetaFieldIds)' in js
+    assert 'showHops = !nativeHopsRetired && Array.isArray(visibleMetaFieldIds)' in js
     assert 'visibleMetaFieldIds.includes("hops")' in js
     assert 'const hopsInlineHtml = showHops && hopsValue != null' in js
     assert 'showSnr = Array.isArray(visibleMetaFieldIds)' in js
@@ -75,7 +75,7 @@ def test_dashboard_js_adds_link_quality_metadata_field_and_sort_option() -> None
         'if (snrInlineHtml) memberMetaRowParts.push(snrInlineHtml);'
     )
     assert 'const specialRosterFieldIds = new Set(["favorite", "hops", "link_quality", "snr", "last_heard"]);' in js
-    assert 'showLastHeardMeta = Array.isArray(visibleMetaFieldIds)' in js
+    assert 'showLastHeardMeta = !nativeLastHeardRetired && Array.isArray(visibleMetaFieldIds)' in js
     assert 'visibleMetaFieldIds.includes("last_heard")' in js
     assert 'class="chat-member-link-quality' in js
 
@@ -273,6 +273,23 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
     assert "function nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, state = null) {" in js
     assert "runtime.node_fields" in js
     assert "runtime.node_field_values" in js
+    assert "function nodeExplorerNodeListPluginProvidesField(fieldId, state = null)" in js
+    assert "function nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state = null)" in js
+    assert (
+        'cleanFieldId === "hardware" || cleanFieldId === "battery" || '
+        'cleanFieldId === "hops" || cleanFieldId === "last_heard"'
+    ) in js
+    assert (
+        'return source === "plugin" || !nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state);'
+        in js
+    )
+    assert "function chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, state = null)" in js
+    assert 'return optionId === "idle" && nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);' in js
+    assert "nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state)) continue;" in js
+    assert 'nodeExplorerNativeFieldIsRetiredByPlugin("hops", state);' in js
+    assert 'nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);' in js
+    assert "function nodeExplorerPluginFieldIdIsRedundant" not in js
+    assert "function nodeExplorerPluginRuntimeFieldIsRedundant" not in js
     assert "function normalizeNodeExplorerRosterLine(value, fallback = 2)" in js
     assert "function nodeExplorerRosterLineForDef(def, fallback = 2)" in js
     assert "const rosterLine = normalizeNodeExplorerRosterLine(row.roster_line, 2);" in js

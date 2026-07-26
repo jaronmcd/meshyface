@@ -98,6 +98,27 @@
       return rows.filter((row) => row && typeof row === "object");
     }}
 
+    function nodeExplorerNodeListPluginProvidesField(fieldId, state = null) {{
+      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
+      if (!cleanFieldId) return false;
+      for (const row of nodeExplorerPluginRuntimeFieldRows(state)) {{
+        const namespacedId = String(row.id || "").trim().toLowerCase();
+        const pluginId = String(row.plugin_id || "").trim().toLowerCase();
+        const pluginFieldId = String(row.field_id || "").trim().toLowerCase();
+        if (namespacedId === `plugin:node_list:${{cleanFieldId}}`) return true;
+        if (pluginId === "node_list" && pluginFieldId === cleanFieldId) return true;
+      }}
+      return false;
+    }}
+
+    function nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state = null) {{
+      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
+      return (
+        (cleanFieldId === "hardware" || cleanFieldId === "battery" || cleanFieldId === "hops" || cleanFieldId === "last_heard")
+        && nodeExplorerNodeListPluginProvidesField(cleanFieldId, state)
+      );
+    }}
+
     function nodeExplorerPluginRuntimeFieldValueRows(state = null) {{
       const safeState = state && typeof state === "object"
         ? state
@@ -280,7 +301,11 @@
       Object.freeze({{ id: "order", label: "Order" }}),
     ]);
     function chatNodeNavigatorFieldOptionDefs(state = null) {{
-      return nodeExplorerRosterMetadataFieldDefs(state).map((def) => {{
+      return nodeExplorerRosterMetadataFieldDefs(state).filter((def) => {{
+        const source = String(def && def.source || "node_field").trim().toLowerCase();
+        const fieldId = String(def && def.id || "").trim().toLowerCase();
+        return source === "plugin" || !nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state);
+      }}).map((def) => {{
         const fieldId = normalizeNodeExplorerFieldId(def && def.id, state);
         return Object.freeze({{
           id: `field:${{fieldId}}`,
@@ -296,8 +321,16 @@
         }});
       }}).filter((def) => !!(def && def.fieldId));
     }}
+
+    function chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, state = null) {{
+      const optionId = String(def && def.id || "").trim().toLowerCase();
+      return optionId === "idle" && nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);
+    }}
+
     function chatNodeNavigatorOptionDefs(state = null) {{
-      return chatNodeNavigatorFieldOptionDefs(state).concat(chatNodeNavigatorToggleOptionDefs);
+      return chatNodeNavigatorFieldOptionDefs(state).concat(
+        chatNodeNavigatorToggleOptionDefs.filter((def) => !chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, state))
+      );
     }}
     function chatNodeNavigatorDefaultToggleOptionValue(optionId) {{
       const def = chatNodeNavigatorToggleOptionDefById.get(String(optionId || "").trim().toLowerCase());
