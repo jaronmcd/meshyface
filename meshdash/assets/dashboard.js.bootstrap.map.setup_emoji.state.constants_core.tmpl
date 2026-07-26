@@ -28,6 +28,8 @@
       nodeExplorerFieldDefs.map((def) => [String(def.id || ""), def])
     );
     const nodeExplorerPluginFieldIdPattern = /^plugin:[a-z][a-z0-9_-]{{0,63}}:[a-z][a-z0-9_-]{{0,31}}$/;
+    const nodeExplorerPluginFieldDefsByState = (typeof WeakMap === "function") ? new WeakMap() : null;
+    const nodeExplorerPluginFieldValueIndexByState = (typeof WeakMap === "function") ? new WeakMap() : null;
     const nodeExplorerSupportedRenderKinds = Object.freeze([
       "text",
       "chip",
@@ -81,10 +83,14 @@
       return normalizeNodeExplorerRosterLine(fallback, 2);
     }}
 
-    function nodeExplorerPluginRuntimeFieldRows(state = null) {{
-      const safeState = state && typeof state === "object"
+    function nodeExplorerStateForPluginRuntime(state = null) {{
+      return state && typeof state === "object"
         ? state
         : ((typeof latestState !== "undefined" && latestState && typeof latestState === "object") ? latestState : null);
+    }}
+
+    function nodeExplorerPluginRuntimeFieldRows(state = null) {{
+      const safeState = nodeExplorerStateForPluginRuntime(state);
       const summary = safeState && safeState.summary && typeof safeState.summary === "object"
         ? safeState.summary
         : null;
@@ -120,9 +126,7 @@
     }}
 
     function nodeExplorerPluginRuntimeFieldValueRows(state = null) {{
-      const safeState = state && typeof state === "object"
-        ? state
-        : ((typeof latestState !== "undefined" && latestState && typeof latestState === "object") ? latestState : null);
+      const safeState = nodeExplorerStateForPluginRuntime(state);
       const summary = safeState && safeState.summary && typeof safeState.summary === "object"
         ? safeState.summary
         : null;
@@ -136,16 +140,18 @@
       return rows.filter((row) => row && typeof row === "object");
     }}
 
-    function nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, state = null) {{
-      const cleanNodeId = (typeof normalizeNodeId === "function")
-        ? normalizeNodeId(nodeId)
-        : String(nodeId || "").trim().toLowerCase();
-      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
-      if (!cleanNodeId || !nodeExplorerPluginFieldIdPattern.test(cleanFieldId)) return null;
-      for (const row of nodeExplorerPluginRuntimeFieldValueRows(state)) {{
+    function nodeExplorerPluginRuntimeFieldValueIndex(state = null) {{
+      const safeState = nodeExplorerStateForPluginRuntime(state);
+      if (nodeExplorerPluginFieldValueIndexByState instanceof WeakMap && safeState && typeof safeState === "object") {{
+        const cached = nodeExplorerPluginFieldValueIndexByState.get(safeState);
+        if (cached instanceof Map) return cached;
+      }}
+      const index = new Map();
+      for (const row of nodeExplorerPluginRuntimeFieldValueRows(safeState)) {{
         const rowNodeId = (typeof normalizeNodeId === "function")
           ? normalizeNodeId(row.node_id)
           : String(row.node_id || "").trim().toLowerCase();
+        if (!rowNodeId) continue;
         const namespacedId = String(row.id || "").trim().toLowerCase();
         const pluginId = String(row.plugin_id || "").trim().toLowerCase();
         const pluginFieldId = String(row.field_id || "").trim().toLowerCase();
@@ -156,15 +162,35 @@
                 ? `plugin:${{pluginId}}:${{pluginFieldId}}`
                 : ""
             );
-        if (rowNodeId === cleanNodeId && rowFieldId === cleanFieldId) return row;
+        if (!nodeExplorerPluginFieldIdPattern.test(rowFieldId)) continue;
+        if (!index.has(rowNodeId)) index.set(rowNodeId, new Map());
+        index.get(rowNodeId).set(rowFieldId, row);
       }}
-      return null;
+      if (nodeExplorerPluginFieldValueIndexByState instanceof WeakMap && safeState && typeof safeState === "object") {{
+        nodeExplorerPluginFieldValueIndexByState.set(safeState, index);
+      }}
+      return index;
+    }}
+
+    function nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, state = null) {{
+      const cleanNodeId = (typeof normalizeNodeId === "function")
+        ? normalizeNodeId(nodeId)
+        : String(nodeId || "").trim().toLowerCase();
+      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
+      if (!cleanNodeId || !nodeExplorerPluginFieldIdPattern.test(cleanFieldId)) return null;
+      const nodeValues = nodeExplorerPluginRuntimeFieldValueIndex(state).get(cleanNodeId);
+      return nodeValues instanceof Map ? (nodeValues.get(cleanFieldId) || null) : null;
     }}
 
     function nodeExplorerPluginFieldDefsFromState(state = null) {{
+      const safeState = nodeExplorerStateForPluginRuntime(state);
+      if (nodeExplorerPluginFieldDefsByState instanceof WeakMap && safeState && typeof safeState === "object") {{
+        const cached = nodeExplorerPluginFieldDefsByState.get(safeState);
+        if (Array.isArray(cached)) return cached;
+      }}
       const defs = [];
       const seen = new Set();
-      for (const row of nodeExplorerPluginRuntimeFieldRows(state)) {{
+      for (const row of nodeExplorerPluginRuntimeFieldRows(safeState)) {{
         const namespacedId = String(row.id || "").trim().toLowerCase();
         const pluginId = String(row.plugin_id || "").trim().toLowerCase();
         const pluginFieldId = String(row.field_id || "").trim().toLowerCase();
@@ -203,6 +229,9 @@
           defaultRenderKind,
           rosterLine,
         }}));
+      }}
+      if (nodeExplorerPluginFieldDefsByState instanceof WeakMap && safeState && typeof safeState === "object") {{
+        nodeExplorerPluginFieldDefsByState.set(safeState, defs);
       }}
       return defs;
     }}

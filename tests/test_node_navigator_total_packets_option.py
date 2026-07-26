@@ -270,7 +270,11 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
     assert "const nodeExplorerPluginFieldIdPattern = /^plugin:" in js
     assert "function nodeExplorerPluginRuntimeFieldRows(state = null) {" in js
     assert "function nodeExplorerPluginRuntimeFieldValueRows(state = null) {" in js
+    assert "const nodeExplorerPluginFieldDefsByState = (typeof WeakMap === \"function\") ? new WeakMap() : null;" in js
+    assert "const nodeExplorerPluginFieldValueIndexByState = (typeof WeakMap === \"function\") ? new WeakMap() : null;" in js
+    assert "function nodeExplorerPluginRuntimeFieldValueIndex(state = null) {" in js
     assert "function nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, state = null) {" in js
+    assert "const nodeValues = nodeExplorerPluginRuntimeFieldValueIndex(state).get(cleanNodeId);" in js
     assert "runtime.node_fields" in js
     assert "runtime.node_field_values" in js
     assert "function nodeExplorerNodeListPluginProvidesField(fieldId, state = null)" in js
