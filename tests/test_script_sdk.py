@@ -8,6 +8,7 @@ from meshdash.plugins import (
     AcceptFileOfferAction,
     Script,
     MessageEvent,
+    NodeFieldDefinition,
     ReplyAction,
     SendChannelAction,
     SendFileAction,
@@ -142,6 +143,39 @@ def test_script_validates_view_declarations() -> None:
         script.view("other", label="Other", icon="TOOLONG")
     with pytest.raises(ValueError, match="view content"):
         script.view("large", label="Large", content="x" * (16 * 1024 + 1))
+
+
+def test_script_declares_node_field_roster_line() -> None:
+    script = Script(id="example", name="Example", version="1")
+
+    field = script.node_field(
+        "quality",
+        label="Quality",
+        value_type="number",
+        render_kinds=("metric", "text"),
+        default_render_kind="metric",
+        default_visible=True,
+        sortable=True,
+        roster_line=1,
+    )
+
+    assert field == NodeFieldDefinition(
+        "quality",
+        "Quality",
+        value_type="number",
+        render_kinds=("metric", "text"),
+        default_render_kind="metric",
+        default_visible=True,
+        sortable=True,
+        roster_line=1,
+    )
+    assert field.to_dict()["roster_line"] == 1
+    with pytest.raises(ValueError, match="roster_line"):
+        script.node_field("invalid", label="Invalid", roster_line=0)
+    with pytest.raises(ValueError, match="roster_line"):
+        script.node_field("too_low", label="Too Low", roster_line=True)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="roster_line"):
+        script.node_field("too_high", label="Too High", roster_line=5)
 
 
 @pytest.mark.parametrize("name", ["Hello", "two words", "!hello", "", "a" * 33])

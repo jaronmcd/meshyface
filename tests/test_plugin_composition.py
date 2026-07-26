@@ -263,6 +263,7 @@ script.node_field(
     default_render_kind="metric",
     default_visible=True,
     sortable=True,
+    roster_line=1,
 )
 @script.on_start
 def start(ctx):
@@ -692,6 +693,7 @@ def test_plugin_status_exposes_runtime_node_field_definitions(tmp_path) -> None:
                 "default_render_kind": "metric",
                 "default_visible": True,
                 "sortable": True,
+                "roster_line": 1,
                 "runtime_status": "running",
             }
         ]
@@ -718,6 +720,7 @@ def test_plugin_status_exposes_runtime_node_field_definitions(tmp_path) -> None:
                 "default_render_kind": "metric",
                 "default_visible": True,
                 "sortable": True,
+                "roster_line": 1,
             }
         ]
     finally:

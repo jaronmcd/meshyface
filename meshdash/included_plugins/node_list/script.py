@@ -39,6 +39,7 @@ script.node_field(
     default_render_kind="text",
     default_visible=False,
     sortable=True,
+    roster_line=1,
 )
 script.node_field(
     "last_heard",
@@ -49,6 +50,7 @@ script.node_field(
     default_render_kind="text",
     default_visible=False,
     sortable=True,
+    roster_line=1,
 )
 
 

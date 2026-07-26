@@ -2121,23 +2121,47 @@
         if (hopsInlineHtml) memberMetaRowParts.push(hopsInlineHtml);
         if (linkQualityInlineHtml) memberMetaRowParts.push(linkQualityInlineHtml);
         if (snrInlineHtml) memberMetaRowParts.push(snrInlineHtml);
+        const specialRosterFieldIds = new Set(["favorite", "hops", "link_quality", "snr", "last_heard"]);
+        const collectRosterLineFieldHtml = (targetLine) => {{
+          const visibleFieldIds = Array.isArray(visibleMetaFieldIds) ? visibleMetaFieldIds : [];
+          if (visibleFieldIds.length <= 0) return [];
+          const chunks = [];
+          for (const fieldIdRaw of visibleFieldIds) {{
+            const fieldId = normalizeNodeExplorerFieldId(fieldIdRaw, state);
+            if (!fieldId || specialRosterFieldIds.has(fieldId)) continue;
+            const def = nodeExplorerFieldDef(fieldId, state);
+            if (!def || nodeExplorerRosterLineForDef(def, 2) !== targetLine) continue;
+            const field = nodeProjection && nodeProjection.fields ? nodeProjection.fields[fieldId] : null;
+            if (!field) continue;
+            chunks.push(buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field));
+          }}
+          return chunks;
+        }};
+        memberMetaRowParts.push(...collectRosterLineFieldHtml(1));
         const memberMetaRowHtml = memberMetaRowParts.length > 0
           ? `<span class="chat-member-meta-row">${{memberMetaRowParts.join("")}}</span>`
           : "";
         const memberFieldsRowHtml = (() => {{
           const visibleFieldIds = Array.isArray(visibleMetaFieldIds) ? visibleMetaFieldIds : [];
           if (visibleFieldIds.length <= 0) return "";
-          const chips = [];
+          const chipsByLine = new Map();
           for (const fieldIdRaw of visibleFieldIds) {{
             const fieldId = normalizeNodeExplorerFieldId(fieldIdRaw, state);
-            if (!fieldId || fieldId === "favorite" || fieldId === "hops" || fieldId === "link_quality" || fieldId === "snr" || fieldId === "last_heard") continue;
+            if (!fieldId || specialRosterFieldIds.has(fieldId)) continue;
             const def = nodeExplorerFieldDef(fieldId, state);
+            if (!def) continue;
+            const rosterLine = nodeExplorerRosterLineForDef(def, 2);
+            if (rosterLine <= 1) continue;
             const field = nodeProjection && nodeProjection.fields ? nodeProjection.fields[fieldId] : null;
-            if (!def || !field) continue;
-            chips.push(buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field));
+            if (!field) continue;
+            if (!chipsByLine.has(rosterLine)) chipsByLine.set(rosterLine, []);
+            chipsByLine.get(rosterLine).push(buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field));
           }}
-          if (chips.length <= 0) return "";
-          return `<span class="chat-member-fields-row">${{chips.join("")}}</span>`;
+          if (chipsByLine.size <= 0) return "";
+          return Array.from(chipsByLine.entries())
+            .sort(([left], [right]) => left - right)
+            .map(([line, chips]) => `<span class="chat-member-fields-row" data-roster-line="${{escAttr(String(line))}}">${{chips.join("")}}</span>`)
+            .join("");
         }})();
         const tagStyleVars = tagActive ? nodeTagStyleVars(tagEntry) : "";
         const appearanceStyleVars = appearanceActive && typeof nodeAppearanceStyleVars === "function"

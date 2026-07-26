@@ -608,6 +608,7 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                                 "default_render_kind": "metric",
                                 "default_visible": False,
                                 "sortable": True,
+                                "roster_line": 1,
                                 "runtime_status": "running",
                                 "private_field": "drop me",
                             }
@@ -708,6 +709,7 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
                     "default_render_kind": "metric",
                     "default_visible": False,
                     "sortable": True,
+                    "roster_line": 1,
                     "runtime_status": "running",
                 }
             ],

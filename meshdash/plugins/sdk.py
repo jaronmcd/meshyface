@@ -158,6 +158,7 @@ class NodeFieldDefinition:
     default_render_kind: str = "text"
     default_visible: bool = False
     sortable: bool = False
+    roster_line: int = 2
 
     def __post_init__(self) -> None:
         if not isinstance(self.id, str) or _NODE_FIELD_ID_RE.fullmatch(self.id) is None:
@@ -180,6 +181,9 @@ class NodeFieldDefinition:
             raise ValueError("node field default_visible must be a boolean")
         if not isinstance(self.sortable, bool):
             raise ValueError("node field sortable must be a boolean")
+        _integer(self.roster_line, "node field roster_line", minimum=1)
+        if self.roster_line > 4:
+            raise ValueError("node field roster_line must be at most 4")
 
     def to_dict(self) -> dict[str, JsonValue]:
         return {
@@ -191,6 +195,7 @@ class NodeFieldDefinition:
             "default_render_kind": self.default_render_kind,
             "default_visible": self.default_visible,
             "sortable": self.sortable,
+            "roster_line": self.roster_line,
         }
 
 
@@ -693,6 +698,7 @@ class Script:
         default_render_kind: str = "text",
         default_visible: bool = False,
         sortable: bool = False,
+        roster_line: int = 2,
     ) -> NodeFieldDefinition:
         """Declare one optional node-list field owned by this Script."""
 
@@ -705,6 +711,7 @@ class Script:
             default_render_kind=default_render_kind,
             default_visible=default_visible,
             sortable=sortable,
+            roster_line=roster_line,
         )
         if definition.id in self._node_fields:
             raise ValueError(f"node field {definition.id!r} is already registered")

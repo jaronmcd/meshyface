@@ -74,7 +74,7 @@ def test_dashboard_js_adds_link_quality_metadata_field_and_sort_option() -> None
     assert js.index('if (linkQualityInlineHtml) memberMetaRowParts.push(linkQualityInlineHtml);') < js.index(
         'if (snrInlineHtml) memberMetaRowParts.push(snrInlineHtml);'
     )
-    assert 'fieldId === "snr"' in js
+    assert 'const specialRosterFieldIds = new Set(["favorite", "hops", "link_quality", "snr", "last_heard"]);' in js
     assert 'showLastHeardMeta = Array.isArray(visibleMetaFieldIds)' in js
     assert 'visibleMetaFieldIds.includes("last_heard")' in js
     assert 'class="chat-member-link-quality' in js
@@ -273,8 +273,15 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
     assert "function nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, state = null) {" in js
     assert "runtime.node_fields" in js
     assert "runtime.node_field_values" in js
+    assert "function normalizeNodeExplorerRosterLine(value, fallback = 2)" in js
+    assert "function nodeExplorerRosterLineForDef(def, fallback = 2)" in js
+    assert "const rosterLine = normalizeNodeExplorerRosterLine(row.roster_line, 2);" in js
     assert 'source: "plugin"' in js
     assert 'group: String(def && def.source || "") === "plugin" ? "plugins" : "fields"' in js
+    assert "rosterLine," in js
+    assert "memberMetaRowParts.push(...collectRosterLineFieldHtml(1));" in js
+    assert "if (rosterLine <= 1) continue;" in js
+    assert 'data-roster-line="${escAttr(String(line))}"' in js
     assert "function chatNodeNavigatorFieldRenderKind(def, fallback = \"chip\") {" in js
     assert "function chatNodeNavigatorFieldRenderShape(renderKind) {" in js
     assert 'if (kind === "text" || kind === "timestamp") return "text";' in js
@@ -424,7 +431,7 @@ def test_dashboard_js_supports_idle_toggle_in_node_navigator() -> None:
     assert 'text: `Idle: ${formatIdleAge(ts, nowUnix)}`' in js
     assert 'const freshnessInline = (showIdle || showLastHeardMeta)' in js
     assert 'data-freshness-inline-mode="${escAttr(freshnessInline.mode || "")}"' in js
-    assert 'fieldId === "last_heard") continue;' in js
+    assert 'specialRosterFieldIds.has(fieldId)) continue;' in js
     assert "nodeFreshnessInlineLabel(lastSeenUnix, key, nowUnix)" in js
     assert 'const memberMetaRowParts = [];' in js
     assert 'const memberMetaRowHtml = memberMetaRowParts.length > 0' in js

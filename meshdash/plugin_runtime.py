@@ -870,6 +870,7 @@ class PluginRuntime:
                                     definition.get("default_visible", False)
                                 ),
                                 "sortable": bool(definition.get("sortable", False)),
+                                "roster_line": int(definition.get("roster_line") or 2),
                                 "runtime_status": plugin_status,
                             }
                         )
@@ -1814,6 +1815,7 @@ class PluginRuntime:
             "default_render_kind",
             "default_visible",
             "sortable",
+            "roster_line",
         }
         for item in raw:
             if not isinstance(item, Mapping) or set(item) != expected:
@@ -1831,6 +1833,7 @@ class PluginRuntime:
             default_render_kind = str(item.get("default_render_kind") or "")
             default_visible = item.get("default_visible")
             sortable = item.get("sortable")
+            roster_line = item.get("roster_line")
             if _NODE_FIELD_ID_RE.fullmatch(field_id) is None or field_id in seen:
                 raise ValueError("plugin node field definition has an invalid or duplicate ID")
             if not label or label != label.strip() or len(label) > 32:
@@ -1849,6 +1852,13 @@ class PluginRuntime:
                 raise ValueError("plugin node field default render kind is invalid")
             if not isinstance(default_visible, bool) or not isinstance(sortable, bool):
                 raise ValueError("plugin node field definition flags must be booleans")
+            if (
+                isinstance(roster_line, bool)
+                or not isinstance(roster_line, int)
+                or roster_line < 1
+                or roster_line > 4
+            ):
+                raise ValueError("plugin node field roster line is invalid")
             seen.add(field_id)
             definitions.append(
                 {
@@ -1860,6 +1870,7 @@ class PluginRuntime:
                     "default_render_kind": default_render_kind,
                     "default_visible": default_visible,
                     "sortable": sortable,
+                    "roster_line": roster_line,
                 }
             )
         return tuple(definitions)

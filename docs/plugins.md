@@ -325,9 +325,13 @@ to eight key/value rows, a bounded detail tooltip, and a semantic `neutral`,
 Script, and disabling its plugin hides the tickers automatically.
 
 Scripts may also declare optional node-list fields. The field definition
-controls how the roster presents values: use `default_render_kind="text"` for
-plain inline writing such as `Hops 2`, or `default_render_kind="pill"` for the
-framed metadata style. The default must be one of the field's `render_kinds`.
+controls how the roster presents values. Use `default_render_kind="text"` for
+plain inline writing such as `Hops 2`, or `default_render_kind="pill"` for a
+framed value. The default must be one of the field's `render_kinds`.
+`roster_line` controls the field's default line inside each node-list item:
+line 1 is the first data line under the node name, line 2 is the next line, and
+additional lines are reserved for compact plugin layouts. Existing plugins
+default to line 2.
 
 ```python
 script.node_field(
@@ -337,6 +341,7 @@ script.node_field(
     value_type="integer",
     render_kinds=("text", "pill"),
     default_render_kind="text",
+    roster_line=1,
     sortable=True,
 )
 ```

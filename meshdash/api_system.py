@@ -138,6 +138,7 @@ def _public_plugin_node_fields(
         "default_render_kind",
         "default_visible",
         "sortable",
+        "roster_line",
         "runtime_status",
     }
     for row in rows:
