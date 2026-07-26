@@ -5,6 +5,7 @@ from urllib.parse import parse_qs
 from .http_handler_contracts import DashboardHttpHandler
 from .http_route_contracts import StateFn, WriteJsonResponseFn
 from .http_responses import _send_no_store_headers
+from .offline_atlas import nearest_city as _nearest_city
 from .state_payload_contracts import normalize_state_payload_for_api
 
 _PUBLIC_PLUGIN_COMMAND_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
@@ -13,6 +14,186 @@ _PUBLIC_PLUGIN_VIEW_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _PUBLIC_PLUGIN_VIEW_ICON_RE = re.compile(r"[A-Z0-9]{1,4}\Z")
 _PUBLIC_PLUGIN_NODE_FIELD_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 _PUBLIC_NODE_ID_RE = re.compile(r"![0-9a-f]{8}\Z")
+_NODE_LIST_MIRROR_FIELD_ORDER = (
+    "id",
+    "snr",
+    "hardware",
+    "battery",
+    "hops",
+    "last_heard",
+    "links",
+    "saved",
+    "pos",
+    "location_points",
+    "city",
+)
+_NODE_LIST_MIRROR_FIELD_IDS = frozenset(_NODE_LIST_MIRROR_FIELD_ORDER)
+
+
+def _first_present(row: Mapping[str, object], *keys: str) -> object | None:
+    for key in keys:
+        value = row.get(key)
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def _int_or_none(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _float_or_none(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value) if value is not None else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if number is None or number != number:
+        return None
+    if number in (float("inf"), float("-inf")):
+        return None
+    return number
+
+
+def _timestamp_or_none(value: object) -> int | None:
+    number = _int_or_none(value)
+    if number is None or number <= 0:
+        return None
+    return number
+
+
+def _node_location(row: Mapping[str, object]) -> tuple[float, float] | None:
+    position = row.get("position")
+    if isinstance(position, Mapping):
+        lat = _float_or_none(_first_present(position, "latitude", "lat"))
+        lon = _float_or_none(_first_present(position, "longitude", "lon"))
+    else:
+        lat = _float_or_none(_first_present(row, "latitude", "lat"))
+        lon = _float_or_none(_first_present(row, "longitude", "lon"))
+    if lat is None or lon is None:
+        return None
+    if lat < -90.0 or lat > 90.0 or lon < -180.0 or lon > 180.0:
+        return None
+    if abs(lat) < 1e-9 and abs(lon) < 1e-9:
+        return None
+    return lat, lon
+
+
+def _node_list_city_value(
+    location: tuple[float, float] | None,
+    city_cache: dict[tuple[float, float], dict[str, object] | None],
+) -> tuple[object, object | None, str]:
+    if location is None:
+        return "n/a", None, "City: n/a"
+    cache_key = (round(location[0], 5), round(location[1], 5))
+    if cache_key not in city_cache:
+        city_cache[cache_key] = _nearest_city(location[0], location[1])
+    city = city_cache.get(cache_key)
+    if not isinstance(city, Mapping):
+        return "n/a", None, "City: n/a"
+    name = str(city.get("name") or "").strip()
+    if not name:
+        return "n/a", None, "City: n/a"
+    admin = str(city.get("admin1") or city.get("adm1name") or city.get("state") or "").strip()
+    country = str(city.get("country") or city.get("adm0name") or "").strip()
+    detail = ", ".join(part for part in (admin, country) if part)
+    return name, name.casefold(), f"City: {name}{f' ({detail})' if detail else ''}"
+
+
+def _node_list_mirror_field_value(
+    row: Mapping[str, object],
+    field_id: str,
+    *,
+    runtime_status: str,
+    city_cache: dict[tuple[float, float], dict[str, object] | None],
+) -> dict[str, object] | None:
+    node_id = str(row.get("id") or "").strip().lower()
+    if _PUBLIC_NODE_ID_RE.fullmatch(node_id) is None:
+        return None
+
+    value: object
+    sort: object | None
+    title: str
+    if field_id == "id":
+        value, sort, title = node_id, node_id, f"Node ID: {node_id}"
+    elif field_id == "snr":
+        number = _float_or_none(_first_present(row, "snr", "rx_snr", "avg_snr"))
+        value = number if number is not None else "n/a"
+        sort = number
+        title = f"SNR: {value}{' dB' if number is not None else ''}"
+    elif field_id == "hardware":
+        text = str(_first_present(row, "hardware_model", "hardware") or "").strip() or "n/a"
+        value, sort, title = text, text.casefold(), f"Hardware: {text}"
+    elif field_id == "battery":
+        number = _int_or_none(_first_present(row, "battery_level", "battery"))
+        value = number if number is not None else "n/a"
+        sort = number
+        title = f"Battery: {value}{'%' if number is not None else ''}"
+    elif field_id == "hops":
+        number = _int_or_none(_first_present(row, "hops_away", "hops", "last_hops"))
+        value = number if number is not None else "n/a"
+        sort = number
+        title = f"Hops: {value}"
+    elif field_id == "last_heard":
+        number = _timestamp_or_none(
+            _first_present(row, "last_heard_unix", "last_heard_epoch", "last_heard")
+        )
+        value = number if number is not None else "n/a"
+        sort = number
+        title = "Last heard"
+    elif field_id == "links":
+        number = _int_or_none(_first_present(row, "link_count", "links"))
+        packet_count = _int_or_none(_first_present(row, "link_packet_count", "link_packets"))
+        value = number if number is not None else "n/a"
+        sort = number
+        if number is None:
+            title = "Links: n/a"
+        elif packet_count is not None and packet_count > 0:
+            title = (
+                f"{number} linked node{'s' if number != 1 else ''}; "
+                f"{packet_count} link packet{'s' if packet_count != 1 else ''}"
+            )
+        else:
+            title = f"{number} linked node{'s' if number != 1 else ''}"
+    elif field_id == "saved":
+        number = _int_or_none(_first_present(row, "saved_packets", "total_packets"))
+        value = number if number is not None else "n/a"
+        sort = number
+        title = f"Total packets: {value}"
+    elif field_id == "pos":
+        location = _node_location(row)
+        if location is None:
+            value, sort, title = "n/a", None, "Position: n/a"
+        else:
+            value = f"{location[0]:.5f}, {location[1]:.5f}"
+            sort = location[0]
+            title = f"Position: {value}"
+    elif field_id == "location_points":
+        number = _int_or_none(_first_present(row, "position_points", "location_points"))
+        value = number if number is not None else "n/a"
+        sort = number
+        title = f"Location points: {value}"
+    elif field_id == "city":
+        value, sort, title = _node_list_city_value(_node_location(row), city_cache)
+    else:
+        return None
+
+    return {
+        "id": f"plugin:node_list:{field_id}",
+        "plugin_id": "node_list",
+        "field_id": field_id,
+        "node_id": node_id,
+        "value": value,
+        "sort": sort,
+        "title": title,
+        "runtime_status": runtime_status or "running",
+    }
 
 
 def _truthy_query_flag(query: str, key: str) -> bool:
@@ -167,10 +348,13 @@ def _public_plugin_node_fields(
 def _public_plugin_node_field_values(
     runtime: Mapping[str, object],
     declared_node_fields: set[tuple[str, str]],
+    *,
+    node_rows: object = None,
+    node_field_statuses: Mapping[tuple[str, str], str] | None = None,
 ) -> list[dict[str, object]]:
     rows = runtime.get("node_field_values")
     if not isinstance(rows, list):
-        return []
+        rows = []
     safe_values: list[dict[str, object]] = []
     public_fields = {
         "id",
@@ -183,6 +367,11 @@ def _public_plugin_node_field_values(
         "updated_at",
         "runtime_status",
     }
+    node_list_mirror_fields = {
+        field_id
+        for plugin_id, field_id in declared_node_fields
+        if plugin_id == "node_list" and field_id in _NODE_LIST_MIRROR_FIELD_IDS
+    }
     for row in rows:
         if not isinstance(row, Mapping):
             continue
@@ -190,6 +379,8 @@ def _public_plugin_node_field_values(
         field_id = str(row.get("field_id") or "").strip().lower()
         node_id = str(row.get("node_id") or "").strip().lower()
         namespaced_id = str(row.get("id") or "").strip().lower()
+        if plugin_id == "node_list" and field_id in node_list_mirror_fields:
+            continue
         if (
             (plugin_id, field_id) not in declared_node_fields
             or _PUBLIC_NODE_ID_RE.fullmatch(node_id) is None
@@ -203,6 +394,25 @@ def _public_plugin_node_field_values(
                 if str(key) in public_fields
             }
         )
+    if node_list_mirror_fields and isinstance(node_rows, list):
+        statuses = node_field_statuses or {}
+        runtime_status = statuses.get(("node_list", "id"), "running")
+        city_cache: dict[tuple[float, float], dict[str, object] | None] = {}
+        for node_row in node_rows:
+            if not isinstance(node_row, Mapping):
+                continue
+            for field_id in _NODE_LIST_MIRROR_FIELD_ORDER:
+                if field_id not in node_list_mirror_fields:
+                    continue
+                runtime_status = statuses.get(("node_list", field_id), runtime_status)
+                value = _node_list_mirror_field_value(
+                    node_row,
+                    field_id,
+                    runtime_status=runtime_status,
+                    city_cache=city_cache,
+                )
+                if value is not None:
+                    safe_values.append(value)
     return safe_values
 
 
@@ -303,7 +513,11 @@ def _public_plugin_views(plugins: Mapping[str, object]) -> list[dict[str, object
     return views
 
 
-def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
+def _public_plugin_status(
+    plugins: Mapping[str, object],
+    *,
+    node_rows: object = None,
+) -> dict[str, object]:
     enabled = plugins.get("enabled") is True
     runtime_enabled = enabled and plugins.get("runtime_enabled") is not False
     runtime_raw = plugins.get("runtime")
@@ -322,6 +536,13 @@ def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
         health = "enabled"
     enabled_plugins = plugins.get("enabled_plugins")
     node_fields, declared_node_fields = _public_plugin_node_fields(runtime)
+    node_field_statuses = {
+        (
+            str(row.get("plugin_id") or "").strip().lower(),
+            str(row.get("field_id") or "").strip().lower(),
+        ): str(row.get("runtime_status") or runtime_status or "running").strip().lower()
+        for row in node_fields
+    }
     public_runtime: dict[str, object] = {
         "tickers": _public_plugin_tickers(
             runtime,
@@ -331,6 +552,8 @@ def _public_plugin_status(plugins: Mapping[str, object]) -> dict[str, object]:
         "node_field_values": _public_plugin_node_field_values(
             runtime,
             declared_node_fields,
+            node_rows=node_rows,
+            node_field_statuses=node_field_statuses,
         ),
     }
     if runtime_status:
@@ -366,7 +589,10 @@ def _public_plugin_state_payload(payload: object) -> object:
         return payload
     out = dict(payload)
     summary = dict(summary_raw)
-    summary["plugins"] = _public_plugin_status(plugins_raw)
+    summary["plugins"] = _public_plugin_status(
+        plugins_raw,
+        node_rows=payload.get("nodes"),
+    )
     out["summary"] = summary
     return out
 

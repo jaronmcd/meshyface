@@ -22,6 +22,16 @@ from .plugin_runtime import (
     sanitize_plugin_status_error,
 )
 from .plugin_state import PluginStateStore
+from .state_summary import (
+    apply_node_link_counts,
+    apply_node_position_counts,
+    apply_node_saved_counts,
+)
+from .state_tracker import (
+    load_tracker_node_position_counts_safe,
+    load_tracker_node_saved_counts_safe,
+    load_tracker_snapshot_safe,
+)
 from .services_file_transfer_outbound import (
     ApprovedPathFileResolver,
     OutboundFileTransferService,
@@ -52,7 +62,11 @@ def _packet_destination_id(packet: Mapping[str, object]) -> str:
     return ""
 
 
-def _node_snapshot(iface: object) -> list[dict[str, object]]:
+def _node_snapshot(
+    iface: object,
+    *,
+    tracker: object | None = None,
+) -> list[dict[str, object]]:
     nodes_by_num = getattr(iface, "nodesByNum", None)
     if not isinstance(nodes_by_num, Mapping):
         return []
@@ -94,6 +108,26 @@ def _node_snapshot(iface: object) -> list[dict[str, object]]:
                     normalized_position["altitude"] = altitude
             row["position"] = normalized_position
         rows.append(row)
+    if tracker is not None and rows:
+        nodes_by_id = {
+            str(row.get("id") or ""): row
+            for row in rows
+            if str(row.get("id") or "").strip()
+        }
+        if callable(getattr(tracker, "load_node_saved_counts", None)):
+            saved_counts, _saved_counts_error = load_tracker_node_saved_counts_safe(tracker)
+            apply_node_saved_counts(rows, saved_counts)
+        if callable(getattr(tracker, "load_node_position_counts", None)):
+            position_counts, _position_counts_error = load_tracker_node_position_counts_safe(tracker)
+            apply_node_position_counts(rows, position_counts)
+        if callable(getattr(tracker, "snapshot_typed", None)) or callable(
+            getattr(tracker, "snapshot", None)
+        ):
+            tracker_snapshot, _tracker_snapshot_error = load_tracker_snapshot_safe(
+                tracker,
+                nodes_by_id,
+            )
+            apply_node_link_counts(rows, tracker_snapshot.edges)
     return rows
 
 
@@ -1145,7 +1179,7 @@ def build_plugin_subsystem(
                 manifests=manifests,
                 state_store=state_store,
                 send_chat_fn=send_chat_fn,
-                node_snapshot_fn=lambda: _node_snapshot(iface),
+                node_snapshot_fn=lambda: _node_snapshot(iface, tracker=tracker),
                 submit_file_fn=outbound.submit if outbound is not None else None,
                 accept_file_offer_fn=accept_file_offer_fn,
                 get_delivery_state_fn=(

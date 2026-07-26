@@ -124,6 +124,70 @@ def test_plugin_node_snapshot_exposes_node_list_fields() -> None:
     ]
 
 
+def test_plugin_node_snapshot_enriches_history_backed_node_list_fields() -> None:
+    class _SnapshotTracker:
+        def load_node_saved_counts(self) -> dict[str, dict[str, object]]:
+            return {
+                "!01020304": {
+                    "saved_packets": 342,
+                    "saved_points": 12,
+                    "saved_last_seen": "2026-07-26T12:47:00Z",
+                }
+            }
+
+        def load_node_position_counts(self) -> dict[str, dict[str, object]]:
+            return {
+                "!01020304": {
+                    "position_points": 9,
+                    "position_last_seen_unix": 1_700_000_200,
+                }
+            }
+
+        def snapshot(self, nodes_by_id: dict[str, dict[str, object]]) -> dict[str, object]:
+            assert sorted(nodes_by_id) == ["!01020304"]
+            return {
+                "live_packet_count": 0,
+                "real_edge_count": 2,
+                "edges": [
+                    {"from": "!01020304", "to": "!05060708", "lifetime_count": 11},
+                    {"from": "!01020304", "to": "!090a0b0c", "count": 4},
+                ],
+                "port_counts": [],
+                "recent_packets": [],
+                "recent_chat": [],
+            }
+
+    snapshot = _node_snapshot(
+        SimpleNamespace(
+            nodesByNum={
+                0x01020304: {
+                    "user": {
+                        "id": "!01020304",
+                        "longName": "Long",
+                        "shortName": "Shrt",
+                        "hwModel": "T-Echo",
+                    },
+                    "deviceMetrics": {"batteryLevel": 87},
+                    "lastHeard": 1_700_000_100,
+                    "hopsAway": 2,
+                    "position": {"latitude": 44.9537, "longitude": -93.09},
+                    "snr": 7.5,
+                }
+            }
+        ),
+        tracker=_SnapshotTracker(),
+    )
+
+    assert len(snapshot) == 1
+    row = snapshot[0]
+    assert row["saved_packets"] == 342
+    assert row["saved_points"] == 12
+    assert row["position_points"] == 9
+    assert row["position_last_seen_unix"] == 1_700_000_200
+    assert row["link_count"] == 2
+    assert row["link_packet_count"] == 15
+
+
 def _write_config_plugin(root: Path) -> None:
     directory = root / "configured"
     directory.mkdir(parents=True)

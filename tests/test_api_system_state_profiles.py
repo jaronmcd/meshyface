@@ -739,6 +739,133 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
     assert "worker_pid" not in serialized
 
 
+def test_handle_state_get_mirrors_node_list_plugin_fields_from_current_node_rows() -> None:
+    def state_fn():
+        return {
+            "generated_at": "now",
+            "nodes": [
+                {
+                    "id": "!01020304",
+                    "hardware_model": "T-Echo",
+                    "battery_level": 91,
+                    "hops_away": 2,
+                    "last_heard_unix": 1_700_000_100,
+                    "snr": 7.5,
+                    "link_count": 3,
+                    "link_packet_count": 5,
+                    "saved_packets": 42,
+                    "lat": 44.9537,
+                    "lon": -93.09,
+                    "position_points": 9,
+                },
+                {
+                    "id": "!05060708",
+                    "saved_packets": 7,
+                    "position_points": 0,
+                },
+            ],
+            "summary": {
+                "plugins": {
+                    "enabled": True,
+                    "enabled_plugins": ["node_list"],
+                    "scripts": [
+                        {
+                            "id": "node_list",
+                            "name": "Node List Fields",
+                            "commands": [],
+                            "enabled": True,
+                            "active": True,
+                            "runtime_status": "running",
+                        }
+                    ],
+                    "runtime": {
+                        "status": "running",
+                        "worker_alive": True,
+                        "tickers": [],
+                        "node_fields": [
+                            {
+                                "id": "plugin:node_list:saved",
+                                "plugin_id": "node_list",
+                                "field_id": "saved",
+                                "label": "Total Packets",
+                                "group": "Node List",
+                                "value_type": "integer",
+                                "render_kinds": ["text", "chip", "metric"],
+                                "default_render_kind": "text",
+                                "default_visible": False,
+                                "sortable": True,
+                                "roster_line": 2,
+                                "runtime_status": "running",
+                            },
+                            {
+                                "id": "plugin:node_list:links",
+                                "plugin_id": "node_list",
+                                "field_id": "links",
+                                "label": "Links",
+                                "group": "Node List",
+                                "value_type": "integer",
+                                "render_kinds": ["text", "chip", "metric"],
+                                "default_render_kind": "text",
+                                "default_visible": False,
+                                "sortable": True,
+                                "roster_line": 2,
+                                "runtime_status": "running",
+                            },
+                            {
+                                "id": "plugin:node_list:location_points",
+                                "plugin_id": "node_list",
+                                "field_id": "location_points",
+                                "label": "Location Points",
+                                "group": "Node List",
+                                "value_type": "integer",
+                                "render_kinds": ["text", "chip", "metric"],
+                                "default_render_kind": "text",
+                                "default_visible": False,
+                                "sortable": True,
+                                "roster_line": 2,
+                                "runtime_status": "running",
+                            },
+                        ],
+                        "node_field_values": [
+                            {
+                                "id": "plugin:node_list:saved",
+                                "plugin_id": "node_list",
+                                "field_id": "saved",
+                                "node_id": "!01020304",
+                                "value": "n/a",
+                                "sort": None,
+                                "title": "Total packets: n/a",
+                                "updated_at": 123.5,
+                                "runtime_status": "running",
+                            }
+                        ],
+                    },
+                }
+            },
+            "traffic": {},
+        }
+
+    written: list[dict[str, object]] = []
+    handle_state_get(
+        _Handler(),
+        state_fn=state_fn,
+        write_json_response_fn=lambda _handler, **kwargs: written.append(kwargs),
+        query="",
+        private_mode=False,
+    )
+
+    values = written[0]["payload_obj"]["summary"]["plugins"]["runtime"]["node_field_values"]
+    by_key = {
+        (row["node_id"], row["field_id"]): row
+        for row in values
+    }
+    assert by_key[("!01020304", "saved")]["value"] == 42
+    assert by_key[("!05060708", "saved")]["value"] == 7
+    assert by_key[("!01020304", "links")]["value"] == 3
+    assert by_key[("!01020304", "location_points")]["value"] == 9
+    assert len([row for row in values if row["field_id"] == "saved"]) == 2
+
+
 def test_handle_state_get_ignores_bad_etag_and_fault_history_helpers() -> None:
     calls: list[str] = []
 
