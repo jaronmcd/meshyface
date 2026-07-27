@@ -82,7 +82,7 @@
       const tokenPresent = !!scriptsStoredApiToken();
       const needsToken = scriptsAdminAccessState === "token_required";
       const serverNeedsToken = scriptsAdminAccessState === "server_token_required";
-      panel.hidden = !(needsToken || serverNeedsToken || tokenPresent);
+      panel.hidden = !(needsToken || serverNeedsToken);
       if (input instanceof HTMLInputElement) {{
         input.hidden = serverNeedsToken;
         input.disabled = serverNeedsToken;
@@ -98,9 +98,7 @@
       if (status instanceof HTMLElement) {{
         status.textContent = serverNeedsToken
           ? "Remote administration is disabled until the server is configured with an API token."
-          : (tokenPresent
-            ? "An API token is active for this browser tab."
-            : "Enter the dashboard API token to manage scripts.");
+          : "Enter the dashboard API token to manage scripts.";
       }}
     }}
 
