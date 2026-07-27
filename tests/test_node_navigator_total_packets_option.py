@@ -287,8 +287,12 @@ def test_dashboard_groups_node_navigator_options_from_registry() -> None:
     assert 'Object.freeze({ id: "display", label: "Display" })' in js
     assert 'Object.freeze({ id: "order", label: "Order" })' in js
     assert 'id: "city", label: "City", prefKey: "showCity", defaultValue: true, sortAffects: false, group: "display"' in js
-    assert 'id: "direct-history", label: "DM history first", prefKey: "pinDirectHistory", defaultValue: false, sortAffects: true, group: "order"' in js
-    assert 'group: String(def && def.source || "") === "plugin" ? "plugins" : "fields"' in js
+    assert "direct-history" not in js
+    assert "DM history first" not in js
+    assert "pinDirectHistory" not in js
+    assert 'group: fieldId === "favorite" || fieldId === "link_quality"' in js
+    assert '? "display"' in js
+    assert ': (String(def && def.source || "") === "plugin" ? "plugins" : "fields")' in js
     assert "const optionDefsByGroup = new Map();" in js
     assert 'data-nav-option-group="${escAttr(groupId)}"' in js
     assert 'class="chat-node-navigator-field-option${checkedClass}"' in js
@@ -356,7 +360,8 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
     assert "function nodeExplorerRosterLineForDef(def, fallback = 2)" in js
     assert "const rosterLine = normalizeNodeExplorerRosterLine(row.roster_line, 2);" in js
     assert 'source: "plugin"' in js
-    assert 'group: String(def && def.source || "") === "plugin" ? "plugins" : "fields"' in js
+    assert 'group: fieldId === "favorite" || fieldId === "link_quality"' in js
+    assert ': (String(def && def.source || "") === "plugin" ? "plugins" : "fields")' in js
     assert "rosterLine," in js
     assert "memberMetaRowParts.push(...collectRosterLineFieldHtml(1));" in js
     assert "if (rosterLine <= 1) continue;" in js
@@ -420,37 +425,24 @@ def test_dashboard_js_temporarily_suppresses_selected_node_autoscroll_after_sort
     assert 'targetList.addEventListener("scroll"' in js
 
 
-def test_dashboard_js_supports_dm_history_first_toggle_in_node_navigator() -> None:
+def test_dashboard_js_omits_dm_history_first_toggle_from_node_navigator() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
     )
 
-    assert (
-        'id: "direct-history", label: "DM history first", prefKey: "pinDirectHistory", '
-        'defaultValue: false, sortAffects: true'
-        in js
-    )
-    assert 'let chatNodeNavigatorPinDirectHistory = chatNodeNavigatorDefaultToggleOptionValue("direct-history");' in js
-    assert "function normalizeChatNodeNavigatorPinDirectHistoryPref(value) {" in js
-    assert 'return normalizeChatNodeNavigatorTogglePref("direct-history", value);' in js
     assert "function chatNodeNavigatorTogglePreferencePayload() {" in js
-    assert 'if (clean === "direct-history") return chatNodeNavigatorPinDirectHistory;' in js
-    assert 'chatNodeNavigatorPinDirectHistory = normalized;' in js
     assert 'data-nav-option-id="${escAttr(optionId)}"' in js
     assert "nextPrefs[togglePrefKey] = !!target.checked;" in js
-    assert (
-        "const pinDirectHistory = "
-        "normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory);"
-        in js
-    )
-    assert "const directHistoryPeerIds = chatNodeNavigatorDirectHistoryPeerIds(safeState);" in js
-    assert "const historyPriorityRows = [];" in js
-    assert "} else if (pinDirectHistory && directHistoryPeerIds.has(nodeId)) {" in js
-    assert "historyPriorityRows.push(item);" in js
-    assert "const orderedRoomRows = historyPriorityRows.concat(regularRows);" in js
-    assert "function chatNodeNavigatorDirectHistoryPeerIds(state = latestState) {" in js
+    assert "direct-history" not in js
+    assert "DM history first" not in js
+    assert "pinDirectHistory" not in js
+    assert "normalizeChatNodeNavigatorPinDirectHistoryPref" not in js
+    assert "chatNodeNavigatorDirectHistoryPeerIds" not in js
+    assert "directHistoryPeerIds" not in js
+    assert "historyPriorityRows" not in js
+    assert "const orderedRoomRows = regularRows;" in js
 
 
 def test_dashboard_js_windows_chat_roster_dom_for_responsiveness() -> None:
@@ -630,7 +622,7 @@ def test_dashboard_js_marks_muted_nodes_in_navigator_rows() -> None:
     assert 'const muted = (typeof isMutedNode === "function") && isMutedNode(nodeId);' in js
     assert 'const mutedClass = muted ? " muted-node" : "";' in js
     assert '`Muted: ${muted ? "yes" : "no"}`' in js
-    assert 'const hasDirectHistory = directHistoryPeerIds.has(nodeId);' in js
+    assert 'const hasDirectHistory = directHistoryPeerIds.has(nodeId);' not in js
     assert 'if (unreadDirectCount > 0) {' in js
     assert 'tooltipLines.splice(4, 0, `Unread direct messages: ${unreadDirectCount}`);' in js
     assert '${mutedClass}' in js
@@ -667,4 +659,4 @@ def test_dashboard_js_tracks_unread_direct_counts_and_priority_sections_in_node_
     assert 'if (!isSelectableNodeId(nodeId)) return;' in js
     assert 'selectNode(nodeId, true, false);' in js
     assert 'unreadDirectByPeer,' in js
-    assert 'directHistoryPeerIds,' in js
+    assert 'directHistoryPeerIds,' not in js

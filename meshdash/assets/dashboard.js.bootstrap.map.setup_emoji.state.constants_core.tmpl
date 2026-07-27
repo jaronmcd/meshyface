@@ -334,7 +334,6 @@
       Object.freeze({{ id: "idle", label: "Idle / Last Heard", prefKey: "showIdle", defaultValue: false, sortAffects: false, group: "display" }}),
       Object.freeze({{ id: "status-dots", label: "Status", prefKey: "showStatusDots", defaultValue: true, sortAffects: false, group: "display" }}),
       Object.freeze({{ id: "packet-direction", label: "Packet plot", prefKey: "showPacketDirection", defaultValue: false, sortAffects: false, group: "display" }}),
-      Object.freeze({{ id: "direct-history", label: "DM history first", prefKey: "pinDirectHistory", defaultValue: false, sortAffects: true, group: "order" }}),
     ]);
     const chatNodeNavigatorToggleOptionDefById = new Map(
       chatNodeNavigatorToggleOptionDefs.map((def) => [String(def.id || ""), def])
@@ -358,7 +357,9 @@
           kind: "meta",
           fieldId,
           source: String(def && def.source || "node_field"),
-          group: String(def && def.source || "") === "plugin" ? "plugins" : "fields",
+          group: fieldId === "favorite" || fieldId === "link_quality"
+            ? "display"
+            : (String(def && def.source || "") === "plugin" ? "plugins" : "fields"),
           fieldGroup: String(def && def.group || "").trim(),
           renderKinds: Array.isArray(def && def.renderKinds) ? def.renderKinds : Object.freeze([]),
           defaultRenderKind: String(def && def.defaultRenderKind || ""),

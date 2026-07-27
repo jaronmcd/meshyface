@@ -31,10 +31,6 @@
       return fallback;
     }}
 
-    function normalizeChatNodeNavigatorPinDirectHistoryPref(value) {{
-      return normalizeChatNodeNavigatorTogglePref("direct-history", value);
-    }}
-
     function normalizeChatNodeNavigatorShowPacketDirectionPref(value) {{
       return normalizeChatNodeNavigatorTogglePref("packet-direction", value);
     }}
@@ -53,7 +49,6 @@
 
     function chatNodeNavigatorToggleOptionValue(optionId) {{
       const clean = String(optionId || "").trim().toLowerCase();
-      if (clean === "direct-history") return chatNodeNavigatorPinDirectHistory;
       if (clean === "city") return chatNodeNavigatorShowCity;
       if (clean === "idle") return chatNodeNavigatorShowIdle;
       if (clean === "status-dots") return chatNodeNavigatorShowStatusDots;
@@ -64,9 +59,7 @@
     function setChatNodeNavigatorToggleOptionValue(optionId, value) {{
       const clean = String(optionId || "").trim().toLowerCase();
       const normalized = normalizeChatNodeNavigatorTogglePref(clean, value);
-      if (clean === "direct-history") {{
-        chatNodeNavigatorPinDirectHistory = normalized;
-      }} else if (clean === "city") {{
+      if (clean === "city") {{
         chatNodeNavigatorShowCity = normalized;
       }} else if (clean === "idle") {{
         chatNodeNavigatorShowIdle = normalized;
@@ -437,52 +430,6 @@
         unreadByPeer.set(peerId, (unreadByPeer.get(peerId) || 0) + 1);
       }}
       return unreadByPeer;
-    }}
-
-    function chatNodeNavigatorDirectHistoryPeerIds(state = latestState) {{
-      const safeState = state && typeof state === "object" ? state : (latestState || {{}});
-      const traffic = (safeState.traffic && typeof safeState.traffic === "object")
-        ? safeState.traffic
-        : {{}};
-      const recentChat = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
-      const localNodeId = normalizeNodeId(
-        typeof resolveLocalNodeId === "function" ? resolveLocalNodeId(safeState) : ""
-      );
-      const peerIds = new Set();
-      for (const msg of recentChat) {{
-        if (!msg || typeof msg !== "object") continue;
-        if (typeof classifyMessageChannel === "function" && classifyMessageChannel(msg) !== "direct") continue;
-        const endpoints = (typeof endpointsForMessage === "function")
-          ? endpointsForMessage(msg)
-          : {{
-              fromId: normalizeNodeId(msg && (msg.from || msg.sender || "")),
-              toId: normalizeNodeId(msg && (msg.to || msg.destination || "")),
-            }};
-        const fromId = normalizeNodeId(endpoints && endpoints.fromId);
-        const toId = normalizeNodeId(endpoints && endpoints.toId);
-        const candidates = [];
-        if (isCanonicalNodeId(localNodeId)) {{
-          if (fromId === localNodeId && isSelectableNodeId(toId) && !isSelfNodeId(toId)) {{
-            candidates.push(toId);
-          }}
-          if (toId === localNodeId && isSelectableNodeId(fromId) && !isSelfNodeId(fromId)) {{
-            candidates.push(fromId);
-          }}
-        }}
-        if (candidates.length <= 0) {{
-          if (isSelectableNodeId(fromId) && !isSelfNodeId(fromId)) {{
-            candidates.push(fromId);
-          }}
-          if (isSelectableNodeId(toId) && toId !== fromId && !isSelfNodeId(toId)) {{
-            candidates.push(toId);
-          }}
-        }}
-        for (const peerId of candidates) {{
-          if (!isNodeVisibleByLists(peerId)) continue;
-          peerIds.add(peerId);
-        }}
-      }}
-      return peerIds;
     }}
 
     function chatNodeNavigatorUnreadDirectCount(unreadDirectByPeer, rawPeerId) {{
@@ -1849,7 +1796,6 @@
         const packetSparklineByNode = ctx.packetSparklineByNode instanceof Map ? ctx.packetSparklineByNode : new Map();
         const malformedTextByNode = ctx.malformedTextByNode instanceof Map ? ctx.malformedTextByNode : new Map();
         const unreadDirectByPeer = ctx.unreadDirectByPeer instanceof Map ? ctx.unreadDirectByPeer : new Map();
-        const directHistoryPeerIds = ctx.directHistoryPeerIds instanceof Set ? ctx.directHistoryPeerIds : new Set();
         const linkQualityByNode = ctx.linkQualityByNode instanceof Map ? ctx.linkQualityByNode : new Map();
         const state = (ctx.state && typeof ctx.state === "object") ? ctx.state : latestState;
         const resolveChatNodeFreshnessFn = (typeof ctx.resolveChatNodeFreshnessFn === "function")
@@ -1930,7 +1876,6 @@
         const noteText = String((noteEntry && noteEntry.note) || "").trim();
         const muted = (typeof isMutedNode === "function") && isMutedNode(nodeId);
         const unreadDirectCount = Math.max(0, Math.trunc(Number(unreadDirectByPeer.get(nodeId) || 0)));
-        const hasDirectHistory = directHistoryPeerIds.has(nodeId);
         const idleText = Number.isFinite(Number(snapshot && snapshot.lastSeenUnix))
           ? formatIdleAge(snapshot.lastSeenUnix, nowUnix)
           : "n/a";
@@ -2709,8 +2654,6 @@
               : new Map()
           );
       const unreadDirectByPeer = normalizeChatNodeNavigatorUnreadDirectByPeer(opts.unreadDirectByPeer);
-      const pinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory);
-      const directHistoryPeerIds = chatNodeNavigatorDirectHistoryPeerIds(safeState);
       const visibleMetaFieldIds = normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
         fallbackToDefaults: false,
         state: safeState,
@@ -2769,7 +2712,6 @@
       const pinnedUnreadRows = [];
       const meshtasticRows = [];
       const pinnedManualRows = [];
-      const historyPriorityRows = [];
       const regularRows = [];
       for (const item of rosterFiltered) {{
         const nodeId = normalizeNodeId(item && item.id);
@@ -2783,8 +2725,6 @@
           meshtasticRows.push(item);
         }} else if ((typeof isPinnedNode === "function") && isPinnedNode(nodeId)) {{
           pinnedManualRows.push(item);
-        }} else if (pinDirectHistory && directHistoryPeerIds.has(nodeId)) {{
-          historyPriorityRows.push(item);
         }} else {{
           regularRows.push(item);
         }}
@@ -2798,7 +2738,6 @@
         packetSparklineByNode: packetMaps.packetSparklineByNode,
         malformedTextByNode,
         unreadDirectByPeer,
-        directHistoryPeerIds,
         linkQualityByNode,
         visibleMetaFieldIds,
         resolveChatNodeFreshnessFn,
@@ -2867,7 +2806,7 @@
           pinnedCountEl.textContent = String(usePrioritySections ? pinnedManualRows.length : 0);
         }}
       }}
-      const orderedRoomRows = historyPriorityRows.concat(regularRows);
+      const orderedRoomRows = regularRows;
       const pinnedSectionCount = usePrioritySections
         ? (pinnedUnreadRows.length + meshtasticRows.length + pinnedManualRows.length)
         : 0;
@@ -2913,7 +2852,6 @@
             packetSparklineByNode: packetMaps.packetSparklineByNode,
             malformedTextByNode,
             unreadDirectByPeer,
-            directHistoryPeerIds,
             linkQualityByNode,
             resolveChatNodeFreshnessFn,
           }})).join("")
