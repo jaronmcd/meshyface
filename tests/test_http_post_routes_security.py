@@ -1618,6 +1618,45 @@ def test_handle_dashboard_post_runs_system_update(monkeypatch: pytest.MonkeyPatc
     assert calls == [(200, {"ok": True, "updated": False, "state": "up_to_date"})]
 
 
+def test_handle_dashboard_post_rejects_cross_origin_system_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    update_calls = 0
+
+    def _run_update(**kwargs: object) -> dict[str, object]:
+        nonlocal update_calls
+        update_calls += 1
+        return {"ok": True}
+
+    monkeypatch.setattr("meshdash.http_routes_post._run_update_from_github_helper", _run_update)
+    body = b'{"branch":"beta"}'
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "127.0.0.1:8877",
+            "Origin": "https://attacker.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/system/update", deps=deps)
+
+    assert update_calls == 0
+    assert calls == [(403, {"ok": False, "error": "Cross-origin writes are not allowed"})]
+
+
 def test_handle_dashboard_post_rolls_back_system_update(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
     update_calls = 0
@@ -1786,7 +1825,7 @@ def test_handle_dashboard_post_cleans_rollback_branches(monkeypatch: pytest.Monk
     ]
 
 
-def test_handle_dashboard_post_requires_token_for_system_update(
+def test_handle_dashboard_post_system_update_uses_dashboard_access_when_token_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     update_calls = 0
@@ -1811,11 +1850,11 @@ def test_handle_dashboard_post_requires_token_for_system_update(
 
     handle_dashboard_post(handler, path="/api/system/update", deps=deps)
 
-    assert update_calls == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert update_calls == 1
+    assert calls == [(200, {"ok": True})]
 
 
-def test_handle_dashboard_post_requires_token_for_system_update_sync(
+def test_handle_dashboard_post_system_update_sync_uses_dashboard_access_when_token_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sync_calls = 0
@@ -1842,11 +1881,11 @@ def test_handle_dashboard_post_requires_token_for_system_update_sync(
 
     handle_dashboard_post(handler, path="/api/system/update/sync", deps=deps)
 
-    assert sync_calls == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert sync_calls == 1
+    assert calls == [(200, {"ok": True})]
 
 
-def test_handle_dashboard_post_requires_token_for_checkout_repair(
+def test_handle_dashboard_post_checkout_repair_uses_dashboard_access_when_token_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repair_calls = 0
@@ -1874,11 +1913,11 @@ def test_handle_dashboard_post_requires_token_for_checkout_repair(
 
     handle_dashboard_post(handler, path="/api/system/update/repair", deps=deps)
 
-    assert repair_calls == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert repair_calls == 1
+    assert calls == [(200, {"ok": True})]
 
 
-def test_handle_dashboard_post_requires_token_for_rollback_cleanup(
+def test_handle_dashboard_post_rollback_cleanup_uses_dashboard_access_when_token_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cleanup_calls = 0
@@ -1906,8 +1945,8 @@ def test_handle_dashboard_post_requires_token_for_rollback_cleanup(
 
     handle_dashboard_post(handler, path="/api/system/update/rollback-cleanup", deps=deps)
 
-    assert cleanup_calls == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert cleanup_calls == 1
+    assert calls == [(200, {"ok": True})]
 
 
 def test_handle_dashboard_post_schedules_system_restart() -> None:
@@ -1956,7 +1995,7 @@ def test_handle_dashboard_post_schedules_system_restart() -> None:
     ]
 
 
-def test_handle_dashboard_post_requires_token_for_system_restart() -> None:
+def test_handle_dashboard_post_system_restart_uses_dashboard_access_when_token_configured() -> None:
     restart_calls = 0
 
     def _schedule_restart() -> dict[str, object]:
@@ -1983,5 +2022,5 @@ def test_handle_dashboard_post_requires_token_for_system_restart() -> None:
 
     handle_dashboard_post(handler, path="/api/system/restart", deps=deps)
 
-    assert restart_calls == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert restart_calls == 1
+    assert calls == [(202, {"ok": True})]

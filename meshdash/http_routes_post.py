@@ -48,6 +48,8 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/maps/packs/build",
     "/api/maps/packs/build/cancel",
     "/api/maps/packs/install",
+}
+_SOFTWARE_UI_WRITE_PATHS = {
     "/api/system/update",
     "/api/system/update/repair",
     "/api/system/update/rollback-cleanup",
@@ -480,6 +482,20 @@ def handle_dashboard_post(
                     "ok": False,
                     "error": "Cross-origin plugin administration is not allowed",
                 },
+                no_store=True,
+            )
+            return
+
+    if path in _SOFTWARE_UI_WRITE_PATHS:
+        browser_write_rejection = _protected_browser_write_rejection(handler)
+        if browser_write_rejection is not None:
+            status_code, error_message = browser_write_rejection
+            if status_code == 403:
+                _record_write_auth_denied(deps)
+            deps.write_json_response_fn(
+                handler,
+                status_code=status_code,
+                payload_obj={"ok": False, "error": error_message},
                 no_store=True,
             )
             return
