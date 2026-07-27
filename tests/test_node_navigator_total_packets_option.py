@@ -78,6 +78,8 @@ def test_dashboard_js_adds_link_quality_metadata_field_and_sort_option() -> None
     assert 'showLastHeardMeta = !nativeLastHeardRetired && Array.isArray(visibleMetaFieldIds)' in js
     assert 'visibleMetaFieldIds.includes("last_heard")' in js
     assert 'class="chat-member-link-quality' in js
+    assert 'title="${escAttr(linkQualityTitle)}" aria-label="${escAttr(linkQualityAria)}"' in js
+    assert "chat-member-link-quality-label" not in js
 
 
 def test_dashboard_js_optimizes_link_quality_computation_path() -> None:
@@ -101,6 +103,18 @@ def test_dashboard_css_styles_chat_member_link_quality_bars() -> None:
 
     assert ".chat-member-link-quality {" in css
     assert ".chat-member-snr-inline {" in css
+    assert (
+        ".chat-member-link-quality {\n"
+        "      flex: 0 0 auto;\n"
+        "      display: inline-flex;\n"
+        "      align-items: flex-end;\n"
+        "      justify-content: center;\n"
+        "      min-width: 0;\n"
+        "      width: 22px;\n"
+        "      height: 12px;\n"
+        in css
+    )
+    assert ".chat-member-link-quality-label" not in css
     assert ".chat-member-link-quality-bar.level-4" in css
     assert "[data-theme=\"dark\"] .chat-member-snr-inline" in css
     assert "[data-theme=\"dark\"] .chat-member-link-quality-bar {" in css
