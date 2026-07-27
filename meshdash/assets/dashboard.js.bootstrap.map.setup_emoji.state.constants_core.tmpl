@@ -369,7 +369,9 @@
 
     function chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, state = null) {{
       const optionId = String(def && def.id || "").trim().toLowerCase();
-      return optionId === "idle" && nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);
+      if (optionId === "idle") return nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);
+      if (optionId === "city") return nodeExplorerNodeListPluginProvidesField("city", state);
+      return false;
     }}
 
     function chatNodeNavigatorOptionDefs(state = null) {{

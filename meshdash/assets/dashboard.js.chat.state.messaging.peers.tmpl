@@ -305,6 +305,7 @@
         && chatNodeNavigatorMetaFieldIdsIncludeLegacyLastHeard(prefs.metaFields)
       );
       const nextToggleValues = new Map();
+      let migrateNativeCityToggleToPluginField = false;
       for (const def of chatNodeNavigatorToggleOptionDefs) {{
         const optionId = String(def && def.id || "");
         const prefKey = String(def && def.prefKey || "");
@@ -316,6 +317,9 @@
           rawValue = true;
         }}
         if (typeof chatNodeNavigatorToggleOptionIsRetiredByPlugin === "function" && chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, latestState)) {{
+          if (optionId === "city" && normalizeChatNodeNavigatorTogglePref(optionId, rawValue)) {{
+            migrateNativeCityToggleToPluginField = true;
+          }}
           rawValue = false;
         }}
         nextToggleValues.set(optionId, normalizeChatNodeNavigatorTogglePref(optionId, rawValue));
@@ -324,6 +328,12 @@
         rawMetaFieldIds,
         {{ fallbackToDefaults: false }}
       );
+      if (migrateNativeCityToggleToPluginField) {{
+        const pluginCityFieldId = normalizeNodeExplorerFieldId("plugin:node_list:city", latestState);
+        if (pluginCityFieldId && !nextMetaFieldIds.includes(pluginCityFieldId)) {{
+          nextMetaFieldIds.push(pluginCityFieldId);
+        }}
+      }}
       const togglesChanged = chatNodeNavigatorToggleOptionDefs.some((def) => {{
         const optionId = String(def && def.id || "");
         return optionId && nextToggleValues.has(optionId)
@@ -1931,9 +1941,13 @@
             ? normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle)
             : !!chatNodeNavigatorShowIdle
         );
-        const showCity = (typeof normalizeChatNodeNavigatorShowCityPref === "function")
-          ? normalizeChatNodeNavigatorShowCityPref(chatNodeNavigatorShowCity)
-          : !!chatNodeNavigatorShowCity;
+        const nativeCityRetired = (typeof nodeExplorerNodeListPluginProvidesField === "function")
+          && nodeExplorerNodeListPluginProvidesField("city", state);
+        const showCity = !nativeCityRetired && (
+          (typeof normalizeChatNodeNavigatorShowCityPref === "function")
+            ? normalizeChatNodeNavigatorShowCityPref(chatNodeNavigatorShowCity)
+            : !!chatNodeNavigatorShowCity
+        );
         const showPacketTrend = nodeNavigatorPacketTrendEnabled();
         const showPacketDirection = (typeof normalizeChatNodeNavigatorShowPacketDirectionPref === "function")
           ? normalizeChatNodeNavigatorShowPacketDirectionPref(chatNodeNavigatorShowPacketDirection)

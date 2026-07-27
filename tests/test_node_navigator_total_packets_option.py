@@ -209,6 +209,9 @@ def test_dashboard_adds_cached_city_hint_to_node_navigator_rows() -> None:
     assert "function chatNodeNavigatorNodeLocation(nodeId, nodesById = null, item = null) {" in js
     assert "function hydrateChatNodeNavigatorCities(root) {" in js
     assert 'class="chat-member-city${memberCitySource === "estimated" ? " is-estimated" : ""}"' in js
+    assert 'const nativeCityRetired = (typeof nodeExplorerNodeListPluginProvidesField === "function")' in js
+    assert 'nodeExplorerNodeListPluginProvidesField("city", state);' in js
+    assert "const showCity = !nativeCityRetired && (" in js
     assert "if (showCity && memberCityHtml) memberMetaRowParts.push(memberCityHtml);" in js
     assert js.index("if (showCity && memberCityHtml) memberMetaRowParts.push(memberCityHtml);") < js.index(
         "if (idleRowHtml) memberMetaRowParts.push(idleRowHtml);"
@@ -301,7 +304,11 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
         in js
     )
     assert "function chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, state = null)" in js
-    assert 'return optionId === "idle" && nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);' in js
+    assert 'if (optionId === "idle") return nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);' in js
+    assert 'if (optionId === "city") return nodeExplorerNodeListPluginProvidesField("city", state);' in js
+    assert "let migrateNativeCityToggleToPluginField = false;" in js
+    assert 'if (optionId === "city" && normalizeChatNodeNavigatorTogglePref(optionId, rawValue))' in js
+    assert 'const pluginCityFieldId = normalizeNodeExplorerFieldId("plugin:node_list:city", latestState);' in js
     assert 'const replacementFieldId = (typeof nodeExplorerNativeFieldReplacementByPlugin === "function")' in js
     assert "const effectiveFieldId = replacementFieldId || fieldId;" in js
     assert "normalized.push(effectiveFieldId);" in js
