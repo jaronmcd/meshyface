@@ -69,11 +69,11 @@ def test_dashboard_js_adds_link_quality_metadata_field_and_sort_option() -> None
     assert 'showSnr = Array.isArray(visibleMetaFieldIds)' in js
     assert 'visibleMetaFieldIds.includes("snr")' in js
     assert 'class="chat-member-snr-inline"' in js
-    assert 'if (linkQualityInlineHtml) memberMetaRowParts.push(linkQualityInlineHtml);' in js
     assert 'if (snrInlineHtml) memberMetaRowParts.push(snrInlineHtml);' in js
-    assert js.index('if (linkQualityInlineHtml) memberMetaRowParts.push(linkQualityInlineHtml);') < js.index(
-        'if (snrInlineHtml) memberMetaRowParts.push(snrInlineHtml);'
-    )
+    assert 'if (linkQualityInlineHtml) memberMetaRowParts.push(linkQualityInlineHtml);' not in js
+    assert 'const linkQualityRailClass = linkQualityInlineHtml ? " has-link-quality" : "";' in js
+    assert "${linkQualityRailClass}${packetSparkClass}" in js
+    assert "${statusMarkerHtml}\n          ${linkQualityInlineHtml}\n          <span class=\"chat-member-main\">" in js
     assert 'const specialRosterFieldIds = new Set(["favorite", "hops", "link_quality", "snr", "last_heard"]);' in js
     assert 'showLastHeardMeta = !nativeLastHeardRetired && Array.isArray(visibleMetaFieldIds)' in js
     assert 'visibleMetaFieldIds.includes("last_heard")' in js
@@ -103,17 +103,39 @@ def test_dashboard_css_styles_chat_member_link_quality_bars() -> None:
 
     assert ".chat-member-link-quality {" in css
     assert ".chat-member-snr-inline {" in css
+    assert "--chat-member-status-cap-width: 28px;" in css
+    assert "--chat-member-status-mark-size: var(--chat-member-status-cap-width);" in css
+    assert "--chat-member-link-cap-width: var(--chat-member-status-cap-width);" in css
     assert (
-        ".chat-member-link-quality {\n"
-        "      flex: 0 0 auto;\n"
-        "      display: inline-flex;\n"
-        "      align-items: flex-end;\n"
-        "      justify-content: center;\n"
-        "      min-width: 0;\n"
-        "      width: 22px;\n"
-        "      height: 12px;\n"
+        ".chat-member-item.has-link-quality {\n"
+        "      grid-template-columns: var(--chat-member-status-cap-width) "
+        "var(--chat-member-link-cap-width) minmax(0, 1fr);\n"
         in css
     )
+    assert (
+        ".chat-member-item.has-link-quality.has-packet-spark {\n"
+        "      grid-template-columns: var(--chat-member-status-cap-width) "
+        "var(--chat-member-link-cap-width) minmax(0, 1fr) var(--chat-member-packet-cap-width);\n"
+        in css
+    )
+    assert (
+        ".chat-member-link-quality {\n"
+        "      flex: 0 0 var(--chat-member-link-cap-width);\n"
+        "      display: inline-flex;\n"
+        "      align-items: center;\n"
+        "      justify-content: center;\n"
+        "      min-width: 0;\n"
+        "      width: var(--chat-member-link-cap-width);\n"
+        "      height: auto;\n"
+        "      min-height: 100%;\n"
+        "      align-self: stretch;\n"
+        in css
+    )
+    assert "width: var(--chat-member-status-mark-size);" in css
+    assert "height: var(--chat-member-status-mark-size);" in css
+    assert "aspect-ratio: 1 / 1;" in css
+    assert "width: 4px;" in css
+    assert ".workspace-shell.chat-panel-collapsed .chat-member-link-quality," in css
     assert ".chat-member-link-quality-label" not in css
     assert ".chat-member-link-quality-bar.level-4" in css
     assert "[data-theme=\"dark\"] .chat-member-snr-inline" in css
@@ -552,9 +574,12 @@ def test_dashboard_js_supports_status_dot_toggle_in_node_navigator() -> None:
     assert 'nodeTagIconSvgHtml(autoNewStatusEntry, "chat-member-status-new-icon")' not in js
     assert 'const statusMarkerHtml = autoNewStatusEntry' in js
     assert '${autoNewClass}' in js
-    assert '<span class="chat-member-status chat-member-status-new status-${statusKey}${statusMarkerClass}"${statusMarkerAttrs}><span class="chat-member-status-new-text" aria-hidden="true">N</span></span>' in js
+    assert '<span class="chat-member-status chat-member-status-new status-${statusKey}${statusMarkerClass}"${statusMarkerAttrs}><span class="chat-member-status-core" aria-hidden="true"><span class="chat-member-status-new-text">N</span></span></span>' in js
     assert '<span class="chat-member-status chat-member-status-emoji status-${statusKey}${statusMarkerClass}"${statusMarkerAttrs}>' in js
-    assert '<span class="chat-member-status chat-member-status-dot status-${statusKey}${statusMarkerClass}"${statusMarkerAttrs}>●</span>' in js
+    assert '<span class="chat-member-status-core" aria-hidden="true">' in js
+    assert '<span class="chat-member-status-ring"></span>' in js
+    assert '<span class="chat-member-status-emoji-glyph">${escAttr(cleanNodeVisualEmoji)}</span>' in js
+    assert '<span class="chat-member-status chat-member-status-dot status-${statusKey}${statusMarkerClass}"${statusMarkerAttrs}><span class="chat-member-status-core" aria-hidden="true">●</span></span>' in js
 
 
 def test_dashboard_js_sorts_status_using_visible_freshness_snapshot() -> None:

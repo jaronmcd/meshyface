@@ -2169,7 +2169,6 @@
         if (showCity && memberCityHtml) memberMetaRowParts.push(memberCityHtml);
         if (idleRowHtml) memberMetaRowParts.push(idleRowHtml);
         if (hopsInlineHtml) memberMetaRowParts.push(hopsInlineHtml);
-        if (linkQualityInlineHtml) memberMetaRowParts.push(linkQualityInlineHtml);
         if (snrInlineHtml) memberMetaRowParts.push(snrInlineHtml);
         const specialRosterFieldIds = new Set(["favorite", "hops", "link_quality", "snr", "last_heard"]);
         const collectRosterLineFieldHtml = (targetLine) => {{
@@ -2257,6 +2256,7 @@
             </span>`
           : "";
         const packetSparkClass = packetSparkWrapHtml ? " has-packet-spark" : "";
+        const linkQualityRailClass = linkQualityInlineHtml ? " has-link-quality" : "";
         const nodeVisualEmoji = (typeof nodeVisualEmojiForNode === "function")
           ? nodeVisualEmojiForNode(nodeId, tagEntry, node)
           : "";
@@ -2284,18 +2284,21 @@
           ? statusGlyphAttrs
           : ' aria-hidden="true"';
         const statusMarkerHtml = autoNewStatusEntry
-          ? `<span class="chat-member-status chat-member-status-new status-${{statusKey}}${{statusMarkerClass}}"${{statusMarkerAttrs}}><span class="chat-member-status-new-text" aria-hidden="true">N</span></span>`
+          ? `<span class="chat-member-status chat-member-status-new status-${{statusKey}}${{statusMarkerClass}}"${{statusMarkerAttrs}}><span class="chat-member-status-core" aria-hidden="true"><span class="chat-member-status-new-text">N</span></span></span>`
           : hasNodeVisualEmoji
           ? `<span class="chat-member-status chat-member-status-emoji status-${{statusKey}}${{statusMarkerClass}}"${{statusMarkerAttrs}}>
-              <span class="chat-member-status-ring" aria-hidden="true"></span>
-              <span class="chat-member-status-emoji-glyph" aria-hidden="true">${{escAttr(cleanNodeVisualEmoji)}}</span>
+              <span class="chat-member-status-core" aria-hidden="true">
+                <span class="chat-member-status-ring"></span>
+                <span class="chat-member-status-emoji-glyph">${{escAttr(cleanNodeVisualEmoji)}}</span>
+              </span>
             </span>`
-          : `<span class="chat-member-status chat-member-status-dot status-${{statusKey}}${{statusMarkerClass}}"${{statusMarkerAttrs}}>●</span>`;
+          : `<span class="chat-member-status chat-member-status-dot status-${{statusKey}}${{statusMarkerClass}}"${{statusMarkerAttrs}}><span class="chat-member-status-core" aria-hidden="true">●</span></span>`;
         const actionRowHtml = removeBtn
           ? `<span class="chat-member-actions">${{removeBtn}}</span>`
           : '<span class="chat-member-actions"></span>';
-        return `<div class="chat-member-item status-${{statusKey}}${{statusVisibilityClass}}${{selectedNodeId === ((item && item.id) || nodeId) ? " selected-node" : ""}}${{tagClass}}${{profileClass}}${{autoNewClass}}${{mutedClass}}${{packetSparkClass}}${{liveTraceRunningForNode ? " is-traceroute-running" : ""}}" data-node-id="${{escAttr((item && item.id) || nodeId)}}" data-unread-direct-count="${{escAttr(unreadDirectCount)}}"${{memberStyleAttr}} aria-label="${{escAttr(memberTitle)}}">
+        return `<div class="chat-member-item status-${{statusKey}}${{statusVisibilityClass}}${{selectedNodeId === ((item && item.id) || nodeId) ? " selected-node" : ""}}${{tagClass}}${{profileClass}}${{autoNewClass}}${{mutedClass}}${{linkQualityRailClass}}${{packetSparkClass}}${{liveTraceRunningForNode ? " is-traceroute-running" : ""}}" data-node-id="${{escAttr((item && item.id) || nodeId)}}" data-unread-direct-count="${{escAttr(unreadDirectCount)}}"${{memberStyleAttr}} aria-label="${{escAttr(memberTitle)}}">
           ${{statusMarkerHtml}}
+          ${{linkQualityInlineHtml}}
           <span class="chat-member-main">
             <span class="chat-member-name-row">
               <span class="chat-member-name-left">
@@ -2325,8 +2328,8 @@
           : !!chatNodeNavigatorShowStatusDots;
         const fallbackStatusVisibilityClass = fallbackShowStatusDots ? "" : " status-hidden";
         const fallbackStatusHtml = fallbackShowStatusDots
-          ? '<span class="chat-member-status chat-member-status-dot status-unknown" title="Status: Unknown" aria-label="Status: Unknown">●</span>'
-          : '<span class="chat-member-status chat-member-status-dot status-unknown is-hidden" aria-hidden="true">●</span>';
+          ? '<span class="chat-member-status chat-member-status-dot status-unknown" title="Status: Unknown" aria-label="Status: Unknown"><span class="chat-member-status-core" aria-hidden="true">●</span></span>'
+          : '<span class="chat-member-status chat-member-status-dot status-unknown is-hidden" aria-hidden="true"><span class="chat-member-status-core" aria-hidden="true">●</span></span>';
         const fallbackShowIdle = (typeof normalizeChatNodeNavigatorShowIdlePref === "function")
           ? normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle)
           : !!chatNodeNavigatorShowIdle;
