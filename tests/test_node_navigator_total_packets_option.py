@@ -51,9 +51,9 @@ def test_dashboard_js_adds_link_quality_metadata_field_and_sort_option() -> None
         node_history_max_points=240,
     )
 
-    assert 'id: "link_quality", label: "Link", sortable: true, rosterMeta: true' in js
+    assert 'id: "link_quality", label: "Quality", sortable: true, rosterMeta: true' in js
     assert (
-        'id: "link_quality", label: "Link", sortable: true, rosterMeta: true, '
+        'id: "link_quality", label: "Quality", sortable: true, rosterMeta: true, '
         'rosterDefault: false, rosterSort: true, rosterSortLabel: "Link quality"'
         in js
     )
