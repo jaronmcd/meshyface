@@ -90,30 +90,23 @@ mesh data safe.
 
 Status: fixed.
 
-- Plugin mutation endpoints and the detailed plugin status endpoint now require
-  either a genuine loopback client plus loopback `Host`, or the configured API
-  bearer token.
-- Any `Forwarded`, `Via`, `X-Real-IP`, or `X-Forwarded-*` metadata disables
-  tokenless administration. A reverse proxy must use a token.
+- Plugin mutation endpoints and the detailed plugin status endpoint follow the
+  dashboard UI access model.
 - Browser writes require `application/json` and reject cross-origin requests.
 - `/api/state` exposes only plugin health, counts, and display tickers.
   Installed-package details, saved settings, debug records, worker details, and
   file jobs moved behind `/api/admin/plugins`.
-- The Scripts workspace stores an entered token in tab-scoped
-  `sessionStorage`, not public state or `localStorage`.
-- Forgetting a token, losing authorization, or failing a privileged refresh
-  blurs and closes settings forms, clears drafts/debug/admin objects, and
-  replaces privileged DOM content immediately.
+- Failing a privileged refresh blurs and closes settings forms, clears
+  drafts/debug/admin objects, and replaces privileged DOM content immediately.
 - Package mutations include the digest that was rendered with the form or
   button. A stale identity is rejected with HTTP 409, and stale drafts are
   discarded.
 - Dashboard HTML now denies cross-origin framing to reduce clickjacking.
 
-Residual: the token authenticates but does not encrypt. Use a TLS reverse proxy
-or SSH tunnel for administration from another machine. Saved text settings are
-returned to the authorized DOM for editing and are not a write-only secret
-type. Settings, debug records, and plugin state are secret-bearing but are not
-encrypted at rest.
+Residual: use a TLS reverse proxy or trusted tunnel for administration from
+another machine. Saved text settings are returned to the authorized DOM for
+editing and are not a write-only secret type. Settings, debug records, and
+plugin state are secret-bearing but are not encrypted at rest.
 
 ### Package fingerprint and discovery
 

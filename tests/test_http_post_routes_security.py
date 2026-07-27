@@ -233,7 +233,7 @@ def test_plugin_console_requires_json_content_type() -> None:
             415,
             {
                 "ok": False,
-                "error": "Write endpoints require application/json",
+                "error": "Plugin administration requires application/json",
             },
         )
     ]
@@ -281,7 +281,7 @@ def test_plugin_console_rejects_cross_origin_browser_write() -> None:
             403,
             {
                 "ok": False,
-                "error": "Cross-origin writes are not allowed",
+                "error": "Cross-origin plugin administration is not allowed",
             },
         )
     ]
@@ -328,9 +328,15 @@ def test_remote_plugin_console_client_can_use_configured_token() -> None:
     assert calls == [(200, {"ok": True})]
 
 
-def test_plugin_console_requires_api_token_when_configured() -> None:
+def test_plugin_console_uses_dashboard_access_when_token_configured() -> None:
     body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
     calls: list[tuple[int, object]] = []
     runs = 0
 
@@ -356,8 +362,8 @@ def test_plugin_console_requires_api_token_when_configured() -> None:
 
     handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
 
-    assert runs == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert runs == 1
+    assert calls == [(200, {"ok": True})]
 
 
 def test_plugin_console_is_blocked_in_private_mode() -> None:
@@ -1137,7 +1143,7 @@ def test_plugin_configuration_rejects_stale_package_digest() -> None:
     ]
 
 
-def test_plugin_configuration_requires_api_token_when_configured() -> None:
+def test_plugin_configuration_uses_dashboard_access_when_token_configured() -> None:
     body = _plugin_request_body(plugin_id="configured", settings={})
     handler = _FakeHandler(
         body,
@@ -1177,19 +1183,11 @@ def test_plugin_configuration_requires_api_token_when_configured() -> None:
 
     handle_dashboard_post(handler, path="/api/settings/plugins/config", deps=deps)
 
-    assert updates == 0
-    assert calls == [
-        (
-            401,
-            {
-                "ok": False,
-                "error": "API token required for plugin administration",
-            },
-        )
-    ]
+    assert updates == 1
+    assert calls == [(200, {"ok": True})]
 
 
-def test_plugin_management_without_token_is_loopback_only() -> None:
+def test_plugin_management_without_token_allows_remote_dashboard_access() -> None:
     body = _plugin_request_body(plugin_id="echo", enabled=True)
     handler = _FakeHandler(
         body,
@@ -1229,19 +1227,8 @@ def test_plugin_management_without_token_is_loopback_only() -> None:
 
     handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
 
-    assert updates == 0
-    assert calls == [
-        (
-            403,
-            {
-                "ok": False,
-                "error": (
-                    "Plugin administration is tokenless only from loopback; "
-                    "configure an API token for remote access"
-                ),
-            },
-        )
-    ]
+    assert updates == 1
+    assert calls == [(200, {"ok": True})]
 
 
 @pytest.mark.parametrize(
@@ -1252,7 +1239,7 @@ def test_plugin_management_without_token_is_loopback_only() -> None:
         ("[::1]:8877", "::1"),
     ),
 )
-def test_tokenless_plugin_admin_accepts_only_loopback_hosts(
+def test_request_is_loopback_accepts_loopback_hosts(
     host_header: str,
     client_host: str,
 ) -> None:
@@ -1274,7 +1261,7 @@ def test_tokenless_plugin_admin_accepts_only_loopback_hosts(
         ("Via", "1.1 local-proxy"),
     ),
 )
-def test_tokenless_plugin_admin_rejects_any_proxy_metadata(
+def test_request_is_loopback_rejects_any_proxy_metadata(
     header_name: str,
     header_value: str,
 ) -> None:
@@ -1288,7 +1275,7 @@ def test_tokenless_plugin_admin_rejects_any_proxy_metadata(
     assert request_is_loopback(handler) is False
 
 
-def test_plugin_management_rejects_non_loopback_host_from_loopback_client() -> None:
+def test_plugin_management_allows_dashboard_host_from_loopback_client() -> None:
     body = _plugin_request_body(plugin_id="echo", enabled=True)
     handler = _FakeHandler(
         body,
@@ -1317,18 +1304,7 @@ def test_plugin_management_rejects_non_loopback_host_from_loopback_client() -> N
 
     handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
 
-    assert calls == [
-        (
-            403,
-            {
-                "ok": False,
-                "error": (
-                    "Plugin administration is tokenless only from loopback; "
-                    "configure an API token for remote access"
-                ),
-            },
-        )
-    ]
+    assert calls == [(200, {"ok": True})]
 
 
 def test_plugin_management_requires_json_content_type() -> None:

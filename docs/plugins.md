@@ -151,26 +151,15 @@ declared defaults until an administrator saves replacement values. Global and
 peer state also persist, while active conversational sessions are cleared when
 the package fingerprint changes.
 
-Plugin administration remains tokenless only when both the client and HTTP Host
-are loopback (`localhost`, `127.0.0.0/8`, or `::1`). For a LAN hostname, remote
-browser, or reverse proxy, configure `MESH_DASH_API_TOKEN` (preferred) or
-`--api-token`. The Scripts workspace asks for that token and keeps it only in
-the current tab's session storage; it is not placed in public dashboard state
-or `localStorage`. Non-browser clients may send the same credential
-as `Authorization: Bearer ...` or `X-API-Token`.
+Plugin administration follows the same access model as the dashboard UI. If a
+browser can reach the dashboard, the Scripts workspace can inspect and manage
+local plugin packages from that same origin. Browser writes must be same-origin
+JSON requests, and cross-origin plugin administration is rejected.
 
-A proxy connection cannot prove that the original browser was local. Meshyface
-therefore denies tokenless plugin administration whenever `Forwarded`, `Via`,
-`X-Real-IP`, or any `X-Forwarded-*` header is present. Proxy deployments must
-configure a token even if the proxy strips forwarding metadata or rewrites
-`Host` to a loopback address.
-
-The bearer token authenticates an administrator; it does not encrypt HTTP.
 For administration from another machine, put Meshyface behind a correctly
-configured TLS reverse proxy or reach its loopback listener through an SSH
-tunnel. Do not send the token or plugin settings over untrusted plain-text
-networks. Saved text settings are returned to the authorized Scripts workspace
-for editing, so treat that page and its browser session as secret-bearing.
+configured TLS reverse proxy or reach its listener through a trusted tunnel.
+Saved text settings are returned to the Scripts workspace for editing, so treat
+that page and its browser session as secret-bearing.
 
 The normal state response exposes only minimal plugin health, counts, active
 console command names, and display tickers. Installed-package metadata,

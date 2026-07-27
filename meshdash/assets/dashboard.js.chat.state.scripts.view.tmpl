@@ -11,7 +11,6 @@
     let scriptsActiveTab = "plugins";
     let scriptsReadmeReturnFocusId = "";
     let scriptsRuntimeMasterPending = false;
-    const scriptsAdminTokenStorageKey = "meshDashboardScriptsApiTokenV1";
     const scriptsPendingRequests = new Map();
     const scriptsPendingRouteRequests = new Set();
     const scriptsPendingConfigRequests = new Set();
@@ -28,23 +27,6 @@
       return summary.plugins && typeof summary.plugins === "object"
         ? summary.plugins
         : null;
-    }}
-
-    function scriptsStoredApiToken() {{
-      try {{
-        return String(window.sessionStorage.getItem(scriptsAdminTokenStorageKey) || "").trim();
-      }} catch (_err) {{
-        return "";
-      }}
-    }}
-
-    function scriptsSetStoredApiToken(value) {{
-      const clean = String(value || "").trim();
-      try {{
-        if (clean) window.sessionStorage.setItem(scriptsAdminTokenStorageKey, clean);
-        else window.sessionStorage.removeItem(scriptsAdminTokenStorageKey);
-      }} catch (_err) {{
-      }}
     }}
 
     function scriptsDiscardPrivilegedState() {{
@@ -68,38 +50,10 @@
     function scriptsAdminRequestHeaders({{ json = false }} = {{}}) {{
       const headers = {{}};
       if (json) headers["Content-Type"] = "application/json";
-      const token = scriptsStoredApiToken();
-      if (token) headers["X-API-Token"] = token;
       return headers;
     }}
 
     function scriptsSyncAdminAccessControls() {{
-      const panel = document.getElementById("scripts-admin-access");
-      const input = document.getElementById("scripts-admin-token");
-      const forgetButton = document.getElementById("scripts-admin-token-forget");
-      const status = document.getElementById("scripts-admin-access-status");
-      if (!(panel instanceof HTMLElement)) return;
-      const tokenPresent = !!scriptsStoredApiToken();
-      const needsToken = scriptsAdminAccessState === "token_required";
-      const serverNeedsToken = scriptsAdminAccessState === "server_token_required";
-      panel.hidden = !(needsToken || serverNeedsToken);
-      if (input instanceof HTMLInputElement) {{
-        input.hidden = serverNeedsToken;
-        input.disabled = serverNeedsToken;
-      }}
-      const unlockButton = document.getElementById("scripts-admin-token-submit");
-      if (unlockButton instanceof HTMLButtonElement) {{
-        unlockButton.hidden = serverNeedsToken;
-        unlockButton.disabled = serverNeedsToken;
-      }}
-      if (forgetButton instanceof HTMLButtonElement) {{
-        forgetButton.hidden = !tokenPresent;
-      }}
-      if (status instanceof HTMLElement) {{
-        status.textContent = serverNeedsToken
-          ? "Remote administration is disabled until the server is configured with an API token."
-          : "Enter the dashboard API token to manage scripts.";
-      }}
     }}
 
     async function refreshScriptsAdminSummary(force = false) {{
@@ -124,18 +78,10 @@
         }}
         if (!response.ok || !payload || payload.ok !== true || !payload.plugins) {{
           scriptsDiscardPrivilegedState();
-          if (response.status === 401) {{
-            scriptsAdminAccessState = "token_required";
-            scriptsAdminAccessMessage = "Administrator access is required to inspect or manage installed scripts.";
-          }} else if (response.status === 403) {{
-            scriptsAdminAccessState = "server_token_required";
-            scriptsAdminAccessMessage = "Remote script administration requires an API token configured on the server.";
-          }} else {{
-            scriptsAdminAccessState = "unavailable";
-            scriptsAdminAccessMessage = String(
-              (payload && payload.error) || text || `Could not load script administration (HTTP ${{response.status}}).`
-            );
-          }}
+          scriptsAdminAccessState = "unavailable";
+          scriptsAdminAccessMessage = String(
+            (payload && payload.error) || text || `Could not load script administration (HTTP ${{response.status}}).`
+          );
           return false;
         }}
         scriptsAdminRuntimeSummary = payload.plugins;
@@ -998,7 +944,7 @@
       if (rows.length <= 0) {{
         let emptyText = "Waiting for the Scripts runtime to become available.";
         if (!scriptsAdminRuntimeSummary && scriptsAdminAccessState) {{
-          emptyText = "Administrator access is required to inspect installed scripts.";
+          emptyText = "Script administration is unavailable.";
         }} else if (
           runtimeSummary
           && (
@@ -1251,12 +1197,11 @@
           ? String(error.message || error.code || "")
           : String(error || (payload && payload.message) || text || `HTTP ${{response.status}}`);
         if (!response.ok || !payload || payload.ok !== true) {{
-          if (response.status === 401) {{
-            scriptsAdminAccessState = "token_required";
-            scriptsAdminAccessMessage = "Administrator access is required to manage scripts.";
-          }} else if (response.status === 403) {{
-            scriptsAdminAccessState = "server_token_required";
-            scriptsAdminAccessMessage = "Remote script administration requires an API token configured on the server.";
+          if (response.status === 401 || response.status === 403) {{
+            scriptsAdminAccessState = "unavailable";
+            scriptsAdminAccessMessage = String(
+              (payload && payload.error) || text || "Script administration is unavailable."
+            );
           }}
           throw new Error(errorMessage || `HTTP ${{response.status}}`);
         }}
@@ -1531,34 +1476,6 @@
       }}
       applyScriptsTab(scriptsActiveTab);
       scriptsSyncAdminAccessControls();
-      const accessForm = document.getElementById("scripts-admin-access");
-      if (accessForm instanceof HTMLFormElement) {{
-        accessForm.addEventListener("submit", (event) => {{
-          event.preventDefault();
-          const input = document.getElementById("scripts-admin-token");
-          const token = input instanceof HTMLInputElement ? input.value.trim() : "";
-          if (!token) return;
-          scriptsSetStoredApiToken(token);
-          input.value = "";
-          scriptsAdminAccessState = "";
-          scriptsAdminAccessMessage = "";
-          scriptsAdminRuntimeSummary = null;
-          scriptsSyncAdminAccessControls();
-          void refreshScriptsAdminSummary(true);
-        }});
-      }}
-      const forgetButton = document.getElementById("scripts-admin-token-forget");
-      if (forgetButton instanceof HTMLButtonElement) {{
-        forgetButton.addEventListener("click", () => {{
-          scriptsSetStoredApiToken("");
-          scriptsDiscardPrivilegedState();
-          scriptsAdminAccessState = "";
-          scriptsAdminAccessMessage = "";
-          scriptsSyncAdminAccessControls();
-          renderScriptsView(latestState);
-          void refreshScriptsAdminSummary(true);
-        }});
-      }}
       const readmeModal = document.getElementById("scripts-readme-modal");
       if (readmeModal instanceof HTMLElement && readmeModal.dataset.bound !== "1") {{
         readmeModal.dataset.bound = "1";

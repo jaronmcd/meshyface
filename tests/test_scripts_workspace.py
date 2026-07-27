@@ -63,9 +63,11 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert 'data-script-readme-close' in html
     assert 'id="scripts-debug-output"' in html
     assert 'id="scripts-debug-clear"' in html
-    assert 'id="scripts-admin-access"' in html
-    assert 'id="scripts-admin-token"' in html
-    assert 'type="password"' in html
+    assert 'id="scripts-admin-access"' not in html
+    assert 'id="scripts-admin-token"' not in html
+    assert "Dashboard API token" not in html
+    assert ">Unlock<" not in html
+    assert "Forget token" not in html
     assert "Administrator-installed Python automations" not in html
     assert "New scripts start disabled." not in html
     assert "are not sandboxed" not in html
@@ -94,7 +96,8 @@ def test_scripts_alpha_workspace_is_nested_under_apps() -> None:
     assert ".scripts-settings-toggle {" in css
     assert ".scripts-configure-btn {" not in css
     assert ".scripts-debug-console {" in css
-    assert ".scripts-admin-access {" in css
+    assert ".scripts-admin-access {" not in css
+    assert ".scripts-admin-token {" not in css
 
     known_views = js.split("const knownLayoutViews = new Set([", 1)[1].split("]);", 1)[0]
     assert '"scripts"' in known_views
@@ -150,12 +153,15 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert 'fetch("/api/settings/plugins/config"' in js
     assert 'fetch("/api/settings/plugins/routes"' in js
     assert 'fetch("/api/admin/plugins"' in js
-    assert "window.sessionStorage.setItem(scriptsAdminTokenStorageKey, clean)" in js
-    assert 'headers["X-API-Token"] = token' in js
-    scripts_admin_js = js.split("function scriptsStoredApiToken", 1)[1].split(
+    assert "scriptsAdminTokenStorageKey" not in js
+    assert "scriptsStoredApiToken" not in js
+    assert "scriptsSetStoredApiToken" not in js
+    assert 'headers["X-API-Token"]' not in js
+    scripts_admin_js = js.split("function scriptsAdminRequestHeaders", 1)[1].split(
         "function scriptsRuntimeErrorMessage", 1
     )[0]
-    assert "localStorage" not in scripts_admin_js
+    assert 'headers["Content-Type"] = "application/json";' in scripts_admin_js
+    assert "X-API-Token" not in scripts_admin_js
     assert "data-script-configure" in js
     assert "data-script-config-form" in js
     assert "scripts-settings-toggle" in js
@@ -293,7 +299,7 @@ def test_scripts_view_keeps_fingerprint_without_changed_package_confirmation() -
     assert "Review its files and fingerprint" not in js
 
 
-def test_scripts_view_scrubs_privileged_state_on_auth_loss_or_forgotten_token() -> None:
+def test_scripts_view_scrubs_privileged_state_on_admin_refresh_failure() -> None:
     js = _js()
 
     scrub_helper = js.split("function scriptsDiscardPrivilegedState", 1)[1].split(
@@ -305,7 +311,7 @@ def test_scripts_view_scrubs_privileged_state_on_auth_loss_or_forgotten_token() 
     assert "scriptsConfigDrafts.clear();" in scrub_helper
     assert "scriptsAdminRuntimeSummary = null;" in scrub_helper
     assert "renderScriptsDebug(null);" in scrub_helper
-    assert js.count("scriptsDiscardPrivilegedState();") >= 3
+    assert js.count("scriptsDiscardPrivilegedState();") >= 2
 
     focused_form_guard = js.split(
         "activeConfigForm instanceof HTMLFormElement",
@@ -313,13 +319,6 @@ def test_scripts_view_scrubs_privileged_state_on_auth_loss_or_forgotten_token() 
     )[1].split(")", 1)[0]
     assert "scriptsAdminRuntimeSummary" in focused_form_guard
     assert "!scriptsAdminAccessState" in focused_form_guard
-
-    forget_handler = js.split(
-        'forgetButton.addEventListener("click"',
-        1,
-    )[1].split("});", 1)[0]
-    assert 'scriptsSetStoredApiToken("");' in forget_handler
-    assert "scriptsDiscardPrivilegedState();" in forget_handler
 
 
 class _Tracker:

@@ -115,7 +115,7 @@ def test_dashboard_get_serves_root_version_health_and_metrics() -> None:
     assert "meshdash_radio_link_up 1" in deps.recorder.text[0][1]
 
 
-def test_plugin_admin_status_is_tokenless_only_on_loopback() -> None:
+def test_plugin_admin_status_follows_dashboard_access() -> None:
     plugin_status = {
         "enabled": True,
         "scripts": [
@@ -161,21 +161,11 @@ def test_plugin_admin_status_is_tokenless_only_on_loopback() -> None:
         deps=remote_deps,
     )
     assert remote_deps.recorder.json == [
-        (
-            403,
-            {
-                "ok": False,
-                "error": (
-                    "Plugin administration is tokenless only from loopback; "
-                    "configure an API token for remote access"
-                ),
-            },
-            True,
-        )
+        (200, {"ok": True, "plugins": plugin_status}, True)
     ]
 
 
-def test_remote_plugin_admin_status_accepts_configured_token() -> None:
+def test_remote_plugin_admin_status_does_not_require_configured_token() -> None:
     plugin_status = {"enabled": True, "scripts": [{"id": "weather"}]}
     state_fn = _StateFn(
         {
@@ -185,7 +175,7 @@ def test_remote_plugin_admin_status_accepts_configured_token() -> None:
         }
     )
     handler = SimpleNamespace(
-        headers={"X-API-Token": "secret"},
+        headers={"Host": "dashboard.example"},
         client_address=("192.0.2.10", 12345),
     )
     deps = _make_deps(state_fn=state_fn, api_token="secret")

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from hmac import compare_digest
 import ipaddress
 from urllib.parse import urlsplit
 
@@ -11,6 +10,7 @@ PLUGIN_ADMIN_WRITE_PATHS = frozenset(
         "/api/settings/plugins/config",
         "/api/settings/plugins/routes",
         "/api/settings/plugins/runtime",
+        "/api/plugins/console",
     }
 )
 _PROXY_CLIENT_HEADER_NAMES = frozenset(
@@ -127,19 +127,11 @@ def plugin_admin_authorization(
     *,
     required_token: object,
 ) -> tuple[bool, int, str]:
-    required = str(required_token or "").strip()
-    if required:
-        supplied = extract_request_api_token(handler)
-        if supplied and compare_digest(supplied, required):
-            return True, 200, ""
-        return False, 401, "API token required for plugin administration"
-    if request_is_loopback(handler):
-        return True, 200, ""
-    return (
-        False,
-        403,
-        "Plugin administration is tokenless only from loopback; configure an API token for remote access",
-    )
+    del handler, required_token
+    # Plugin administration follows the same access model as the dashboard UI:
+    # if the dashboard is reachable, the Scripts workspace is reachable. Browser
+    # writes are still restricted to same-origin JSON requests by the POST route.
+    return True, 200, ""
 
 
 def request_has_json_content_type(handler: object) -> bool:
