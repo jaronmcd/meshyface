@@ -117,14 +117,22 @@
           || (nodeExplorerPluginFieldIdPattern.test(cleanValue) ? cleanValue : "");
         const pluginFieldsLoaded = typeof nodeExplorerPluginRuntimeFieldRows === "function"
           && nodeExplorerPluginRuntimeFieldRows(state).length > 0;
+        const replacementFieldId = (typeof nodeExplorerNativeFieldReplacementByPlugin === "function")
+          ? nodeExplorerNativeFieldReplacementByPlugin(fieldId, state)
+          : "";
+        const effectiveFieldId = replacementFieldId || fieldId;
         const preserveDeferredPluginField = (
-          nodeExplorerPluginFieldIdPattern.test(fieldId)
+          nodeExplorerPluginFieldIdPattern.test(effectiveFieldId)
           && !pluginFieldsLoaded
           && opts.preserveDeferredPluginFields !== false
         );
-        if (typeof nodeExplorerNativeFieldIsRetiredByPlugin === "function" && nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state)) continue;
-        if (!fieldId || (!allowed.has(fieldId) && !preserveDeferredPluginField) || normalized.includes(fieldId)) continue;
-        normalized.push(fieldId);
+        if (
+          !replacementFieldId
+          && typeof nodeExplorerNativeFieldIsRetiredByPlugin === "function"
+          && nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state)
+        ) continue;
+        if (!effectiveFieldId || (!allowed.has(effectiveFieldId) && !preserveDeferredPluginField) || normalized.includes(effectiveFieldId)) continue;
+        normalized.push(effectiveFieldId);
       }}
       if (normalized.length > 0) return normalized;
       return fallbackToDefaults
@@ -1783,6 +1791,13 @@
       return "pill";
     }}
 
+    function chatNodeNavigatorFieldSuppressVisibleLabel(fieldId, def) {{
+      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
+      const pluginId = String(def && def.pluginId || "").trim().toLowerCase();
+      const pluginFieldId = String(def && def.pluginFieldId || "").trim().toLowerCase();
+      return cleanFieldId === "plugin:node_list:city" || (pluginId === "node_list" && pluginFieldId === "city");
+    }}
+
     function buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field, options = null) {{
       const opts = options && typeof options === "object" ? options : {{}};
       const cleanFieldId = String(fieldId || "").trim().toLowerCase();
@@ -1792,14 +1807,22 @@
       const renderKind = chatNodeNavigatorFieldRenderKind(def, "chip");
       const renderShape = chatNodeNavigatorFieldRenderShape(renderKind);
       const source = String(def && def.source || "node_field").trim().toLowerCase() || "node_field";
+      const suppressVisibleLabel = chatNodeNavigatorFieldSuppressVisibleLabel(cleanFieldId, def);
+      const titleText = suppressVisibleLabel ? title : `${{label}}: ${{title}}`;
       if (renderShape === "text") {{
-        return `<span class="chat-member-metadata-text" data-node-field-id="${{escAttr(cleanFieldId)}}" data-node-field-source="${{escAttr(source)}}" data-node-field-render-kind="${{escAttr(renderKind)}}" title="${{escAttr(`${{label}}: ${{title}}`)}}">
-          <span class="chat-member-metadata-text-key">${{escAttr(label)}}</span>
+        const keyHtml = suppressVisibleLabel
+          ? ""
+          : `<span class="chat-member-metadata-text-key">${{escAttr(label)}}</span>`;
+        return `<span class="chat-member-metadata-text" data-node-field-id="${{escAttr(cleanFieldId)}}" data-node-field-source="${{escAttr(source)}}" data-node-field-render-kind="${{escAttr(renderKind)}}" title="${{escAttr(titleText)}}">
+          ${{keyHtml}}
           <span class="chat-member-metadata-text-value">${{escAttr(value)}}</span>
         </span>`;
       }}
-      return `<span class="chat-member-metadata-chip" data-node-field-id="${{escAttr(cleanFieldId)}}" data-node-field-source="${{escAttr(source)}}" data-node-field-render-kind="${{escAttr(renderKind)}}" title="${{escAttr(`${{label}}: ${{title}}`)}}">
-        <span class="chat-member-metadata-key">${{escAttr(label)}}</span>
+      const keyHtml = suppressVisibleLabel
+        ? ""
+        : `<span class="chat-member-metadata-key">${{escAttr(label)}}</span>`;
+      return `<span class="chat-member-metadata-chip" data-node-field-id="${{escAttr(cleanFieldId)}}" data-node-field-source="${{escAttr(source)}}" data-node-field-render-kind="${{escAttr(renderKind)}}" title="${{escAttr(titleText)}}">
+        ${{keyHtml}}
         <span class="chat-member-metadata-value">${{escAttr(value)}}</span>
       </span>`;
     }}

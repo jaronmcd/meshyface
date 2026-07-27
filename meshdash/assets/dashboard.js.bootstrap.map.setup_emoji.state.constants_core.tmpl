@@ -28,6 +28,18 @@
       nodeExplorerFieldDefs.map((def) => [String(def.id || ""), def])
     );
     const nodeExplorerPluginFieldIdPattern = /^plugin:[a-z][a-z0-9_-]{{0,63}}:[a-z][a-z0-9_-]{{0,31}}$/;
+    const nodeExplorerNodeListPluginNativeFieldIds = new Set([
+      "last_heard",
+      "id",
+      "hardware",
+      "snr",
+      "hops",
+      "links",
+      "battery",
+      "saved",
+      "pos",
+      "location_points",
+    ]);
     const nodeExplorerPluginFieldDefsByState = (typeof WeakMap === "function") ? new WeakMap() : null;
     const nodeExplorerPluginFieldValueIndexByState = (typeof WeakMap === "function") ? new WeakMap() : null;
     const nodeExplorerSupportedRenderKinds = Object.freeze([
@@ -117,12 +129,16 @@
       return false;
     }}
 
-    function nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state = null) {{
+    function nodeExplorerNativeFieldReplacementByPlugin(fieldId, state = null) {{
       const cleanFieldId = String(fieldId || "").trim().toLowerCase();
-      return (
-        (cleanFieldId === "hardware" || cleanFieldId === "battery" || cleanFieldId === "hops" || cleanFieldId === "last_heard")
-        && nodeExplorerNodeListPluginProvidesField(cleanFieldId, state)
-      );
+      if (!nodeExplorerNodeListPluginNativeFieldIds.has(cleanFieldId)) return "";
+      return nodeExplorerNodeListPluginProvidesField(cleanFieldId, state)
+        ? `plugin:node_list:${{cleanFieldId}}`
+        : "";
+    }}
+
+    function nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state = null) {{
+      return !!nodeExplorerNativeFieldReplacementByPlugin(fieldId, state);
     }}
 
     function nodeExplorerPluginRuntimeFieldValueRows(state = null) {{

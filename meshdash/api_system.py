@@ -100,10 +100,10 @@ def _node_list_city_value(
     name = str(city.get("name") or "").strip()
     if not name:
         return "n/a", None, "City: n/a"
-    admin = str(city.get("admin1") or city.get("adm1name") or city.get("state") or "").strip()
+    admin = str(city.get("state") or city.get("admin1") or city.get("adm1name") or "").strip()
     country = str(city.get("country") or city.get("adm0name") or "").strip()
-    detail = ", ".join(part for part in (admin, country) if part)
-    return name, name.casefold(), f"City: {name}{f' ({detail})' if detail else ''}"
+    value = f"{name}, {admin}" if admin else (f"{name}, {country}" if country else name)
+    return value, value.casefold(), value
 
 
 def _node_list_mirror_field_value(

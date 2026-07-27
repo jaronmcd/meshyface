@@ -1,3 +1,5 @@
+import meshdash.api_system as api_system_module
+
 from meshdash.api_system import (
     _fault_etag_marker,
     _inject_faults,
@@ -739,7 +741,17 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
     assert "worker_pid" not in serialized
 
 
-def test_handle_state_get_mirrors_node_list_plugin_fields_from_current_node_rows() -> None:
+def test_handle_state_get_mirrors_node_list_plugin_fields_from_current_node_rows(monkeypatch) -> None:
+    monkeypatch.setattr(
+        api_system_module,
+        "_nearest_city",
+        lambda _lat, _lon: {
+            "name": "Saint Paul",
+            "state": "Minnesota",
+            "country": "United States",
+        },
+    )
+
     def state_fn():
         return {
             "generated_at": "now",
@@ -825,6 +837,20 @@ def test_handle_state_get_mirrors_node_list_plugin_fields_from_current_node_rows
                                 "roster_line": 2,
                                 "runtime_status": "running",
                             },
+                            {
+                                "id": "plugin:node_list:city",
+                                "plugin_id": "node_list",
+                                "field_id": "city",
+                                "label": "City",
+                                "group": "Node List",
+                                "value_type": "text",
+                                "render_kinds": ["text", "chip"],
+                                "default_render_kind": "text",
+                                "default_visible": False,
+                                "sortable": True,
+                                "roster_line": 1,
+                                "runtime_status": "running",
+                            },
                         ],
                         "node_field_values": [
                             {
@@ -863,6 +889,8 @@ def test_handle_state_get_mirrors_node_list_plugin_fields_from_current_node_rows
     assert by_key[("!05060708", "saved")]["value"] == 7
     assert by_key[("!01020304", "links")]["value"] == 3
     assert by_key[("!01020304", "location_points")]["value"] == 9
+    assert by_key[("!01020304", "city")]["value"] == "Saint Paul, Minnesota"
+    assert by_key[("!01020304", "city")]["title"] == "Saint Paul, Minnesota"
     assert len([row for row in values if row["field_id"] == "saved"]) == 2
 
 

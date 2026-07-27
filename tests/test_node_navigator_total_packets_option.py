@@ -278,18 +278,33 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
     assert "runtime.node_fields" in js
     assert "runtime.node_field_values" in js
     assert "function nodeExplorerNodeListPluginProvidesField(fieldId, state = null)" in js
+    assert "const nodeExplorerNodeListPluginNativeFieldIds = new Set([" in js
+    for field_id in (
+        "last_heard",
+        "id",
+        "hardware",
+        "snr",
+        "hops",
+        "links",
+        "battery",
+        "saved",
+        "pos",
+        "location_points",
+    ):
+        assert f'"{field_id}",' in js
+    assert "function nodeExplorerNativeFieldReplacementByPlugin(fieldId, state = null)" in js
+    assert "plugin:node_list:${cleanFieldId}" in js
     assert "function nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state = null)" in js
-    assert (
-        'cleanFieldId === "hardware" || cleanFieldId === "battery" || '
-        'cleanFieldId === "hops" || cleanFieldId === "last_heard"'
-    ) in js
+    assert "return !!nodeExplorerNativeFieldReplacementByPlugin(fieldId, state);" in js
     assert (
         'return source === "plugin" || !nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state);'
         in js
     )
     assert "function chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, state = null)" in js
     assert 'return optionId === "idle" && nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);' in js
-    assert "nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state)) continue;" in js
+    assert 'const replacementFieldId = (typeof nodeExplorerNativeFieldReplacementByPlugin === "function")' in js
+    assert "const effectiveFieldId = replacementFieldId || fieldId;" in js
+    assert "normalized.push(effectiveFieldId);" in js
     assert 'nodeExplorerNativeFieldIsRetiredByPlugin("hops", state);' in js
     assert 'nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);' in js
     assert "function nodeExplorerPluginFieldIdIsRedundant" not in js
@@ -306,7 +321,13 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
     assert "function chatNodeNavigatorFieldRenderKind(def, fallback = \"chip\") {" in js
     assert "function chatNodeNavigatorFieldRenderShape(renderKind) {" in js
     assert 'if (kind === "text" || kind === "timestamp") return "text";' in js
+    assert "function chatNodeNavigatorFieldSuppressVisibleLabel(fieldId, def) {" in js
+    assert 'cleanFieldId === "plugin:node_list:city"' in js
+    assert 'pluginId === "node_list" && pluginFieldId === "city"' in js
     assert "function buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field, options = null) {" in js
+    assert "const suppressVisibleLabel = chatNodeNavigatorFieldSuppressVisibleLabel(cleanFieldId, def);" in js
+    assert "const titleText = suppressVisibleLabel ? title : `${label}: ${title}`;" in js
+    assert 'const keyHtml = suppressVisibleLabel' in js
     assert 'class="chat-member-metadata-text"' in js
     assert 'data-node-field-source="${escAttr(source)}"' in js
     assert 'data-node-field-render-kind="${escAttr(renderKind)}"' in js
