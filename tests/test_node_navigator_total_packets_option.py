@@ -283,9 +283,14 @@ def test_dashboard_groups_node_navigator_options_from_registry() -> None:
 
     assert "const chatNodeNavigatorOptionGroupDefs = Object.freeze([" in js
     assert 'Object.freeze({ id: "fields", label: "Fields" })' in js
-    assert 'Object.freeze({ id: "plugins", label: "Plugins" })' in js
     assert 'Object.freeze({ id: "display", label: "Display" })' in js
-    assert 'Object.freeze({ id: "order", label: "Order" })' in js
+    assert 'Object.freeze({ id: "plugins", label: "Plugins" })' in js
+    assert js.index('Object.freeze({ id: "fields", label: "Fields" })') < js.index(
+        'Object.freeze({ id: "display", label: "Display" })'
+    )
+    assert js.index('Object.freeze({ id: "display", label: "Display" })') < js.index(
+        'Object.freeze({ id: "plugins", label: "Plugins" })'
+    )
     assert 'id: "city", label: "City", prefKey: "showCity", defaultValue: true, sortAffects: false, group: "display"' in js
     assert "direct-history" not in js
     assert "DM history first" not in js
