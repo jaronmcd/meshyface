@@ -255,8 +255,9 @@ Related environment variables:
   as advanced network diagnostics
 - `--private-mode` / `--no-private-mode`: strip public chat slices and block
   selected public endpoints
-- `--api-token <token>`: require auth on write endpoints via
-  `Authorization: Bearer <token>` or `X-API-Token`; prefer
+- `--api-token <token>`: require auth for external API-style write clients via
+  `Authorization: Bearer <token>` or `X-API-Token`. The dashboard UI uses
+  same-origin browser checks instead of a separate key prompt. Prefer
   `MESH_DASH_API_TOKEN` on shared hosts because command-line tokens may appear
   in process listings and shell history
 - `--allow-tokenless-raw-packet-download` /
@@ -355,7 +356,8 @@ Related environment variables:
 - This dashboard is intended for trusted LAN/VPN environments.
 - Do not expose it directly to the public internet without a reverse proxy and
   access control.
-- Use `--private-mode` and/or an API token for stricter write-path control.
+- Use `--private-mode`, a reverse proxy, or an API token for stricter external
+  API-client write control.
 - Prefer `MESH_DASH_API_TOKEN` over `--api-token` on shared or multi-user
   hosts. A command-line token can be visible in process listings and retained
   in shell history.

@@ -6,7 +6,6 @@ from hmac import compare_digest
 from .http_handler_contracts import DashboardHttpHandler
 from .http_plugin_admin import (
     PLUGIN_ADMIN_WRITE_PATHS,
-    plugin_admin_authorization,
     plugin_browser_write_is_same_origin,
     request_has_json_content_type,
 )
@@ -25,7 +24,7 @@ from .map_packs import (
 )
 
 
-_TOKEN_PROTECTED_WRITE_PATHS = {
+_DASHBOARD_WRITE_PATHS = {
     "/api/chat/send",
     "/api/files/send",
     "/api/meshyface/profile/settings",
@@ -41,15 +40,6 @@ _TOKEN_PROTECTED_WRITE_PATHS = {
     "/api/maps/packs/build",
     "/api/maps/packs/build/cancel",
     "/api/maps/packs/install",
-    "/api/settings/plugins",
-    "/api/settings/plugins/config",
-    "/api/settings/plugins/routes",
-    "/api/settings/plugins/runtime",
-    "/api/maps/packs/build",
-    "/api/maps/packs/build/cancel",
-    "/api/maps/packs/install",
-}
-_SOFTWARE_UI_WRITE_PATHS = {
     "/api/system/update",
     "/api/system/update/repair",
     "/api/system/update/rollback-cleanup",
@@ -397,14 +387,61 @@ def _request_declares_body(handler: DashboardHttpHandler) -> bool:
 
 def _protected_browser_write_rejection(
     handler: DashboardHttpHandler,
+    *,
+    json_error: str = "Write endpoints require application/json",
+    cross_origin_error: str = "Cross-origin writes are not allowed",
 ) -> tuple[int, str] | None:
     if not _request_has_browser_provenance_metadata(handler):
         return None
     if _request_declares_body(handler) and not request_has_json_content_type(handler):
-        return 415, "Write endpoints require application/json"
+        return 415, json_error
     if not plugin_browser_write_is_same_origin(handler):
-        return 403, "Cross-origin writes are not allowed"
+        return 403, cross_origin_error
     return None
+
+
+def _dashboard_write_rejection(
+    handler: DashboardHttpHandler,
+    *,
+    deps: DashboardPostRouteDependencies,
+    json_error: str = "Write endpoints require application/json",
+    cross_origin_error: str = "Cross-origin writes are not allowed",
+) -> tuple[int, str, dict[str, str] | None] | None:
+    browser_write_rejection = _protected_browser_write_rejection(
+        handler,
+        json_error=json_error,
+        cross_origin_error=cross_origin_error,
+    )
+    if browser_write_rejection is not None:
+        status_code, error_message = browser_write_rejection
+        return status_code, error_message, None
+    if _request_has_browser_provenance_metadata(handler):
+        return None
+    if not _write_request_is_authorized(handler, deps=deps):
+        return (
+            401,
+            "API token required for write endpoint",
+            {"WWW-Authenticate": "Bearer"},
+        )
+    return None
+
+
+def _write_dashboard_auth_rejection(
+    handler: DashboardHttpHandler,
+    *,
+    deps: DashboardPostRouteDependencies,
+    rejection: tuple[int, str, dict[str, str] | None],
+) -> None:
+    status_code, error_message, extra_headers = rejection
+    if status_code in {401, 403}:
+        _record_write_auth_denied(deps)
+    deps.write_json_response_fn(
+        handler,
+        status_code=status_code,
+        payload_obj={"ok": False, "error": error_message},
+        no_store=True,
+        extra_headers=extra_headers,
+    )
 
 
 def _map_pack_response_status(payload_obj: Mapping[str, object]) -> int:
@@ -445,21 +482,17 @@ def handle_dashboard_post(
         return
 
     if path in PLUGIN_ADMIN_WRITE_PATHS:
-        authorized, auth_status, auth_error = plugin_admin_authorization(
+        auth_rejection = _dashboard_write_rejection(
             handler,
-            required_token=deps.api_token,
+            deps=deps,
+            json_error="Plugin administration requires application/json",
+            cross_origin_error="Cross-origin plugin administration is not allowed",
         )
-        if not authorized:
-            _record_write_auth_denied(deps)
-            extra_headers = (
-                {"WWW-Authenticate": "Bearer"} if auth_status == 401 else None
-            )
-            deps.write_json_response_fn(
+        if auth_rejection is not None:
+            _write_dashboard_auth_rejection(
                 handler,
-                status_code=auth_status,
-                payload_obj={"ok": False, "error": auth_error},
-                no_store=True,
-                extra_headers=extra_headers,
+                deps=deps,
+                rejection=auth_rejection,
             )
             return
         if not request_has_json_content_type(handler):
@@ -486,41 +519,13 @@ def handle_dashboard_post(
             )
             return
 
-    if path in _SOFTWARE_UI_WRITE_PATHS:
-        browser_write_rejection = _protected_browser_write_rejection(handler)
-        if browser_write_rejection is not None:
-            status_code, error_message = browser_write_rejection
-            if status_code == 403:
-                _record_write_auth_denied(deps)
-            deps.write_json_response_fn(
+    if path in _DASHBOARD_WRITE_PATHS and path not in PLUGIN_ADMIN_WRITE_PATHS:
+        auth_rejection = _dashboard_write_rejection(handler, deps=deps)
+        if auth_rejection is not None:
+            _write_dashboard_auth_rejection(
                 handler,
-                status_code=status_code,
-                payload_obj={"ok": False, "error": error_message},
-                no_store=True,
-            )
-            return
-
-    if path in _TOKEN_PROTECTED_WRITE_PATHS and path not in PLUGIN_ADMIN_WRITE_PATHS:
-        if not _write_request_is_authorized(handler, deps=deps):
-            _record_write_auth_denied(deps)
-            deps.write_json_response_fn(
-                handler,
-                status_code=401,
-                payload_obj={"ok": False, "error": "API token required for write endpoint"},
-                no_store=True,
-                extra_headers={"WWW-Authenticate": "Bearer"},
-            )
-            return
-        browser_write_rejection = _protected_browser_write_rejection(handler)
-        if browser_write_rejection is not None:
-            status_code, error_message = browser_write_rejection
-            if status_code == 403:
-                _record_write_auth_denied(deps)
-            deps.write_json_response_fn(
-                handler,
-                status_code=status_code,
-                payload_obj={"ok": False, "error": error_message},
-                no_store=True,
+                deps=deps,
+                rejection=auth_rejection,
             )
             return
 

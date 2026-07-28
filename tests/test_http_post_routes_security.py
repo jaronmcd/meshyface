@@ -31,6 +31,16 @@ def _plugin_runtime_request_body(**values: object) -> bytes:
     return json.dumps(values).encode("utf-8")
 
 
+def _same_origin_json_headers(body: bytes) -> dict[str, str]:
+    return {
+        "Content-Length": str(len(body)),
+        "Content-Type": "application/json",
+        "Host": "127.0.0.1:8877",
+        "Origin": "http://127.0.0.1:8877",
+        "Sec-Fetch-Site": "same-origin",
+    }
+
+
 class _FakeHandler:
     def __init__(
         self,
@@ -332,10 +342,7 @@ def test_plugin_console_uses_dashboard_access_when_token_configured() -> None:
     body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
     handler = _FakeHandler(
         body,
-        headers={
-            "Content-Length": str(len(body)),
-            "Content-Type": "application/json",
-        },
+        headers=_same_origin_json_headers(body),
     )
     calls: list[tuple[int, object]] = []
     runs = 0
@@ -364,6 +371,46 @@ def test_plugin_console_uses_dashboard_access_when_token_configured() -> None:
 
     assert runs == 1
     assert calls == [(200, {"ok": True})]
+
+
+def test_plugin_console_requires_token_for_external_client_when_configured() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "dashboard.example",
+        },
+        client_host="192.168.1.42",
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 0
+    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
 
 
 def test_plugin_console_is_blocked_in_private_mode() -> None:
@@ -496,7 +543,7 @@ def test_tokenless_protected_write_allows_same_origin_lan_client() -> None:
 
 def test_handle_dashboard_post_updates_raw_packet_capture_settings() -> None:
     body = json.dumps({"capture_enabled": True}).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    handler = _FakeHandler(body, headers=_same_origin_json_headers(body))
     calls: list[tuple[int, object]] = []
     received: list[object] = []
 
@@ -509,6 +556,7 @@ def test_handle_dashboard_post_updates_raw_packet_capture_settings() -> None:
             received.append(settings)
             or {"ok": True, "capture_enabled": settings["capture_enabled"]}
         ),
+        api_token="secret",
         to_int_fn=to_int,
     )
     deps = type(deps)(
@@ -1147,10 +1195,7 @@ def test_plugin_configuration_uses_dashboard_access_when_token_configured() -> N
     body = _plugin_request_body(plugin_id="configured", settings={})
     handler = _FakeHandler(
         body,
-        headers={
-            "Content-Length": str(len(body)),
-            "Content-Type": "application/json",
-        },
+        headers=_same_origin_json_headers(body),
     )
     calls: list[tuple[int, object]] = []
     updates = 0
@@ -1556,7 +1601,7 @@ def test_make_http_handler_wires_plugin_management_hook(
     assert captured["run_plugin_console_command_fn"] is _run_plugin_console_command
 
 
-def test_handle_dashboard_post_requires_token_for_raw_packet_capture_settings() -> None:
+def test_handle_dashboard_post_requires_token_for_external_raw_packet_capture_settings() -> None:
     body = json.dumps({"capture_enabled": True}).encode("utf-8")
     handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
     calls: list[tuple[int, object]] = []
@@ -1836,7 +1881,7 @@ def test_handle_dashboard_post_system_update_uses_dashboard_access_when_token_co
         return {"ok": True}
 
     monkeypatch.setattr("meshdash.http_routes_post._run_update_from_github_helper", _run_update)
-    handler = _FakeHandler()
+    handler = _FakeHandler(headers=_same_origin_json_headers(b""))
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
     deps = type(deps)(
@@ -1867,7 +1912,7 @@ def test_handle_dashboard_post_system_update_sync_uses_dashboard_access_when_tok
     monkeypatch.setattr(
         "meshdash.http_routes_post._sync_update_branches_from_github_helper", _sync_update
     )
-    handler = _FakeHandler()
+    handler = _FakeHandler(headers=_same_origin_json_headers(b""))
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
     deps = type(deps)(
@@ -1899,7 +1944,7 @@ def test_handle_dashboard_post_checkout_repair_uses_dashboard_access_when_token_
         "meshdash.http_routes_post._repair_dirty_update_checkout_helper",
         _repair_checkout,
     )
-    handler = _FakeHandler()
+    handler = _FakeHandler(headers=_same_origin_json_headers(b""))
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
     deps = type(deps)(
@@ -1931,7 +1976,7 @@ def test_handle_dashboard_post_rollback_cleanup_uses_dashboard_access_when_token
         "meshdash.http_routes_post._cleanup_update_rollback_branches_helper",
         _cleanup_rollbacks,
     )
-    handler = _FakeHandler()
+    handler = _FakeHandler(headers=_same_origin_json_headers(b""))
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
     deps = type(deps)(
@@ -2003,7 +2048,7 @@ def test_handle_dashboard_post_system_restart_uses_dashboard_access_when_token_c
         restart_calls += 1
         return {"ok": True}
 
-    handler = _FakeHandler()
+    handler = _FakeHandler(headers=_same_origin_json_headers(b""))
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(
         send_chat_fn=None,

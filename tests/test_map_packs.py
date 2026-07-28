@@ -1379,6 +1379,8 @@ def test_dashboard_post_starts_map_pack_build_job(monkeypatch: pytest.MonkeyPatc
             "Content-Length": str(len(body)),
             "Content-Type": "application/json",
             "Host": "127.0.0.1:8877",
+            "Origin": "http://127.0.0.1:8877",
+            "Sec-Fetch-Site": "same-origin",
         }
         client_address = ("127.0.0.1", 12345)
         rfile = io.BytesIO(body)
@@ -1391,7 +1393,7 @@ def test_dashboard_post_starts_map_pack_build_job(monkeypatch: pytest.MonkeyPatc
         "_start_map_pack_build_job_helper",
         lambda request: received.append(request) or {"ok": True, "job": {"status": "running"}},
     )
-    deps = build_post_route_dependencies(send_chat_fn=None, to_int_fn=to_int)
+    deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
     deps = type(deps)(**{**deps.__dict__, "write_json_response_fn": _write_json})
 
     routes_post.handle_dashboard_post(
@@ -1404,7 +1406,7 @@ def test_dashboard_post_starts_map_pack_build_job(monkeypatch: pytest.MonkeyPatc
     assert captured == [(200, {"ok": True, "job": {"status": "running"}})]
 
 
-def test_dashboard_post_map_pack_build_requires_api_token() -> None:
+def test_dashboard_post_map_pack_build_requires_api_token_for_external_client() -> None:
     from meshdash.helpers import to_int
     from meshdash.http_api_post import build_post_route_dependencies
     from meshdash.http_routes_post import handle_dashboard_post
