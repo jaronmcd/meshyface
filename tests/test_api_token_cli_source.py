@@ -43,7 +43,8 @@ def test_api_token_help_prefers_environment_variable() -> None:
     help_text = parser.format_help()
 
     assert "Prefer MESH_DASH_API_TOKEN" in help_text
-    assert "process listings" in help_text
+    assert "process" in help_text
+    assert "listings" in help_text
 
 
 def test_warn_if_cli_api_token_prints_warning(

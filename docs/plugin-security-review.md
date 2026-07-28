@@ -12,17 +12,17 @@ viewer, and mesh-access indicator are covered by this document.
 
 No stop-ship security issue remains under the selected threat model:
 single-user, administrator-installed, trusted local plugin code; untrusted mesh
-input; and dashboard administration that may cross a LAN, VPN, or reverse
-proxy.
+input; and dashboard UI administration that may cross a trusted LAN, VPN, or
+reverse proxy.
 
 The hardening preserves the ordinary local development workflow. New local
 plugins start disabled, but a previously enabled plugin continues after its
 files are edited and Meshyface restarts. Compatible settings carry forward
 automatically, while active conversations are cleared on a package change. A
-browser connected directly through loopback can inspect, configure, and enable
-plugins without an API token. The main controls authenticate remote
-administration, validate untrusted mesh input and host actions, and bound
-runtime, state, radio, file-transfer, and restart behavior.
+same-origin browser session can inspect, configure, and enable plugins without
+a separate API token prompt. External API-style write clients still use the
+configured API token. The main controls validate untrusted mesh input and host
+actions, and bound runtime, state, radio, file-transfer, and restart behavior.
 
 This is not a hostile-plugin sandbox. An enabled plugin is arbitrary Python
 running as the Meshyface service user. It can read that user's files, access the
@@ -259,8 +259,9 @@ surface but do not make hostile Python safe.
 ## Compatibility and operational impact
 
 - Normal direct localhost use remains tokenless.
-- LAN, VPN, hostname, and proxy administration needs an API token; untrusted
-  networks additionally need TLS or an SSH tunnel.
+- Trusted LAN, VPN, hostname, and proxy dashboard use follows the same-origin
+  browser access model. External API-style write clients need an API token when
+  one is configured; untrusted networks additionally need TLS or an SSH tunnel.
 - Local plugin IDs without stored enablement start disabled. Previously enabled
   local plugin IDs continue after an edit and restart, and compatible saved
   settings carry automatically.
@@ -303,11 +304,11 @@ on this development workstation.
 
 ## Deployment recommendation
 
-For the intended setup, bind the dashboard to loopback whenever practical.
-For LAN/VPN access, set a strong API token, restrict the listening interface and
-firewall, and use TLS or an SSH tunnel for administration. Keep plugin packages
-administrator-controlled; use the displayed fingerprint for change visibility
-and troubleshooting.
+For the intended setup, bind the dashboard to loopback whenever practical. For
+LAN/VPN dashboard access, restrict the listening interface and firewall, and use
+TLS or an SSH tunnel across untrusted links. Set a strong API token for external
+API-style write clients. Keep plugin packages administrator-controlled; use the
+displayed fingerprint for change visibility and troubleshooting.
 
 Do not expose this alpha trusted-code plugin system directly to the public
 Internet. If future use includes third-party or marketplace code, the next

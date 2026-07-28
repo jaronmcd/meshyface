@@ -41,6 +41,265 @@ def _same_origin_json_headers(body: bytes) -> dict[str, str]:
     }
 
 
+def _json_body(payload: object) -> bytes:
+    return json.dumps(payload).encode("utf-8")
+
+
+def _mesh_profile_theme_recipe() -> dict[str, object]:
+    return {
+        "version": 1,
+        "base_color": "#123456",
+        "line_color": "#abcdef",
+        "line_contrast_color": "#fedcba",
+        "gradient_primary_start_color": "#010203",
+        "gradient_primary_end_color": "#f0e0d0",
+        "color_depth": 73,
+        "foreground_transparency": 42,
+        "foreground_blur": 17,
+        "text_font": "mono",
+        "gradient_primary_type": "radial",
+        "gradient_primary_direction": "down-left",
+        "mode": "dark",
+    }
+
+
+_REAL_DASHBOARD_WRITE_PATHS = (
+    "/api/chat/send",
+    "/api/files/send",
+    "/api/meshyface/profile/settings",
+    "/api/meshyface/profile/theme",
+    "/api/games/zork",
+    "/api/plugins/console",
+    "/api/tools/network",
+    "/api/settings/radio",
+    "/api/settings/channels",
+    "/api/settings/theme",
+    "/api/settings/custom_telemetry",
+    "/api/settings/raw_packets",
+    "/api/settings/plugins/runtime",
+    "/api/settings/plugins",
+    "/api/settings/plugins/routes",
+    "/api/settings/plugins/config",
+    "/api/maps/packs/build",
+    "/api/maps/packs/build/cancel",
+    "/api/maps/packs/install",
+    "/api/system/update",
+    "/api/system/update/repair",
+    "/api/system/update/rollback-cleanup",
+    "/api/system/update/sync",
+    "/api/system/restart",
+)
+
+
+_PLUGIN_ADMIN_PATHS = {
+    "/api/settings/plugins/runtime",
+    "/api/settings/plugins",
+    "/api/settings/plugins/routes",
+    "/api/settings/plugins/config",
+    "/api/plugins/console",
+}
+
+
+def _dashboard_write_case(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[bytes, dict[str, object], list[str]]:
+    reached: list[str] = []
+
+    def _mark() -> None:
+        reached.append(path)
+
+    if path == "/api/chat/send":
+        return (
+            _json_body({"text": "hello"}),
+            {"send_chat_fn": lambda **_kwargs: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/files/send":
+        return (
+            _json_body({"text": "MF_FILE_V2|M|abcd1234|1|1|file.bin|4|0"}),
+            {"send_chat_fn": lambda **_kwargs: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/meshyface/profile/settings":
+        return (
+            _json_body({"enabled": True}),
+            {
+                "set_meshyface_profile_processing_enabled_fn": (
+                    lambda _enabled: (_mark() or {"ok": True})
+                )
+            },
+            reached,
+        )
+    if path == "/api/meshyface/profile/theme":
+        return (
+            _json_body({"theme": _mesh_profile_theme_recipe(), "channel_index": 0}),
+            {"send_meshyface_profile_fn": lambda **_kwargs: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/games/zork":
+        return (
+            _json_body({"text": "zork", "session_id": "session-1"}),
+            {"play_standalone_zork_fn": lambda **_kwargs: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/plugins/console":
+        return (
+            _json_body({"command": "zork", "text": "zork"}),
+            {
+                "run_plugin_console_command_fn": (
+                    lambda **_kwargs: (_mark() or {"ok": True})
+                )
+            },
+            reached,
+        )
+    if path == "/api/tools/network":
+        return (
+            _json_body({"command": "nodes"}),
+            {"run_network_tool_fn": lambda _request: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/settings/radio":
+        return (
+            _json_body({"owner": {"short_name": "ABCD"}}),
+            {"apply_radio_settings_fn": lambda _request: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/settings/channels":
+        return (
+            _json_body({"action": "export_url"}),
+            {"apply_channel_settings_fn": lambda _request: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/settings/theme":
+        return (
+            _json_body({"preset_name": "default"}),
+            {"set_theme_preset_fn": lambda _request: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/settings/custom_telemetry":
+        return (
+            _json_body({"rules": []}),
+            {
+                "set_custom_telemetry_settings_fn": (
+                    lambda _rules: (_mark() or {"ok": True})
+                )
+            },
+            reached,
+        )
+    if path == "/api/settings/raw_packets":
+        return (
+            _json_body({"capture_enabled": True}),
+            {
+                "set_raw_packet_capture_settings_fn": (
+                    lambda _settings: (_mark() or {"ok": True})
+                )
+            },
+            reached,
+        )
+    if path == "/api/settings/plugins/runtime":
+        return (
+            _json_body({"enabled": True}),
+            {"set_plugin_runtime_enabled_fn": lambda _enabled: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/settings/plugins":
+        return (
+            _plugin_request_body(plugin_id="echo", enabled=True),
+            {
+                "set_plugin_enabled_fn": (
+                    lambda _plugin_id, _enabled, *, expected_package_digest=None: (
+                        _mark() or {"ok": True}
+                    )
+                )
+            },
+            reached,
+        )
+    if path == "/api/settings/plugins/routes":
+        return (
+            _plugin_request_body(
+                plugin_id="echo",
+                mesh_enabled=True,
+                console_enabled=True,
+                ticker_enabled=True,
+                view_enabled=True,
+            ),
+            {
+                "set_plugin_route_policy_fn": (
+                    lambda _plugin_id,
+                    *,
+                    mesh_enabled,
+                    console_enabled,
+                    ticker_enabled,
+                    view_enabled,
+                    expected_package_digest=None: (_mark() or {"ok": True})
+                )
+            },
+            reached,
+        )
+    if path == "/api/settings/plugins/config":
+        return (
+            _plugin_request_body(plugin_id="echo", settings={}),
+            {
+                "set_plugin_settings_fn": (
+                    lambda _plugin_id, _settings, *, expected_package_digest=None: (
+                        _mark() or {"ok": True}
+                    )
+                )
+            },
+            reached,
+        )
+    if path == "/api/maps/packs/build":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._start_map_pack_build_job_helper",
+            lambda _request: (_mark() or {"ok": True}),
+        )
+        return (_json_body({"mode": "history", "pack_id": "mymesh"}), {}, reached)
+    if path == "/api/maps/packs/build/cancel":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._cancel_map_pack_build_job_helper",
+            lambda: (_mark() or {"ok": True}),
+        )
+        return (b"", {}, reached)
+    if path == "/api/maps/packs/install":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._install_built_map_pack_helper",
+            lambda _request: (_mark() or {"ok": True}),
+        )
+        return (_json_body({"pack_id": "mymesh"}), {}, reached)
+    if path == "/api/system/update":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._run_update_from_github_helper",
+            lambda **_kwargs: (_mark() or {"ok": True}),
+        )
+        return (_json_body({"branch": "main"}), {}, reached)
+    if path == "/api/system/update/repair":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._repair_dirty_update_checkout_helper",
+            lambda **_kwargs: (_mark() or {"ok": True}),
+        )
+        return (_json_body({"branch": "main"}), {}, reached)
+    if path == "/api/system/update/rollback-cleanup":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._cleanup_update_rollback_branches_helper",
+            lambda: (_mark() or {"ok": True}),
+        )
+        return (b"", {}, reached)
+    if path == "/api/system/update/sync":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._sync_update_branches_from_github_helper",
+            lambda **_kwargs: (_mark() or {"ok": True}),
+        )
+        return (_json_body({"branch": "main"}), {}, reached)
+    if path == "/api/system/restart":
+        return (
+            b"",
+            {"schedule_backend_restart_fn": lambda: (_mark() or {"ok": True})},
+            reached,
+        )
+    raise AssertionError(f"Unhandled dashboard write path: {path}")
+
+
 class _FakeHandler:
     def __init__(
         self,
@@ -64,6 +323,113 @@ class _FakeHandler:
 
     def end_headers(self) -> None:
         pass
+
+
+@pytest.mark.parametrize("path", _REAL_DASHBOARD_WRITE_PATHS)
+def test_real_dashboard_write_paths_use_dashboard_access_when_token_configured(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body, deps_kwargs, reached = _dashboard_write_case(path, monkeypatch)
+    handler = _FakeHandler(body, headers=_same_origin_json_headers(body))
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        api_token="secret",
+        to_int_fn=to_int,
+        **{"send_chat_fn": None, **deps_kwargs},
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path=path, deps=deps)
+
+    assert reached == [path]
+    assert calls
+    assert calls[0][0] < 300
+
+
+@pytest.mark.parametrize("path", _REAL_DASHBOARD_WRITE_PATHS)
+def test_real_dashboard_write_paths_require_token_for_external_clients_when_configured(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body, deps_kwargs, reached = _dashboard_write_case(path, monkeypatch)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "dashboard.example",
+        },
+        client_host="192.168.1.42",
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        api_token="secret",
+        to_int_fn=to_int,
+        **{"send_chat_fn": None, **deps_kwargs},
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path=path, deps=deps)
+
+    assert reached == []
+    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
+@pytest.mark.parametrize("path", _REAL_DASHBOARD_WRITE_PATHS)
+def test_real_dashboard_write_paths_reject_cross_origin_browser_writes(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body, deps_kwargs, reached = _dashboard_write_case(path, monkeypatch)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "127.0.0.1:8877",
+            "Origin": "https://attacker.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        api_token="secret",
+        to_int_fn=to_int,
+        **{"send_chat_fn": None, **deps_kwargs},
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path=path, deps=deps)
+
+    expected_error = (
+        "Cross-origin plugin administration is not allowed"
+        if path in _PLUGIN_ADMIN_PATHS
+        else "Cross-origin writes are not allowed"
+    )
+    assert reached == []
+    assert calls == [(403, {"ok": False, "error": expected_error})]
 
 
 @pytest.mark.parametrize(

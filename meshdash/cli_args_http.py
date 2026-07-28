@@ -112,8 +112,9 @@ def add_http_runtime_args(
         action=_ApiTokenAction,
         default=default_api_token,
         help=(
-            "Optional API token required on write endpoints via Authorization: Bearer <token> "
-            "or X-API-Token header. Prefer MESH_DASH_API_TOKEN on shared hosts; "
+            "Optional API token required for external API-style write clients via "
+            "Authorization: Bearer <token> or X-API-Token header. The dashboard UI "
+            "uses same-origin browser checks. Prefer MESH_DASH_API_TOKEN on shared hosts; "
             "command-line tokens may appear in process listings and shell history."
         ),
     )
