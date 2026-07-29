@@ -285,22 +285,22 @@ surface but do not make hostile Python safe.
 
 ## Verification
 
-- Focused plugin/security integration slice: 280 passed.
-- Full suite and coverage gate: 1,214 passed, 3 browser-dependent tests skipped;
-  89.22% coverage against an 85% requirement.
-- GUI responsiveness benchmark: passed with no long tasks; total sample p95
-  40.1 ms and maximum 120.0 ms.
-- Deployment validation: Ruff, shell syntax, Compose configuration, and
-  deployment tests passed.
-- `git diff --check` passed.
+- Current local cleanup verification on 2026-07-29:
+  - Ruff passed.
+  - `git diff --check` passed.
+  - Focused workspace, Zork docs, scripts docs, admin route, publication-readiness,
+    and coverage-report slice: 78 passed.
+  - Full virtualenv suite: 1,329 passed and 3 browser-dependent tests skipped.
+  - Local coverage gate: 1,329 passed, 3 skipped, and 88.74% coverage against
+    an 85% requirement.
 
-The repository coverage wrapper initially selected `/usr/bin/python`, which
-lacked the installed `meshtastic` dependency. The same gate was rerun with the
-project virtualenv and passed; this is a local runner environment issue, not a
-product test failure. `systemd-analyze verify` parsed the hardened unit but
-could not validate its deployment-only
-`/opt/meshyface/.venv/bin/python` executable because that path is not installed
-on this development workstation.
+The repository coverage wrapper uses `python` from `PATH`. On this development
+workstation, the default `/usr/bin/python` lacks the installed `meshtastic`
+dependency, so the successful coverage gate was run with the project virtualenv
+first in `PATH`. The GUI responsiveness benchmark was attempted, but
+`scripts/run_gui_responsiveness_local.sh` refused to run because an existing
+dashboard was serving on `127.0.0.1:8877`; stop that dashboard and rerun the
+benchmark before pushing or opening the PR.
 
 ## Deployment recommendation
 

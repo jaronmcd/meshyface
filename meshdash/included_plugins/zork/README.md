@@ -27,5 +27,6 @@ systemd and container deployments. Enable Zork during a systemd deployment with:
 MESH_DASH_DEPLOY_PLUGIN_ENABLE=zork ./scripts/deploy_meshyface.sh --target j@192.168.1.67
 ```
 
-No plugin copy step is required. Alternatively, enable **Zork** from
-**Apps → Scripts**. The plugin runtime does not require `--games-enable`.
+No plugin copy step is required. Alternatively, start Meshyface with
+`--plugins-enable` and enable **Zork** from **Apps → Scripts**. The plugin
+runtime does not require `--games-enable`.

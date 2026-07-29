@@ -1355,7 +1355,7 @@ def test_settings_view_removes_outer_card_shell_but_keeps_inner_panels() -> None
     grid_section = css.split(".layout.view-settings .settings-grid {", 1)[1].split("}", 1)[0]
     grid_panel_section = css.split(".layout.view-settings .settings-grid > .settings-panel {", 1)[1].split("}", 1)[0]
 
-    assert ".workspace-main > .layout.view-chat,\n    .workspace-main > .layout.view-console,\n    .workspace-main > .layout.view-settings {" in css
+    assert ".workspace-main > .layout.view-chat,\n    .workspace-main > .layout.view-console,\n    .workspace-main > .layout.view-settings,\n    .workspace-main > .layout.view-plugin {" in css
     assert "background: transparent;" in settings_section
     assert "border: 0;" in settings_section
     assert "box-shadow: none;" in settings_section
@@ -1440,7 +1440,14 @@ def test_full_app_shells_opt_out_of_global_dark_card_painting() -> None:
     app_shells = set(
         re.findall(r'<section class="card ([^" ]+) workspace-app-shell"', html)
     )
-    assert app_shells == {"chat", "settings", "files", "games", "scripts"}
+    assert app_shells == {
+        "chat",
+        "settings",
+        "files",
+        "games",
+        "scripts",
+        "plugin-workspace",
+    }
     assert html.count("workspace-app-shell") == len(app_shells)
     assert 'class="card environment' not in html
     assert 'id="environment-metrics-home"' not in html

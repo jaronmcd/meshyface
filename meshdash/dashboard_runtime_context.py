@@ -747,7 +747,10 @@ def build_dashboard_runtime_context(
                 )
         except Exception as exc:
             plugin_error = f"{type(exc).__name__}: {exc}"
-            plugin_error_status = lambda: {"enabled": True, "error": plugin_error}
+
+            def plugin_error_status() -> dict[str, object]:
+                return {"enabled": True, "error": plugin_error}
+
             setattr(
                 tracker,
                 "get_plugin_runtime",
@@ -774,7 +777,9 @@ def build_dashboard_runtime_context(
                 )
     else:
         # Static status only: no discovery, state store, worker, or thread exists.
-        plugin_disabled_status = lambda: {"enabled": False}
+        def plugin_disabled_status() -> dict[str, object]:
+            return {"enabled": False}
+
         setattr(tracker, "get_plugin_runtime", plugin_disabled_status)
         setattr(loaders.state_fn, "plugin_admin_status_fn", plugin_disabled_status)
 

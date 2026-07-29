@@ -164,8 +164,8 @@ that page and its browser session as secret-bearing.
 The normal state response exposes only minimal plugin health, counts, active
 console command names, and display tickers. Installed-package metadata,
 settings, debug records, and file job details are available through the
-loopback-or-token-protected
-`/api/admin/plugins` endpoint used by the Scripts workspace.
+same dashboard origin via the no-store `/api/admin/plugins` endpoint used by
+the Scripts workspace.
 
 The alpha workspace intentionally has no code editor, package installer, or
 upload surface. Administrators install and manage trusted local plugin packages
