@@ -94,8 +94,8 @@ screenshot.
 
 Meshyface nodes can share compact appearance packets containing a node-theme
 recipe and an optional ghost or watermark. Configure and preview your node in
-`Settings > Appearance > Node Appearance`, enable **Share node appearance**,
-then use **Broadcast appearance** to publish it.
+`Settings > Appearance > Node Appearance`, then use **Broadcast appearance** to
+publish it. **Share node appearance** is on by default for fresh installs.
 
 - Appearance packets use the configured Profiles send channel and inherit the
   radio's hop-limit setting; Meshyface does not impose a separate hop limit.

@@ -401,14 +401,14 @@ class DashboardTracker:
             None,
         )
         if not callable(load_settings_fn):
-            return False
+            return True
         try:
             response = load_settings_fn()
         except Exception:
-            return False
+            return True
         if not isinstance(response, Mapping):
-            return False
-        return bool(response.get("enabled"))
+            return True
+        return bool(response.get("enabled", True))
 
     def _persist_meshyface_profile_processing_enabled_unlocked(self, enabled: bool) -> None:
         history_store = getattr(self, "_history_store", None)

@@ -850,9 +850,8 @@ def test_tracker_profile_processing_disabled_skips_parser_and_clears_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tracker = DashboardTracker(packet_limit=8)
-    assert tracker.meshyface_profile_processing_status()["enabled"] is False
+    assert tracker.meshyface_profile_processing_status()["enabled"] is True
     assert tracker.meshyface_profiles_snapshot() == {}
-    tracker.set_meshyface_profile_processing_enabled(True)
     updated = int(time.time()) - 10
     tracker.seed_packet(
         _profile_packet(updated_unix=updated, theme=_theme_recipe()),
@@ -966,23 +965,23 @@ def test_meshyface_profile_processing_toggle_survives_history_store_restart(
     first_store = _open_history_store(history_path)
     try:
         first_tracker = DashboardTracker(packet_limit=8, history_store=first_store)
-        assert first_tracker.meshyface_profile_processing_status()["enabled"] is False
-        assert first_tracker.set_meshyface_profile_processing_enabled(True)["enabled"] is True
+        assert first_tracker.meshyface_profile_processing_status()["enabled"] is True
+        assert first_tracker.set_meshyface_profile_processing_enabled(False)["enabled"] is False
     finally:
         first_store.close()
 
     second_store = _open_history_store(history_path)
     try:
         second_tracker = DashboardTracker(packet_limit=8, history_store=second_store)
-        assert second_tracker.meshyface_profile_processing_status()["enabled"] is True
-        assert second_tracker.set_meshyface_profile_processing_enabled(False)["enabled"] is False
+        assert second_tracker.meshyface_profile_processing_status()["enabled"] is False
+        assert second_tracker.set_meshyface_profile_processing_enabled(True)["enabled"] is True
     finally:
         second_store.close()
 
     third_store = _open_history_store(history_path)
     try:
         third_tracker = DashboardTracker(packet_limit=8, history_store=third_store)
-        assert third_tracker.meshyface_profile_processing_status()["enabled"] is False
+        assert third_tracker.meshyface_profile_processing_status()["enabled"] is True
     finally:
         third_store.close()
 
@@ -1588,7 +1587,7 @@ def test_dashboard_js_keeps_profiles_separate_from_manual_tags_and_auto_scheduli
     assert "setMeshyfaceProfileColor" not in js
     assert "settingsMeshyfaceProfileAcceptRemoteEnabled" not in js
     assert "settingsMeshyfaceProfileAcceptRemoteStorageKey" not in js
-    assert 'let settingsMeshyfaceThemeSharingEnabled = false;' in js
+    assert 'let settingsMeshyfaceThemeSharingEnabled = true;' in js
     assert "let settingsMeshyfaceThemeSharingServerPending = null;" in js
     assert "let settingsMeshyfaceProfileLastBroadcastChannelIndex = null;" in js
     assert "let chatEmojiTextTargetInput = null;" in js
