@@ -12,6 +12,7 @@
         nodes.map((node) => [normalizeNodeId(node && node.id), node])
       );
       const localNodeId = normalizeNodeId(resolveLocalNodeId(safeState) || "");
+      const backendAcceptedKeys = fileTransferBackendAcceptedKeys(safeState);
       const transfers = new Map();
       const ackByTransferKey = new Map();
       const flowByTransferKey = new Map();
@@ -146,6 +147,17 @@
           explicitChannelIndex
         );
         const requiresInboundAccept = fileTransferInboundTransferNeedsAccept(fromId, toId, localNodeId);
+        if (
+          requiresInboundAccept
+          && backendAcceptedKeys.has(key)
+          && fileTransferInboundDecisionForKey(key) !== "accepted"
+        ) {{
+          setFileTransferInboundDecisionByKey(key, "accepted", {{
+            transferId: frame.transferId,
+            senderId: fromId,
+            receiverId: toId,
+          }});
+        }}
         const inboundDecision = requiresInboundAccept
           ? fileTransferInboundDecisionForKey(key)
           : "accepted";
@@ -188,18 +200,6 @@
 
         if (frame.kind === "meta") {{
           transfer.fileName = normalizeFileTransferName(frame.fileName || transfer.fileName || "mesh-file.bin");
-          if (transfer.requiresInboundAccept && transfer.inboundDecision !== "accepted") {{
-            const autoAccepted = autoAcceptInboundFileTransferIfEnabled(
-              transfer,
-              key,
-              fromId,
-              toId,
-              localNodeId
-            );
-            if (autoAccepted) {{
-              transfer.inboundDecision = "accepted";
-            }}
-          }}
           transfer.fileSize = Math.max(0, Math.trunc(Number(frame.fileSize) || 0));
           transfer.originalFileSize = Math.max(0, Math.trunc(Number(frame.originalFileSize != null ? frame.originalFileSize : frame.fileSize) || 0));
           transfer.codec = normalizeFileTransferCompressionCodec(frame.codec || fileTransferCompressionCodecRaw);
@@ -220,18 +220,6 @@
             );
           if (knownTotalChunks == null || frame.chunkIndex >= knownTotalChunks) {{
             continue;
-          }}
-          if (transfer.requiresInboundAccept && transfer.inboundDecision !== "accepted") {{
-            const autoAccepted = autoAcceptInboundFileTransferIfEnabled(
-              transfer,
-              key,
-              fromId,
-              toId,
-              localNodeId
-            );
-            if (autoAccepted) {{
-              transfer.inboundDecision = "accepted";
-            }}
           }}
           if (transfer.requiresInboundAccept && transfer.inboundDecision !== "accepted") {{
             continue;

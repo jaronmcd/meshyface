@@ -1,5 +1,6 @@
     async function executeConsoleCommand(parsed, line) {{
       ensureConsoleCommandsRegistered();
+      syncPluginConsoleCommands(latestState);
       const commandDef = consoleCommandRegistry.get(parsed.command);
       if (!commandDef) {{
         appendConsoleEventLine(`[console] unknown command: ${{parsed.command}} (try "help")`);
@@ -98,11 +99,123 @@
         description: String(commandDef.description || "").trim(),
         supportsVerbosity: !!commandDef.supportsVerbosity,
         hiddenFromHelp: name.startsWith("--") || commandDef.hiddenFromHelp === true,
+        source: String(commandDef.source || "").trim().toLowerCase(),
+        pluginId: String(commandDef.pluginId || commandDef.plugin_id || "").trim(),
+        pluginName: String(commandDef.pluginName || commandDef.plugin_name || "").trim(),
+        batchUnsupported: commandDef.batchUnsupported === true,
         paramGhost: typeof commandDef.paramGhost === "function"
           ? commandDef.paramGhost
           : null,
         run,
       }});
+    }}
+
+    function collectPluginConsoleCommandDefs(state = latestState) {{
+      const safeState = (state && typeof state === "object") ? state : {{}};
+      const summary = (safeState.summary && typeof safeState.summary === "object")
+        ? safeState.summary
+        : {{}};
+      const plugins = (summary.plugins && typeof summary.plugins === "object")
+        ? summary.plugins
+        : {{}};
+      const rows = Array.isArray(plugins.console_commands)
+        ? plugins.console_commands
+        : [];
+      const out = [];
+      const seen = new Set();
+      for (const row of rows) {{
+        if (!row || typeof row !== "object") continue;
+        const name = String(row.name || "").trim().toLowerCase();
+        if (!/^[a-z][a-z0-9_-]{{0,31}}$/.test(name) || seen.has(name)) continue;
+        const pluginId = String(row.plugin_id || row.pluginId || "").trim().toLowerCase();
+        if (!pluginId) continue;
+        seen.add(name);
+        out.push({{
+          name,
+          pluginId,
+          pluginName: String(row.plugin_name || row.pluginName || pluginId).trim() || pluginId,
+        }});
+      }}
+      return out;
+    }}
+
+    function syncPluginConsoleCommands(state = latestState) {{
+      if (!(consoleCommandRegistry instanceof Map)) return;
+      const next = new Set();
+      for (const row of collectPluginConsoleCommandDefs(state)) {{
+        next.add(row.name);
+        const current = consoleCommandRegistry.get(row.name);
+        if (current && current.source !== "plugin") {{
+          continue;
+        }}
+        registerConsoleCommand({{
+          name: row.name,
+          usage: row.name,
+          description: `Run ${{row.pluginName}} plugin locally.`,
+          source: "plugin",
+          pluginId: row.pluginId,
+          pluginName: row.pluginName,
+          batchUnsupported: true,
+          run: (ctx) => runConsolePluginCommand(ctx, row),
+        }});
+      }}
+      for (const name of Array.from(consolePluginCommandNames)) {{
+        if (!next.has(name)) {{
+          const current = consoleCommandRegistry.get(name);
+          if (current && current.source === "plugin") {{
+            consoleCommandRegistry.delete(name);
+          }}
+          deletePluginConsoleCommandSessionId(name, current && current.pluginId);
+          consolePluginCommandNames.delete(name);
+        }}
+      }}
+      for (const name of next) {{
+        const current = consoleCommandRegistry.get(name);
+        if (current && current.source === "plugin") {{
+          consolePluginCommandNames.add(name);
+        }}
+      }}
+    }}
+
+    async function runConsolePluginCommand(ctx, commandDef) {{
+      const def = (commandDef && typeof commandDef === "object") ? commandDef : {{}};
+      const command = String(def.name || (ctx && ctx.command) || "").trim().toLowerCase();
+      if (!command) return "[plugin] missing command.";
+      if (consoleInteractiveSession) {{
+        return `[${{command}}] already running. Press Ctrl+C to stop.`;
+      }}
+      const line = String((ctx && ctx.line) || command).trim() || command;
+      if (command === "zork") {{
+        clearConsoleOutput({{ renderNow: false }});
+      }}
+      const pluginId = String(def.pluginId || "").trim().toLowerCase();
+      const sessionId = getPluginConsoleCommandSessionId(command, pluginId);
+      const payload = await postPluginConsoleCommand(command, line, sessionId, "command");
+      const nextSessionId = String(payload && payload.session_id ? payload.session_id : "").trim();
+      const nextPluginId = String(payload && payload.plugin_id ? payload.plugin_id : pluginId).trim().toLowerCase();
+      if (payload && payload.active_session === true && nextSessionId) {{
+        consoleInteractiveSession = {{
+          name: command,
+          mode: "plugin",
+          command,
+          pluginId: nextPluginId,
+          pluginName: String(def.pluginName || command).trim() || command,
+          sessionId: nextSessionId,
+        }};
+        syncConsoleCommandInputState();
+      }} else if (payload && nextSessionId) {{
+        setPluginConsoleCommandSessionId(command, nextPluginId, nextSessionId);
+        persistConsoleSessionState();
+      }}
+      const replyTextRaw = String(
+        payload && Object.prototype.hasOwnProperty.call(payload, "reply_text")
+          ? (payload.reply_text ?? "")
+          : ""
+      );
+      const replyText = command === "zork"
+        ? normalizeStandaloneZorkReplyText(replyTextRaw)
+        : replyTextRaw.trim();
+      return replyText.trim() ? [replyText] : [];
     }}
 
     const consoleNodeTargetAutocompleteCommands = new Set([
@@ -345,6 +458,7 @@
 
     function resolveConsoleCommandCompletionCandidates(rawPrefix, options = null) {{
       ensureConsoleCommandsRegistered();
+      syncPluginConsoleCommands(latestState);
       const opts = (options && typeof options === "object") ? options : {{}};
       const allowSearch = opts.allowSearch === true;
       const leadingSlash = opts.leadingSlash === true;

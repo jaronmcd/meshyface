@@ -364,6 +364,16 @@
             }}
             return;
           }}
+          if (
+            activeSession
+            && String(activeSession.mode || "") === "plugin"
+            && /no enabled plugin declares that command|unknown_command|plugin runtime is unavailable/i.test(msg)
+          ) {{
+            const sessionName = String(activeSession.name || activeSession.command || "plugin").trim() || "plugin";
+            stopConsoleInteractiveSession("plugin unavailable", false);
+            appendConsoleEventLine(`[${{sessionName}}] plugin session is unavailable. Console mode restored.`);
+            return;
+          }}
           appendConsoleEventLine(`[${{String((activeSession && activeSession.name) || "session")}}] error: ${{msg}}`);
         }}
         return;
@@ -430,6 +440,9 @@
       if (typeof ensureConsoleCommandsRegistered === "function") {{
         ensureConsoleCommandsRegistered();
       }}
+      if (typeof syncPluginConsoleCommands === "function") {{
+        syncPluginConsoleCommands(latestState);
+      }}
       if (!(consoleCommandRegistry instanceof Map)) return [];
       return Array.from(consoleCommandRegistry.keys())
         .map((name) => String(name || "").trim().toLowerCase())
@@ -495,6 +508,9 @@
       if (typeof ensureConsoleCommandsRegistered === "function") {{
         ensureConsoleCommandsRegistered();
       }}
+      if (typeof syncPluginConsoleCommands === "function") {{
+        syncPluginConsoleCommands(latestState);
+      }}
       const lines = Array.isArray(commands) ? commands : [];
       for (const rawLine of lines) {{
         const line = String(rawLine == null ? "" : rawLine).trim();
@@ -523,12 +539,22 @@
     function consoleBatchUnsupportedCommandName(rawLine) {{
       const line = String(rawLine == null ? "" : rawLine).trim();
       if (!line) return "";
+      if (typeof ensureConsoleCommandsRegistered === "function") {{
+        ensureConsoleCommandsRegistered();
+      }}
+      if (typeof syncPluginConsoleCommands === "function") {{
+        syncPluginConsoleCommands(latestState);
+      }}
       const normalizedLine = line.startsWith("/")
         ? String(line.slice(1) || "").trim()
         : line;
       const parsed = parseConsoleCommandLine(normalizedLine);
       if (parsed.error) return "";
       const command = String(parsed.command || "").trim().toLowerCase();
+      const def = consoleCommandRegistry instanceof Map
+        ? consoleCommandRegistry.get(command)
+        : null;
+      if (def && def.batchUnsupported === true) return command;
       return (command === "live" || command === "zork") ? command : "";
     }}
 

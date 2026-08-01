@@ -4,6 +4,11 @@ import json
 from hmac import compare_digest
 
 from .http_handler_contracts import DashboardHttpHandler
+from .http_plugin_admin import (
+    PLUGIN_ADMIN_WRITE_PATHS,
+    plugin_browser_write_is_same_origin,
+    request_has_json_content_type,
+)
 from .http_route_contracts import DashboardPostRouteDependencies
 from .api_system_update import (
     cleanup_update_rollback_branches as _cleanup_update_rollback_branches_helper,
@@ -19,19 +24,19 @@ from .map_packs import (
 )
 
 
-_TOKEN_PROTECTED_WRITE_PATHS = {
+_DASHBOARD_WRITE_PATHS = {
     "/api/chat/send",
     "/api/files/send",
     "/api/meshyface/profile/settings",
     "/api/meshyface/profile/theme",
     "/api/games/zork",
+    "/api/plugins/console",
     "/api/tools/network",
     "/api/settings/radio",
     "/api/settings/channels",
     "/api/settings/theme",
     "/api/settings/custom_telemetry",
     "/api/settings/raw_packets",
-    "/api/settings/file_transfer",
     "/api/maps/packs/build",
     "/api/maps/packs/build/cancel",
     "/api/maps/packs/install",
@@ -46,6 +51,7 @@ _PRIVATE_MODE_BLOCKED_POST_PATHS = {
     "/api/files/send",
     "/api/meshyface/profile/theme",
     "/api/games/zork",
+    "/api/plugins/console",
     "/api/tools/network",
     "/api/maps/packs/build",
     "/api/maps/packs/build/cancel",
@@ -178,7 +184,7 @@ def _read_json_object_request(
     return parsed
 
 
-def _read_file_transfer_settings_request(
+def _read_plugin_settings_request(
     handler: DashboardHttpHandler,
 ) -> dict[str, object]:
     raw_length = _header_value(getattr(handler, "headers", None), "Content-Length").strip()
@@ -192,9 +198,145 @@ def _read_file_transfer_settings_request(
         parsed = json.loads(handler.rfile.read(length).decode("utf-8"))
     except Exception as exc:
         raise ValueError("invalid JSON request body") from exc
-    if not isinstance(parsed, dict) or not isinstance(parsed.get("enabled"), bool):
+    if not isinstance(parsed, dict):
+        raise ValueError("request body must be an object")
+    if set(parsed) != {"plugin_id", "enabled", "package_digest"}:
+        raise ValueError(
+            "request body must contain only plugin_id, enabled, and package_digest"
+        )
+    plugin_id = parsed.get("plugin_id")
+    if not isinstance(plugin_id, str) or not plugin_id.strip():
+        raise ValueError("plugin_id must be a non-empty string")
+    if not isinstance(parsed.get("enabled"), bool):
         raise ValueError("enabled must be a boolean")
-    return parsed
+    return {
+        "plugin_id": plugin_id.strip().lower(),
+        "enabled": parsed["enabled"],
+        "package_digest": _plugin_package_digest(parsed.get("package_digest")),
+    }
+
+
+def _read_plugin_config_request(handler: DashboardHttpHandler) -> dict[str, object]:
+    raw_length = _header_value(getattr(handler, "headers", None), "Content-Length").strip()
+    try:
+        length = int(raw_length)
+    except ValueError as exc:
+        raise ValueError("invalid Content-Length") from exc
+    if length <= 0 or length > 65536:
+        raise ValueError("invalid request size")
+    try:
+        parsed = json.loads(handler.rfile.read(length).decode("utf-8"))
+    except Exception as exc:
+        raise ValueError("invalid JSON request body") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("request body must be an object")
+    if set(parsed) != {"plugin_id", "settings", "package_digest"}:
+        raise ValueError(
+            "request body must contain only plugin_id, settings, and package_digest"
+        )
+    plugin_id = parsed.get("plugin_id")
+    if not isinstance(plugin_id, str) or not plugin_id.strip():
+        raise ValueError("plugin_id must be a non-empty string")
+    settings = parsed.get("settings")
+    if not isinstance(settings, dict):
+        raise ValueError("settings must be an object")
+    return {
+        "plugin_id": plugin_id.strip().lower(),
+        "settings": settings,
+        "package_digest": _plugin_package_digest(parsed.get("package_digest")),
+    }
+
+
+def _read_plugin_route_policy_request(
+    handler: DashboardHttpHandler,
+) -> dict[str, object]:
+    raw_length = _header_value(getattr(handler, "headers", None), "Content-Length").strip()
+    try:
+        length = int(raw_length)
+    except ValueError as exc:
+        raise ValueError("invalid Content-Length") from exc
+    if length <= 0 or length > 2048:
+        raise ValueError("invalid request size")
+    try:
+        parsed = json.loads(handler.rfile.read(length).decode("utf-8"))
+    except Exception as exc:
+        raise ValueError("invalid JSON request body") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("request body must be an object")
+    if set(parsed) != {
+        "plugin_id",
+        "mesh_enabled",
+        "console_enabled",
+        "ticker_enabled",
+        "view_enabled",
+        "package_digest",
+    }:
+        raise ValueError(
+            "request body must contain only plugin_id, mesh_enabled, "
+            "console_enabled, ticker_enabled, view_enabled, and package_digest"
+        )
+    plugin_id = parsed.get("plugin_id")
+    if not isinstance(plugin_id, str) or not plugin_id.strip():
+        raise ValueError("plugin_id must be a non-empty string")
+    if not isinstance(parsed.get("mesh_enabled"), bool):
+        raise ValueError("mesh_enabled must be a boolean")
+    if not isinstance(parsed.get("console_enabled"), bool):
+        raise ValueError("console_enabled must be a boolean")
+    if not isinstance(parsed.get("ticker_enabled"), bool):
+        raise ValueError("ticker_enabled must be a boolean")
+    if not isinstance(parsed.get("view_enabled"), bool):
+        raise ValueError("view_enabled must be a boolean")
+    return {
+        "plugin_id": plugin_id.strip().lower(),
+        "mesh_enabled": parsed["mesh_enabled"],
+        "console_enabled": parsed["console_enabled"],
+        "ticker_enabled": parsed["ticker_enabled"],
+        "view_enabled": parsed["view_enabled"],
+        "package_digest": _plugin_package_digest(parsed.get("package_digest")),
+    }
+
+
+def _read_plugin_runtime_settings_request(
+    handler: DashboardHttpHandler,
+) -> dict[str, object]:
+    parsed = _read_json_object_request(handler, max_bytes=1024)
+    if set(parsed) != {"enabled"}:
+        raise ValueError("request body must contain only enabled")
+    if not isinstance(parsed.get("enabled"), bool):
+        raise ValueError("enabled must be a boolean")
+    return {"enabled": parsed["enabled"]}
+
+
+def _read_plugin_console_request(handler: DashboardHttpHandler) -> dict[str, object]:
+    parsed = _read_json_object_request(handler, max_bytes=8192)
+    allowed = {"command", "text", "session_id", "handler"}
+    if not set(parsed).issubset(allowed):
+        raise ValueError(
+            "request body may contain only command, text, session_id, and handler"
+        )
+    command = parsed.get("command")
+    if not isinstance(command, str) or not command.strip():
+        raise ValueError("command must be a non-empty string")
+    raw_handler = str(parsed.get("handler") or "auto").strip().lower() or "auto"
+    if raw_handler not in {"auto", "command", "session", "message"}:
+        raise ValueError("handler must be auto, command, session, or message")
+    return {
+        "command": command.strip().lower(),
+        "text": parsed.get("text", ""),
+        "session_id": parsed.get("session_id"),
+        "handler": raw_handler,
+    }
+
+
+def _plugin_package_digest(value: object) -> str:
+    digest = str(value or "").strip().lower()
+    if (
+        len(digest) != 71
+        or not digest.startswith("sha256:")
+        or any(character not in "0123456789abcdef" for character in digest[7:])
+    ):
+        raise ValueError("package_digest must be a SHA-256 plugin identity")
+    return digest
 
 
 def _record_write_auth_denied(deps: DashboardPostRouteDependencies) -> None:
@@ -225,11 +367,102 @@ def _write_request_is_authorized(
     return compare_digest(supplied_token, required_token)
 
 
+def _request_has_browser_provenance_metadata(handler: DashboardHttpHandler) -> bool:
+    headers = getattr(handler, "headers", None)
+    return bool(
+        _header_value(headers, "Origin").strip()
+        or _header_value(headers, "Sec-Fetch-Site").strip()
+    )
+
+
+def _request_declares_body(handler: DashboardHttpHandler) -> bool:
+    raw_length = _header_value(getattr(handler, "headers", None), "Content-Length").strip()
+    if not raw_length:
+        return False
+    try:
+        return int(raw_length) > 0
+    except ValueError:
+        return True
+
+
+def _protected_browser_write_rejection(
+    handler: DashboardHttpHandler,
+    *,
+    json_error: str = "Write endpoints require application/json",
+    cross_origin_error: str = "Cross-origin writes are not allowed",
+) -> tuple[int, str] | None:
+    if not _request_has_browser_provenance_metadata(handler):
+        return None
+    if _request_declares_body(handler) and not request_has_json_content_type(handler):
+        return 415, json_error
+    if not plugin_browser_write_is_same_origin(handler):
+        return 403, cross_origin_error
+    return None
+
+
+def _dashboard_write_rejection(
+    handler: DashboardHttpHandler,
+    *,
+    deps: DashboardPostRouteDependencies,
+    json_error: str = "Write endpoints require application/json",
+    cross_origin_error: str = "Cross-origin writes are not allowed",
+) -> tuple[int, str, dict[str, str] | None] | None:
+    browser_write_rejection = _protected_browser_write_rejection(
+        handler,
+        json_error=json_error,
+        cross_origin_error=cross_origin_error,
+    )
+    if browser_write_rejection is not None:
+        status_code, error_message = browser_write_rejection
+        return status_code, error_message, None
+    if _request_has_browser_provenance_metadata(handler):
+        return None
+    if not _write_request_is_authorized(handler, deps=deps):
+        return (
+            401,
+            "API token required for write endpoint",
+            {"WWW-Authenticate": "Bearer"},
+        )
+    return None
+
+
+def _write_dashboard_auth_rejection(
+    handler: DashboardHttpHandler,
+    *,
+    deps: DashboardPostRouteDependencies,
+    rejection: tuple[int, str, dict[str, str] | None],
+) -> None:
+    status_code, error_message, extra_headers = rejection
+    if status_code in {401, 403}:
+        _record_write_auth_denied(deps)
+    deps.write_json_response_fn(
+        handler,
+        status_code=status_code,
+        payload_obj={"ok": False, "error": error_message},
+        no_store=True,
+        extra_headers=extra_headers,
+    )
+
+
 def _map_pack_response_status(payload_obj: Mapping[str, object]) -> int:
     try:
         return int(payload_obj.get("http_status") or 200)
     except (TypeError, ValueError):
         return 200
+
+
+def _plugin_console_response_status(payload_obj: Mapping[str, object]) -> int:
+    if payload_obj.get("ok") is not False:
+        return 200
+    error = payload_obj.get("error")
+    code = str(error.get("code") or "") if isinstance(error, Mapping) else ""
+    if code in {"invalid_command", "invalid_handler", "empty_command", "invalid_request"}:
+        return 400
+    if code == "unknown_command":
+        return 404
+    if code == "plugin_console_disabled":
+        return 403
+    return 503
 
 
 def handle_dashboard_post(
@@ -248,16 +481,53 @@ def handle_dashboard_post(
         )
         return
 
-    if path in _TOKEN_PROTECTED_WRITE_PATHS and not _write_request_is_authorized(handler, deps=deps):
-        _record_write_auth_denied(deps)
-        deps.write_json_response_fn(
+    if path in PLUGIN_ADMIN_WRITE_PATHS:
+        auth_rejection = _dashboard_write_rejection(
             handler,
-            status_code=401,
-            payload_obj={"ok": False, "error": "API token required for write endpoint"},
-            no_store=True,
-            extra_headers={"WWW-Authenticate": "Bearer"},
+            deps=deps,
+            json_error="Plugin administration requires application/json",
+            cross_origin_error="Cross-origin plugin administration is not allowed",
         )
-        return
+        if auth_rejection is not None:
+            _write_dashboard_auth_rejection(
+                handler,
+                deps=deps,
+                rejection=auth_rejection,
+            )
+            return
+        if not request_has_json_content_type(handler):
+            deps.write_json_response_fn(
+                handler,
+                status_code=415,
+                payload_obj={
+                    "ok": False,
+                    "error": "Plugin administration requires application/json",
+                },
+                no_store=True,
+            )
+            return
+        if not plugin_browser_write_is_same_origin(handler):
+            _record_write_auth_denied(deps)
+            deps.write_json_response_fn(
+                handler,
+                status_code=403,
+                payload_obj={
+                    "ok": False,
+                    "error": "Cross-origin plugin administration is not allowed",
+                },
+                no_store=True,
+            )
+            return
+
+    if path in _DASHBOARD_WRITE_PATHS and path not in PLUGIN_ADMIN_WRITE_PATHS:
+        auth_rejection = _dashboard_write_rejection(handler, deps=deps)
+        if auth_rejection is not None:
+            _write_dashboard_auth_rejection(
+                handler,
+                deps=deps,
+                rejection=auth_rejection,
+            )
+            return
 
     if path == "/api/maps/packs/build":
         try:
@@ -400,6 +670,77 @@ def handle_dashboard_post(
         )
         return
 
+    if path == "/api/plugins/console":
+        runner = deps.run_plugin_console_command_fn
+        if not callable(runner):
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_unavailable",
+                        "message": "Plugin console is unavailable",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        try:
+            request = _read_plugin_console_request(handler)
+            response_obj = runner(
+                command=request["command"],
+                text=request.get("text", ""),
+                session_id=request.get("session_id"),
+                handler=request.get("handler", "auto"),
+            )
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={
+                    "ok": False,
+                    "error": {"code": "invalid_request", "message": str(exc)},
+                },
+                no_store=True,
+            )
+            return
+        except Exception:
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_console_failed",
+                        "message": "Plugin console command failed",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        if not isinstance(response_obj, Mapping):
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_console_failed",
+                        "message": "Plugin console command returned an invalid response",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        deps.write_json_response_fn(
+            handler,
+            status_code=_plugin_console_response_status(response_obj),
+            payload_obj=response_obj,
+            no_store=True,
+        )
+        return
+
     if path == "/api/tools/network":
         parse_network_tool_request_fn = deps.parse_network_tool_request_fn
         if parse_network_tool_request_fn is None or not callable(_handle_network_tool_post_helper):
@@ -526,26 +867,34 @@ def handle_dashboard_post(
         )
         return
 
-    if path == "/api/settings/file_transfer":
-        setter = deps.set_file_transfer_auto_accept_enabled_fn
+    if path == "/api/settings/plugins/runtime":
+        setter = deps.set_plugin_runtime_enabled_fn
         if not callable(setter):
+            response_obj = {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": "Plugin runtime management is unavailable",
+                },
+            }
             deps.write_json_response_fn(
                 handler,
                 status_code=503,
-                payload_obj={
-                    "ok": False,
-                    "error": "File transfer settings are not enabled on this dashboard instance",
-                },
+                payload_obj=response_obj,
+                no_store=True,
             )
             return
         try:
-            request = _read_file_transfer_settings_request(handler)
+            request = _read_plugin_runtime_settings_request(handler)
             response_obj = setter(bool(request["enabled"]))
         except ValueError as exc:
             deps.write_json_response_fn(
                 handler,
                 status_code=400,
-                payload_obj={"ok": False, "error": str(exc)},
+                payload_obj={
+                    "ok": False,
+                    "error": {"code": "invalid_request", "message": str(exc)},
+                },
                 no_store=True,
             )
             return
@@ -553,13 +902,284 @@ def handle_dashboard_post(
             deps.write_json_response_fn(
                 handler,
                 status_code=500,
-                payload_obj={"ok": False, "error": f"File transfer settings update failed: {exc}"},
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_update_failed",
+                        "message": f"Plugin runtime update failed: {exc}",
+                    },
+                },
                 no_store=True,
             )
             return
+        if not isinstance(response_obj, Mapping):
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_update_failed",
+                        "message": (
+                            "Plugin runtime update returned an invalid response"
+                        ),
+                    },
+                },
+                no_store=True,
+            )
+            return
+        status_code = 200 if response_obj.get("ok") is not False else 503
         deps.write_json_response_fn(
             handler,
-            status_code=200,
+            status_code=status_code,
+            payload_obj=response_obj,
+            no_store=True,
+        )
+        return
+
+    if path == "/api/settings/plugins":
+        setter = deps.set_plugin_enabled_fn
+        if not callable(setter):
+            response_obj = {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": "Plugin runtime management is unavailable",
+                },
+            }
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj=response_obj,
+                no_store=True,
+            )
+            return
+        try:
+            request = _read_plugin_settings_request(handler)
+            response_obj = setter(
+                request["plugin_id"],
+                bool(request["enabled"]),
+                expected_package_digest=request["package_digest"],
+            )
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={
+                    "ok": False,
+                    "error": {"code": "invalid_request", "message": str(exc)},
+                },
+                no_store=True,
+            )
+            return
+        except Exception as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_settings_update_failed",
+                        "message": f"Plugin settings update failed: {exc}",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        if not isinstance(response_obj, Mapping):
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_settings_update_failed",
+                        "message": "Plugin settings update returned an invalid response",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        error = response_obj.get("error")
+        error_code = str(error.get("code") or "") if isinstance(error, Mapping) else ""
+        status_code = 200
+        if response_obj.get("ok") is False:
+            if error_code == "unknown_plugin":
+                status_code = 404
+            elif error_code == "plugin_identity_changed":
+                status_code = 409
+            else:
+                status_code = 503
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
+            payload_obj=response_obj,
+            no_store=True,
+        )
+        return
+
+    if path == "/api/settings/plugins/routes":
+        setter = deps.set_plugin_route_policy_fn
+        if not callable(setter):
+            response_obj = {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": "Plugin route management is unavailable",
+                },
+            }
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj=response_obj,
+                no_store=True,
+            )
+            return
+        try:
+            request = _read_plugin_route_policy_request(handler)
+            response_obj = setter(
+                request["plugin_id"],
+                mesh_enabled=bool(request["mesh_enabled"]),
+                console_enabled=bool(request["console_enabled"]),
+                ticker_enabled=bool(request["ticker_enabled"]),
+                view_enabled=bool(request["view_enabled"]),
+                expected_package_digest=request["package_digest"],
+            )
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={
+                    "ok": False,
+                    "error": {"code": "invalid_request", "message": str(exc)},
+                },
+                no_store=True,
+            )
+            return
+        except Exception as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_route_policy_update_failed",
+                        "message": f"Plugin route policy update failed: {exc}",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        if not isinstance(response_obj, Mapping):
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_route_policy_update_failed",
+                        "message": (
+                            "Plugin route policy update returned an invalid response"
+                        ),
+                    },
+                },
+                no_store=True,
+            )
+            return
+        error = response_obj.get("error")
+        error_code = str(error.get("code") or "") if isinstance(error, Mapping) else ""
+        status_code = 200
+        if response_obj.get("ok") is False:
+            if error_code == "unknown_plugin":
+                status_code = 404
+            elif error_code == "plugin_identity_changed":
+                status_code = 409
+            else:
+                status_code = 503
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
+            payload_obj=response_obj,
+            no_store=True,
+        )
+        return
+
+    if path == "/api/settings/plugins/config":
+        setter = deps.set_plugin_settings_fn
+        if not callable(setter):
+            response_obj = {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_unavailable",
+                    "message": "Plugin configuration management is unavailable",
+                },
+            }
+            deps.write_json_response_fn(
+                handler,
+                status_code=503,
+                payload_obj=response_obj,
+                no_store=True,
+            )
+            return
+        try:
+            request = _read_plugin_config_request(handler)
+            response_obj = setter(
+                request["plugin_id"],
+                request["settings"],
+                expected_package_digest=request["package_digest"],
+            )
+        except ValueError as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=400,
+                payload_obj={
+                    "ok": False,
+                    "error": {"code": "invalid_request", "message": str(exc)},
+                },
+                no_store=True,
+            )
+            return
+        except Exception as exc:
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_config_update_failed",
+                        "message": f"Plugin configuration update failed: {exc}",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        if not isinstance(response_obj, Mapping):
+            deps.write_json_response_fn(
+                handler,
+                status_code=500,
+                payload_obj={
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_config_update_failed",
+                        "message": "Plugin configuration update returned an invalid response",
+                    },
+                },
+                no_store=True,
+            )
+            return
+        error = response_obj.get("error")
+        error_code = str(error.get("code") or "") if isinstance(error, Mapping) else ""
+        status_code = 200
+        if response_obj.get("ok") is False:
+            if error_code == "unknown_plugin":
+                status_code = 404
+            elif error_code == "plugin_identity_changed":
+                status_code = 409
+            else:
+                status_code = 503
+        deps.write_json_response_fn(
+            handler,
+            status_code=status_code,
             payload_obj=response_obj,
             no_store=True,
         )

@@ -219,6 +219,35 @@
       return payload;
     }}
 
+    async function postPluginConsoleCommand(command, text, sessionId = "", handler = "auto") {{
+      const body = {{
+        command: String(command == null ? "" : command).trim().toLowerCase(),
+        text: String(text == null ? "" : text),
+        handler: String(handler || "auto").trim().toLowerCase() || "auto",
+      }};
+      const cleanSessionId = String(sessionId == null ? "" : sessionId).trim();
+      if (cleanSessionId) {{
+        body.session_id = cleanSessionId;
+      }}
+      const headers = (typeof scriptsAdminRequestHeaders === "function")
+        ? scriptsAdminRequestHeaders({{ json: true }})
+        : {{ "Content-Type": "application/json" }};
+      const resp = await fetch("/api/plugins/console", {{
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      }});
+      const payload = await resp.json().catch(() => ({{}}));
+      if (!resp.ok || !payload.ok) {{
+        const error = payload && payload.error;
+        const msg = error && typeof error === "object"
+          ? String(error.message || error.code || "").trim()
+          : String(error || "").trim();
+        throw new Error(msg || `plugin console failed (${{resp.status}})`);
+      }}
+      return payload;
+    }}
+
     let networkToolCommandQueue = Promise.resolve();
 
     async function postNetworkToolCommand(body) {{

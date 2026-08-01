@@ -130,8 +130,13 @@ def test_console_output_uses_syntax_highlighting() -> None:
     dark_autocomplete_menu_style = css_src.split(
         '[data-theme="dark"] .console-autocomplete-menu {{', 1
     )[1].split("}}", 1)[0]
-    assert "0 1px 2px rgba(0, 0, 0, 0.18)" in autocomplete_menu_style
-    assert "0 1px 2px rgba(0, 0, 0, 0.24)" in dark_autocomplete_menu_style
+    assert "backdrop-filter: blur(14px) saturate(138%);" in autocomplete_menu_style
+    assert (
+        "-webkit-backdrop-filter: blur(14px) saturate(138%);"
+        in autocomplete_menu_style
+    )
+    assert "0 18px 38px rgba(5, 17, 28, 0.24)" in autocomplete_menu_style
+    assert "0 18px 38px rgba(0, 0, 0, 0.6)" in dark_autocomplete_menu_style
     assert "var(--surface-tint-color)" not in autocomplete_menu_style
     assert "var(--surface-tint-color)" not in dark_autocomplete_menu_style
     assert "0 8px 18px" not in dark_autocomplete_menu_style

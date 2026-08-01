@@ -1366,8 +1366,8 @@
         const repairBranch = String(renderInfo.repair_checkout_branch || renderInfo.branch || "").trim();
         const repairUpstream = String(renderInfo.repair_checkout_upstream || renderInfo.current_upstream || "").trim();
         repairBtn.title = repairBranch && repairUpstream
-          ? `Discard local uncommitted changes and restore ${{repairBranch}} from ${{repairUpstream}}`
-          : "Discard local uncommitted changes and restore the current branch from upstream";
+          ? `Discard tracked and untracked local changes and restore ${{repairBranch}} from ${{repairUpstream}}`
+          : "Discard tracked and untracked local changes and restore the current branch from upstream";
       }}
       if (cleanupBtn instanceof HTMLButtonElement) {{
         cleanupBtn.hidden = !settingsUpdateRollbackCleanupInFlight && cleanupRollbackCount <= 0;
@@ -1577,8 +1577,8 @@
       const repairBranch = String(cachedInfo.repair_checkout_branch || cachedInfo.branch || "").trim();
       const repairUpstream = String(cachedInfo.repair_checkout_upstream || cachedInfo.current_upstream || "").trim();
       const confirmMessage = repairBranch && repairUpstream
-        ? `Discard local uncommitted changes in ${{repairBranch}} and restore it from ${{repairUpstream}}?`
-        : "Discard local uncommitted changes and restore the current branch from upstream?";
+        ? `Discard tracked and untracked local changes in ${{repairBranch}} and restore it from ${{repairUpstream}}?`
+        : "Discard tracked and untracked local changes and restore the current branch from upstream?";
       if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(confirmMessage)) {{
         return;
       }}

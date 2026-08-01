@@ -135,9 +135,6 @@ async def run_transfer(
         if canceled:
             print(json.dumps({"canceled_stale_inbound": canceled}), flush=True)
             await asyncio.sleep(6)
-        receiver_toggle = receiver.locator("#files-auto-accept-toggle")
-        if not await receiver_toggle.is_checked():
-            await receiver_toggle.check()
         await sender.locator("#files-destination-input").fill(receiver_id)
         await sender.locator("#files-input").set_input_files(str(fixture))
         await sender.locator("#files-send-btn").click()
@@ -150,6 +147,11 @@ async def run_transfer(
         sender_delivered = False
         while (time.monotonic() - started) < timeout_seconds:
             await asyncio.sleep(2)
+            accept_buttons = receiver.locator(
+                'button.files-transfer-action[data-action="accept"]'
+            )
+            if await accept_buttons.count() > 0:
+                await accept_buttons.first.click()
             sender_snapshot, receiver_snapshot = await asyncio.gather(
                 _snapshot(sender),
                 _snapshot(receiver),

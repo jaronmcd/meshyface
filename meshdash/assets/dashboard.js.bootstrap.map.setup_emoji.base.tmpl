@@ -550,6 +550,7 @@
     ];
     const tickerCatalogById = new Map(tickerCatalog.map((entry) => [entry.id, entry]));
     const tickerMetricIds = new Set(tickerCatalog.filter((entry) => entry.metric).map((entry) => entry.id));
+    const pluginTickerAvailableIds = new Set();
     const tickerDefaultOrder = [
       "self",
       "radio",

@@ -207,12 +207,6 @@ def build_dashboard_runtime_context(
         except Exception:
             pass
 
-    receive_buffer.activate(tracker.on_receive)
-    try:
-        setattr(tracker, "_startup_receive_buffer", receive_buffer)
-    except Exception:
-        pass
-
     on_connection_established = getattr(tracker, "on_connection_established", None)
     if callable(on_connection_established):
         subscribe_fn(on_connection_established, "meshtastic.connection.established")
@@ -528,19 +522,19 @@ def build_dashboard_runtime_context(
             except Exception:
                 pass
 
+    file_transfer_inbound_service = None
     if bool(getattr(args, "file_transfer_enable", False)):
         try:
-            from .services_file_transfer_auto_accept import (
-                build_file_transfer_auto_accept_service as _build_file_transfer_auto_accept_service,
+            from .services_file_transfer_inbound import (
+                build_inbound_file_transfer_service as _build_inbound_file_transfer_service,
             )
         except Exception:
-            _build_file_transfer_auto_accept_service = None
+            _build_inbound_file_transfer_service = None
 
-        if _build_file_transfer_auto_accept_service is not None:
-            file_transfer_auto_accept_service = _build_file_transfer_auto_accept_service(
+        if _build_inbound_file_transfer_service is not None:
+            file_transfer_inbound_service = _build_inbound_file_transfer_service(
                 local_node_id_fn=lambda: get_local_node_id_fn(iface),
                 send_chat_fn=loaders.send_chat_fn,
-                enabled=bool(getattr(args, "file_transfer_auto_accept", False)),
                 max_ack_frame_bytes=1024,
                 max_file_bytes=getattr(
                     args,
@@ -548,12 +542,12 @@ def build_dashboard_runtime_context(
                     DEFAULT_FILE_TRANSFER_MAX_BYTES,
                 ),
             )
-            subscribe_fn(file_transfer_auto_accept_service.on_receive, "meshtastic.receive")
+            subscribe_fn(file_transfer_inbound_service.on_receive, "meshtastic.receive")
             try:
                 setattr(
                     tracker,
-                    "_file_transfer_auto_accept_service",
-                    file_transfer_auto_accept_service,
+                    "_file_transfer_inbound_service",
+                    file_transfer_inbound_service,
                 )
             except Exception:
                 pass
@@ -561,38 +555,10 @@ def build_dashboard_runtime_context(
                 setattr(
                     tracker,
                     "get_file_transfer_runtime",
-                    file_transfer_auto_accept_service.get_runtime,
+                    file_transfer_inbound_service.get_runtime,
                 )
             except Exception:
                 pass
-            try:
-                setattr(
-                    loaders.state_fn,
-                    "get_file_transfer_auto_accept_runtime_fn",
-                    file_transfer_auto_accept_service.get_runtime,
-                )
-                setattr(
-                    loaders.state_fn,
-                    "set_file_transfer_auto_accept_enabled_fn",
-                    file_transfer_auto_accept_service.set_enabled,
-                )
-            except Exception:
-                pass
-            state_lite_fn = getattr(loaders.state_fn, "lite", None)
-            if callable(state_lite_fn):
-                try:
-                    setattr(
-                        state_lite_fn,
-                        "get_file_transfer_auto_accept_runtime_fn",
-                        file_transfer_auto_accept_service.get_runtime,
-                    )
-                    setattr(
-                        state_lite_fn,
-                        "set_file_transfer_auto_accept_enabled_fn",
-                        file_transfer_auto_accept_service.set_enabled,
-                    )
-                except Exception:
-                    pass
 
     search_history_packets_fn = getattr(history_store, "search_packets", None)
     if callable(search_history_packets_fn):
@@ -694,6 +660,240 @@ def build_dashboard_runtime_context(
                 setattr(state_lite_fn, "malformed_text_history_fn", _malformed_text_history)
             except Exception:
                 pass
+
+    if bool(getattr(args, "plugins_enable", False)):
+        try:
+            from .plugin_composition import build_plugin_subsystem
+
+            plugin_subsystem = build_plugin_subsystem(
+                args=args,
+                iface=iface,
+                tracker=tracker,
+                send_chat_fn=loaders.send_chat_fn,
+                local_node_id_fn=lambda: get_local_node_id_fn(iface),
+                accept_file_offer_fn=(
+                    file_transfer_inbound_service.accept_offer
+                    if file_transfer_inbound_service is not None
+                    else None
+                ),
+            )
+            setattr(tracker, "_plugin_subsystem", plugin_subsystem)
+            setattr(tracker, "get_plugin_runtime", plugin_subsystem.status)
+            setattr(
+                loaders.state_fn,
+                "set_plugin_enabled_fn",
+                plugin_subsystem.set_plugin_enabled,
+            )
+            setattr(
+                loaders.state_fn,
+                "set_plugin_settings_fn",
+                plugin_subsystem.set_plugin_settings,
+            )
+            setattr(
+                loaders.state_fn,
+                "set_plugin_route_policy_fn",
+                plugin_subsystem.set_plugin_route_policy,
+            )
+            setattr(
+                loaders.state_fn,
+                "set_plugin_runtime_enabled_fn",
+                plugin_subsystem.set_runtime_enabled,
+            )
+            setattr(
+                loaders.state_fn,
+                "run_plugin_console_command_fn",
+                plugin_subsystem.run_console_command,
+            )
+            # The ordinary state loader may redact values such as "password".
+            # Authenticated plugin administration must use the subsystem's
+            # direct status instead so a redaction sentinel is never posted
+            # back over a real saved value.
+            setattr(
+                loaders.state_fn,
+                "plugin_admin_status_fn",
+                plugin_subsystem.status,
+            )
+            state_lite_fn = getattr(loaders.state_fn, "lite", None)
+            if callable(state_lite_fn):
+                setattr(
+                    state_lite_fn,
+                    "set_plugin_enabled_fn",
+                    plugin_subsystem.set_plugin_enabled,
+                )
+                setattr(
+                    state_lite_fn,
+                    "set_plugin_settings_fn",
+                    plugin_subsystem.set_plugin_settings,
+                )
+                setattr(
+                    state_lite_fn,
+                    "set_plugin_route_policy_fn",
+                    plugin_subsystem.set_plugin_route_policy,
+                )
+                setattr(
+                    state_lite_fn,
+                    "set_plugin_runtime_enabled_fn",
+                    plugin_subsystem.set_runtime_enabled,
+                )
+                setattr(
+                    state_lite_fn,
+                    "run_plugin_console_command_fn",
+                    plugin_subsystem.run_console_command,
+                )
+                setattr(
+                    state_lite_fn,
+                    "plugin_admin_status_fn",
+                    plugin_subsystem.status,
+                )
+        except Exception as exc:
+            plugin_error = f"{type(exc).__name__}: {exc}"
+
+            def plugin_error_status() -> dict[str, object]:
+                return {"enabled": True, "error": plugin_error}
+
+            setattr(
+                tracker,
+                "get_plugin_runtime",
+                plugin_error_status,
+            )
+            setattr(loaders.state_fn, "plugin_admin_status_fn", plugin_error_status)
+            setattr(
+                loaders.state_fn,
+                "run_plugin_console_command_fn",
+                lambda **_kwargs: {
+                    "ok": False,
+                    "error": {
+                        "code": "plugin_runtime_unavailable",
+                        "message": plugin_error,
+                    },
+                },
+            )
+            state_lite_fn = getattr(loaders.state_fn, "lite", None)
+            if callable(state_lite_fn):
+                setattr(
+                    state_lite_fn,
+                    "run_plugin_console_command_fn",
+                    getattr(loaders.state_fn, "run_plugin_console_command_fn"),
+                )
+    else:
+        # Static status only: no discovery, state store, worker, or thread exists.
+        def plugin_disabled_status() -> dict[str, object]:
+            return {"enabled": False}
+
+        setattr(tracker, "get_plugin_runtime", plugin_disabled_status)
+        setattr(loaders.state_fn, "plugin_admin_status_fn", plugin_disabled_status)
+
+        def _plugin_runtime_disabled(
+            plugin_id: object,
+            enabled: bool,
+            *,
+            expected_package_digest: object | None = None,
+        ) -> dict[str, object]:
+            del plugin_id, enabled, expected_package_digest
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
+        def _plugin_settings_disabled(
+            plugin_id: object,
+            settings: object,
+            *,
+            expected_package_digest: object | None = None,
+        ) -> dict[str, object]:
+            del plugin_id, settings, expected_package_digest
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
+        def _plugin_route_policy_disabled(
+            plugin_id: object,
+            *,
+            mesh_enabled: bool,
+            console_enabled: bool,
+            ticker_enabled: bool,
+            view_enabled: bool,
+            expected_package_digest: object | None = None,
+        ) -> dict[str, object]:
+            del (
+                plugin_id,
+                mesh_enabled,
+                console_enabled,
+                ticker_enabled,
+                view_enabled,
+                expected_package_digest,
+            )
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
+        def _plugin_console_disabled(**_kwargs) -> dict[str, object]:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
+        def _plugin_runtime_master_disabled(enabled: bool) -> dict[str, object]:
+            del enabled
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
+        setattr(loaders.state_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
+        setattr(loaders.state_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
+        setattr(
+            loaders.state_fn,
+            "set_plugin_route_policy_fn",
+            _plugin_route_policy_disabled,
+        )
+        setattr(
+            loaders.state_fn,
+            "set_plugin_runtime_enabled_fn",
+            _plugin_runtime_master_disabled,
+        )
+        setattr(loaders.state_fn, "run_plugin_console_command_fn", _plugin_console_disabled)
+        state_lite_fn = getattr(loaders.state_fn, "lite", None)
+        if callable(state_lite_fn):
+            setattr(state_lite_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
+            setattr(state_lite_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
+            setattr(
+                state_lite_fn,
+                "set_plugin_route_policy_fn",
+                _plugin_route_policy_disabled,
+            )
+            setattr(
+                state_lite_fn,
+                "set_plugin_runtime_enabled_fn",
+                _plugin_runtime_master_disabled,
+            )
+            setattr(state_lite_fn, "run_plugin_console_command_fn", _plugin_console_disabled)
+            setattr(state_lite_fn, "plugin_admin_status_fn", plugin_disabled_status)
+
+    # Activate only after optional post-accept consumers are attached so text
+    # packets buffered while the radio identity was resolving are not lost.
+    receive_buffer.activate(tracker.on_receive)
+    try:
+        setattr(tracker, "_startup_receive_buffer", receive_buffer)
+    except Exception:
+        pass
 
     return DashboardRuntimeContext(
         target=target,

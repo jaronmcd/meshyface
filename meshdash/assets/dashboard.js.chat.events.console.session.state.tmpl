@@ -11,7 +11,65 @@
           sessionId,
         }};
       }}
+      if (mode === "plugin") {{
+        const sessionId = String(payload.sessionId ?? payload.session_id ?? "").trim();
+        const command = String(payload.command || payload.name || "").trim().toLowerCase();
+        if (!sessionId || !/^[a-z][a-z0-9_-]{{0,31}}$/.test(command)) return null;
+        const pluginId = String(payload.pluginId || payload.plugin_id || "").trim().toLowerCase();
+        const pluginName = String(payload.pluginName || payload.plugin_name || command).trim() || command;
+        return {{
+          name: command,
+          mode: "plugin",
+          command,
+          pluginId,
+          pluginName,
+          sessionId,
+        }};
+      }}
       return null;
+    }}
+
+    function pluginConsoleCommandSessionKey(command, pluginId = "") {{
+      const cleanCommand = String(command || "").trim().toLowerCase();
+      if (!/^[a-z][a-z0-9_-]{{0,31}}$/.test(cleanCommand)) return "";
+      const cleanPluginId = String(pluginId || "").trim().toLowerCase();
+      return cleanPluginId ? `${{cleanPluginId}}:${{cleanCommand}}` : cleanCommand;
+    }}
+
+    function getPluginConsoleCommandSessionId(command, pluginId = "") {{
+      const key = pluginConsoleCommandSessionKey(command, pluginId);
+      return key ? String(pluginConsoleCommandSessionIds.get(key) || "").trim() : "";
+    }}
+
+    function setPluginConsoleCommandSessionId(command, pluginId, sessionId) {{
+      const key = pluginConsoleCommandSessionKey(command, pluginId);
+      const cleanSessionId = String(sessionId || "").trim().slice(0, 128);
+      if (!key || !cleanSessionId) return;
+      pluginConsoleCommandSessionIds.set(key, cleanSessionId);
+    }}
+
+    function deletePluginConsoleCommandSessionId(command, pluginId = "") {{
+      const key = pluginConsoleCommandSessionKey(command, pluginId);
+      if (key) pluginConsoleCommandSessionIds.delete(key);
+    }}
+
+    function normalizePluginConsoleCommandSessions(raw) {{
+      const rows = Array.isArray(raw) ? raw : [];
+      const out = [];
+      for (const row of rows) {{
+        const payload = (row && typeof row === "object") ? row : {{}};
+        let key = String(payload.key || "").trim().toLowerCase();
+        const sessionId = String(payload.sessionId ?? payload.session_id ?? "").trim().slice(0, 128);
+        if (!key) {{
+          key = pluginConsoleCommandSessionKey(
+            payload.command || payload.name || "",
+            payload.pluginId || payload.plugin_id || ""
+          );
+        }}
+        if (!key || key.length > 180 || !sessionId) continue;
+        out.push([key, sessionId]);
+      }}
+      return out.slice(-200);
     }}
 
     function buildPersistableConsoleSessionPayload() {{
@@ -28,12 +86,32 @@
               sessionId,
             }};
           }}
+        }} else if (mode === "plugin") {{
+          const sessionId = String(consoleInteractiveSession.sessionId || "").trim();
+          const command = String(consoleInteractiveSession.command || consoleInteractiveSession.name || "").trim().toLowerCase();
+          if (sessionId && /^[a-z][a-z0-9_-]{{0,31}}$/.test(command)) {{
+            interactiveSession = {{
+              name: command,
+              mode: "plugin",
+              command,
+              pluginId: String(consoleInteractiveSession.pluginId || "").trim().toLowerCase(),
+              pluginName: String(consoleInteractiveSession.pluginName || command).trim() || command,
+              sessionId,
+            }};
+          }}
         }}
       }}
       return {{
         lines: consoleLines.slice(-consoleMaxLines),
         commandHistory: consoleCommandHistory.slice(-consoleCommandHistoryMax),
         interactiveSession,
+        pluginCommandSessions: Array.from(pluginConsoleCommandSessionIds.entries())
+          .map(([key, sessionId]) => ({{
+            key: String(key || "").trim().toLowerCase(),
+            sessionId: String(sessionId || "").trim().slice(0, 128),
+          }}))
+          .filter((row) => !!row.key && !!row.sessionId)
+          .slice(-200),
         eventCounter: Math.max(0, Math.trunc(Number(consoleEventCounter) || 0)),
       }};
     }}
@@ -108,6 +186,10 @@
         consoleAutoscroll = true;
         consoleFilterText = "";
         consoleInteractiveSession = normalizeConsoleInteractiveSession(payload.interactiveSession);
+        pluginConsoleCommandSessionIds.clear();
+        for (const [key, sessionId] of normalizePluginConsoleCommandSessions(payload.pluginCommandSessions)) {{
+          pluginConsoleCommandSessionIds.set(key, sessionId);
+        }}
         consoleEventCounter = Math.max(0, Math.trunc(Number(payload.eventCounter) || 0));
       }} catch (_err) {{
       }}
@@ -416,7 +498,10 @@
     function isZorkConsoleInteractiveSession(session = consoleInteractiveSession) {{
       if (!session || typeof session !== "object") return false;
       const mode = String(session.mode || "").trim().toLowerCase();
-      return mode === "standalone";
+      if (mode === "standalone") return true;
+      if (mode !== "plugin") return false;
+      const name = String(session.command || session.name || "").trim().toLowerCase();
+      return name === "zork";
     }}
 
     function normalizeConsolePromptHostLabel(value) {{

@@ -1217,6 +1217,16 @@ def repair_dirty_update_checkout(
                 http_status=409,
                 error=error or "git reset --hard failed",
             )
+        clean_result = runner(["clean", "-fd"], repo_root, reset_timeout)
+        if clean_result.returncode != 0:
+            error = _short_text(_git_text(clean_result))
+            return _failure_payload(
+                after_fetch,
+                state="repair_failed",
+                message="Could not remove untracked files from the checkout.",
+                http_status=409,
+                error=error or "git clean -fd failed",
+            )
 
         final_status = build_update_status_payload(
             repo_dir=repo_root,

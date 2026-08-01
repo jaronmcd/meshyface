@@ -127,6 +127,7 @@ def test_write_html_and_text_responses_set_content_types_and_bodies() -> None:
     assert html_headers["Pragma"] == "no-cache"
     assert html_headers["Expires"] == "0"
     assert html_headers["X-Frame-Options"] == "DENY"
+    assert html_headers["Content-Security-Policy"] == "frame-ancestors 'self'"
     assert html_handler.wfile.getvalue() == b"<html>ok</html>"
 
     assert text_handler.status_code == 404

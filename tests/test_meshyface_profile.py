@@ -1233,7 +1233,10 @@ def test_handle_dashboard_post_dispatches_profile_theme() -> None:
         body,
         headers={
             "Content-Length": str(len(body)),
-            "Authorization": "Bearer secret",
+            "Content-Type": "application/json",
+            "Host": "127.0.0.1:8877",
+            "Origin": "http://127.0.0.1:8877",
+            "Sec-Fetch-Site": "same-origin",
         },
     )
     responses: list[tuple[int, object]] = []
@@ -1435,7 +1438,7 @@ def test_profile_post_is_blocked_in_private_mode() -> None:
     assert responses == [(403, {"ok": False, "error": "This endpoint is disabled in private mode"})]
 
 
-def test_profile_post_requires_configured_api_token() -> None:
+def test_profile_post_requires_configured_api_token_for_external_client() -> None:
     handler = _FakeHandler()
     responses: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)

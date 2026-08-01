@@ -86,11 +86,21 @@ def build_dashboard_parser(
     env_private_mode: Optional[str] = None,
     env_api_token: Optional[str] = None,
     default_file_transfer_enable: bool = False,
-    default_file_transfer_auto_accept: bool = False,
+    default_plugins_enable: bool = True,
+    default_plugins_directory: str = "mesh_dashboard_plugins",
+    default_plugins_state_db: str = "mesh_dashboard_plugin_state.sqlite3",
+    default_plugins_files_directory: str = "mesh_dashboard_plugin_files",
+    default_plugins_handler_timeout: float = 5.0,
+    default_plugins_event_queue_size: int = 128,
     default_games_enable: bool = False,
     default_file_transfer_max_bytes: int = 64 * 1024,
     env_file_transfer_enable: Optional[str] = None,
-    env_file_transfer_auto_accept: Optional[str] = None,
+    env_plugins_enable: Optional[str] = None,
+    env_plugins_directory: Optional[str] = None,
+    env_plugins_state_db: Optional[str] = None,
+    env_plugins_files_directory: Optional[str] = None,
+    env_plugin_enable: Optional[str] = None,
+    env_plugin_disable: Optional[str] = None,
     env_games_enable: Optional[str] = None,
     env_file_transfer_max_bytes: Optional[str] = None,
     env_accept_file_transfer_traffic_disclaimer: Optional[str] = None,
@@ -107,10 +117,25 @@ def build_dashboard_parser(
         env_file_transfer_enable,
         default_file_transfer_enable,
     )
-    resolved_file_transfer_auto_accept = parse_env_bool(
-        env_file_transfer_auto_accept,
-        default_file_transfer_auto_accept,
+    resolved_plugins_enable = parse_env_bool(
+        env_plugins_enable,
+        default_plugins_enable,
     )
+    resolved_plugins_directory = str(env_plugins_directory or default_plugins_directory)
+    resolved_plugins_state_db = str(env_plugins_state_db or default_plugins_state_db)
+    resolved_plugins_files_directory = str(
+        env_plugins_files_directory or default_plugins_files_directory
+    )
+    resolved_plugin_enable = [
+        value.strip().lower()
+        for value in str(env_plugin_enable or "").replace(";", ",").split(",")
+        if value.strip()
+    ]
+    resolved_plugin_disable = [
+        value.strip().lower()
+        for value in str(env_plugin_disable or "").replace(";", ",").split(",")
+        if value.strip()
+    ]
     resolved_games_enable = parse_env_bool(
         env_games_enable,
         default_games_enable,
@@ -143,7 +168,14 @@ def build_dashboard_parser(
         default_private_mode=resolved_private_mode,
         default_api_token=resolved_api_token,
         default_file_transfer_enable=resolved_file_transfer_enable,
-        default_file_transfer_auto_accept=resolved_file_transfer_auto_accept,
+        default_plugins_enable=resolved_plugins_enable,
+        default_plugins_directory=resolved_plugins_directory,
+        default_plugins_state_db=resolved_plugins_state_db,
+        default_plugins_files_directory=resolved_plugins_files_directory,
+        default_plugins_handler_timeout=default_plugins_handler_timeout,
+        default_plugins_event_queue_size=default_plugins_event_queue_size,
+        default_plugin_enable=resolved_plugin_enable,
+        default_plugin_disable=resolved_plugin_disable,
         default_games_enable=resolved_games_enable,
         default_file_transfer_max_bytes=resolved_file_transfer_max_bytes,
         default_accept_file_transfer_traffic_disclaimer=resolved_accept_file_transfer_traffic_disclaimer,

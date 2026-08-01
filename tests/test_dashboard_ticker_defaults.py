@@ -30,7 +30,7 @@ def test_dashboard_js_uses_curated_default_ticker_layout() -> None:
     assert "prefs.enabled[id] = !!defaults.enabled[id];" in js
 
 
-def test_dashboard_omits_removed_bot_ticker_and_keeps_standalone_zork() -> None:
+def test_dashboard_omits_static_script_ticker_and_uses_plugin_console_commands() -> None:
     html = render_html(
         refresh_ms=1000,
         packet_limit=200,
@@ -50,6 +50,8 @@ def test_dashboard_omits_removed_bot_ticker_and_keeps_standalone_zork() -> None:
     )
 
     for token in (
+        'id="summary-ticker-scripts"',
+        'data-ticker-id="scripts"',
         'id="summary-ticker-bots"',
         'data-ticker-id="bots"',
         'data-app-view="bots"',
@@ -57,6 +59,8 @@ def test_dashboard_omits_removed_bot_ticker_and_keeps_standalone_zork() -> None:
     ):
         assert token not in html
     for token in (
+        '{ id: "scripts", defaultLabel: "Scripts", metric: false }',
+        'if (id === "scripts") return "scripts";',
         '{ id: "bots", defaultLabel: "Bots", metric: false }',
         "botTickerAvailableForState",
         "buildBotTickerSummary",
@@ -65,8 +69,51 @@ def test_dashboard_omits_removed_bot_ticker_and_keeps_standalone_zork() -> None:
         "/api/bots/",
     ):
         assert token not in js
-    assert 'fetch("/api/games/zork"' in js
-    assert 'name: "zork"' in js
+    assert 'fetch("/api/plugins/console"' in js
+    assert 'name: "zork"' not in js
+
+
+def test_dashboard_builds_opt_in_script_tickers_from_runtime_state() -> None:
+    html = render_html(
+        refresh_ms=1000,
+        packet_limit=200,
+        show_secrets=False,
+        history_enabled=True,
+        history_max_rows=200,
+        history_retention_days=7,
+        node_history_hours=24,
+        node_history_max_points=240,
+        revision_label="test",
+        revision_title="test",
+    )
+    js = build_dashboard_js(
+        refresh_ms=1000,
+        node_history_hours=24,
+        node_history_max_points=240,
+    )
+
+    assert '<div class="summary-ticker-item summary-ticker-item-plugin"' not in html
+    for token in (
+        "function pluginTickerPayloadFromState(state = latestState)",
+        "function ensurePluginTickerCatalogEntry(rawTicker)",
+        "function ensurePluginTickerElement(entry)",
+        "function renderPluginTicker(rawTicker, entry, item)",
+        "function syncPluginTickers(state = latestState)",
+        "pluginTickerAvailableIds.clear();",
+        "syncPluginTickers(state);",
+        'item.dataset.pluginTicker = "1";',
+    ):
+        assert token in js
+    assert "has-plugin-activity" not in js
+
+
+def test_plugin_tickers_use_standard_metric_state_styling() -> None:
+    css = build_dashboard_css(theme_css="")
+
+    assert "summary-ticker-item-plugin" not in css
+    assert "has-plugin-activity" not in css
+    assert "#75d7ff" not in css
+    assert "#f2d072" not in css
 
 
 

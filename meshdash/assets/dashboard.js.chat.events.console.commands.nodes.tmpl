@@ -1,0 +1,65 @@
+    function registerConsoleNodeCommands() {{
+      registerConsoleCommand({{
+        name: "nodes",
+        usage: "nodes [-v|-vv|-vvv|-vvvv] [pattern] [name=<wildcard>] [id=<wildcard>] [status=<wildcard>] [port=<wildcard>] [gps=<yes|no>] [hops=<n>] [hops>n] [hops<n] [limit=<n>]",
+        description: "List nodes from current state with wildcard filters.",
+        supportsVerbosity: true,
+        run: (ctx) => runConsoleNodeListCommand(ctx, "nodes"),
+      }});
+      registerConsoleCommand({{
+        name: "--nodes",
+        usage: "--nodes [-v|-vv|-vvv|-vvvv] [pattern] [name=<wildcard>] [id=<wildcard>] [status=<wildcard>] [port=<wildcard>] [gps=<yes|no>] [hops=<n>] [hops>n] [hops<n] [limit=<n>]",
+        description: "Meshtastic-style alias for nodes.",
+        supportsVerbosity: true,
+        run: (ctx) => runConsoleNodeListCommand(ctx, "nodes"),
+      }});
+      const runNodeLookupCommand = (ctx) => {{
+        const args = Array.isArray(ctx && ctx.args) ? ctx.args : [];
+        const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
+        const target = args.join(" ").trim();
+        if (!target) {{
+          return "[node] missing target. Example: node !abcd1234";
+        }}
+        const lookup = resolveConsoleNodeLookupMatches(target, ctx && ctx.state);
+        const matches = Array.isArray(lookup && lookup.matches) ? lookup.matches : [];
+        const quotedTarget = /[\s"]/.test(target) ? JSON.stringify(target) : target;
+        if (matches.length < 1) {{
+          return [
+            `[node] no matches for "${{target}}".`,
+            `[node] try: nodes ${{quotedTarget}}`,
+          ];
+        }}
+        if (matches.length > 1) {{
+          const show = matches.slice(0, 10);
+          const lines = [
+            `[node] ${{matches.length}} matches for "${{target}}"; showing ${{show.length}}.`,
+          ];
+          for (const row of show) {{
+            lines.push(`  ${{formatConsoleNodeLookupListLine(row)}}`);
+          }}
+          if (matches.length > show.length) {{
+            lines.push(`  ... ${{matches.length - show.length}} more match(es).`);
+          }}
+          lines.push(`[node] retry with a more specific id or name, or use: nodes ${{quotedTarget}}`);
+          return lines;
+        }}
+        return [
+          "[node] 1 match.",
+          ...formatConsoleNodeLookupDetails(matches[0], verbosity),
+        ];
+      }};
+      registerConsoleCommand({{
+        name: "node",
+        usage: "node <id|name>",
+        description: "Show detail for a single node from current state.",
+        supportsVerbosity: true,
+        run: runNodeLookupCommand,
+      }});
+      registerConsoleCommand({{
+        name: "lookup",
+        usage: "lookup <id|name>",
+        description: "Alias for node.",
+        supportsVerbosity: true,
+        run: runNodeLookupCommand,
+      }});
+    }}

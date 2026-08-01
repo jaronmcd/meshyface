@@ -111,8 +111,8 @@ def test_runtime_serves_offline_page_before_first_radio_open(tmp_path) -> None:
         seed_tracker_fn=lambda _tracker, _iface: None,
         revision_info_fn=_RevisionInfo,
         build_state_fn=lambda **_kwargs: {},
-        build_node_history_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
-        build_summary_metrics_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
+        build_node_history_loader_fn=lambda **_kwargs: lambda *_args: {},
+        build_summary_metrics_loader_fn=lambda **_kwargs: lambda *_args: {},
         send_chat_message_fn=lambda **_kwargs: {},
         send_reaction_packet_fn=lambda **_kwargs: None,
         get_local_node_id_fn=lambda _iface: "local",
@@ -150,6 +150,9 @@ def test_startup_radio_watcher_reuses_detected_interface_for_live_session(tmp_pa
 
         def stop_receiving(self) -> None:
             events.append("stop_receiving")
+
+        def record_local_chat(self, *_args, **_kwargs) -> None:
+            return
 
     class _Server:
         count = 0
@@ -194,8 +197,8 @@ def test_startup_radio_watcher_reuses_detected_interface_for_live_session(tmp_pa
         seed_tracker_fn=lambda _tracker, _iface: None,
         revision_info_fn=_RevisionInfo,
         build_state_fn=lambda **_kwargs: {},
-        build_node_history_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
-        build_summary_metrics_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
+        build_node_history_loader_fn=lambda **_kwargs: lambda *_args: {},
+        build_summary_metrics_loader_fn=lambda **_kwargs: lambda *_args: {},
         send_chat_message_fn=lambda **_kwargs: {},
         send_reaction_packet_fn=lambda **_kwargs: None,
         get_local_node_id_fn=lambda _iface: "local",
@@ -252,6 +255,9 @@ def test_startup_radio_watcher_buffers_preopened_backlog_until_live_context(
         def stop_receiving(self) -> None:
             events.append("stop_receiving")
 
+        def record_local_chat(self, *_args, **_kwargs) -> None:
+            return
+
     class _Server:
         count = 0
 
@@ -301,8 +307,8 @@ def test_startup_radio_watcher_buffers_preopened_backlog_until_live_context(
         seed_tracker_fn=lambda _tracker, _iface: None,
         revision_info_fn=_RevisionInfo,
         build_state_fn=lambda **_kwargs: {},
-        build_node_history_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
-        build_summary_metrics_loader_fn=lambda _store, **_kwargs: lambda *_args: {},
+        build_node_history_loader_fn=lambda **_kwargs: lambda *_args: {},
+        build_summary_metrics_loader_fn=lambda **_kwargs: lambda *_args: {},
         send_chat_message_fn=lambda **_kwargs: {},
         send_reaction_packet_fn=lambda **_kwargs: None,
         get_local_node_id_fn=lambda _iface: "!12345678",
@@ -335,6 +341,75 @@ def test_offline_runtime_keeps_standalone_zork_disabled_by_default(tmp_path) -> 
 
     play_fn = getattr(context.state_fn, "play_standalone_zork_fn", None)
     assert play_fn is None
+
+
+def test_offline_runtime_reports_and_rejects_disabled_plugin_management(tmp_path) -> None:
+    args = _dashboard_args(tmp_path)
+    args.plugins_enable = False
+    context = _build_offline_runtime_context(
+        args,
+        startup_error=RuntimeError("radio absent"),
+        connecting=True,
+        mesh_target_label_fn=lambda _args: "/dev/mesh_py_missing_radio (serial)",
+        revision_info_fn=_RevisionInfo,
+        utc_now_fn=lambda: "2026-04-23T00:00:00Z",
+    )
+
+    state = context.state_fn()
+    assert state["summary"]["plugins"] == {"enabled": False, "available": False}
+    setter = getattr(context.state_fn, "set_plugin_enabled_fn", None)
+    assert callable(setter)
+    assert setter(
+        "echo",
+        True,
+        expected_package_digest=f"sha256:{'0' * 64}",
+    ) == {
+        "ok": False,
+        "error": {
+            "code": "plugin_runtime_disabled",
+            "message": "Python plugin runtime is disabled at startup",
+        },
+    }
+    assert getattr(context.state_fn.lite, "set_plugin_enabled_fn", None) is setter
+    route_setter = getattr(context.state_fn, "set_plugin_route_policy_fn", None)
+    assert callable(route_setter)
+    assert route_setter(
+        "echo",
+        mesh_enabled=False,
+        console_enabled=True,
+        ticker_enabled=True,
+        view_enabled=True,
+        expected_package_digest=f"sha256:{'0' * 64}",
+    ) == {
+        "ok": False,
+        "error": {
+            "code": "plugin_runtime_disabled",
+            "message": "Python plugin runtime is disabled at startup",
+        },
+    }
+    assert (
+        getattr(context.state_fn.lite, "set_plugin_route_policy_fn", None)
+        is route_setter
+    )
+
+
+def test_offline_runtime_does_not_report_enabled_master_as_disabled(tmp_path) -> None:
+    args = _dashboard_args(tmp_path)
+    args.plugins_enable = True
+    context = _build_offline_runtime_context(
+        args,
+        startup_error=RuntimeError("radio absent"),
+        connecting=True,
+        mesh_target_label_fn=lambda _args: "/dev/mesh_py_missing_radio (serial)",
+        revision_info_fn=_RevisionInfo,
+        utc_now_fn=lambda: "2026-04-23T00:00:00Z",
+    )
+
+    assert context.state_fn()["summary"]["plugins"] == {
+        "enabled": True,
+        "available": False,
+    }
+    assert getattr(context.state_fn, "set_plugin_enabled_fn", None) is None
 
 
 def test_offline_runtime_enables_standalone_zork_when_requested(tmp_path) -> None:

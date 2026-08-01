@@ -240,35 +240,6 @@
       return accepted;
     }}
 
-    function admitFileTransferAutoAcceptMetadata(senderIdRaw, nowMsRaw = Date.now()) {{
-      const senderId = normalizeNodeId(senderIdRaw || "");
-      if (!isCanonicalNodeId(senderId)) return false;
-      const nowMs = Math.max(0, Math.trunc(Number(nowMsRaw) || Date.now()));
-      const staleBeforeMs = nowMs - fileTransferMetaAdmissionPeerTtlMs;
-      for (const [peerId, seenAtMsRaw] of fileTransferMetaAdmissionByPeer.entries()) {{
-        const seenAtMs = Math.max(0, Math.trunc(Number(seenAtMsRaw) || 0));
-        if (seenAtMs <= 0 || seenAtMs < staleBeforeMs) {{
-          fileTransferMetaAdmissionByPeer.delete(peerId);
-        }}
-      }}
-      const previousPeerAtMs = Number(fileTransferMetaAdmissionByPeer.get(senderId));
-      const peerReady = !Number.isFinite(previousPeerAtMs)
-        || (nowMs - previousPeerAtMs) >= fileTransferMetaAdmissionPeerCooldownMs;
-      const previousGlobalAtMs = Number(fileTransferLastMetaAdmissionAtMs);
-      const globalReady = fileTransferLastMetaAdmissionAtMs == null
-        || !Number.isFinite(previousGlobalAtMs)
-        || (nowMs - previousGlobalAtMs) >= fileTransferMetaAdmissionGlobalCooldownMs;
-      if (!peerReady || !globalReady) return false;
-      setBoundedFileTransferMapEntry(
-        fileTransferMetaAdmissionByPeer,
-        senderId,
-        nowMs,
-        fileTransferMetaAdmissionMaxPeers
-      );
-      fileTransferLastMetaAdmissionAtMs = nowMs;
-      return true;
-    }}
-
     function fileTransferOutgoingTokenFor(transferId, destination, channelIndex) {{
       const id = String(transferId || "").trim().toLowerCase();
       const to = normalizeNodeId(destination || "");
@@ -442,57 +413,6 @@
       }}
     }}
 
-    function normalizeFileTransferAutoAcceptValue(rawValue, fallback = false) {{
-      if (rawValue == null) return !!fallback;
-      const clean = String(rawValue).trim().toLowerCase();
-      if (!clean) return !!fallback;
-      if (clean === "1" || clean === "true" || clean === "yes" || clean === "on") return true;
-      if (clean === "0" || clean === "false" || clean === "no" || clean === "off") return false;
-      return !!fallback;
-    }}
-
-    function ensureFileTransferAutoAcceptPreferenceLoaded() {{
-      if (fileTransferAutoAcceptLoaded) return;
-      fileTransferAutoAcceptLoaded = true;
-      let stored = null;
-      try {{
-        stored = window.localStorage.getItem(fileTransferAutoAcceptStorageKey);
-      }} catch (_err) {{
-        stored = null;
-      }}
-      fileTransferAutoAcceptInbound = normalizeFileTransferAutoAcceptValue(
-        stored,
-        fileTransferAutoAcceptDefault
-      );
-    }}
-
-    function persistFileTransferAutoAcceptPreference() {{
-      try {{
-        window.localStorage.setItem(
-          fileTransferAutoAcceptStorageKey,
-          fileTransferAutoAcceptInbound ? "1" : "0"
-        );
-      }} catch (_err) {{
-      }}
-    }}
-
-    function setFileTransferAutoAcceptInbound(enabledRaw, options = null) {{
-      ensureFileTransferAutoAcceptPreferenceLoaded();
-      const enabled = !!enabledRaw;
-      const opts = (options && typeof options === "object") ? options : {{}};
-      fileTransferAutoAcceptInbound = enabled;
-      if (!(opts && opts.persist === false)) {{
-        persistFileTransferAutoAcceptPreference();
-      }}
-      syncFileTransferAutoAcceptToggle();
-      return fileTransferAutoAcceptInbound;
-    }}
-
-    function fileTransferAutoAcceptInboundEnabled() {{
-      ensureFileTransferAutoAcceptPreferenceLoaded();
-      return !!fileTransferAutoAcceptInbound;
-    }}
-
     function fileTransferBackendRuntime(state = latestState) {{
       const safeState = (state && typeof state === "object") ? state : {{}};
       const summary = (safeState.summary && typeof safeState.summary === "object")
@@ -508,63 +428,31 @@
       return runtime && typeof runtime === "object" ? runtime : null;
     }}
 
-    function fileTransferBackendAutoAcceptEnabled(state = latestState) {{
-      const runtime = fileTransferBackendRuntime(state);
-      return !!(
-        runtime
-        && runtime.ok !== false
-        && runtime.enabled !== false
-      );
-    }}
-
     function fileTransferBackendSessions(state = latestState) {{
       const runtime = fileTransferBackendRuntime(state);
       if (!(runtime && typeof runtime === "object")) return [];
       return Array.isArray(runtime.sessions) ? runtime.sessions : [];
     }}
 
-    function autoAcceptInboundFileTransferIfEnabled(
-      transfer,
-      transferKey,
-      senderIdRaw = "",
-      receiverIdRaw = "",
-      localNodeIdRaw = ""
-    ) {{
-      if (!fileTransferFeatureEnabled) return false;
-      if (!fileTransferAutoAcceptInboundEnabled() && !fileTransferBackendAutoAcceptEnabled(latestState)) return false;
-      const key = String(transferKey || (transfer && transfer.key) || "").trim();
-      if (!key) return false;
-      const senderId = normalizeNodeId(senderIdRaw || (transfer && transfer.fromId) || "");
-      const receiverId = normalizeNodeId(receiverIdRaw || (transfer && transfer.toId) || "");
-      const localNodeId = normalizeNodeId(
-        localNodeIdRaw || resolveLocalNodeId(latestState || {{}}) || ""
-      );
-      if (!fileTransferInboundTransferNeedsAccept(senderId, receiverId, localNodeId)) {{
-        return false;
+    function fileTransferBackendAcceptedKeys(state = latestState) {{
+      const keys = new Set();
+      for (const raw of fileTransferBackendSessions(state)) {{
+        if (!(raw && typeof raw === "object")) continue;
+        const senderId = normalizeNodeId(raw.sender_id || raw.senderId || "");
+        const receiverId = normalizeNodeId(raw.receiver_id || raw.receiverId || "");
+        const transferId = String(raw.transfer_id || raw.transferId || "").trim().toLowerCase();
+        const channelIndex = fileTransferExplicitChannelIndex(
+          raw.channel_index ?? raw.channelIndex
+        );
+        if (
+          !isCanonicalNodeId(senderId)
+          || !isCanonicalNodeId(receiverId)
+          || !transferId
+          || channelIndex == null
+        ) continue;
+        keys.add(fileTransferKeyOf(senderId, receiverId, transferId, channelIndex));
       }}
-      const priorDecision = fileTransferInboundDecisionForKey(key);
-      if (priorDecision === "accepted" || priorDecision === "declined") {{
-        return false;
-      }}
-      const flowState = fileTransferInboundFlowStateForKey(key);
-      if (flowState === "canceled-by-sender" || flowState === "canceled-by-receiver") {{
-        return false;
-      }}
-      if (fileTransferInboundDecisionByKey.size >= fileTransferInboundStateMaxEntries) return false;
-      if (fileTransferAcceptedInboundDecisionCount() >= fileTransferActiveInboundMaxEntries) return false;
-      if (!admitFileTransferAutoAcceptMetadata(senderId)) return false;
-      const entry = setFileTransferInboundDecisionByKey(key, "accepted", {{
-        transferId: transfer && transfer.transferId,
-        senderId,
-        receiverId,
-        fileName: transfer && transfer.fileName,
-        totalChunks: transfer && transfer.totalChunks,
-      }});
-      if (!entry) return false;
-      appendFileTransferConsole(
-        `Auto-accepted inbound transfer ${{fileTransferShortTransferId(transfer && transfer.transferId)}} from ${{senderId}}.`
-      );
-      return true;
+      return keys;
     }}
 
     function fileTransferInboundFlowStateForKey(transferKey) {{

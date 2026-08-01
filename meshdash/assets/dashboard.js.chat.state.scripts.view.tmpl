@@ -1,0 +1,1608 @@
+    let scriptsLastRenderSignature = "";
+    let scriptsLastDebugSignature = "";
+    let scriptsDebugClearedThrough = 0;
+    let scriptsTransientErrorMessage = "";
+    let scriptsOpenConfigId = "";
+    let scriptsAdminRuntimeSummary = null;
+    let scriptsAdminFetchPending = false;
+    let scriptsAdminLastFetchMs = 0;
+    let scriptsAdminAccessState = "";
+    let scriptsAdminAccessMessage = "";
+    let scriptsActiveTab = "plugins";
+    let scriptsReadmeReturnFocusId = "";
+    let scriptsRuntimeMasterPending = false;
+    const scriptsPendingRequests = new Map();
+    const scriptsPendingRouteRequests = new Set();
+    const scriptsPendingConfigRequests = new Set();
+    const scriptsConfigDrafts = new Map();
+
+    function scriptsRuntimeSummary(state = latestState) {{
+      if (scriptsAdminRuntimeSummary && typeof scriptsAdminRuntimeSummary === "object") {{
+        return scriptsAdminRuntimeSummary;
+      }}
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const summary = safeState.summary && typeof safeState.summary === "object"
+        ? safeState.summary
+        : {{}};
+      return summary.plugins && typeof summary.plugins === "object"
+        ? summary.plugins
+        : null;
+    }}
+
+    function scriptsDiscardPrivilegedState() {{
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {{
+        try {{
+          activeElement.blur();
+        }} catch (_err) {{
+        }}
+      }}
+      scriptsOpenConfigId = "";
+      scriptsCloseReadme();
+      scriptsConfigDrafts.clear();
+      scriptsPendingRouteRequests.clear();
+      scriptsAdminRuntimeSummary = null;
+      scriptsLastDebugSignature = "";
+      scriptsLastRenderSignature = "";
+      renderScriptsDebug(null);
+    }}
+
+    function scriptsAdminRequestHeaders({{ json = false }} = {{}}) {{
+      const headers = {{}};
+      if (json) headers["Content-Type"] = "application/json";
+      return headers;
+    }}
+
+    function scriptsSyncAdminAccessControls() {{
+    }}
+
+    async function refreshScriptsAdminSummary(force = false) {{
+      if (!pluginsFeatureEnabled) return false;
+      if (scriptsAdminFetchPending) return false;
+      const now = Date.now();
+      const retryDelay = scriptsAdminAccessState ? 15000 : 2500;
+      if (!force && (now - scriptsAdminLastFetchMs) < retryDelay) return false;
+      scriptsAdminFetchPending = true;
+      scriptsAdminLastFetchMs = now;
+      try {{
+        const response = await fetch("/api/admin/plugins", {{
+          method: "GET",
+          headers: scriptsAdminRequestHeaders(),
+          cache: "no-store",
+        }});
+        const text = await response.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        if (!response.ok || !payload || payload.ok !== true || !payload.plugins) {{
+          scriptsDiscardPrivilegedState();
+          scriptsAdminAccessState = "unavailable";
+          scriptsAdminAccessMessage = String(
+            (payload && payload.error) || text || `Could not load script administration (HTTP ${{response.status}}).`
+          );
+          return false;
+        }}
+        scriptsAdminRuntimeSummary = payload.plugins;
+        scriptsAdminAccessState = "";
+        scriptsAdminAccessMessage = "";
+        return true;
+      }} catch (err) {{
+        scriptsDiscardPrivilegedState();
+        scriptsAdminAccessState = "unavailable";
+        scriptsAdminAccessMessage = err instanceof Error
+          ? err.message
+          : String(err || "Could not load script administration.");
+        return false;
+      }} finally {{
+        scriptsAdminFetchPending = false;
+        scriptsSyncAdminAccessControls();
+        scriptsLastRenderSignature = "";
+        renderScriptsView(latestState);
+      }}
+    }}
+
+    function scriptsRuntimeErrorMessage(runtimeSummary) {{
+      if (!runtimeSummary || typeof runtimeSummary !== "object") return "";
+      const error = runtimeSummary.error;
+      if (error && typeof error === "object") {{
+        return String(error.message || error.code || "").trim();
+      }}
+      return String(error || "").trim();
+    }}
+
+    function scriptsDiscoveryErrors(runtimeSummary) {{
+      if (!runtimeSummary || typeof runtimeSummary !== "object") return [];
+      const errors = Array.isArray(runtimeSummary.discovery_errors)
+        ? runtimeSummary.discovery_errors
+        : [];
+      return errors.map((value) => String(value || "").trim()).filter(Boolean);
+    }}
+
+    function scriptsConfiguredDirectory(runtimeSummary) {{
+      if (!runtimeSummary || typeof runtimeSummary !== "object") return "";
+      return String(runtimeSummary.directory || "").trim();
+    }}
+
+    function scriptsRuntimeEntries(runtimeSummary) {{
+      if (!runtimeSummary || typeof runtimeSummary !== "object") return [];
+      const rows = Array.isArray(runtimeSummary.scripts) ? runtimeSummary.scripts : [];
+      return rows
+        .filter((row) => row && typeof row === "object" && String(row.id || "").trim())
+        .slice()
+        .sort((left, right) => {{
+          const leftName = String(left.name || left.id || "");
+          const rightName = String(right.name || right.id || "");
+          return leftName.localeCompare(rightName, undefined, {{ sensitivity: "base" }});
+        }});
+    }}
+
+    function scriptsRuntimeEntryById(scriptId) {{
+      const cleanId = String(scriptId || "").trim();
+      if (!cleanId) return null;
+      const rows = scriptsRuntimeEntries(scriptsRuntimeSummary(latestState));
+      return rows.find((row) => String(row.id || "").trim() === cleanId) || null;
+    }}
+
+    function scriptsRuntimeDetails(runtimeSummary) {{
+      return runtimeSummary && runtimeSummary.runtime && typeof runtimeSummary.runtime === "object"
+        ? runtimeSummary.runtime
+        : {{}};
+    }}
+
+    function scriptsRuntimeMasterEnabled(runtimeSummary) {{
+      return !(runtimeSummary && typeof runtimeSummary === "object" && runtimeSummary.runtime_enabled === false);
+    }}
+
+    function scriptsSyncRuntimeMasterControl(runtimeSummary, runtimeMasterEnabled, summaryError) {{
+      const button = document.getElementById("scripts-runtime-master-toggle");
+      if (!(button instanceof HTMLButtonElement)) return;
+      const canManage = !!(
+        runtimeSummary
+        && runtimeSummary.enabled === true
+        && runtimeSummary.available !== false
+        && !String(summaryError || "").trim()
+        && !scriptsAdminAccessState
+      );
+      button.textContent = scriptsRuntimeMasterPending
+        ? "Saving..."
+        : (runtimeMasterEnabled ? "Disable" : "Enable");
+      button.disabled = scriptsRuntimeMasterPending || !canManage;
+      button.dataset.nextEnabled = runtimeMasterEnabled ? "false" : "true";
+      button.setAttribute("aria-pressed", runtimeMasterEnabled ? "true" : "false");
+      button.title = runtimeMasterEnabled ? "Disable scripts" : "Enable scripts";
+      button.classList.toggle("is-disabled", !runtimeMasterEnabled);
+    }}
+
+    function scriptsReadmePayload(row) {{
+      const readme = row && row.readme && typeof row.readme === "object"
+        ? row.readme
+        : null;
+      if (!readme) return null;
+      const content = String(readme.content || readme.text || "");
+      if (!content.trim()) return null;
+      const filename = String(readme.filename || "README.md").trim() || "README.md";
+      return {{
+        filename,
+        content,
+        truncated: readme.truncated === true,
+      }};
+    }}
+
+    function scriptsReadmeInlineHtml(value) {{
+      return escAttr(value).replace(/`([^`\n]{{1,160}})`/g, "<code>$1</code>");
+    }}
+
+    function scriptsReadmeMarkdownHtml(value) {{
+      const lines = String(value || "").replace(/\r\n?/g, "\n").split("\n");
+      const html = [];
+      let paragraph = [];
+      let listOpen = false;
+      let inCode = false;
+      let codeLines = [];
+
+      const closeList = () => {{
+        if (!listOpen) return;
+        html.push("</ul>");
+        listOpen = false;
+      }};
+      const flushParagraph = () => {{
+        if (paragraph.length <= 0) return;
+        closeList();
+        html.push(`<p>${{scriptsReadmeInlineHtml(paragraph.join(" "))}}</p>`);
+        paragraph = [];
+      }};
+      const flushCode = () => {{
+        html.push(`<pre><code>${{escAttr(codeLines.join("\n"))}}</code></pre>`);
+        codeLines = [];
+      }};
+
+      for (const rawLine of lines) {{
+        const line = String(rawLine || "");
+        const trimmed = line.trim();
+        if (/^```/.test(trimmed)) {{
+          if (inCode) {{
+            flushCode();
+            inCode = false;
+          }} else {{
+            flushParagraph();
+            closeList();
+            inCode = true;
+            codeLines = [];
+          }}
+          continue;
+        }}
+        if (inCode) {{
+          codeLines.push(line);
+          continue;
+        }}
+        if (!trimmed) {{
+          flushParagraph();
+          closeList();
+          continue;
+        }}
+        const heading = /^(#{{1,4}})\s+(.+)$/.exec(trimmed);
+        if (heading) {{
+          flushParagraph();
+          closeList();
+          const level = Math.min(4, Math.max(2, heading[1].length + 1));
+          html.push(`<h${{level}}>${{scriptsReadmeInlineHtml(heading[2])}}</h${{level}}>`);
+          continue;
+        }}
+        const listItem = /^[-*]\s+(.+)$/.exec(trimmed);
+        if (listItem) {{
+          flushParagraph();
+          if (!listOpen) {{
+            html.push("<ul>");
+            listOpen = true;
+          }}
+          html.push(`<li>${{scriptsReadmeInlineHtml(listItem[1])}}</li>`);
+          continue;
+        }}
+        paragraph.push(trimmed);
+      }}
+      if (inCode) flushCode();
+      flushParagraph();
+      closeList();
+      return html.length > 0 ? html.join("") : "<p>No README content.</p>";
+    }}
+
+    function scriptsCloseReadme() {{
+      const modal = document.getElementById("scripts-readme-modal");
+      const body = document.getElementById("scripts-readme-body");
+      if (body instanceof HTMLElement) body.innerHTML = "";
+      if (modal instanceof HTMLElement) modal.hidden = true;
+      const returnFocusId = scriptsReadmeReturnFocusId;
+      scriptsReadmeReturnFocusId = "";
+      if (returnFocusId) {{
+        const escapedId = typeof cssEscapeAttrValue === "function"
+          ? cssEscapeAttrValue(returnFocusId)
+          : returnFocusId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        const button = document.querySelector(`[data-script-readme="${{escapedId}}"]`);
+        if (button instanceof HTMLButtonElement) {{
+          try {{
+            button.focus({{ preventScroll: true }});
+          }} catch (_err) {{
+            button.focus();
+          }}
+        }}
+      }}
+    }}
+
+    function scriptsOpenReadme(row, button = null) {{
+      const readme = scriptsReadmePayload(row);
+      if (!readme) return false;
+      const modal = document.getElementById("scripts-readme-modal");
+      const title = document.getElementById("scripts-readme-title");
+      const meta = document.getElementById("scripts-readme-meta");
+      const body = document.getElementById("scripts-readme-body");
+      const close = document.getElementById("scripts-readme-close");
+      if (
+        !(modal instanceof HTMLElement)
+        || !(title instanceof HTMLElement)
+        || !(meta instanceof HTMLElement)
+        || !(body instanceof HTMLElement)
+      ) {{
+        return false;
+      }}
+      const scriptId = String(row.id || "").trim();
+      const scriptName = String(row.name || scriptId || "Script").trim();
+      title.textContent = `${{scriptName}} README`;
+      meta.textContent = readme.truncated
+        ? `${{readme.filename}} · truncated to 128 KB`
+        : readme.filename;
+      body.innerHTML = scriptsReadmeMarkdownHtml(readme.content);
+      scriptsReadmeReturnFocusId = scriptId;
+      modal.hidden = false;
+      if (button instanceof HTMLButtonElement) {{
+        scriptsReadmeReturnFocusId = String(button.dataset.scriptReadme || scriptId).trim();
+      }}
+      if (close instanceof HTMLButtonElement) {{
+        try {{
+          close.focus({{ preventScroll: true }});
+        }} catch (_err) {{
+          close.focus();
+        }}
+      }}
+      return true;
+    }}
+
+    function scriptsDebugRecords(runtimeSummary) {{
+      const runtime = scriptsRuntimeDetails(runtimeSummary);
+      const rows = Array.isArray(runtime.debug) ? runtime.debug : [];
+      return rows.filter((row) => (
+        row
+        && typeof row === "object"
+        && Number(row.seq || 0) > scriptsDebugClearedThrough
+      ));
+    }}
+
+    function scriptsDebugLine(row) {{
+      const timestamp = Number(row.timestamp || 0);
+      const timeText = timestamp > 0
+        ? new Date(timestamp * 1000).toLocaleTimeString()
+        : "--:--:--";
+      const pluginId = String(row.plugin_id || "script");
+      const values = Array.isArray(row.values) ? row.values : [];
+      const message = values.map((value) => (
+        typeof value === "string" ? value : JSON.stringify(value)
+      )).join(" ");
+      return `[${{timeText}}] ${{pluginId}}: ${{message}}`;
+    }}
+
+    function renderScriptsDebug(runtimeSummary) {{
+      const output = document.getElementById("scripts-debug-output");
+      const count = document.getElementById("scripts-debug-count");
+      if (!(output instanceof HTMLElement)) return false;
+      const rows = scriptsDebugRecords(runtimeSummary);
+      const text = rows.length > 0
+        ? rows.map((row) => scriptsDebugLine(row)).join("\n")
+        : "No script debug output yet.";
+      const signature = JSON.stringify([scriptsDebugClearedThrough, text]);
+      if (signature === scriptsLastDebugSignature) return false;
+      const pinned = output.scrollTop + output.clientHeight >= output.scrollHeight - 20;
+      output.textContent = text;
+      if (count instanceof HTMLElement) {{
+        count.textContent = `${{rows.length}} ${{rows.length === 1 ? "entry" : "entries"}}`;
+      }}
+      if (pinned) output.scrollTop = output.scrollHeight;
+      scriptsLastDebugSignature = signature;
+      return true;
+    }}
+
+    function scriptsNormalizeStatus(value) {{
+      return String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+    }}
+
+    function scriptsRegistryEntry(row, runtimeSummary) {{
+      const runtime = scriptsRuntimeDetails(runtimeSummary);
+      const registry = runtime.plugins && typeof runtime.plugins === "object"
+        ? runtime.plugins
+        : {{}};
+      const scriptId = String((row && row.id) || "").trim();
+      const entry = registry[scriptId];
+      return entry && typeof entry === "object" ? entry : null;
+    }}
+
+    function scriptsRowErrorMessage(row, runtimeSummary) {{
+      const directError = row && (row.runtime_error || row.error);
+      if (directError && typeof directError === "object") {{
+        const message = String(directError.message || directError.code || "").trim();
+        if (message) return message;
+      }} else if (directError) {{
+        return String(directError).trim();
+      }}
+      const registryEntry = scriptsRegistryEntry(row, runtimeSummary);
+      const registryError = registryEntry && registryEntry.error;
+      if (registryError && typeof registryError === "object") {{
+        return String(registryError.message || registryError.code || "").trim();
+      }}
+      return String(registryError || "").trim();
+    }}
+
+    function scriptsConfiguredStateMismatch(row) {{
+      return !!(
+        row
+        && typeof row === "object"
+        && (row.enabled === true) !== (row.active === true)
+      );
+    }}
+
+    function scriptsLifecyclePending(row) {{
+      if (!row || typeof row !== "object") return false;
+      const status = scriptsNormalizeStatus(row.runtime_status || row.health || row.status);
+      return row.restart_required === true
+        || status === "restart_pending"
+        || scriptsConfiguredStateMismatch(row);
+    }}
+
+    function scriptsItemState(row, runtimeSummary) {{
+      const status = scriptsNormalizeStatus(row.runtime_status || row.health || row.status);
+      if (scriptsLifecyclePending(row)) {{
+        return {{ className: "is-pending", label: "Applying", error: "" }};
+      }}
+      if (["error", "failed", "crashed"].includes(status)) {{
+        return {{
+          className: "is-error",
+          label: "Error",
+          error: scriptsRowErrorMessage(row, runtimeSummary),
+        }};
+      }}
+      if (["starting", "loading", "initializing"].includes(status)) {{
+        return {{ className: "is-starting", label: "Starting", error: "" }};
+      }}
+      if (["running", "active", "ready"].includes(status)) {{
+        return {{ className: "is-running", label: "Running", error: "" }};
+      }}
+      if (["disabled", "master_disabled", "stopped", "inactive"].includes(status)) {{
+        return {{ className: "", label: "Disabled", error: "" }};
+      }}
+
+      const active = row.active === true;
+      if (!active) {{
+        return {{ className: "", label: "Disabled", error: "" }};
+      }}
+      const registryEntry = scriptsRegistryEntry(row, runtimeSummary);
+      const registryStatus = scriptsNormalizeStatus(
+        registryEntry && (registryEntry.runtime_status || registryEntry.health || registryEntry.status)
+      );
+      const rowError = scriptsRowErrorMessage(row, runtimeSummary);
+      if (rowError || ["error", "failed", "crashed"].includes(registryStatus)) {{
+        return {{ className: "is-error", label: "Error", error: rowError }};
+      }}
+      if (["starting", "loading", "initializing"].includes(registryStatus)) {{
+        return {{ className: "is-starting", label: "Starting", error: "" }};
+      }}
+      if (["running", "active", "ready"].includes(registryStatus)) {{
+        return {{ className: "is-running", label: "Running", error: "" }};
+      }}
+      const runtime = scriptsRuntimeDetails(runtimeSummary);
+      const runtimeState = scriptsNormalizeStatus(runtime.state || runtime.status);
+      const runtimeError = String(runtime.last_error || "").trim();
+      if (runtimeState === "error" || runtimeState === "failed") {{
+        return {{ className: "is-error", label: "Error", error: runtimeError }};
+      }}
+      if (runtimeState === "starting") {{
+        return {{ className: "is-starting", label: "Starting", error: "" }};
+      }}
+      if (runtime.worker_alive === false) {{
+        return runtimeError
+          ? {{ className: "is-error", label: "Error", error: runtimeError }}
+          : {{ className: "is-starting", label: "Starting", error: "" }};
+      }}
+      if (runtime.worker_alive === true && !registryEntry) {{
+        return {{ className: "is-starting", label: "Starting", error: "" }};
+      }}
+      return {{ className: "is-running", label: "Running", error: "" }};
+    }}
+
+    function scriptsSetRuntimeStatus(kind, label) {{
+      const status = document.getElementById("scripts-runtime-status");
+      const statusText = document.getElementById("scripts-runtime-status-text");
+      if (status instanceof HTMLElement) {{
+        status.classList.remove("is-enabled", "is-disabled", "is-error", "is-unavailable");
+        status.classList.add(`is-${{kind}}`);
+      }}
+      if (statusText instanceof HTMLElement) {{
+        statusText.textContent = String(label || "Runtime unavailable");
+      }}
+    }}
+
+    function scriptsSetRuntimeMessage(message) {{
+      const panel = document.getElementById("scripts-runtime-message");
+      if (!(panel instanceof HTMLElement)) return;
+      const clean = String(message || "").trim();
+      panel.textContent = clean;
+      panel.hidden = !clean;
+    }}
+
+    function normalizeScriptsTab(value) {{
+      const clean = String(value || "").trim().toLowerCase();
+      return clean === "debug" ? "debug" : "plugins";
+    }}
+
+    function applyScriptsTab(value) {{
+      const next = normalizeScriptsTab(value);
+      scriptsActiveTab = next;
+      document.querySelectorAll("[data-scripts-tab]").forEach((button) => {{
+        if (!(button instanceof HTMLButtonElement)) return;
+        const active = normalizeScriptsTab(button.dataset.scriptsTab) === next;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+      }});
+      const pluginsPanel = document.getElementById("scripts-panel-plugins");
+      const debugPanel = document.getElementById("scripts-panel-debug");
+      if (pluginsPanel instanceof HTMLElement) {{
+        pluginsPanel.hidden = next !== "plugins";
+      }}
+      if (debugPanel instanceof HTMLElement) {{
+        debugPanel.hidden = next !== "debug";
+      }}
+      if (next === "debug") {{
+        renderScriptsDebug(scriptsRuntimeSummary(latestState));
+      }}
+    }}
+
+    function scriptsRuntimePresentation(runtimeSummary, rows) {{
+      if (!runtimeSummary) {{
+        return {{
+          kind: "unavailable",
+          label: "Runtime status unavailable",
+          message: "This MeshyFace backend does not expose Scripts runtime status.",
+        }};
+      }}
+      const summaryError = scriptsRuntimeErrorMessage(runtimeSummary);
+      if (summaryError) {{
+        return {{ kind: "error", label: "Runtime error", message: summaryError }};
+      }}
+      if (runtimeSummary.enabled === false) {{
+        return {{
+          kind: "unavailable",
+          label: "Waiting for runtime",
+          message: "Scripts will be inspected after the dashboard connects to the radio runtime.",
+        }};
+      }}
+      if (runtimeSummary.available === false) {{
+        return {{
+          kind: "unavailable",
+          label: "Waiting for runtime",
+          message: String(
+            runtimeSummary.message
+            || "Scripts will become available after the dashboard connects to the radio runtime."
+          ),
+        }};
+      }}
+      if (!scriptsRuntimeMasterEnabled(runtimeSummary)) {{
+        return {{
+          kind: "disabled",
+          label: "Scripts disabled",
+          message: "",
+        }};
+      }}
+      const discoveryErrors = scriptsDiscoveryErrors(runtimeSummary);
+      if (discoveryErrors.length > 0) {{
+        return {{
+          kind: "error",
+          label: "Discovery error",
+          message: discoveryErrors.slice(0, 3).join(" "),
+        }};
+      }}
+
+      const itemStates = rows.map((row) => scriptsItemState(row, runtimeSummary));
+      const firstItemError = itemStates.find((itemState) => itemState.label === "Error");
+      if (firstItemError) {{
+        return {{
+          kind: "error",
+          label: "Runtime error",
+          message: firstItemError.error || "One or more scripts failed to start.",
+        }};
+      }}
+      const runtime = scriptsRuntimeDetails(runtimeSummary);
+      const runtimeState = scriptsNormalizeStatus(runtime.state || runtime.status);
+      const runtimeError = String(runtime.last_error || "").trim();
+      const hasActiveScripts = rows.some((row) => row.active === true);
+      if (["error", "failed", "crashed"].includes(runtimeState)) {{
+        return {{
+          kind: "error",
+          label: "Runtime error",
+          message: runtimeError || "The Scripts worker stopped unexpectedly.",
+        }};
+      }}
+      if (
+        runtimeState === "starting"
+        || (hasActiveScripts && runtime.worker_alive === false && !runtimeError)
+      ) {{
+        return {{ kind: "unavailable", label: "Runtime starting", message: "" }};
+      }}
+      if (hasActiveScripts && runtime.worker_alive === false && runtimeError) {{
+        return {{ kind: "error", label: "Runtime error", message: runtimeError }};
+      }}
+      return {{
+        kind: "enabled",
+        label: hasActiveScripts ? "Runtime running" : "Runtime enabled",
+        message: "",
+      }};
+    }}
+
+    function scriptsSettingValue(row, definition) {{
+      const scriptId = String(row.id || "").trim();
+      const draft = scriptsConfigDrafts.get(scriptId);
+      const packageDigest = String(row.package_digest || "").trim().toLowerCase();
+      const draftMatchesPackage = !!(
+        draft
+        && typeof draft === "object"
+        && draft.packageDigest === packageDigest
+        && draft.settings
+        && typeof draft.settings === "object"
+      );
+      if (draft && !draftMatchesPackage) {{
+        scriptsConfigDrafts.delete(scriptId);
+      }}
+      const settings = draftMatchesPackage
+        ? draft.settings
+        : (row.settings && typeof row.settings === "object" ? row.settings : {{}});
+      const key = String(definition.key || "");
+      if (Object.prototype.hasOwnProperty.call(settings, key)) return settings[key];
+      return definition.default;
+    }}
+
+    function scriptsSettingHtml(row, definition) {{
+      const key = String(definition.key || "").trim();
+      const label = String(definition.label || key).trim();
+      const type = String(definition.type || "text").trim();
+      const description = String(definition.description || "").trim();
+      const value = scriptsSettingValue(row, definition);
+      let control = "";
+      if (type === "boolean") {{
+        control = `
+          <label class="scripts-config-check">
+            <input
+              type="checkbox"
+              data-script-setting="${{escAttr(key)}}"
+              data-setting-type="boolean"
+              ${{value === true ? "checked" : ""}}
+            >
+            <span>${{escAttr(label)}}</span>
+          </label>
+        `;
+      }} else if (type === "integer") {{
+        const minimum = Number.isInteger(definition.minimum)
+          ? ` min="${{escAttr(definition.minimum)}}"`
+          : "";
+        const maximum = Number.isInteger(definition.maximum)
+          ? ` max="${{escAttr(definition.maximum)}}"`
+          : "";
+        control = `
+          <label class="scripts-config-label" for="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}">${{escAttr(label)}}</label>
+          <input
+            id="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}"
+            class="scripts-config-input"
+            type="number"
+            step="1"
+            required
+            value="${{escAttr(value)}}"
+            data-script-setting="${{escAttr(key)}}"
+            data-setting-type="integer"
+            ${{minimum}}${{maximum}}
+          >
+        `;
+      }} else if (type === "node_ids") {{
+        const nodeIds = Array.isArray(value) ? value : [];
+        control = `
+          <label class="scripts-config-label" for="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}">${{escAttr(label)}}</label>
+          <textarea
+            id="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}"
+            class="scripts-config-input scripts-config-node-ids"
+            rows="3"
+            placeholder="!01020304, one node ID per line"
+            data-script-setting="${{escAttr(key)}}"
+            data-setting-type="node_ids"
+          >${{escAttr(nodeIds.join("\n"))}}</textarea>
+        `;
+      }} else {{
+        const maxLength = Number.isInteger(definition.max_length)
+          ? ` maxlength="${{escAttr(definition.max_length)}}"`
+          : "";
+        control = `
+          <label class="scripts-config-label" for="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}">${{escAttr(label)}}</label>
+          <input
+            id="script-setting-${{escAttr(row.id)}}-${{escAttr(key)}}"
+            class="scripts-config-input"
+            type="text"
+            value="${{escAttr(value == null ? "" : value)}}"
+            placeholder="${{escAttr(definition.placeholder || "")}}"
+            data-script-setting="${{escAttr(key)}}"
+            data-setting-type="text"
+            ${{maxLength}}
+          >
+        `;
+      }}
+      return `
+        <div class="scripts-config-field">
+          ${{control}}
+          ${{description ? `<div class="scripts-config-help">${{escAttr(description)}}</div>` : ""}}
+        </div>
+      `;
+    }}
+
+    function scriptsConfigHtml(row, schema) {{
+      const scriptId = String(row.id || "").trim();
+      if (scriptsOpenConfigId !== scriptId) return "";
+      const pending = scriptsPendingConfigRequests.has(scriptId);
+      const packageDigest = String(row.package_digest || "").trim().toLowerCase();
+      return `
+        <form
+          id="script-config-${{escAttr(scriptId)}}"
+          class="scripts-config-form"
+          data-script-config-form="${{escAttr(scriptId)}}"
+          data-package-digest="${{escAttr(packageDigest)}}"
+        >
+          <div class="scripts-config-fields">
+            ${{schema.map((definition) => scriptsSettingHtml(row, definition)).join("")}}
+          </div>
+          <div class="scripts-config-actions">
+            <button class="btn btn-secondary" type="button" data-script-config-cancel="${{escAttr(scriptId)}}" ${{pending ? "disabled" : ""}}>Cancel</button>
+            <button class="btn btn-primary" type="submit" ${{pending ? "disabled" : ""}}>${{pending ? "Saving…" : "Save"}}</button>
+          </div>
+        </form>
+      `;
+    }}
+
+    function scriptsMeshAccess(row) {{
+      const clean = String(row && row.mesh_access || "").trim().toLowerCase();
+      if (clean === "read_write") {{
+        return {{ key: "read-write", label: "Detected Write" }};
+      }}
+      if (clean === "read_only") {{
+        return {{ key: "read-only", label: "Detected Read" }};
+      }}
+      if (clean === "none") {{
+        return {{ key: "none", label: "No Mesh Detected" }};
+      }}
+      return {{ key: "unknown", label: "Unknown" }};
+    }}
+
+    function scriptsItemHtml(row, runtimeSummary, runtimeEnabled) {{
+      const scriptId = String(row.id || "").trim();
+      const scriptName = String(row.name || scriptId || "Unnamed script").trim();
+      const version = String(row.version || "unknown").trim();
+      const packageDigest = String(row.package_digest || "").trim().toLowerCase();
+      const hasPackageDigest = /^sha256:[0-9a-f]{{64}}$/.test(packageDigest);
+      const digestLabel = hasPackageDigest
+        ? `sha256:${{packageDigest.slice(7, 19)}}…`
+        : "Identity unavailable";
+      const source = String(row.source || "local").trim().toLowerCase() === "included"
+        ? "Bundled"
+        : "Local";
+      const enabled = row.enabled === true;
+      const commands = Array.isArray(row.commands) ? row.commands : [];
+      const settingsSchema = Array.isArray(row.settings_schema)
+        ? row.settings_schema.filter((definition) => definition && typeof definition === "object")
+        : [];
+      const hasSettings = settingsSchema.length > 0;
+      const configOpen = scriptsOpenConfigId === scriptId;
+      const readme = scriptsReadmePayload(row);
+      const registryEntry = scriptsRegistryEntry(row, runtimeSummary);
+      const registryKnown = !!registryEntry;
+      const tickerDefinitions = registryEntry && Array.isArray(registryEntry.tickers)
+        ? registryEntry.tickers
+        : [];
+      const viewDefinitions = Array.isArray(row.views)
+        ? row.views.filter((definition) => definition && typeof definition === "object")
+        : [];
+      const consoleRouteVisible = commands.length > 0;
+      const meshRouteVisible = (
+        commands.length > 0
+        || !registryKnown
+        || registryEntry.on_message === true
+        || registryEntry.on_packet === true
+        || registryEntry.session === true
+        || registryEntry.on_start === true
+        || registryEntry.on_stop === true
+      );
+      const tickerRouteVisible = tickerDefinitions.length > 0 || row.ticker_enabled === false;
+      const viewRouteVisible = viewDefinitions.length > 0 || row.view_enabled === false;
+      const commandHtml = commands.length > 0
+        ? commands.map((command) => `<span class="scripts-command">!${{escAttr(command)}}</span>`).join("")
+        : '<span class="scripts-command">No commands</span>';
+      const itemState = scriptsItemState(row, runtimeSummary);
+      const pendingRequest = scriptsPendingRequests.get(scriptId);
+      const pending = !!pendingRequest;
+      const buttonLabel = pending
+        ? (pendingRequest.enabled ? "Enabling…" : "Disabling…")
+        : (enabled ? "Disable" : "Enable");
+      const configPending = scriptsPendingConfigRequests.has(scriptId);
+      const routePending = scriptsPendingRouteRequests.has(scriptId);
+      const routeControlsDisabled = !runtimeEnabled || !hasPackageDigest || routePending;
+      const meshEnabled = row.mesh_enabled !== false;
+      const consoleEnabled = row.console_enabled !== false;
+      const tickerEnabled = row.ticker_enabled !== false;
+      const viewEnabled = row.view_enabled !== false;
+      const meshAccess = scriptsMeshAccess(row);
+      return `
+        <article class="scripts-item" data-script-id="${{escAttr(scriptId)}}">
+          <div class="scripts-item-head">
+            <div class="scripts-item-identity">
+              <div class="scripts-item-title-row">
+                ${{hasSettings ? `
+                  <button
+                    class="scripts-settings-toggle"
+                    type="button"
+                    data-script-configure="${{escAttr(scriptId)}}"
+                    aria-expanded="${{configOpen ? "true" : "false"}}"
+                    aria-controls="script-config-${{escAttr(scriptId)}}"
+                    title="Plugin settings"
+                    aria-label="Toggle plugin settings for ${{escAttr(scriptName)}}"
+                    ${{runtimeEnabled && hasPackageDigest && !configPending ? "" : "disabled"}}
+                  >
+                    <svg class="scripts-settings-toggle-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                      <path d="M6 4l4 4-4 4" />
+                    </svg>
+                  </button>
+                ` : ""}}
+                <div class="scripts-item-name" title="${{escAttr(scriptName)}}">${{escAttr(scriptName)}}</div>
+              </div>
+              <div class="scripts-item-id">${{escAttr(scriptId)}}</div>
+            </div>
+            <span class="scripts-item-state ${{itemState.className}}">${{escAttr(itemState.label)}}</span>
+          </div>
+          <div class="scripts-item-meta">
+            <span>v${{escAttr(version)}}</span>
+            <span>${{escAttr(source)}}</span>
+            <span title="${{escAttr(packageDigest || "Package identity unavailable")}}">${{escAttr(digestLabel)}}</span>
+          </div>
+          <div class="scripts-commands" aria-label="Declared commands">${{commandHtml}}</div>
+          <div class="scripts-item-actions">
+            <div class="scripts-item-controls">
+              ${{meshRouteVisible || consoleRouteVisible || tickerRouteVisible || viewRouteVisible ? `
+                <div class="scripts-route-toggles" aria-label="Script options">
+                  ${{meshRouteVisible ? `
+                    <label class="scripts-route-toggle">
+                      <input
+                        type="checkbox"
+                        data-script-route-toggle="${{escAttr(scriptId)}}"
+                        data-route-key="mesh"
+                        data-package-digest="${{escAttr(packageDigest)}}"
+                        ${{meshEnabled ? "checked" : ""}}
+                        ${{routeControlsDisabled ? "disabled" : ""}}
+                      >
+                      <span class="scripts-route-label">
+                        <span>Mesh</span>
+                        <span class="scripts-route-access scripts-route-access-${{escAttr(meshAccess.key)}}">${{escAttr(meshAccess.label)}}</span>
+                      </span>
+                    </label>
+                  ` : ""}}
+                  ${{consoleRouteVisible ? `
+                    <label class="scripts-route-toggle">
+                      <input
+                        type="checkbox"
+                        data-script-route-toggle="${{escAttr(scriptId)}}"
+                        data-route-key="console"
+                        data-package-digest="${{escAttr(packageDigest)}}"
+                        ${{consoleEnabled ? "checked" : ""}}
+                        ${{routeControlsDisabled ? "disabled" : ""}}
+                      >
+                      <span>Console</span>
+                    </label>
+                  ` : ""}}
+                  ${{tickerRouteVisible ? `
+                    <label class="scripts-route-toggle">
+                      <input
+                        type="checkbox"
+                        data-script-route-toggle="${{escAttr(scriptId)}}"
+                        data-route-key="ticker"
+                        data-package-digest="${{escAttr(packageDigest)}}"
+                        ${{tickerEnabled ? "checked" : ""}}
+                        ${{routeControlsDisabled ? "disabled" : ""}}
+                      >
+                      <span>Ticker</span>
+                    </label>
+                  ` : ""}}
+                  ${{viewRouteVisible ? `
+                    <label class="scripts-route-toggle">
+                      <input
+                        type="checkbox"
+                        data-script-route-toggle="${{escAttr(scriptId)}}"
+                        data-route-key="view"
+                        data-package-digest="${{escAttr(packageDigest)}}"
+                        ${{viewEnabled ? "checked" : ""}}
+                        ${{routeControlsDisabled ? "disabled" : ""}}
+                      >
+                      <span>View</span>
+                    </label>
+                  ` : ""}}
+                </div>
+              ` : ""}}
+              <div class="scripts-item-buttons">
+                ${{readme ? `
+                  <button
+                    class="btn btn-secondary scripts-readme-btn"
+                    type="button"
+                    data-script-readme="${{escAttr(scriptId)}}"
+                  >Readme</button>
+                ` : ""}}
+                <button
+                  class="btn btn-secondary scripts-toggle-btn"
+                  type="button"
+                  data-script-toggle="${{escAttr(scriptId)}}"
+                  data-next-enabled="${{enabled ? "false" : "true"}}"
+                  data-package-digest="${{escAttr(packageDigest)}}"
+                  ${{runtimeEnabled && hasPackageDigest && !pending ? "" : "disabled"}}
+                >${{escAttr(buttonLabel)}}</button>
+              </div>
+            </div>
+          </div>
+          ${{scriptsConfigHtml(row, settingsSchema)}}
+        </article>
+      `;
+    }}
+
+    function renderScriptsView(state = latestState) {{
+      if (!pluginsFeatureEnabled) return false;
+      const list = document.getElementById("scripts-list");
+      const count = document.getElementById("scripts-count");
+      if (!(list instanceof HTMLElement)) return false;
+      const runtimeSummary = scriptsRuntimeSummary(state);
+      renderScriptsDebug(runtimeSummary);
+      const summaryError = scriptsRuntimeErrorMessage(runtimeSummary);
+      const runtimeMasterEnabled = scriptsRuntimeMasterEnabled(runtimeSummary);
+      const runtimeEnabled = !!(
+        runtimeMasterEnabled
+        &&
+        runtimeSummary
+        && runtimeSummary.enabled === true
+        && runtimeSummary.available !== false
+        && !summaryError
+      );
+      const rows = scriptsRuntimeEntries(runtimeSummary);
+      const presentation = scriptsRuntimePresentation(runtimeSummary, rows);
+      const countText = runtimeSummary && runtimeSummary.enabled === false
+        ? "Waiting"
+        : `${{rows.length}} ${{rows.length === 1 ? "script" : "scripts"}}`;
+      let listHtml = "";
+      if (rows.length <= 0) {{
+        let emptyText = "Waiting for the Scripts runtime to become available.";
+        if (!scriptsAdminRuntimeSummary && scriptsAdminAccessState) {{
+          emptyText = "Script administration is unavailable.";
+        }} else if (
+          runtimeSummary
+          && (
+            runtimeSummary.enabled === false
+            || (
+              runtimeSummary.enabled === true
+              && runtimeSummary.available === false
+            )
+          )
+        ) {{
+          emptyText = "Waiting for the Scripts runtime to become available.";
+        }} else if (!scriptsAdminRuntimeSummary && runtimeSummary && runtimeSummary.enabled === true) {{
+          emptyText = "Loading installed scripts…";
+        }} else if (runtimeSummary && runtimeSummary.enabled === true) {{
+          const directory = scriptsConfiguredDirectory(runtimeSummary);
+          const discoveryErrors = scriptsDiscoveryErrors(runtimeSummary);
+          if (discoveryErrors.length > 0) {{
+            emptyText = directory
+              ? `No valid scripts were found in ${{directory}}. Fix the discovery error above, then restart MeshyFace.`
+              : "No valid scripts were found. Fix the discovery error above, then restart MeshyFace.";
+          }} else {{
+            emptyText = directory
+              ? `No scripts found in ${{directory}}. Add one package directory containing plugin.toml, then restart MeshyFace.`
+              : "No scripts found. Add a package to the configured plugins directory, then restart MeshyFace.";
+          }}
+        }}
+        listHtml = `<div class="scripts-empty">${{escAttr(emptyText)}}</div>`;
+      }} else {{
+        listHtml = rows
+          .map((row) => scriptsItemHtml(row, runtimeSummary, runtimeEnabled))
+          .join("");
+      }}
+      const runtimeMessage = (
+        scriptsTransientErrorMessage
+        || scriptsAdminAccessMessage
+        || presentation.message
+      );
+      scriptsSyncRuntimeMasterControl(runtimeSummary, runtimeMasterEnabled, summaryError);
+      const signature = JSON.stringify([
+        runtimeMasterEnabled,
+        scriptsRuntimeMasterPending,
+        presentation.kind,
+        presentation.label,
+        runtimeMessage,
+        countText,
+        listHtml,
+      ]);
+      if (signature === scriptsLastRenderSignature) return false;
+
+      const activeElement = document.activeElement;
+      const activeConfigForm = activeElement instanceof Element
+        ? activeElement.closest("[data-script-config-form]")
+        : null;
+      if (
+        activeConfigForm instanceof HTMLFormElement
+        && scriptsAdminRuntimeSummary
+        && !scriptsAdminAccessState
+        && !scriptsPendingConfigRequests.has(
+          String(activeConfigForm.dataset.scriptConfigForm || "").trim()
+        )
+      ) {{
+        scriptsSetRuntimeStatus(presentation.kind, presentation.label);
+        scriptsSyncRuntimeMasterControl(runtimeSummary, runtimeMasterEnabled, summaryError);
+        scriptsSetRuntimeMessage(runtimeMessage);
+        if (count instanceof HTMLElement) count.textContent = countText;
+        return false;
+      }}
+      const focusedScriptId = activeElement instanceof HTMLElement
+        ? String(activeElement.dataset.scriptToggle || "").trim()
+        : "";
+      const previousScrollTop = list.scrollTop;
+      scriptsSetRuntimeStatus(presentation.kind, presentation.label);
+      scriptsSyncRuntimeMasterControl(runtimeSummary, runtimeMasterEnabled, summaryError);
+      scriptsSetRuntimeMessage(runtimeMessage);
+      if (count instanceof HTMLElement) count.textContent = countText;
+      list.innerHTML = listHtml;
+      list.scrollTop = previousScrollTop;
+      scriptsLastRenderSignature = signature;
+
+      if (focusedScriptId) {{
+        const replacement = Array.from(list.querySelectorAll("[data-script-toggle]"))
+          .find((candidate) => String(candidate.dataset.scriptToggle || "") === focusedScriptId);
+        if (replacement instanceof HTMLButtonElement && !replacement.disabled) {{
+          try {{
+            replacement.focus({{ preventScroll: true }});
+          }} catch (_err) {{
+            replacement.focus();
+          }}
+        }}
+      }}
+      return true;
+    }}
+
+    function renderScriptsViewSafely(state = latestState, stepName = "renderScriptsView") {{
+      if (!pluginsFeatureEnabled) return false;
+      let rendered = false;
+      if (typeof runPollStep === "function") {{
+        rendered = runPollStep(stepName, () => renderScriptsView(state), false);
+      }} else {{
+        try {{
+          rendered = renderScriptsView(state);
+        }} catch (err) {{
+          if (typeof console !== "undefined" && console && typeof console.error === "function") {{
+            console.error(`[scripts render error] ${{stepName}}`, err);
+          }}
+          rendered = false;
+        }}
+      }}
+      if (
+        typeof activeLayoutView !== "undefined"
+        && String(activeLayoutView || "") === "scripts"
+      ) {{
+        void refreshScriptsAdminSummary(false);
+      }}
+      return rendered;
+    }}
+
+    function scriptsUpdateCachedEnabled(scriptId, enabled, active = enabled) {{
+      const runtimeSummary = scriptsRuntimeSummary(latestState);
+      const rows = scriptsRuntimeEntries(runtimeSummary);
+      const match = rows.find((row) => String(row.id || "") === scriptId);
+      if (match) {{
+        match.enabled = !!enabled;
+        match.active = !!active;
+        match.restart_required = false;
+      }}
+    }}
+
+    function scriptsUpdateCachedRuntimeMaster(enabled, enabledPlugins) {{
+      const runtimeSummary = scriptsRuntimeSummary(latestState);
+      if (!runtimeSummary || typeof runtimeSummary !== "object") return;
+      const runtimeEnabled = !!enabled;
+      const activeIds = Array.isArray(enabledPlugins)
+        ? new Set(enabledPlugins.map((value) => String(value || "").trim()).filter(Boolean))
+        : new Set();
+      runtimeSummary.runtime_enabled = runtimeEnabled;
+      if (!runtimeEnabled || Array.isArray(enabledPlugins)) {{
+        runtimeSummary.enabled_plugins = Array.from(activeIds);
+      }}
+      if (!runtimeEnabled) {{
+        runtimeSummary.runtime = {{}};
+      }}
+      scriptsRuntimeEntries(runtimeSummary).forEach((row) => {{
+        const rowId = String(row.id || "").trim();
+        row.active = runtimeEnabled && row.enabled === true && activeIds.has(rowId);
+        row.restart_required = false;
+        if (!runtimeEnabled && row.enabled === true) {{
+          row.runtime_status = "master_disabled";
+          row.runtime_error = "";
+        }}
+      }});
+    }}
+
+    function scriptsUpdateCachedSettings(scriptId, settings) {{
+      const runtimeSummary = scriptsRuntimeSummary(latestState);
+      const rows = scriptsRuntimeEntries(runtimeSummary);
+      const match = rows.find((row) => String(row.id || "") === scriptId);
+      if (match && settings && typeof settings === "object") {{
+        match.settings = {{ ...settings }};
+      }}
+    }}
+
+    function scriptsRoutePolicyFor(scriptId) {{
+      const runtimeSummary = scriptsRuntimeSummary(latestState);
+      const rows = scriptsRuntimeEntries(runtimeSummary);
+      const match = rows.find((row) => String(row.id || "") === scriptId);
+      return {{
+        meshEnabled: !match || match.mesh_enabled !== false,
+        consoleEnabled: !match || match.console_enabled !== false,
+        tickerEnabled: !match || match.ticker_enabled !== false,
+        viewEnabled: !match || match.view_enabled !== false,
+      }};
+    }}
+
+    function scriptsUpdateCachedRoutePolicy(scriptId, meshEnabled, consoleEnabled, tickerEnabled, viewEnabled) {{
+      const runtimeSummary = scriptsRuntimeSummary(latestState);
+      const rows = scriptsRuntimeEntries(runtimeSummary);
+      const match = rows.find((row) => String(row.id || "") === scriptId);
+      if (match) {{
+        match.mesh_enabled = !!meshEnabled;
+        match.console_enabled = !!consoleEnabled;
+        match.ticker_enabled = !!tickerEnabled;
+        match.view_enabled = !!viewEnabled;
+      }}
+    }}
+
+    function scriptsDiscardStaleConfig(scriptId) {{
+      const cleanId = String(scriptId || "").trim();
+      scriptsConfigDrafts.delete(cleanId);
+      if (scriptsOpenConfigId === cleanId) scriptsOpenConfigId = "";
+      const activeElement = document.activeElement;
+      const activeForm = activeElement instanceof Element
+        ? activeElement.closest("[data-script-config-form]")
+        : null;
+      if (
+        activeForm instanceof HTMLFormElement
+        && String(activeForm.dataset.scriptConfigForm || "").trim() === cleanId
+        && activeElement instanceof HTMLElement
+      ) {{
+        activeElement.blur();
+      }}
+    }}
+
+    function scriptsReadConfigForm(form) {{
+      const settings = {{}};
+      form.querySelectorAll("[data-script-setting]").forEach((input) => {{
+        const key = String(input.dataset.scriptSetting || "").trim();
+        const type = String(input.dataset.settingType || "text");
+        if (!key) return;
+        if (type === "boolean" && input instanceof HTMLInputElement) {{
+          settings[key] = input.checked;
+          return;
+        }}
+        const rawValue = "value" in input ? String(input.value || "") : "";
+        if (type === "integer") {{
+          if (!rawValue.trim()) throw new Error(`${{key}} is required`);
+          const value = Number(rawValue);
+          if (!Number.isInteger(value)) throw new Error(`${{key}} must be an integer`);
+          settings[key] = value;
+        }} else if (type === "node_ids") {{
+          settings[key] = rawValue.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean);
+        }} else {{
+          settings[key] = rawValue;
+        }}
+      }});
+      return settings;
+    }}
+
+    async function setScriptsRuntimeMasterEnabled(enabled, button) {{
+      if (scriptsRuntimeMasterPending) return false;
+      scriptsRuntimeMasterPending = true;
+      scriptsTransientErrorMessage = "";
+      if (button instanceof HTMLButtonElement) button.disabled = true;
+      renderScriptsViewSafely(latestState, "scripts.runtime.pending");
+      try {{
+        const response = await fetch("/api/settings/plugins/runtime", {{
+          method: "POST",
+          headers: scriptsAdminRequestHeaders({{ json: true }}),
+          body: JSON.stringify({{ enabled: !!enabled }}),
+          cache: "no-store",
+        }});
+        const text = await response.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const error = payload && payload.error;
+        const errorMessage = error && typeof error === "object"
+          ? String(error.message || error.code || "")
+          : String(error || (payload && payload.message) || text || `HTTP ${{response.status}}`);
+        if (!response.ok || !payload || payload.ok !== true) {{
+          if (response.status === 401 || response.status === 403) {{
+            scriptsAdminAccessState = "unavailable";
+            scriptsAdminAccessMessage = String(
+              (payload && payload.error) || text || "Script administration is unavailable."
+            );
+          }}
+          throw new Error(errorMessage || `HTTP ${{response.status}}`);
+        }}
+        scriptsUpdateCachedRuntimeMaster(
+          payload.runtime_enabled !== false,
+          payload.enabled_plugins
+        );
+        if (typeof forceNextStatePollFresh === "function") {{
+          forceNextStatePollFresh("script-runtime");
+        }}
+        if (typeof requestImmediatePoll === "function") {{
+          requestImmediatePoll(0);
+        }}
+        void refreshScriptsAdminSummary(true);
+        return true;
+      }} catch (err) {{
+        const message = err instanceof Error ? err.message : String(err || "Unknown error");
+        scriptsTransientErrorMessage = `Could not update scripts runtime: ${{message}}`;
+        return false;
+      }} finally {{
+        scriptsRuntimeMasterPending = false;
+        scriptsLastRenderSignature = "";
+        renderScriptsViewSafely(latestState, "scripts.runtime.complete");
+      }}
+    }}
+
+    async function saveScriptConfig(scriptId, packageDigest, settings) {{
+      const cleanId = String(scriptId || "").trim();
+      if (!cleanId || scriptsPendingConfigRequests.has(cleanId)) return false;
+      const expectedPackageDigest = String(packageDigest || "").trim().toLowerCase();
+      if (!/^sha256:[0-9a-f]{{64}}$/.test(expectedPackageDigest)) {{
+        scriptsTransientErrorMessage = `Could not configure ${{cleanId}}: refresh to load its current package fingerprint.`;
+        void refreshScriptsAdminSummary(true);
+        return false;
+      }}
+      scriptsPendingConfigRequests.add(cleanId);
+      scriptsConfigDrafts.set(cleanId, {{
+        packageDigest: expectedPackageDigest,
+        settings: {{ ...settings }},
+      }});
+      scriptsTransientErrorMessage = "";
+      scriptsLastRenderSignature = "";
+      renderScriptsViewSafely(latestState, "scripts.config.pending");
+      try {{
+        const response = await fetch("/api/settings/plugins/config", {{
+          method: "POST",
+          headers: scriptsAdminRequestHeaders({{ json: true }}),
+          body: JSON.stringify({{
+            plugin_id: cleanId,
+            package_digest: expectedPackageDigest,
+            settings,
+          }}),
+          cache: "no-store",
+        }});
+        const text = await response.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const error = payload && payload.error;
+        const errorMessage = error && typeof error === "object"
+          ? String(error.message || error.code || "")
+          : String(error || (payload && payload.message) || text || `HTTP ${{response.status}}`);
+        if (!response.ok || !payload || payload.ok !== true) {{
+          if (response.status === 409) {{
+            scriptsDiscardStaleConfig(cleanId);
+            scriptsAdminRuntimeSummary = null;
+            void refreshScriptsAdminSummary(true);
+          }}
+          throw new Error(errorMessage || `HTTP ${{response.status}}`);
+        }}
+        scriptsUpdateCachedSettings(cleanId, payload.settings);
+        scriptsConfigDrafts.delete(cleanId);
+        scriptsOpenConfigId = "";
+        if (typeof forceNextStatePollFresh === "function") {{
+          forceNextStatePollFresh("script-config");
+        }}
+        if (typeof requestImmediatePoll === "function") requestImmediatePoll(0);
+        void refreshScriptsAdminSummary(true);
+        return true;
+      }} catch (err) {{
+        const message = err instanceof Error ? err.message : String(err || "Unknown error");
+        scriptsTransientErrorMessage = `Could not configure ${{cleanId}}: ${{message}}`;
+        return false;
+      }} finally {{
+        scriptsPendingConfigRequests.delete(cleanId);
+        scriptsLastRenderSignature = "";
+        renderScriptsViewSafely(latestState, "scripts.config.complete");
+      }}
+    }}
+
+    async function setScriptRoutePolicy(
+      scriptId,
+      packageDigest,
+      meshEnabled,
+      consoleEnabled,
+      tickerEnabled,
+      viewEnabled,
+      control
+    ) {{
+      const cleanId = String(scriptId || "").trim();
+      if (!cleanId || scriptsPendingRouteRequests.has(cleanId)) return false;
+      const expectedPackageDigest = String(packageDigest || "").trim().toLowerCase();
+      if (!/^sha256:[0-9a-f]{{64}}$/.test(expectedPackageDigest)) {{
+        scriptsTransientErrorMessage = `Could not update routes for ${{cleanId}}: refresh to load its current package fingerprint.`;
+        void refreshScriptsAdminSummary(true);
+        return false;
+      }}
+      const previous = scriptsRoutePolicyFor(cleanId);
+      scriptsPendingRouteRequests.add(cleanId);
+      scriptsUpdateCachedRoutePolicy(
+        cleanId,
+        !!meshEnabled,
+        !!consoleEnabled,
+        !!tickerEnabled,
+        !!viewEnabled
+      );
+      scriptsTransientErrorMessage = "";
+      if (control instanceof HTMLInputElement) control.disabled = true;
+      renderScriptsViewSafely(latestState, "scripts.routes.pending");
+      try {{
+        const response = await fetch("/api/settings/plugins/routes", {{
+          method: "POST",
+          headers: scriptsAdminRequestHeaders({{ json: true }}),
+          body: JSON.stringify({{
+            plugin_id: cleanId,
+            package_digest: expectedPackageDigest,
+            mesh_enabled: !!meshEnabled,
+            console_enabled: !!consoleEnabled,
+            ticker_enabled: !!tickerEnabled,
+            view_enabled: !!viewEnabled,
+          }}),
+          cache: "no-store",
+        }});
+        const text = await response.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const error = payload && payload.error;
+        const errorMessage = error && typeof error === "object"
+          ? String(error.message || error.code || "")
+          : String(error || (payload && payload.message) || text || `HTTP ${{response.status}}`);
+        if (!response.ok || !payload || payload.ok !== true) {{
+          if (response.status === 409) {{
+            scriptsAdminRuntimeSummary = null;
+            void refreshScriptsAdminSummary(true);
+          }}
+          throw new Error(errorMessage || `HTTP ${{response.status}}`);
+        }}
+        scriptsUpdateCachedRoutePolicy(
+          cleanId,
+          payload.mesh_enabled !== false,
+          payload.console_enabled !== false,
+          payload.ticker_enabled !== false,
+          payload.view_enabled !== false
+        );
+        if (typeof forceNextStatePollFresh === "function") {{
+          forceNextStatePollFresh("script-routes");
+        }}
+        if (typeof requestImmediatePoll === "function") {{
+          requestImmediatePoll(0);
+        }}
+        void refreshScriptsAdminSummary(true);
+        return true;
+      }} catch (err) {{
+        scriptsUpdateCachedRoutePolicy(
+          cleanId,
+          previous.meshEnabled,
+          previous.consoleEnabled,
+          previous.tickerEnabled,
+          previous.viewEnabled
+        );
+        const message = err instanceof Error ? err.message : String(err || "Unknown error");
+        scriptsTransientErrorMessage = `Could not update routes for ${{cleanId}}: ${{message}}`;
+        return false;
+      }} finally {{
+        scriptsPendingRouteRequests.delete(cleanId);
+        renderScriptsViewSafely(latestState, "scripts.routes.complete");
+      }}
+    }}
+
+    async function setScriptEnabled(scriptId, packageDigest, enabled, button) {{
+      const cleanId = String(scriptId || "").trim();
+      if (!cleanId || scriptsPendingRequests.has(cleanId)) return false;
+      const expectedPackageDigest = String(packageDigest || "").trim().toLowerCase();
+      if (!/^sha256:[0-9a-f]{{64}}$/.test(expectedPackageDigest)) {{
+        scriptsTransientErrorMessage = `Could not update ${{cleanId}}: refresh to load its current package fingerprint.`;
+        void refreshScriptsAdminSummary(true);
+        return false;
+      }}
+      scriptsPendingRequests.set(cleanId, {{ enabled: !!enabled }});
+      scriptsTransientErrorMessage = "";
+      if (button instanceof HTMLButtonElement) button.disabled = true;
+      renderScriptsViewSafely(latestState, "scripts.toggle.pending");
+      try {{
+        const response = await fetch("/api/settings/plugins", {{
+          method: "POST",
+          headers: scriptsAdminRequestHeaders({{ json: true }}),
+          body: JSON.stringify({{
+            plugin_id: cleanId,
+            package_digest: expectedPackageDigest,
+            enabled: !!enabled,
+          }}),
+          cache: "no-store",
+        }});
+        const text = await response.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const error = payload && payload.error;
+        const errorMessage = error && typeof error === "object"
+          ? String(error.message || error.code || "")
+          : String(error || (payload && payload.message) || text || `HTTP ${{response.status}}`);
+        if (!response.ok || !payload || payload.ok !== true) {{
+          if (response.status === 409) {{
+            scriptsAdminRuntimeSummary = null;
+            void refreshScriptsAdminSummary(true);
+          }}
+          throw new Error(errorMessage || `HTTP ${{response.status}}`);
+        }}
+        scriptsUpdateCachedEnabled(cleanId, !!payload.enabled, !!payload.active);
+        if (typeof forceNextStatePollFresh === "function") {{
+          forceNextStatePollFresh("script-setting");
+        }}
+        if (typeof requestImmediatePoll === "function") {{
+          requestImmediatePoll(0);
+        }}
+        void refreshScriptsAdminSummary(true);
+        return true;
+      }} catch (err) {{
+        const message = err instanceof Error ? err.message : String(err || "Unknown error");
+        scriptsTransientErrorMessage = `Could not update ${{cleanId}}: ${{message}}`;
+        return false;
+      }} finally {{
+        scriptsPendingRequests.delete(cleanId);
+        renderScriptsViewSafely(latestState, "scripts.toggle.complete");
+      }}
+    }}
+
+    function bindScriptsView() {{
+      if (!pluginsFeatureEnabled) return;
+      const list = document.getElementById("scripts-list");
+      if (!(list instanceof HTMLElement) || list.dataset.bound === "1") return;
+      list.dataset.bound = "1";
+      const tabs = document.getElementById("scripts-tabs");
+      if (tabs instanceof HTMLElement && tabs.dataset.bound !== "1") {{
+        tabs.dataset.bound = "1";
+        tabs.addEventListener("click", (event) => {{
+          const target = event.target instanceof Element
+            ? event.target.closest("[data-scripts-tab]")
+            : null;
+          if (!(target instanceof HTMLButtonElement)) return;
+          applyScriptsTab(target.dataset.scriptsTab);
+        }});
+      }}
+      const runtimeMasterToggle = document.getElementById("scripts-runtime-master-toggle");
+      if (
+        runtimeMasterToggle instanceof HTMLButtonElement
+        && runtimeMasterToggle.dataset.bound !== "1"
+      ) {{
+        runtimeMasterToggle.dataset.bound = "1";
+        runtimeMasterToggle.addEventListener("click", () => {{
+          if (runtimeMasterToggle.disabled) return;
+          const enabled = String(runtimeMasterToggle.dataset.nextEnabled || "true") === "true";
+          void setScriptsRuntimeMasterEnabled(enabled, runtimeMasterToggle);
+        }});
+      }}
+      applyScriptsTab(scriptsActiveTab);
+      scriptsSyncAdminAccessControls();
+      const readmeModal = document.getElementById("scripts-readme-modal");
+      if (readmeModal instanceof HTMLElement && readmeModal.dataset.bound !== "1") {{
+        readmeModal.dataset.bound = "1";
+        readmeModal.addEventListener("click", (event) => {{
+          const closeTarget = event.target instanceof Element
+            ? event.target.closest("[data-script-readme-close]")
+            : null;
+          if (closeTarget || event.target === readmeModal) {{
+            scriptsCloseReadme();
+          }}
+        }});
+        document.addEventListener("keydown", (event) => {{
+          if (event.key === "Escape" && readmeModal.hidden === false) {{
+            scriptsCloseReadme();
+          }}
+        }});
+      }}
+      list.addEventListener("click", (event) => {{
+        const readmeButton = event.target instanceof Element
+          ? event.target.closest("[data-script-readme]")
+          : null;
+        if (readmeButton instanceof HTMLButtonElement && !readmeButton.disabled) {{
+          const scriptId = String(readmeButton.dataset.scriptReadme || "").trim();
+          const row = scriptsRuntimeEntryById(scriptId);
+          if (row) scriptsOpenReadme(row, readmeButton);
+          return;
+        }}
+        const configure = event.target instanceof Element
+          ? event.target.closest("[data-script-configure]")
+          : null;
+        if (configure instanceof HTMLButtonElement && !configure.disabled) {{
+          const scriptId = String(configure.dataset.scriptConfigure || "").trim();
+          scriptsOpenConfigId = scriptsOpenConfigId === scriptId ? "" : scriptId;
+          scriptsConfigDrafts.delete(scriptId);
+          scriptsLastRenderSignature = "";
+          renderScriptsViewSafely(latestState, "scripts.config.toggle");
+          return;
+        }}
+        const cancel = event.target instanceof Element
+          ? event.target.closest("[data-script-config-cancel]")
+          : null;
+        if (cancel instanceof HTMLButtonElement && !cancel.disabled) {{
+          const scriptId = String(cancel.dataset.scriptConfigCancel || "").trim();
+          scriptsConfigDrafts.delete(scriptId);
+          scriptsOpenConfigId = "";
+          scriptsLastRenderSignature = "";
+          renderScriptsViewSafely(latestState, "scripts.config.cancel");
+          return;
+        }}
+        const target = event.target instanceof Element
+          ? event.target.closest("[data-script-toggle]")
+          : null;
+        if (!(target instanceof HTMLButtonElement) || target.disabled) return;
+        const scriptId = String(target.dataset.scriptToggle || "").trim();
+        const packageDigest = String(target.dataset.packageDigest || "").trim();
+        const enabled = String(target.dataset.nextEnabled || "false") === "true";
+        void setScriptEnabled(scriptId, packageDigest, enabled, target);
+      }});
+      list.addEventListener("change", (event) => {{
+        const target = event.target instanceof Element
+          ? event.target.closest("[data-script-route-toggle]")
+          : null;
+        if (!(target instanceof HTMLInputElement) || target.disabled) return;
+        const scriptId = String(target.dataset.scriptRouteToggle || "").trim();
+        const packageDigest = String(target.dataset.packageDigest || "").trim();
+        const item = target.closest("[data-script-id]");
+        const meshInput = item instanceof HTMLElement
+          ? item.querySelector('[data-script-route-toggle][data-route-key="mesh"]')
+          : null;
+        const consoleInput = item instanceof HTMLElement
+          ? item.querySelector('[data-script-route-toggle][data-route-key="console"]')
+          : null;
+        const tickerInput = item instanceof HTMLElement
+          ? item.querySelector('[data-script-route-toggle][data-route-key="ticker"]')
+          : null;
+        const viewInput = item instanceof HTMLElement
+          ? item.querySelector('[data-script-route-toggle][data-route-key="view"]')
+          : null;
+        const previous = scriptsRoutePolicyFor(scriptId);
+        const meshEnabled = meshInput instanceof HTMLInputElement
+          ? meshInput.checked
+          : previous.meshEnabled;
+        const consoleEnabled = consoleInput instanceof HTMLInputElement
+          ? consoleInput.checked
+          : previous.consoleEnabled;
+        const tickerEnabled = tickerInput instanceof HTMLInputElement
+          ? tickerInput.checked
+          : previous.tickerEnabled;
+        const viewEnabled = viewInput instanceof HTMLInputElement
+          ? viewInput.checked
+          : previous.viewEnabled;
+        void setScriptRoutePolicy(
+          scriptId,
+          packageDigest,
+          meshEnabled,
+          consoleEnabled,
+          tickerEnabled,
+          viewEnabled,
+          target
+        );
+      }});
+      list.addEventListener("submit", (event) => {{
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.dataset.scriptConfigForm) return;
+        event.preventDefault();
+        const scriptId = String(form.dataset.scriptConfigForm || "").trim();
+        const packageDigest = String(form.dataset.packageDigest || "").trim();
+        try {{
+          const settings = scriptsReadConfigForm(form);
+          scriptsConfigDrafts.set(scriptId, {{
+            packageDigest,
+            settings,
+          }});
+          void saveScriptConfig(scriptId, packageDigest, settings);
+        }} catch (err) {{
+          const message = err instanceof Error ? err.message : String(err || "Invalid settings");
+          scriptsTransientErrorMessage = `Could not configure ${{scriptId}}: ${{message}}`;
+          scriptsSetRuntimeMessage(scriptsTransientErrorMessage);
+        }}
+      }});
+      const clearButton = document.getElementById("scripts-debug-clear");
+      if (clearButton instanceof HTMLButtonElement) {{
+        clearButton.addEventListener("click", () => {{
+          const runtime = scriptsRuntimeDetails(scriptsRuntimeSummary(latestState));
+          scriptsDebugClearedThrough = Number(runtime.debug_sequence || 0);
+          scriptsLastDebugSignature = "";
+          renderScriptsDebug(scriptsRuntimeSummary(latestState));
+        }});
+      }}
+    }}

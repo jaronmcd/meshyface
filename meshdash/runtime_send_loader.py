@@ -59,6 +59,7 @@ def build_send_chat_loader_with_dependencies(
         reply_id: Optional[int] = None,
         retry_of: Optional[int] = None,
         emoji: object = None,
+        retry_unacked: bool = True,
     ) -> dict:
         return send_chat_message_fn(
             text=text,
@@ -77,6 +78,7 @@ def build_send_chat_loader_with_dependencies(
             normalize_single_emoji_fn=dependencies.normalize_single_emoji_fn,
             to_int_fn=dependencies.to_int_fn,
             now_text_fn=dependencies.utc_now_fn,
+            retry_unacked=retry_unacked,
         )
 
     return send_chat_fn

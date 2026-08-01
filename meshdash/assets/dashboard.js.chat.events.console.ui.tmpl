@@ -114,7 +114,8 @@
         ) {{
           return;
         }}
-        const remembered = normalizeLayoutView(consoleHotkeyReturnLayoutView || "chat");
+        const remembered = normalizePluginViewKey(consoleHotkeyReturnLayoutView || "")
+          || normalizeLayoutView(consoleHotkeyReturnLayoutView || "chat");
         const nextView = activeLayoutView === "console"
           ? (remembered === "console" ? "chat" : remembered)
           : "console";

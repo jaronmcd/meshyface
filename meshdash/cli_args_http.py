@@ -39,7 +39,14 @@ def add_http_runtime_args(
     default_private_mode: bool = False,
     default_api_token: str | None = None,
     default_file_transfer_enable: bool = False,
-    default_file_transfer_auto_accept: bool = False,
+    default_plugins_enable: bool = True,
+    default_plugins_directory: str = "mesh_dashboard_plugins",
+    default_plugins_state_db: str = "mesh_dashboard_plugin_state.sqlite3",
+    default_plugins_files_directory: str = "mesh_dashboard_plugin_files",
+    default_plugins_handler_timeout: float = 5.0,
+    default_plugins_event_queue_size: int = 128,
+    default_plugin_enable: list[str] | None = None,
+    default_plugin_disable: list[str] | None = None,
     default_games_enable: bool = False,
     default_file_transfer_max_bytes: int = 64 * 1024,
     default_accept_file_transfer_traffic_disclaimer: bool = False,
@@ -105,8 +112,9 @@ def add_http_runtime_args(
         action=_ApiTokenAction,
         default=default_api_token,
         help=(
-            "Optional API token required on write endpoints via Authorization: Bearer <token> "
-            "or X-API-Token header. Prefer MESH_DASH_API_TOKEN on shared hosts; "
+            "Optional API token required for external API-style write clients via "
+            "Authorization: Bearer <token> or X-API-Token header. The dashboard UI "
+            "uses same-origin browser checks. Prefer MESH_DASH_API_TOKEN on shared hosts; "
             "command-line tokens may appear in process listings and shell history."
         ),
     )
@@ -138,14 +146,54 @@ def add_http_runtime_args(
         ),
     )
     parser.add_argument(
-        "--file-transfer-auto-accept",
+        "--plugins-enable",
         action=argparse.BooleanOptionalAction,
-        default=default_file_transfer_auto_accept,
+        default=default_plugins_enable,
         help=(
-            "Automatically accept direct inbound Meshyface file transfers in the "
-            "backend, and use the same value as the browser preference default "
-            f"(default: {default_file_transfer_auto_accept})"
+            "Enable the Scripts workspace and trusted Python plugin subsystem "
+            f"(default: {default_plugins_enable})"
         ),
+    )
+    parser.add_argument(
+        "--plugins-directory",
+        default=default_plugins_directory,
+        help="Persistent directory containing local script plugin packages.",
+    )
+    parser.add_argument(
+        "--plugins-state-db",
+        default=default_plugins_state_db,
+        help="Independent SQLite database for script state, sessions, and enablement.",
+    )
+    parser.add_argument(
+        "--plugins-files-directory",
+        default=default_plugins_files_directory,
+        help="Approved root for files requested through the script API.",
+    )
+    parser.add_argument(
+        "--plugins-handler-timeout",
+        type=float,
+        default=default_plugins_handler_timeout,
+        help="Maximum seconds allowed for one script handler.",
+    )
+    parser.add_argument(
+        "--plugins-event-queue-size",
+        type=int,
+        default=default_plugins_event_queue_size,
+        help="Maximum pending normalized script events.",
+    )
+    parser.add_argument(
+        "--plugin-enable",
+        action="append",
+        default=list(default_plugin_enable or ()),
+        metavar="ID",
+        help="Enable one discovered plugin ID; may be repeated.",
+    )
+    parser.add_argument(
+        "--plugin-disable",
+        action="append",
+        default=list(default_plugin_disable or ()),
+        metavar="ID",
+        help="Disable one discovered plugin ID; may be repeated.",
     )
     parser.add_argument(
         "--games-enable",

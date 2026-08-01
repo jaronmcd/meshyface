@@ -287,6 +287,7 @@ def _build_offline_state_loader(
     started_at: float,
     utc_now_fn: UtcNowFn,
     history_store: object | None = None,
+    plugin_runtime_enabled: bool = False,
 ):
     revision_payload = {}
     as_dict = getattr(revision_info, "as_dict", None)
@@ -342,6 +343,10 @@ def _build_offline_state_loader(
                 "online_node_count_source": "offline",
                 "radio_link": radio_link_summary,
                 "radio_connection": radio_connection_summary,
+                "plugins": {
+                    "enabled": bool(plugin_runtime_enabled),
+                    "available": False,
+                },
             },
             "summary_error": None,
             "my_info": None,
@@ -414,7 +419,107 @@ def _build_offline_runtime_context(
         started_at=started_at,
         utc_now_fn=utc_now_fn,
         history_store=history_store,
+        plugin_runtime_enabled=bool(getattr(args, "plugins_enable", False)),
     )
+    if not bool(getattr(args, "plugins_enable", False)):
+        def _plugin_runtime_disabled(
+            plugin_id: object,
+            enabled: bool,
+            *,
+            expected_package_digest: object,
+        ) -> dict[str, object]:
+            del plugin_id, enabled, expected_package_digest
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
+        def _plugin_settings_disabled(
+            plugin_id: object,
+            settings: object,
+            *,
+            expected_package_digest: object,
+        ) -> dict[str, object]:
+            del plugin_id, settings, expected_package_digest
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
+        def _plugin_route_policy_disabled(
+            plugin_id: object,
+            *,
+            mesh_enabled: bool,
+            console_enabled: bool,
+            ticker_enabled: bool,
+            view_enabled: bool,
+            expected_package_digest: object,
+        ) -> dict[str, object]:
+            del (
+                plugin_id,
+                mesh_enabled,
+                console_enabled,
+                ticker_enabled,
+                view_enabled,
+                expected_package_digest,
+            )
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
+        def _plugin_console_disabled(**_kwargs) -> dict[str, object]:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
+        def _plugin_runtime_master_disabled(enabled: bool) -> dict[str, object]:
+            del enabled
+            return {
+                "ok": False,
+                "error": {
+                    "code": "plugin_runtime_disabled",
+                    "message": "Python plugin runtime is disabled at startup",
+                },
+            }
+
+        setattr(state_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
+        setattr(state_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
+        setattr(state_fn, "set_plugin_route_policy_fn", _plugin_route_policy_disabled)
+        setattr(
+            state_fn,
+            "set_plugin_runtime_enabled_fn",
+            _plugin_runtime_master_disabled,
+        )
+        setattr(state_fn, "run_plugin_console_command_fn", _plugin_console_disabled)
+        state_lite_fn = getattr(state_fn, "lite", None)
+        if callable(state_lite_fn):
+            setattr(state_lite_fn, "set_plugin_enabled_fn", _plugin_runtime_disabled)
+            setattr(state_lite_fn, "set_plugin_settings_fn", _plugin_settings_disabled)
+            setattr(
+                state_lite_fn,
+                "set_plugin_route_policy_fn",
+                _plugin_route_policy_disabled,
+            )
+            setattr(
+                state_lite_fn,
+                "set_plugin_runtime_enabled_fn",
+                _plugin_runtime_master_disabled,
+            )
+            setattr(state_lite_fn, "run_plugin_console_command_fn", _plugin_console_disabled)
     if bool(getattr(args, "games_enable", False)):
         _attach_standalone_zork_service(state_fn)
     return DashboardRuntimeContext(
@@ -870,13 +975,23 @@ def run_dashboard_runtime(
                 except Exception:
                     pass
             close_file_transfer = getattr(
-                getattr(context.tracker, "_file_transfer_auto_accept_service", None),
+                getattr(context.tracker, "_file_transfer_inbound_service", None),
                 "close",
                 None,
             )
             if callable(close_file_transfer):
                 try:
                     close_file_transfer()
+                except Exception:
+                    pass
+            close_plugin_subsystem = getattr(
+                getattr(context.tracker, "_plugin_subsystem", None),
+                "close",
+                None,
+            )
+            if callable(close_plugin_subsystem):
+                try:
+                    close_plugin_subsystem()
                 except Exception:
                     pass
             close_runtime_resources(

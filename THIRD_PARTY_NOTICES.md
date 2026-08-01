@@ -96,7 +96,7 @@ Generation documentation:
 ### Zork 1977 data
 
 File:
-- `meshdash/games/zork/upstream_1977/zork-master/zork/dung.56`
+- `meshdash/included_plugins/zork/zork_core/upstream_1977/zork-master/zork/dung.56`
 
 Source:
 - MIT Libraries Department of Distinctive Collections (MITDDC) Zork repository: `https://github.com/MITDDC/zork`

@@ -7,7 +7,7 @@
       if (!isCanonicalNodeId(localNodeId)) return;
       const nowMs = Date.now();
       const nowUnix = Math.trunc(nowMs / 1000);
-      const backendAutoAcceptEnabled = fileTransferBackendAutoAcceptEnabled(state);
+      const backendAcceptedKeys = fileTransferBackendAcceptedKeys(state);
       const maybeSendInboundFlowSignal = async (transfer, transferKey, senderId, actionRaw, force = false) => {{
         const action = String(actionRaw || "").trim().toLowerCase();
         if (action !== "pause" && action !== "resume" && action !== "cancel") return false;
@@ -165,21 +165,17 @@
         }}
         if (requiresInboundAccept) {{
           let inboundDecision = fileTransferInboundDecisionForKey(transferKey);
+          if (backendAcceptedKeys.has(transferKey) && inboundDecision !== "accepted") {{
+            setFileTransferInboundDecisionByKey(transferKey, "accepted", {{
+              transferId: transfer.transferId,
+              senderId,
+              receiverId,
+            }});
+            inboundDecision = "accepted";
+          }}
           const inboundFlowState = fileTransferInboundFlowStateForKey(transferKey);
           const inboundCanceledByReceiver = inboundFlowState === "canceled-by-receiver";
           const inboundCanceledBySender = inboundFlowState === "canceled-by-sender";
-          if (inboundDecision !== "accepted") {{
-            const autoAccepted = autoAcceptInboundFileTransferIfEnabled(
-              transfer,
-              transferKey,
-              senderId,
-              receiverId,
-              localNodeId
-            );
-            if (autoAccepted) {{
-              inboundDecision = "accepted";
-            }}
-          }}
           if (inboundDecision !== "accepted") {{
             fileTransferAckSentState.delete(transferKey);
             fileTransferAckObservedChunksByKey.delete(transferKey);
@@ -226,7 +222,7 @@
         if (priorFlowSignal && String(priorFlowSignal.action || "") === "pause") {{
           await maybeSendInboundFlowSignal(transfer, transferKey, senderId, "resume", true);
         }}
-        if (backendAutoAcceptEnabled) {{
+        if (backendAcceptedKeys.has(transferKey)) {{
           fileTransferAckSentState.delete(transferKey);
           fileTransferAckObservedChunksByKey.delete(transferKey);
           fileTransferAckProbeCursorByKey.delete(transferKey);

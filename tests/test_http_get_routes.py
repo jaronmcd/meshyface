@@ -115,6 +115,124 @@ def test_dashboard_get_serves_root_version_health_and_metrics() -> None:
     assert "meshdash_radio_link_up 1" in deps.recorder.text[0][1]
 
 
+def test_plugin_admin_status_follows_dashboard_access() -> None:
+    plugin_status = {
+        "enabled": True,
+        "scripts": [
+            {
+                "id": "weather",
+                "settings": {"api_token": "plugin-secret"},
+            }
+        ],
+        "runtime": {"debug": [{"values": ["private debug"]}]},
+    }
+    state_fn = _StateFn(
+        {
+            "generated_at": "now",
+            "summary": {"plugins": plugin_status},
+            "traffic": {},
+        }
+    )
+    loopback = SimpleNamespace(
+        headers={"Host": "127.0.0.1:8877"},
+        client_address=("127.0.0.1", 12345),
+    )
+    remote = SimpleNamespace(
+        headers={"Host": "dashboard.example"},
+        client_address=("192.0.2.10", 12345),
+    )
+
+    loopback_deps = _make_deps(state_fn=state_fn)
+    handle_dashboard_get(
+        loopback,
+        path="/api/admin/plugins",
+        query="",
+        deps=loopback_deps,
+    )
+    assert loopback_deps.recorder.json == [
+        (200, {"ok": True, "plugins": plugin_status}, True)
+    ]
+
+    remote_deps = _make_deps(state_fn=state_fn)
+    handle_dashboard_get(
+        remote,
+        path="/api/admin/plugins",
+        query="",
+        deps=remote_deps,
+    )
+    assert remote_deps.recorder.json == [
+        (200, {"ok": True, "plugins": plugin_status}, True)
+    ]
+
+
+def test_remote_plugin_admin_status_does_not_require_configured_token() -> None:
+    plugin_status = {"enabled": True, "scripts": [{"id": "weather"}]}
+    state_fn = _StateFn(
+        {
+            "generated_at": "now",
+            "summary": {"plugins": plugin_status},
+            "traffic": {},
+        }
+    )
+    handler = SimpleNamespace(
+        headers={"Host": "dashboard.example"},
+        client_address=("192.0.2.10", 12345),
+    )
+    deps = _make_deps(state_fn=state_fn, api_token="secret")
+
+    handle_dashboard_get(
+        handler,
+        path="/api/admin/plugins",
+        query="",
+        deps=deps,
+    )
+
+    assert deps.recorder.json == [
+        (200, {"ok": True, "plugins": plugin_status}, True)
+    ]
+
+
+def test_plugin_admin_status_uses_direct_unredacted_subsystem_view() -> None:
+    state_fn = _StateFn(
+        {
+            "summary": {
+                "plugins": {
+                    "enabled": True,
+                    "scripts": [
+                        {"id": "weather", "settings": {"password": "<redacted>"}}
+                    ],
+                }
+            }
+        }
+    )
+    direct_status = {
+        "enabled": True,
+        "scripts": [
+            {"id": "weather", "settings": {"password": "saved-value"}}
+        ],
+    }
+    state_fn.plugin_admin_status_fn = lambda: direct_status  # type: ignore[attr-defined]
+    handler = SimpleNamespace(
+        headers={"Host": "localhost:8877"},
+        client_address=("127.0.0.1", 12345),
+    )
+    deps = _make_deps(state_fn=state_fn)
+
+    handle_dashboard_get(
+        handler,
+        path="/api/admin/plugins",
+        query="",
+        deps=deps,
+    )
+
+    assert deps.recorder.json == [
+        (200, {"ok": True, "plugins": direct_status}, True)
+    ]
+    returned_plugins = deps.recorder.json[0][1]["plugins"]
+    assert returned_plugins["scripts"][0]["settings"]["password"] == "saved-value"
+    assert returned_plugins["scripts"][0]["settings"]["password"] != "<redacted>"
+
+
 def test_dashboard_get_revision_falls_back_when_state_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

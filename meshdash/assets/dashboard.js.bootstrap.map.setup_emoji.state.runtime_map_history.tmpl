@@ -98,11 +98,10 @@
     let chatNodeNavigatorSortKey = chatNodeNavigatorDefaultSortKey;
     let chatNodeNavigatorSortDir = chatNodeNavigatorDefaultSortDir;
     let chatNodeNavigatorMetaFieldIds = nodeExplorerDefaultRosterMetadataFieldIds();
-    let chatNodeNavigatorPinDirectHistory = false;
-    let chatNodeNavigatorShowCity = true;
-    let chatNodeNavigatorShowIdle = false;
-    let chatNodeNavigatorShowStatusDots = true;
-    let chatNodeNavigatorShowPacketDirection = false;
+    let chatNodeNavigatorShowCity = chatNodeNavigatorDefaultToggleOptionValue("city");
+    let chatNodeNavigatorShowIdle = chatNodeNavigatorDefaultToggleOptionValue("idle");
+    let chatNodeNavigatorShowStatusDots = chatNodeNavigatorDefaultToggleOptionValue("status-dots");
+    let chatNodeNavigatorShowPacketDirection = chatNodeNavigatorDefaultToggleOptionValue("packet-direction");
     let chatNodeNavigatorMenuOpen = false;
     let chatNodeDetailsDrawerExpanded = false;
     let chatNodeDetailsPromoted = false;

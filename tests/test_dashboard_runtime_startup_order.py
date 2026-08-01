@@ -1,5 +1,7 @@
 import threading
 import time
+import sys
+from types import ModuleType
 from types import SimpleNamespace
 
 from meshdash.dashboard_runtime_context import (
@@ -36,8 +38,8 @@ def _args(tmp_path, *, no_history: bool = False):
         http_host="127.0.0.1",
         http_port=0,
         games_enable=False,
+        plugins_enable=False,
         file_transfer_enable=False,
-        file_transfer_auto_accept=False,
     )
 
 
@@ -50,7 +52,10 @@ def _loaders(**_kwargs: object) -> DashboardRuntimeLoaders:
     )
 
 
-def test_startup_receive_replay_waits_for_history_local_node_id(tmp_path) -> None:
+def test_startup_receive_replay_waits_for_history_local_node_id(
+    tmp_path,
+    monkeypatch,
+) -> None:
     events: list[tuple[str, object]] = []
     subscriptions: list[object] = []
     iface = object()
@@ -84,8 +89,35 @@ def test_startup_receive_replay_waits_for_history_local_node_id(tmp_path) -> Non
             callback({"id": "backlog"}, iface)  # type: ignore[operator]
         return iface
 
-    build_dashboard_runtime_context(
-        _args(tmp_path),
+    poison_plugin_composition = ModuleType("meshdash.plugin_composition")
+
+    def _unexpected_plugin_build(**_kwargs: object) -> None:
+        raise AssertionError("disabled plugin subsystem must not be composed")
+
+    poison_plugin_composition.build_plugin_subsystem = _unexpected_plugin_build  # type: ignore[attr-defined]
+    monkeypatch.setitem(
+        sys.modules,
+        "meshdash.plugin_composition",
+        poison_plugin_composition,
+    )
+
+    args = _args(tmp_path)
+    args.plugins_state_db = str(tmp_path / "must-not-exist.sqlite3")
+    plugin_directory = tmp_path / "plugins" / "must_not_import"
+    plugin_directory.mkdir(parents=True)
+    import_marker = tmp_path / "plugin-imported"
+    (plugin_directory / "plugin.toml").write_text(
+        "api_version=1\nid='disabled'\nname='Disabled'\nversion='1'\n"
+        "entrypoint='script.py:script'\ncommands=[]\ndefault_enabled=true\n",
+        encoding="utf-8",
+    )
+    (plugin_directory / "script.py").write_text(
+        f"from pathlib import Path\nPath({str(import_marker)!r}).touch()\n",
+        encoding="utf-8",
+    )
+    args.plugins_directory = str(tmp_path / "plugins")
+    context = build_dashboard_runtime_context(
+        args,
         mesh_target_label_fn=lambda _args: "/dev/ttyUSB0 (serial)",
         open_mesh_interface_fn=_open_mesh_interface,
         history_store_cls=_Store,
@@ -112,6 +144,13 @@ def test_startup_receive_replay_waits_for_history_local_node_id(tmp_path) -> Non
         ("open_interface", None)
     )
     assert ("receive_local_id", "!12345678") in events
+    assert context.send_chat_fn(text="normal messaging") == {"ok": True}
+    assert context.tracker.get_plugin_runtime() == {"enabled": False}
+    assert not (tmp_path / "must-not-exist.sqlite3").exists()
+    assert not import_marker.exists()
+    assert not any(
+        thread.name.startswith("meshyface-plugin") for thread in threading.enumerate()
+    )
 
 
 def test_startup_receive_buffer_preserves_order_during_activation() -> None:
@@ -163,3 +202,123 @@ def test_startup_receive_buffer_is_bounded_and_keeps_latest_packets() -> None:
 
     assert delivered == [2, 3]
     assert receive_buffer.dropped_packets == 1
+
+
+def test_enabled_plugin_receives_packet_buffered_during_radio_open(tmp_path) -> None:
+    plugin = tmp_path / "plugins" / "startup"
+    plugin.mkdir(parents=True)
+    (plugin / "plugin.toml").write_text(
+        "api_version=1\nid='startup'\nname='Startup'\nversion='1'\n"
+        "entrypoint='script.py:script'\ncommands=['hello']\ndefault_enabled=true\n",
+        encoding="utf-8",
+    )
+    (plugin / "script.py").write_text(
+        """
+from meshdash.plugins import Script
+script = Script(id="startup", name="Startup", version="1")
+@script.command("hello")
+def hello(ctx):
+    return ctx.reply("startup packet handled")
+""",
+        encoding="utf-8",
+    )
+    args = _args(tmp_path, no_history=True)
+    args.plugins_enable = True
+    args.plugins_directory = str(tmp_path / "plugins")
+    args.plugins_state_db = str(tmp_path / "plugin-state.sqlite3")
+    args.plugins_files_directory = str(tmp_path / "plugin-files")
+    args.plugins_handler_timeout = 2
+    args.plugins_event_queue_size = 8
+    args.plugin_enable = ["startup"]
+    args.plugin_disable = []
+    subscriptions: list[object] = []
+    sends: list[dict[str, object]] = []
+
+    class _Iface:
+        nodesByNum: dict[int, object] = {}
+
+        def close(self) -> None:
+            return
+
+    iface = _Iface()
+
+    class _Tracker:
+        def __init__(self, **_kwargs: object) -> None:
+            self.listeners: list[object] = []
+
+        def add_accepted_packet_listener(self, listener: object) -> None:
+            self.listeners.append(listener)
+
+        def remove_accepted_packet_listener(self, listener: object) -> None:
+            self.listeners.remove(listener)
+
+        def on_receive(self, packet: object, interface: object) -> None:
+            for listener in tuple(self.listeners):
+                listener(packet, interface)  # type: ignore[operator]
+
+    def _subscribe(callback: object, topic: str) -> None:
+        if topic == "meshtastic.receive":
+            subscriptions.append(callback)
+
+    def _open(_args: object) -> object:
+        for callback in tuple(subscriptions):
+            callback(  # type: ignore[operator]
+                {
+                    "from": 1,
+                    "to": 2,
+                    "id": 77,
+                    "decoded": {
+                        "portnum": "TEXT_MESSAGE_APP",
+                        "text": "!hello",
+                    },
+                },
+                iface,
+            )
+        return iface
+
+    def _plugin_loaders(**_kwargs: object) -> DashboardRuntimeLoaders:
+        return DashboardRuntimeLoaders(
+            state_fn=lambda: {},
+            node_history_fn=lambda *_args, **_kwargs: {},
+            summary_metrics_fn=lambda *_args, **_kwargs: {},
+            send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)) or {"ok": True},
+        )
+
+    context = build_dashboard_runtime_context(
+        args,
+        mesh_target_label_fn=lambda _args: "test",
+        open_mesh_interface_fn=_open,
+        history_store_cls=lambda **_kwargs: object(),
+        dashboard_tracker_cls=_Tracker,
+        subscribe_fn=_subscribe,
+        seed_tracker_fn=lambda _tracker, _iface: None,
+        revision_info_fn=_RevisionInfo,
+        send_chat_message_fn=lambda **_kwargs: {},
+        send_reaction_packet_fn=lambda **_kwargs: None,
+        get_local_node_id_fn=lambda _iface: "!00000002",
+        normalize_single_emoji_fn=lambda _value: (None, None),
+        to_int_fn=lambda _value: None,
+        utc_now_fn=lambda: "2026-06-07T00:00:00Z",
+        build_state_fn=lambda **_kwargs: {},
+        build_state_snapshot_loader_fn=lambda *_args, **_kwargs: lambda: {},
+        build_node_history_loader_fn=lambda *_args, **_kwargs: lambda **_kw: {},
+        build_summary_metrics_loader_fn=lambda *_args, **_kwargs: lambda **_kw: {},
+        build_send_chat_loader_fn=lambda *_args, **_kwargs: lambda **_kw: {},
+        default_chat_max_bytes=200,
+        build_dashboard_runtime_loaders_fn=_plugin_loaders,
+    )
+    deadline = time.monotonic() + 4
+    while not sends and time.monotonic() < deadline:
+        time.sleep(0.02)
+    try:
+        assert sends and sends[0]["text"] == "startup packet handled"
+        plugin_admin_status_fn = getattr(
+            context.state_fn,
+            "plugin_admin_status_fn",
+            None,
+        )
+        assert callable(plugin_admin_status_fn)
+        assert plugin_admin_status_fn()["enabled_plugins"] == ["startup"]
+    finally:
+        context.tracker._plugin_subsystem.close()
+        context.tracker._startup_receive_buffer.close()

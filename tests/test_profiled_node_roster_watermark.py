@@ -41,7 +41,8 @@ def test_profiled_roster_watermark_keeps_row_geometry_in_browser(
             )
         rows.append(
             f'<div id="row-{index}" class="{classes}"{style}>'
-            '<span class="chat-member-status chat-member-status-dot status-online">●</span>'
+            '<span class="chat-member-status chat-member-status-dot status-online">'
+            '<span class="chat-member-status-core" aria-hidden="true">●</span></span>'
             '<span class="chat-member-main"><span class="chat-member-name-row">'
             f'<span class="chat-member-name-left"><span class="chat-member-name">Node {index}</span></span>'
             "</span><span class=\"chat-member-meta-row\">Idle: 1m ago</span></span></div>"

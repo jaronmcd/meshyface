@@ -6,12 +6,19 @@
       if (clean === "files" && fileTransferFeatureEnabled) {{
         return clean;
       }}
+      if (clean === "scripts" && pluginsFeatureEnabled) {{
+        return clean;
+      }}
       return "games";
     }}
 
     function isAppsLayoutView(viewName) {{
       const clean = String(viewName || "").trim().toLowerCase();
-      return clean === "games" || (clean === "files" && fileTransferFeatureEnabled);
+      return (
+        clean === "games"
+        || (clean === "scripts" && pluginsFeatureEnabled)
+        || (clean === "files" && fileTransferFeatureEnabled)
+      );
     }}
 
     function loadPreferredAppsLayoutView() {{
@@ -33,6 +40,12 @@
 
     function normalizeLayoutView(raw) {{
       const clean = String(raw || "").trim().toLowerCase();
+      const pluginKey = typeof normalizePluginViewKey === "function"
+        ? normalizePluginViewKey(clean)
+        : "";
+      if (pluginKey && pluginsFeatureEnabled) {{
+        return "plugin";
+      }}
       let resolved = clean;
       if (clean === "apps") {{
         resolved = loadPreferredAppsLayoutView();
@@ -44,13 +57,21 @@
       if (resolved === "files" && !fileTransferFeatureEnabled) {{
         resolved = "games";
       }}
-      // Public v0 rail: expose only Chat/Network/Console/Games/Files/Settings.
+      if (resolved === "scripts" && !pluginsFeatureEnabled) {{
+        resolved = "games";
+      }}
+      if (resolved === "plugin" && !pluginsFeatureEnabled) {{
+        resolved = "chat";
+      }}
+      // Public launcher: expose the core workspaces and the Apps children.
       return (
         resolved === "chat"
         || resolved === "network"
         || resolved === "console"
         || resolved === "games"
+        || (resolved === "scripts" && pluginsFeatureEnabled)
         || (resolved === "files" && fileTransferFeatureEnabled)
+        || (resolved === "plugin" && pluginsFeatureEnabled)
         || resolved === "settings"
       )
         ? resolved
@@ -10212,6 +10233,7 @@
     function appsLayoutViewLabel(viewName = "") {{
       const normalized = normalizeAppsLayoutView(viewName);
       if (normalized === "files") return "Files";
+      if (normalized === "scripts") return "Scripts";
       return "Games";
     }}
 
@@ -10227,9 +10249,11 @@
     }}
 
     function appsLauncherMenuMetaText() {{
-      if (fileTransferFeatureEnabled) {{
-        return "Games and files";
+      if (fileTransferFeatureEnabled && pluginsFeatureEnabled) {{
+        return "Games, files, and scripts";
       }}
+      if (fileTransferFeatureEnabled) return "Games and files";
+      if (pluginsFeatureEnabled) return "Games and scripts";
       return "Games";
     }}
 
@@ -10431,17 +10455,110 @@
       }}
     }}
 
+    function syncScriptsFeatureVisibility() {{
+      const enabled = !!pluginsFeatureEnabled;
+      const scriptsTabBtn = document.querySelector('#layout-view-menu-apps-submenu .topbar-view-submenu-item[data-app-view="scripts"]');
+      if (scriptsTabBtn instanceof HTMLButtonElement) {{
+        scriptsTabBtn.hidden = !enabled;
+        scriptsTabBtn.disabled = !enabled;
+        scriptsTabBtn.setAttribute("aria-hidden", enabled ? "false" : "true");
+      }}
+      const scriptsCard = document.querySelector("#dashboard-layout .card.scripts");
+      if (scriptsCard instanceof HTMLElement) {{
+        scriptsCard.hidden = !enabled;
+        scriptsCard.setAttribute("aria-hidden", enabled ? "false" : "true");
+      }}
+    }}
+
     function syncAppsTabBarVisibility(viewName = activeLayoutView) {{
       syncAppsTabBar(viewName);
     }}
 
+    function syncPluginViewLauncherItems(state = latestState) {{
+      const menu = document.getElementById("layout-view-menu");
+      if (!(menu instanceof HTMLElement)) return [];
+      const views = typeof pluginWorkspaceViewsFromState === "function"
+        ? pluginWorkspaceViewsFromState(state)
+        : [];
+      const normalizedViews = views
+        .map((view) => {{
+          const key = normalizePluginViewKey(view && view.id);
+          return key ? {{ ...view, id: key }} : null;
+        }})
+        .filter(Boolean)
+        .slice(0, 16);
+      for (const stale of Array.from(menu.querySelectorAll(".topbar-view-menu-item-plugin"))) {{
+        stale.remove();
+      }}
+      if (normalizedViews.length <= 0) return [];
+      for (const view of normalizedViews) {{
+        const button = document.createElement("button");
+        button.className = "topbar-view-menu-item topbar-view-menu-item-plugin";
+        button.type = "button";
+        button.role = "menuitemradio";
+        button.dataset.view = String(view.id || "");
+        button.dataset.pluginView = String(view.id || "");
+        button.title = String(view.description || view.plugin_name || view.label || "Plugin view");
+
+        const icon = document.createElement("span");
+        icon.className = "topbar-view-menu-item-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = typeof pluginWorkspaceViewIcon === "function"
+          ? pluginWorkspaceViewIcon(view)
+          : String(view.icon || "PL").slice(0, 4).toUpperCase();
+
+        const copy = document.createElement("span");
+        copy.className = "topbar-view-menu-item-copy";
+        const labelRow = document.createElement("span");
+        labelRow.className = "topbar-view-menu-item-label-row";
+        const label = document.createElement("span");
+        label.className = "topbar-view-menu-item-label";
+        label.textContent = typeof pluginWorkspaceViewLabel === "function"
+          ? pluginWorkspaceViewLabel(view)
+          : String(view.label || "Plugin");
+        const context = document.createElement("span");
+        context.className = "topbar-view-menu-item-context";
+        context.textContent = "Plugin";
+        labelRow.appendChild(label);
+        labelRow.appendChild(context);
+        const meta = document.createElement("span");
+        meta.className = "topbar-view-menu-item-meta";
+        meta.textContent = String(view.plugin_name || view.description || "Plugin view");
+        copy.appendChild(labelRow);
+        copy.appendChild(meta);
+
+        const badge = document.createElement("span");
+        badge.className = "topbar-view-menu-item-badge";
+        badge.hidden = true;
+        badge.textContent = "0";
+
+        button.appendChild(icon);
+        button.appendChild(copy);
+        button.appendChild(badge);
+        menu.appendChild(button);
+      }}
+      return normalizedViews;
+    }}
+
     function resolveTopbarLauncherLayoutView(viewName) {{
+      const pluginKey = typeof normalizePluginViewKey === "function"
+        ? normalizePluginViewKey(viewName)
+        : "";
+      if (pluginKey) return pluginKey;
       const normalized = normalizeLayoutView(viewName);
+      if (normalized === "plugin") {{
+        return normalizePluginViewKey(activePluginViewKey) || "plugin";
+      }}
       return isAppsLayoutView(normalized) ? "apps" : normalized;
     }}
 
     function currentWorkspaceLauncherLabel(viewName = activeLayoutView) {{
       const normalized = resolveTopbarLauncherLayoutView(viewName);
+      const pluginKey = normalizePluginViewKey(normalized);
+      if (pluginKey) {{
+        const view = pluginWorkspaceViewByKey(pluginKey, latestState);
+        return view ? pluginWorkspaceViewLabel(view) : "Plugin";
+      }}
       if (normalized === "apps") {{
         return `Apps · ${{currentAppsLauncherLabel(viewName)}}`;
       }}
@@ -10450,9 +10567,15 @@
 
     function topbarLauncherLayoutLabel(viewName) {{
       const normalized = resolveTopbarLauncherLayoutView(viewName);
+      const pluginKey = normalizePluginViewKey(normalized);
+      if (pluginKey) {{
+        const view = pluginWorkspaceViewByKey(pluginKey, latestState);
+        return view ? pluginWorkspaceViewLabel(view) : "Plugin";
+      }}
       if (normalized === "network") return "Network";
       if (normalized === "console") return "Console";
       if (normalized === "apps") return "Apps";
+      if (normalized === "plugin") return "Plugin";
       if (normalized === "settings") return "Settings";
       return "Chat";
     }}
@@ -10464,7 +10587,7 @@
 
     function totalWorkspaceLauncherNotificationCount() {{
       let total = 0;
-      for (const viewName of ["chat", "network", "console", "apps", "settings"]) {{
+      for (const viewName of ["chat", "network", "console", "apps", "plugin", "settings"]) {{
         total += workspaceLauncherViewNotificationCount(viewName);
       }}
       return total;
@@ -10626,7 +10749,7 @@
         titleParts.push(`Total notifications: ${{totalLabel}}.`);
       }}
       const summaryParts = [];
-      for (const launcherView of ["chat", "network", "console", "apps", "settings"]) {{
+      for (const launcherView of ["chat", "network", "console", "apps", "plugin", "settings"]) {{
         const count = workspaceLauncherViewNotificationCount(launcherView);
         if (count <= 0) continue;
         const countLabel = workspaceLauncherNotificationLabel(count);
@@ -10641,10 +10764,13 @@
     }}
 
     function syncLayoutViewMenu(viewName = activeLayoutView) {{
+      syncPluginViewLauncherItems(latestState);
       const launcherView = resolveTopbarLauncherLayoutView(viewName);
       for (const btn of document.querySelectorAll("#layout-view-menu .topbar-view-menu-item")) {{
         if (!(btn instanceof HTMLButtonElement)) continue;
-        const btnView = String(btn.dataset.view || "").trim().toLowerCase();
+        const rawBtnView = String(btn.dataset.view || "").trim().toLowerCase();
+        const btnPluginKey = normalizePluginViewKey(rawBtnView);
+        const btnView = btnPluginKey || rawBtnView;
         const isActive = btnView === launcherView;
         const hasSubmenu = String(btn.dataset.submenu || "").trim().length > 0;
         const notificationCount = workspaceLauncherViewNotificationCount(btnView);
@@ -10801,11 +10927,22 @@
       const launcherBtn = target.closest("#layout-view-menu .topbar-view-menu-item");
       if (launcherBtn instanceof HTMLButtonElement) {{
         if (launcherBtn.disabled) return "";
-        if (String(launcherBtn.dataset.submenu || "").trim()) return "";
+        const submenuName = String(launcherBtn.dataset.submenu || "").trim().toLowerCase();
+        if (submenuName === "apps") return currentAppsLauncherViewName(activeLayoutView);
+        if (submenuName) return "";
         return String(launcherBtn.dataset.view || "chat");
       }}
 
       return "";
+    }}
+
+    function layoutViewStorageValue(viewName = activeLayoutView) {{
+      const pluginKey = normalizePluginViewKey(viewName) || (
+        normalizeLayoutView(viewName) === "plugin"
+          ? normalizePluginViewKey(activePluginViewKey)
+          : ""
+      );
+      return pluginKey || normalizeLayoutView(viewName);
     }}
 
     function applyLayoutView(viewName, persist = true) {{
@@ -10813,8 +10950,17 @@
       if (!(layout instanceof HTMLElement)) return;
       const shell = document.querySelector(".workspace-shell");
       const chatLeftPanel = document.getElementById("chat-left-panel");
-      const next = normalizeLayoutView(viewName);
+      const requestedPluginViewKey = normalizePluginViewKey(viewName);
+      let next = requestedPluginViewKey ? "plugin" : normalizeLayoutView(viewName);
+      if (next === "plugin") {{
+        const fallbackPluginViewKey = activePluginViewKey || pluginWorkspaceDefaultViewKey(latestState);
+        activePluginViewKey = requestedPluginViewKey || fallbackPluginViewKey;
+        if (!activePluginViewKey && !requestedPluginViewKey) {{
+          next = "chat";
+        }}
+      }}
       const previous = normalizeLayoutView(activeLayoutView);
+      const previousStorageView = layoutViewStorageValue(previous);
       const leavingNetworkGraphLayout = !!(
         previous === "network"
         && next !== "network"
@@ -10822,10 +10968,12 @@
       );
       if (next === "console") {{
         if (previous !== "console") {{
-          consoleHotkeyReturnLayoutView = previous;
+          consoleHotkeyReturnLayoutView = previousStorageView;
         }}
       }} else {{
-        consoleHotkeyReturnLayoutView = next;
+        consoleHotkeyReturnLayoutView = next === "plugin"
+          ? (normalizePluginViewKey(activePluginViewKey) || "chat")
+          : next;
       }}
       if (leavingNetworkGraphLayout) {{
         clearNetworkGraphDom();
@@ -10843,6 +10991,7 @@
       syncLayoutViewMenu(next);
       closeLayoutViewMenu();
       syncFileTransferFeatureVisibility();
+      syncScriptsFeatureVisibility();
       syncAppsTabBarVisibility(next);
       syncAppsTabBar(next);
       if (typeof requestTopbarLayoutMetricsSync === "function") {{
@@ -10912,7 +11061,7 @@
 
       if (persist) {{
         try {{
-          window.localStorage.setItem(layoutViewStorageKey, next);
+          window.localStorage.setItem(layoutViewStorageKey, layoutViewStorageValue(next));
         }} catch (_err) {{
         }}
       }}
@@ -11031,6 +11180,12 @@
         if (next === "files") {{
           renderFilesView(latestState);
         }}
+        if (next === "scripts") {{
+          renderScriptsViewSafely(latestState, "navigation.cached.scripts");
+        }}
+        if (next === "plugin") {{
+          renderPluginWorkspaceView(latestState);
+        }}
         if (next === "games") {{
           renderGamesView(latestState);
         }}
@@ -11053,6 +11208,10 @@
         renderNodesPlaceholder("Syncing nodes...");
       }} else if (next === "files") {{
         renderFilesView(latestState);
+      }} else if (next === "scripts") {{
+        renderScriptsViewSafely(latestState, "navigation.loading.scripts");
+      }} else if (next === "plugin") {{
+        renderPluginWorkspaceView(latestState);
       }} else if (next === "games") {{
         renderGamesView(latestState);
       }} else if (typeof clearHiddenNodesTable === "function") {{
@@ -11086,7 +11245,7 @@
       if (shouldRefreshSelectedNodeHistoryForView) {{
         void refreshSelectedNodeHistory(false);
       }}
-      if (next === "chat" || next === "files" || next === "games" || next === "network") {{
+      if (next === "chat" || next === "files" || next === "games" || next === "scripts" || next === "plugin" || next === "network") {{
         requestImmediatePoll(0);
       }}
       if (isMapVisibleLayoutView(next)) {{
@@ -11109,14 +11268,15 @@
     }}
 
     function meshSelectLayoutView(viewName) {{
-      const next = normalizeLayoutView(viewName);
+      const requestedPluginViewKey = normalizePluginViewKey(viewName);
+      const next = requestedPluginViewKey ? "plugin" : normalizeLayoutView(viewName);
       try {{
-        window.localStorage.setItem(layoutViewStorageKey, next);
+        window.localStorage.setItem(layoutViewStorageKey, requestedPluginViewKey || next);
       }} catch (_err) {{
       }}
       let applied = false;
       try {{
-        applyLayoutView(next, true);
+        applyLayoutView(requestedPluginViewKey || next, true);
         const layout = document.getElementById("dashboard-layout");
         applied = layout instanceof HTMLElement && layout.classList.contains(`view-${{next}}`);
       }} catch (_err) {{
@@ -11129,7 +11289,7 @@
       if (typeof window.requestAnimationFrame === "function") {{
         window.requestAnimationFrame(() => {{
           try {{
-            applyLayoutView(next, true);
+            applyLayoutView(requestedPluginViewKey || next, true);
           }} catch (_err) {{
           }}
         }});
@@ -11180,6 +11340,23 @@
     function bindLayoutViewLauncher() {{
       if (window.__meshLayoutViewLauncherBound === true) return;
       window.__meshLayoutViewLauncherBound = true;
+      const syncAppsSubmenuIntent = (ev) => {{
+        const rawTarget = ev && ev.target;
+        const target = rawTarget instanceof Element
+          ? rawTarget
+          : ((rawTarget instanceof Node) ? rawTarget.parentElement : null);
+        if (!(target instanceof Element)) return;
+        const launcherBtn = document.getElementById("layout-view-menu-btn");
+        if (!(launcherBtn instanceof HTMLButtonElement)) return;
+        if (launcherBtn.getAttribute("aria-expanded") !== "true") return;
+        const launcherItem = target.closest("#layout-view-menu .topbar-view-menu-item");
+        if (!(launcherItem instanceof HTMLButtonElement)) return;
+        if (launcherItem.matches('[data-submenu="apps"]')) {{
+          openLayoutViewSubmenu("apps");
+        }} else {{
+          closeLayoutViewSubmenus();
+        }}
+      }};
       document.addEventListener("click", (ev) => {{
         const rawTarget = ev && ev.target;
         const target = rawTarget instanceof Element
@@ -11198,7 +11375,7 @@
         const submenuToggle = target.closest('#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]');
         if (submenuToggle instanceof HTMLButtonElement) {{
           ev.preventDefault();
-          toggleLayoutViewSubmenu("apps");
+          closeLayoutViewMenu();
           return;
         }}
         const submenuItem = target.closest("#layout-view-menu-apps-submenu .topbar-view-submenu-item");
@@ -11215,6 +11392,8 @@
           closeLayoutViewMenu();
         }}
       }});
+      document.addEventListener("mouseover", syncAppsSubmenuIntent);
+      document.addEventListener("focusin", syncAppsSubmenuIntent);
       document.addEventListener("keydown", (ev) => {{
         if (!ev || ev.key !== "Escape") return;
         const launcherBtn = document.getElementById("layout-view-menu-btn");

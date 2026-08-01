@@ -33,8 +33,10 @@ class _FakeGitRunner:
         branch_ahead: int = 0,
         branch_behind: int = 4,
         delete_branch_failures: set[str] | None = None,
+        dirty_status: str | None = None,
     ) -> None:
         self.dirty = dirty
+        self.dirty_status = dirty_status
         self.ahead = ahead
         self.behind = behind
         self.fetch_fails = fetch_fails
@@ -99,6 +101,8 @@ class _FakeGitRunner:
             refs = "\n".join(sorted(self.local_branches))
             return GitCommandResult(0, refs)
         if command == ("status", "--porcelain"):
+            if self.dirty_status is not None:
+                return GitCommandResult(0, self.dirty_status)
             return GitCommandResult(0, " M meshdash/foo.py" if self.dirty else "")
         if command[0:2] == ("config", "--get") and len(command) == 3:
             value = self.git_config.get(command[2], "")
@@ -253,7 +257,8 @@ class _FakeGitRunner:
             self.branch_behind = 0
             return GitCommandResult(0, "branch 'beta' reset")
         if command == ("reset", "--hard", "origin/beta"):
-            self.dirty = False
+            if self.dirty_status is None:
+                self.dirty = False
             self.commit = self.new_commit
             self.ahead = 0
             self.behind = 0
@@ -261,13 +266,18 @@ class _FakeGitRunner:
             self.branch_behind = 0
             return GitCommandResult(0, "HEAD is now at bbbbbbb")
         if command == ("reset", "--hard", "origin/main"):
-            self.dirty = False
+            if self.dirty_status is None:
+                self.dirty = False
             self.commit = self.new_commit
             self.ahead = 0
             self.behind = 0
             self.branch_ahead = 0
             self.branch_behind = 0
             return GitCommandResult(0, "HEAD is now at bbbbbbb")
+        if command == ("clean", "-fd"):
+            self.dirty = False
+            self.dirty_status = None
+            return GitCommandResult(0, "")
         if command[0:2] == ("switch", "-C") and len(command) == 4:
             branch = command[2]
             commit = command[3]
@@ -918,6 +928,22 @@ def test_repair_dirty_update_checkout_resets_current_branch(tmp_path: Path) -> N
     assert payload["new_commit"] == "bbbbbbbb11111111222222223333333344444444"
     assert ("fetch", "--prune", "origin") in runner.commands
     assert ("reset", "--hard", "origin/main") in runner.commands
+    assert ("clean", "-fd") in runner.commands
+
+
+def test_repair_dirty_update_checkout_removes_untracked_files(tmp_path: Path) -> None:
+    runner = _FakeGitRunner(
+        dirty=True,
+        dirty_status="?? meshdash/assets/dashboard.js.tmpl.bak",
+    )
+
+    payload = repair_dirty_update_checkout(repo_dir=tmp_path, runner=runner)
+
+    assert payload["ok"] is True
+    assert payload["repaired"] is True
+    assert payload["dirty"] is False
+    assert ("reset", "--hard", "origin/main") in runner.commands
+    assert ("clean", "-fd") in runner.commands
 
 
 def test_repair_dirty_update_checkout_noops_when_clean(tmp_path: Path) -> None:

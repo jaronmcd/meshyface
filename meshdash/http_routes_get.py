@@ -34,6 +34,7 @@ from .api_theme import (
     handle_theme_settings_get as _handle_theme_settings_get_helper,
 )
 from .http_handler_contracts import DashboardHttpHandler
+from .http_plugin_admin import plugin_admin_authorization
 from .http_route_contracts import DashboardGetRouteDependencies
 from .http_responses import _gzip_if_accepted, _send_no_store_headers
 from .map_packs import (
@@ -53,6 +54,7 @@ from .revision import (
     revision_info as _revision_info_helper,
 )
 from .helpers import to_int as _to_int_helper
+from .state_payload_contracts import normalize_state_payload_for_api
 
 
 def _load_optional_handler(module_path: str, attr_name: str):
@@ -285,6 +287,32 @@ def _state_snapshot_for_ops(state_fn: object) -> object:
     if callable(state_fn):
         return state_fn()
     return {}
+
+
+def _plugin_admin_status_payload(state_fn: object) -> dict[str, object]:
+    direct_status_fn = getattr(state_fn, "plugin_admin_status_fn", None)
+    if callable(direct_status_fn):
+        direct_status = direct_status_fn()
+        if isinstance(direct_status, Mapping):
+            return {"ok": True, "plugins": dict(direct_status)}
+        return {
+            "ok": False,
+            "error": "Plugin runtime status is unavailable",
+        }
+    state_payload = normalize_state_payload_for_api(_state_snapshot_for_ops(state_fn))
+    if not isinstance(state_payload, Mapping):
+        return {
+            "ok": False,
+            "error": "Plugin runtime status is unavailable",
+        }
+    summary = state_payload.get("summary")
+    plugins = summary.get("plugins") if isinstance(summary, Mapping) else None
+    if not isinstance(plugins, Mapping):
+        return {
+            "ok": False,
+            "error": "Plugin runtime status is unavailable",
+        }
+    return {"ok": True, "plugins": dict(plugins)}
 
 
 def _clean_top_nodes_excluded_node_id(value: object) -> str:
@@ -527,6 +555,38 @@ def handle_dashboard_get(
                 payload_obj={"ok": False, "error": f"state poll failed: {exc}"},
                 no_store=True,
             )
+        return
+
+    if path == "/api/admin/plugins":
+        authorized, auth_status, auth_error = plugin_admin_authorization(
+            handler,
+            required_token=getattr(deps, "api_token", None),
+        )
+        if not authorized:
+            extra_headers = (
+                {"WWW-Authenticate": "Bearer"} if auth_status == 401 else None
+            )
+            deps.write_json_response_fn(
+                handler,
+                status_code=auth_status,
+                payload_obj={"ok": False, "error": auth_error},
+                no_store=True,
+                extra_headers=extra_headers,
+            )
+            return
+        try:
+            response_obj = _plugin_admin_status_payload(deps.state_fn)
+        except Exception:
+            response_obj = {
+                "ok": False,
+                "error": "Plugin runtime status is unavailable",
+            }
+        deps.write_json_response_fn(
+            handler,
+            status_code=200 if response_obj.get("ok") else 503,
+            payload_obj=response_obj,
+            no_store=True,
+        )
         return
 
     # Raw device payloads are fetched on demand so primary /api/state polling stays lean.
