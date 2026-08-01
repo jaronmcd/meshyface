@@ -911,6 +911,12 @@
       return source.map((value) => String(value || "").trim()).filter(Boolean);
     }}
 
+    function settingsUpdateBranchSyncReady(info, selectedBranch) {{
+      const state = String(info && info.state || "").trim().toLowerCase();
+      const targetSource = String(info && info.target_source || "").trim().toLowerCase();
+      return !!selectedBranch && targetSource !== "local" && state === "diverged";
+    }}
+
     function readSettingsUpdateBranchSelection() {{
       const branchSelect = document.getElementById("settings-update-branch");
       if (!(branchSelect instanceof HTMLSelectElement)) return "";
@@ -1089,6 +1095,7 @@
       if (
         settingsUpdateStatusFetchInFlight
         || settingsUpdateApplyInFlight
+        || settingsUpdateSyncInFlight
         || settingsBackendReloadInFlight
         || settingsUpdateRepairInFlight
         || settingsUpdateRollbackCleanupInFlight
@@ -1298,6 +1305,7 @@
       const reloadBtn = document.getElementById("settings-update-reload");
       const inFlight = !!settingsUpdateStatusFetchInFlight
         || !!settingsUpdateApplyInFlight
+        || !!settingsUpdateSyncInFlight
         || !!settingsBackendReloadInFlight
         || !!settingsUpdateRepairInFlight
         || !!settingsUpdateRollbackCleanupInFlight;
@@ -1308,6 +1316,7 @@
       const updateActionReady = !!info.can_update
         && !!selectedBranch
         && settingsUpdateActionReadyBranch === selectedBranch;
+      const syncActionReady = !updateActionReady && settingsUpdateBranchSyncReady(renderInfo, selectedBranch);
       const targetSource = String(renderInfo.target_source || info.target_source || "").trim();
       const localSwitchReady = updateActionReady && targetSource === "local";
       const restartRequired = !!renderInfo.restart_required;
@@ -1320,6 +1329,8 @@
           : (targetSource === "local" || settingsUpdateApplyMode === "switch"
             ? "Switching branches..."
             : "Updating from GitHub...");
+      }} else if (settingsUpdateSyncInFlight) {{
+        text = "Syncing branch...";
       }} else if (settingsUpdateRollbackCleanupInFlight) {{
         text = "Cleaning rollback branches...";
       }} else if (settingsUpdateRepairInFlight) {{
@@ -1351,12 +1362,18 @@
           ? (settingsUpdateApplyMode === "rollback"
             ? "Rolling..."
             : (settingsUpdateApplyMode === "switch" ? "Switching..." : "Updating..."))
-          : (settingsUpdateStatusFetchInFlight
-            ? "Checking..."
-            : (updateActionReady ? (localSwitchReady ? "Switch Branch" : "Run Latest") : "Check for Updates"));
+          : (settingsUpdateSyncInFlight
+            ? "Syncing..."
+            : (settingsUpdateStatusFetchInFlight
+              ? "Checking..."
+              : (updateActionReady
+                ? (localSwitchReady ? "Switch Branch" : "Run Latest")
+                : (syncActionReady ? "Sync Branch" : "Check for Updates"))));
         checkBtn.title = updateActionReady
           ? (localSwitchReady ? "Switch to this local branch" : "Fetch and run the latest commit on this branch")
-          : settingsUpdateStatusText(info);
+          : (syncActionReady
+            ? `Back up local ${{selectedBranch}} and align it to GitHub`
+            : settingsUpdateStatusText(info));
       }}
       if (repairBtn instanceof HTMLButtonElement) {{
         const canRepair = !!renderInfo.can_repair_checkout;
@@ -1403,6 +1420,16 @@
       clearSettingsBackendReloadUrlFlags();
       const selectedBranch = readSettingsUpdateBranchSelection();
       const nowMs = Date.now();
+      if (
+        settingsUpdateApplyInFlight
+        || settingsUpdateSyncInFlight
+        || settingsBackendReloadInFlight
+        || settingsUpdateRepairInFlight
+        || settingsUpdateRollbackCleanupInFlight
+      ) {{
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+        return settingsUpdateStatusCache;
+      }}
       if (
         !force
         && settingsUpdateStatusCache
@@ -1464,6 +1491,7 @@
       if (
         settingsUpdateStatusFetchInFlight
         || settingsUpdateApplyInFlight
+        || settingsUpdateSyncInFlight
         || settingsBackendReloadInFlight
         || settingsUpdateRepairInFlight
         || settingsUpdateRollbackCleanupInFlight
@@ -1478,11 +1506,15 @@
         void runSettingsGithubUpdate();
         return;
       }}
+      if (settingsUpdateBranchSyncReady(info, selectedBranch)) {{
+        void runSettingsUpdateBranchSync();
+        return;
+      }}
       void hydrateSettingsUpdateStatus(true, true);
     }}
 
     async function runSettingsGithubUpdate() {{
-      if (settingsUpdateApplyInFlight || settingsUpdateRepairInFlight || settingsUpdateRollbackCleanupInFlight) return;
+      if (settingsUpdateApplyInFlight || settingsUpdateSyncInFlight || settingsUpdateRepairInFlight || settingsUpdateRollbackCleanupInFlight) return;
       const selectedBranch = readSettingsUpdateBranchSelection();
       const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
       const targetSource = String(cachedInfo.target_source || "").trim();
@@ -1558,10 +1590,88 @@
       }}
     }}
 
+    async function runSettingsUpdateBranchSync() {{
+      if (
+        settingsUpdateStatusFetchInFlight
+        || settingsUpdateApplyInFlight
+        || settingsUpdateSyncInFlight
+        || settingsBackendReloadInFlight
+        || settingsUpdateRepairInFlight
+        || settingsUpdateRollbackCleanupInFlight
+      ) return;
+      const cachedInfo = settingsUpdatePayloadObject(settingsUpdateStatusCache);
+      const selectedBranch = readSettingsUpdateBranchSelection()
+        || String(cachedInfo.target_branch || "").trim();
+      if (!selectedBranch) {{
+        renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+          message: "Select a GitHub branch first.",
+        }}));
+        return;
+      }}
+
+      settingsUpdateActionReadyBranch = "";
+      settingsUpdateSyncInFlight = true;
+      renderSettingsUpdateStatus(Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+        message: "Syncing branch...",
+      }}));
+      try {{
+        const resp = await fetch("/api/system/update/sync", {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{ branch: selectedBranch }}),
+          cache: "no-store",
+        }});
+        const text = await resp.text();
+        let payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_err) {{
+        }}
+        const info = settingsUpdatePayloadObject(payload);
+        if (!resp.ok || info.ok === false) {{
+          const errMsg = String(info.error || info.message || text || `HTTP ${{resp.status}}`).trim();
+          settingsUpdateStatusCache = Object.assign({{}}, settingsUpdateStatusCache || {{}}, info, {{
+            ok: false,
+            can_update: false,
+            message: `Branch sync failed: ${{errMsg}}`,
+          }});
+          settingsUpdateStatusFetchedAt = Date.now();
+          renderSettingsUpdateStatus(settingsUpdateStatusCache);
+          return;
+        }}
+        settingsUpdateStatusCache = info;
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(info);
+        if (info.branch_synced) {{
+          appendConsoleLine(
+            `system-branch-sync|${{Date.now()}}|ok`,
+            `[system] branch synced: ${{String(info.target_branch || selectedBranch).trim()}}`
+          );
+        }}
+      }} catch (err) {{
+        const msg = err && err.message ? err.message : String(err || "unknown error");
+        settingsUpdateStatusCache = Object.assign({{}}, settingsUpdateStatusCache || {{}}, {{
+          ok: false,
+          message: `Branch sync failed: ${{msg}}`,
+        }});
+        settingsUpdateStatusFetchedAt = Date.now();
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+      }} finally {{
+        settingsUpdateSyncInFlight = false;
+        renderSettingsUpdateStatus(settingsUpdateStatusCache);
+        if (!settingsUpdatePayloadObject(settingsUpdateStatusCache).restart_required) {{
+          setTimeout(() => {{
+            void hydrateSettingsUpdateStatus(true);
+          }}, 1200);
+        }}
+      }}
+    }}
+
     async function runSettingsCheckoutRepair() {{
       if (
         settingsUpdateStatusFetchInFlight
         || settingsUpdateApplyInFlight
+        || settingsUpdateSyncInFlight
         || settingsBackendReloadInFlight
         || settingsUpdateRepairInFlight
         || settingsUpdateRollbackCleanupInFlight
@@ -1644,6 +1754,7 @@
       if (
         settingsUpdateStatusFetchInFlight
         || settingsUpdateApplyInFlight
+        || settingsUpdateSyncInFlight
         || settingsBackendReloadInFlight
         || settingsUpdateRepairInFlight
         || settingsUpdateRollbackCleanupInFlight
@@ -1833,6 +1944,7 @@
         settingsBackendReloadInFlight
         || settingsUpdateStatusFetchInFlight
         || settingsUpdateApplyInFlight
+        || settingsUpdateSyncInFlight
         || settingsUpdateRepairInFlight
         || settingsUpdateRollbackCleanupInFlight
       ) return;

@@ -341,11 +341,14 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "async function runSettingsGithubUpdate() {" in js
     assert "async function runSettingsCheckoutRepair() {" in js
     assert "async function runSettingsRollbackCleanup() {" in js
-    assert "async function runSettingsUpdateBranchSync() {" not in js
-    assert 'fetch("/api/system/update/sync"' not in js
+    assert "function settingsUpdateBranchSyncReady(info, selectedBranch) {" in js
+    assert 'state === "diverged"' in js
+    assert "async function runSettingsUpdateBranchSync() {" in js
+    assert 'fetch("/api/system/update/sync"' in js
     assert 'fetch("/api/system/update/repair"' in js
     assert 'fetch("/api/system/update/rollback-cleanup"' in js
-    assert "settingsUpdateSyncInFlight" not in js
+    assert "settingsUpdateSyncInFlight" in js
+    assert "Sync Branch" in js
     assert 'document.getElementById("settings-update-sync")' not in js
     assert 'document.getElementById("settings-update-repair")' in js
     assert 'document.getElementById("settings-update-cleanup-rollbacks")' in js
@@ -369,6 +372,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'fetch("/api/system/update"' in js
     assert "async function runSettingsUpdatePrimaryAction() {" in js
     assert "settingsUpdateActionReadyBranch === selectedBranch" in js
+    assert "settingsUpdateBranchSyncReady(info, selectedBranch)" in js
+    assert "void runSettingsUpdateBranchSync();" in js
     assert 'void hydrateSettingsUpdateStatus(true, true);' in js
     assert 'checkBtn.textContent = settingsUpdateApplyInFlight' in js
     assert 'Run Latest' in js
