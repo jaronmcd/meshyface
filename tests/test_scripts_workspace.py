@@ -179,6 +179,12 @@ def test_scripts_view_renders_waiting_discovery_and_live_lifecycle_states() -> N
     assert 'return { key: "read-write", label: "Detected Write" };' in js
     assert 'return { key: "read-only", label: "Detected Read" };' in js
     assert 'return { key: "none", label: "No Mesh Detected" };' in js
+    assert 'return { key: "unknown", label: "" };' in js
+    assert "${meshAccessHtml}" in js
+    mesh_access_js = js.split("function scriptsMeshAccess", 1)[1].split(
+        "function scriptsItemHtml", 1
+    )[0]
+    assert "Unknown" not in mesh_access_js
     assert "registryEntry.on_packet === true" in js
     assert "registryEntry.on_start === true" in js
     assert "registryEntry.on_stop === true" in js

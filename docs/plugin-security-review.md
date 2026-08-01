@@ -158,8 +158,8 @@ administrator-controlled.
 
 Status: documented as a best-effort review hint.
 
-- The Scripts workspace shows the worker's detected Mesh access classification:
-  `Detected Write`, `Detected Read`, `No Mesh Detected`, or `Unknown`.
+- The Scripts workspace shows the worker's detected Mesh access classification
+  after it is known: `Detected Write`, `Detected Read`, or `No Mesh Detected`.
 - The indicator is computed from registered handlers and bytecode after the
   trusted script is loaded. It is not manifest-authored and not a policy gate.
 - Route toggles remain the enforcement point for Mesh, Console, Ticker, and
@@ -275,8 +275,9 @@ surface but do not make hostile Python safe.
 - Active conversational sessions clear on a fingerprint change; global and
   peer state continue.
 - Ordinary enable/disable and configuration changes remain live.
-- The Mesh access badge is best-effort display only. It does not change routing
-  or plugin execution behavior.
+- The Mesh access badge is best-effort display only and appears after the
+  worker can classify a script. It does not change routing or plugin execution
+  behavior.
 - Cross-origin iframe embedding is intentionally blocked; direct use and
   same-origin embedding still work.
 - Limits affect pathological packages or behavior, not the normal SDK surface:

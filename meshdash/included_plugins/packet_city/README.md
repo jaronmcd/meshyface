@@ -1,4 +1,4 @@
-# Packet & City Debug plugin
+# Packet City
 
 This example subscribes to every accepted packet with `@script.on_packet`, looks
 up the sender's nearest known city, and emits one `packet&city:` entry through

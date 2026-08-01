@@ -783,7 +783,7 @@ def test_handle_state_get_mirrors_node_list_plugin_fields_from_current_node_rows
                     "scripts": [
                         {
                             "id": "node_list",
-                            "name": "Node List Fields",
+                            "name": "Node List",
                             "commands": [],
                             "enabled": True,
                             "active": True,

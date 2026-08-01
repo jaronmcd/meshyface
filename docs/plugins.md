@@ -212,9 +212,10 @@ workspace or with `--plugin-enable` when you intend to run it.
 The manifest intentionally has no advisory `capabilities` field. Non-enforced
 claims would add noise without changing what a trusted Python plugin can do.
 The Mesh badge in the Scripts workspace is computed after the worker loads the
-script and can show **Detected Write**, **Detected Read**, **No Mesh Detected**,
-or **Unknown**. Treat it as a review hint only: helper-module calls and dynamic
-behavior can be missed, and broad handlers can be conservatively classified.
+script and can show **Detected Write**, **Detected Read**, or **No Mesh Detected**.
+If the script has not been inspected yet, the route toggle shows only **Mesh**.
+Treat it as a review hint only: helper-module calls and dynamic behavior can be
+missed, and broad handlers can be conservatively classified.
 The route toggles remain the enforcement point for Mesh, Console, Ticker, and
 View delivery.
 

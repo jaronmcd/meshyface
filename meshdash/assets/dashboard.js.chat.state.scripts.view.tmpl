@@ -740,7 +740,7 @@
       if (clean === "none") {{
         return {{ key: "none", label: "No Mesh Detected" }};
       }}
-      return {{ key: "unknown", label: "Unknown" }};
+      return {{ key: "unknown", label: "" }};
     }}
 
     function scriptsItemHtml(row, runtimeSummary, runtimeEnabled) {{
@@ -800,6 +800,9 @@
       const tickerEnabled = row.ticker_enabled !== false;
       const viewEnabled = row.view_enabled !== false;
       const meshAccess = scriptsMeshAccess(row);
+      const meshAccessHtml = meshAccess.label
+        ? `<span class="scripts-route-access scripts-route-access-${{escAttr(meshAccess.key)}}">${{escAttr(meshAccess.label)}}</span>`
+        : "";
       return `
         <article class="scripts-item" data-script-id="${{escAttr(scriptId)}}">
           <div class="scripts-item-head">
@@ -849,7 +852,7 @@
                       >
                       <span class="scripts-route-label">
                         <span>Mesh</span>
-                        <span class="scripts-route-access scripts-route-access-${{escAttr(meshAccess.key)}}">${{escAttr(meshAccess.label)}}</span>
+                        ${{meshAccessHtml}}
                       </span>
                     </label>
                   ` : ""}}

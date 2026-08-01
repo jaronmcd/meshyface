@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from meshdash.plugins import Script
 
 
-script = Script(id="packet_city", name="Packet & City Debug", version="1.0.0")
+script = Script(id="packet_city", name="Packet City", version="1.0.0")
 script.ticker("scoreboard", label="Packet City", default_enabled=True)
 _city_counts = {}
 _no_city_count = 0

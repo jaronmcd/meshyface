@@ -5,7 +5,7 @@ from __future__ import annotations
 from meshdash.plugins import Script
 
 
-script = Script(id="node_list", name="Node List Fields", version="1.0.0")
+script = Script(id="node_list", name="Node List", version="1.0.0")
 
 script.node_field(
     "id",
