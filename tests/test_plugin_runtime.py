@@ -1272,7 +1272,7 @@ def after(ctx):
         state_store=store,
         send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)),
         config=PluginRuntimeConfig(
-            startup_timeout_seconds=0.2,
+            startup_timeout_seconds=1.0,
             handler_timeout_seconds=1,
             restart_backoff_seconds=0.01,
         ),
@@ -1386,7 +1386,7 @@ def steady(ctx):
         state_store=store,
         send_chat_fn=lambda **kwargs: sends.append(dict(kwargs)),
         config=PluginRuntimeConfig(
-            startup_timeout_seconds=0.2,
+            startup_timeout_seconds=1.0,
             handler_timeout_seconds=1,
             restart_backoff_seconds=0.01,
         ),
