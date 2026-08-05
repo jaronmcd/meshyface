@@ -8,14 +8,310 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from meshdash.helpers import to_int
+from meshdash.http_api import make_http_handler
 from meshdash.http_api_post import build_post_route_dependencies
+from meshdash.http_plugin_admin import request_is_loopback
 from meshdash.http_routes_post import handle_dashboard_post
 
 
+_PLUGIN_PACKAGE_DIGEST = "sha256:" + ("a" * 64)
+_CURRENT_PLUGIN_PACKAGE_DIGEST = "sha256:" + ("b" * 64)
+
+
+def _plugin_request_body(**values: object) -> bytes:
+    return json.dumps(
+        {
+            **values,
+            "package_digest": _PLUGIN_PACKAGE_DIGEST,
+        }
+    ).encode("utf-8")
+
+
+def _plugin_runtime_request_body(**values: object) -> bytes:
+    return json.dumps(values).encode("utf-8")
+
+
+def _same_origin_json_headers(body: bytes) -> dict[str, str]:
+    return {
+        "Content-Length": str(len(body)),
+        "Content-Type": "application/json",
+        "Host": "127.0.0.1:8877",
+        "Origin": "http://127.0.0.1:8877",
+        "Sec-Fetch-Site": "same-origin",
+    }
+
+
+def _json_body(payload: object) -> bytes:
+    return json.dumps(payload).encode("utf-8")
+
+
+def _mesh_profile_theme_recipe() -> dict[str, object]:
+    return {
+        "version": 1,
+        "base_color": "#123456",
+        "line_color": "#abcdef",
+        "line_contrast_color": "#fedcba",
+        "gradient_primary_start_color": "#010203",
+        "gradient_primary_end_color": "#f0e0d0",
+        "color_depth": 73,
+        "foreground_transparency": 42,
+        "foreground_blur": 17,
+        "text_font": "mono",
+        "gradient_primary_type": "radial",
+        "gradient_primary_direction": "down-left",
+        "mode": "dark",
+    }
+
+
+_REAL_DASHBOARD_WRITE_PATHS = (
+    "/api/chat/send",
+    "/api/files/send",
+    "/api/meshyface/profile/settings",
+    "/api/meshyface/profile/theme",
+    "/api/games/zork",
+    "/api/plugins/console",
+    "/api/tools/network",
+    "/api/settings/radio",
+    "/api/settings/channels",
+    "/api/settings/theme",
+    "/api/settings/custom_telemetry",
+    "/api/settings/raw_packets",
+    "/api/settings/plugins/runtime",
+    "/api/settings/plugins",
+    "/api/settings/plugins/routes",
+    "/api/settings/plugins/config",
+    "/api/maps/packs/build",
+    "/api/maps/packs/build/cancel",
+    "/api/maps/packs/install",
+    "/api/system/update",
+    "/api/system/update/repair",
+    "/api/system/update/rollback-cleanup",
+    "/api/system/update/sync",
+    "/api/system/restart",
+)
+
+
+_PLUGIN_ADMIN_PATHS = {
+    "/api/settings/plugins/runtime",
+    "/api/settings/plugins",
+    "/api/settings/plugins/routes",
+    "/api/settings/plugins/config",
+    "/api/plugins/console",
+}
+
+
+def _dashboard_write_case(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[bytes, dict[str, object], list[str]]:
+    reached: list[str] = []
+
+    def _mark() -> None:
+        reached.append(path)
+
+    if path == "/api/chat/send":
+        return (
+            _json_body({"text": "hello"}),
+            {"send_chat_fn": lambda **_kwargs: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/files/send":
+        return (
+            _json_body({"text": "MF_FILE_V2|M|abcd1234|1|1|file.bin|4|0"}),
+            {"send_chat_fn": lambda **_kwargs: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/meshyface/profile/settings":
+        return (
+            _json_body({"enabled": True}),
+            {
+                "set_meshyface_profile_processing_enabled_fn": (
+                    lambda _enabled: (_mark() or {"ok": True})
+                )
+            },
+            reached,
+        )
+    if path == "/api/meshyface/profile/theme":
+        return (
+            _json_body({"theme": _mesh_profile_theme_recipe(), "channel_index": 0}),
+            {"send_meshyface_profile_fn": lambda **_kwargs: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/games/zork":
+        return (
+            _json_body({"text": "zork", "session_id": "session-1"}),
+            {"play_standalone_zork_fn": lambda **_kwargs: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/plugins/console":
+        return (
+            _json_body({"command": "zork", "text": "zork"}),
+            {
+                "run_plugin_console_command_fn": (
+                    lambda **_kwargs: (_mark() or {"ok": True})
+                )
+            },
+            reached,
+        )
+    if path == "/api/tools/network":
+        return (
+            _json_body({"command": "nodes"}),
+            {"run_network_tool_fn": lambda _request: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/settings/radio":
+        return (
+            _json_body({"owner": {"short_name": "ABCD"}}),
+            {"apply_radio_settings_fn": lambda _request: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/settings/channels":
+        return (
+            _json_body({"action": "export_url"}),
+            {"apply_channel_settings_fn": lambda _request: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/settings/theme":
+        return (
+            _json_body({"preset_name": "default"}),
+            {"set_theme_preset_fn": lambda _request: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/settings/custom_telemetry":
+        return (
+            _json_body({"rules": []}),
+            {
+                "set_custom_telemetry_settings_fn": (
+                    lambda _rules: (_mark() or {"ok": True})
+                )
+            },
+            reached,
+        )
+    if path == "/api/settings/raw_packets":
+        return (
+            _json_body({"capture_enabled": True}),
+            {
+                "set_raw_packet_capture_settings_fn": (
+                    lambda _settings: (_mark() or {"ok": True})
+                )
+            },
+            reached,
+        )
+    if path == "/api/settings/plugins/runtime":
+        return (
+            _json_body({"enabled": True}),
+            {"set_plugin_runtime_enabled_fn": lambda _enabled: (_mark() or {"ok": True})},
+            reached,
+        )
+    if path == "/api/settings/plugins":
+        return (
+            _plugin_request_body(plugin_id="echo", enabled=True),
+            {
+                "set_plugin_enabled_fn": (
+                    lambda _plugin_id, _enabled, *, expected_package_digest=None: (
+                        _mark() or {"ok": True}
+                    )
+                )
+            },
+            reached,
+        )
+    if path == "/api/settings/plugins/routes":
+        return (
+            _plugin_request_body(
+                plugin_id="echo",
+                mesh_enabled=True,
+                console_enabled=True,
+                ticker_enabled=True,
+                view_enabled=True,
+            ),
+            {
+                "set_plugin_route_policy_fn": (
+                    lambda _plugin_id,
+                    *,
+                    mesh_enabled,
+                    console_enabled,
+                    ticker_enabled,
+                    view_enabled,
+                    expected_package_digest=None: (_mark() or {"ok": True})
+                )
+            },
+            reached,
+        )
+    if path == "/api/settings/plugins/config":
+        return (
+            _plugin_request_body(plugin_id="echo", settings={}),
+            {
+                "set_plugin_settings_fn": (
+                    lambda _plugin_id, _settings, *, expected_package_digest=None: (
+                        _mark() or {"ok": True}
+                    )
+                )
+            },
+            reached,
+        )
+    if path == "/api/maps/packs/build":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._start_map_pack_build_job_helper",
+            lambda _request: (_mark() or {"ok": True}),
+        )
+        return (_json_body({"mode": "history", "pack_id": "mymesh"}), {}, reached)
+    if path == "/api/maps/packs/build/cancel":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._cancel_map_pack_build_job_helper",
+            lambda: (_mark() or {"ok": True}),
+        )
+        return (b"", {}, reached)
+    if path == "/api/maps/packs/install":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._install_built_map_pack_helper",
+            lambda _request: (_mark() or {"ok": True}),
+        )
+        return (_json_body({"pack_id": "mymesh"}), {}, reached)
+    if path == "/api/system/update":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._run_update_from_github_helper",
+            lambda **_kwargs: (_mark() or {"ok": True}),
+        )
+        return (_json_body({"branch": "main"}), {}, reached)
+    if path == "/api/system/update/repair":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._repair_dirty_update_checkout_helper",
+            lambda **_kwargs: (_mark() or {"ok": True}),
+        )
+        return (_json_body({"branch": "main"}), {}, reached)
+    if path == "/api/system/update/rollback-cleanup":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._cleanup_update_rollback_branches_helper",
+            lambda: (_mark() or {"ok": True}),
+        )
+        return (b"", {}, reached)
+    if path == "/api/system/update/sync":
+        monkeypatch.setattr(
+            "meshdash.http_routes_post._sync_update_branches_from_github_helper",
+            lambda **_kwargs: (_mark() or {"ok": True}),
+        )
+        return (_json_body({"branch": "main"}), {}, reached)
+    if path == "/api/system/restart":
+        return (
+            b"",
+            {"schedule_backend_restart_fn": lambda: (_mark() or {"ok": True})},
+            reached,
+        )
+    raise AssertionError(f"Unhandled dashboard write path: {path}")
+
+
 class _FakeHandler:
-    def __init__(self, body: bytes = b"", *, headers: dict[str, object] | None = None) -> None:
+    def __init__(
+        self,
+        body: bytes = b"",
+        *,
+        headers: dict[str, object] | None = None,
+        client_host: str = "127.0.0.1",
+    ) -> None:
         self.path = "/"
-        self.headers = headers or {}
+        self.headers = dict(headers or {})
+        self.headers.setdefault("Host", "127.0.0.1:8877")
+        self.client_address = (client_host, 12345)
         self.rfile = io.BytesIO(body)
         self.wfile = io.BytesIO()
 
@@ -29,12 +325,120 @@ class _FakeHandler:
         pass
 
 
+@pytest.mark.parametrize("path", _REAL_DASHBOARD_WRITE_PATHS)
+def test_real_dashboard_write_paths_use_dashboard_access_when_token_configured(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body, deps_kwargs, reached = _dashboard_write_case(path, monkeypatch)
+    handler = _FakeHandler(body, headers=_same_origin_json_headers(body))
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        api_token="secret",
+        to_int_fn=to_int,
+        **{"send_chat_fn": None, **deps_kwargs},
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path=path, deps=deps)
+
+    assert reached == [path]
+    assert calls
+    assert calls[0][0] < 300
+
+
+@pytest.mark.parametrize("path", _REAL_DASHBOARD_WRITE_PATHS)
+def test_real_dashboard_write_paths_require_token_for_external_clients_when_configured(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body, deps_kwargs, reached = _dashboard_write_case(path, monkeypatch)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "dashboard.example",
+        },
+        client_host="192.168.1.42",
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        api_token="secret",
+        to_int_fn=to_int,
+        **{"send_chat_fn": None, **deps_kwargs},
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path=path, deps=deps)
+
+    assert reached == []
+    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
+@pytest.mark.parametrize("path", _REAL_DASHBOARD_WRITE_PATHS)
+def test_real_dashboard_write_paths_reject_cross_origin_browser_writes(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body, deps_kwargs, reached = _dashboard_write_case(path, monkeypatch)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "127.0.0.1:8877",
+            "Origin": "https://attacker.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        api_token="secret",
+        to_int_fn=to_int,
+        **{"send_chat_fn": None, **deps_kwargs},
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path=path, deps=deps)
+
+    expected_error = (
+        "Cross-origin plugin administration is not allowed"
+        if path in _PLUGIN_ADMIN_PATHS
+        else "Cross-origin writes are not allowed"
+    )
+    assert reached == []
+    assert calls == [(403, {"ok": False, "error": expected_error})]
+
+
 @pytest.mark.parametrize(
     "path",
     (
         "/api/settings/bot",
         "/api/bots/zork",
         "/api/bots/ping",
+        "/api/settings/file_transfer",
     ),
 )
 def test_handle_dashboard_post_returns_not_found_for_removed_bot_routes(
@@ -46,8 +450,8 @@ def test_handle_dashboard_post_returns_not_found_for_removed_bot_routes(
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
-                (status_code, payload_obj)
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
             ),
         }
     )
@@ -55,7 +459,6 @@ def test_handle_dashboard_post_returns_not_found_for_removed_bot_routes(
     handle_dashboard_post(handler, path=path, deps=deps)
 
     assert calls == [(404, {"ok": False, "error": "Not Found"})]
-
 
 
 def test_handle_dashboard_post_keeps_standalone_zork_route_available() -> None:
@@ -98,9 +501,415 @@ def test_handle_dashboard_post_keeps_standalone_zork_route_available() -> None:
     ]
 
 
+def test_handle_dashboard_post_runs_plugin_console_command() -> None:
+    body = json.dumps(
+        {
+            "command": "zork",
+            "text": "zork",
+            "handler": "command",
+            "session_id": "session-1",
+        }
+    ).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[dict[str, object]] = []
+
+    def _write_json_response(handler, *, status_code, payload_obj, **kwargs):
+        calls.append((status_code, payload_obj))
+
+    def _run_plugin_console_command(**kwargs: object) -> dict[str, object]:
+        received.append(dict(kwargs))
+        return {
+            "ok": True,
+            "reply_text": "started",
+            "session_id": kwargs.get("session_id"),
+            "active_session": True,
+        }
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": _write_json_response,
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert received == [
+        {
+            "command": "zork",
+            "text": "zork",
+            "handler": "command",
+            "session_id": "session-1",
+        }
+    ]
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "reply_text": "started",
+                "session_id": "session-1",
+                "active_session": True,
+            },
+        )
+    ]
+
+
+def test_plugin_console_requires_json_content_type() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "text/plain",
+            "Host": "127.0.0.1:8877",
+            "Origin": "http://127.0.0.1:8877",
+            "Sec-Fetch-Site": "same-origin",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 0
+    assert calls == [
+        (
+            415,
+            {
+                "ok": False,
+                "error": "Plugin administration requires application/json",
+            },
+        )
+    ]
+
+
+def test_plugin_console_rejects_cross_origin_browser_write() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json; charset=utf-8",
+            "Host": "127.0.0.1:8877",
+            "Origin": "https://attacker.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 0
+    assert calls == [
+        (
+            403,
+            {
+                "ok": False,
+                "error": "Cross-origin plugin administration is not allowed",
+            },
+        )
+    ]
+
+
+def test_remote_plugin_console_client_can_use_configured_token() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "dashboard.example",
+            "X-API-Token": "secret",
+        },
+        client_host="192.168.1.42",
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 1
+    assert calls == [(200, {"ok": True})]
+
+
+def test_plugin_console_uses_dashboard_access_when_token_configured() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers=_same_origin_json_headers(body),
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 1
+    assert calls == [(200, {"ok": True})]
+
+
+def test_plugin_console_requires_token_for_external_client_when_configured() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "dashboard.example",
+        },
+        client_host="192.168.1.42",
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 0
+    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
+def test_plugin_console_is_blocked_in_private_mode() -> None:
+    body = json.dumps({"command": "zork", "text": "zork"}).encode("utf-8")
+    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_plugin_console_command(**_kwargs: object) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_plugin_console_command_fn=_run_plugin_console_command,
+        private_mode=True,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/plugins/console", deps=deps)
+
+    assert runs == 0
+    assert calls == [
+        (403, {"ok": False, "error": "This endpoint is disabled in private mode"})
+    ]
+
+
+def test_token_protected_write_rejects_cross_origin_browser_request() -> None:
+    body = json.dumps({"text": "hello"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "127.0.0.1:8877",
+            "Origin": "https://attacker.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+
+    deps = build_post_route_dependencies(send_chat_fn=None, to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/chat/send", deps=deps)
+
+    assert calls == [(403, {"ok": False, "error": "Cross-origin writes are not allowed"})]
+
+
+def test_token_protected_browser_write_requires_json_content_type() -> None:
+    body = json.dumps({"text": "hello"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "text/plain",
+            "Host": "127.0.0.1:8877",
+            "Origin": "http://127.0.0.1:8877",
+            "Sec-Fetch-Site": "same-origin",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+
+    deps = build_post_route_dependencies(send_chat_fn=None, to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/chat/send", deps=deps)
+
+    assert calls == [(415, {"ok": False, "error": "Write endpoints require application/json"})]
+
+
+def test_tokenless_protected_write_allows_same_origin_lan_client() -> None:
+    body = json.dumps({"text": "hello"}).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "192.168.1.10:8877",
+            "Origin": "http://192.168.1.10:8877",
+            "Sec-Fetch-Site": "same-origin",
+        },
+        client_host="192.168.1.42",
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _send_chat(**_kwargs: object) -> None:
+        nonlocal runs
+        runs += 1
+
+    deps = build_post_route_dependencies(send_chat_fn=_send_chat, to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/chat/send", deps=deps)
+
+    assert runs == 1
+    assert calls[0][0] == 200
+
+
 def test_handle_dashboard_post_updates_raw_packet_capture_settings() -> None:
     body = json.dumps({"capture_enabled": True}).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+    handler = _FakeHandler(body, headers=_same_origin_json_headers(body))
     calls: list[tuple[int, object]] = []
     received: list[object] = []
 
@@ -109,8 +918,11 @@ def test_handle_dashboard_post_updates_raw_packet_capture_settings() -> None:
 
     deps = build_post_route_dependencies(
         send_chat_fn=None,
-        set_raw_packet_capture_settings_fn=lambda settings: received.append(settings)
-        or {"ok": True, "capture_enabled": settings["capture_enabled"]},
+        set_raw_packet_capture_settings_fn=lambda settings: (
+            received.append(settings)
+            or {"ok": True, "capture_enabled": settings["capture_enabled"]}
+        ),
+        api_token="secret",
         to_int_fn=to_int,
     )
     deps = type(deps)(
@@ -126,33 +938,1036 @@ def test_handle_dashboard_post_updates_raw_packet_capture_settings() -> None:
     assert calls == [(200, {"ok": True, "capture_enabled": True})]
 
 
-def test_handle_dashboard_post_toggles_file_transfer_auto_accept() -> None:
-    body = json.dumps({"enabled": False}).encode("utf-8")
-    handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
+def test_plugin_management_returns_structured_disabled_error() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
     calls: list[tuple[int, object]] = []
-    received: list[bool] = []
+    disabled = {
+        "ok": False,
+        "error": {
+            "code": "plugin_runtime_disabled",
+            "message": "Python plugin runtime is disabled at startup",
+        },
+    }
     deps = build_post_route_dependencies(
         send_chat_fn=None,
-        set_file_transfer_auto_accept_enabled_fn=lambda enabled: received.append(enabled)
-        or {"ok": True, "enabled": enabled, "active_sessions": 0},
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: disabled,
         to_int_fn=to_int,
     )
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append(
-                (status_code, payload_obj)
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
             ),
         }
     )
 
-    handle_dashboard_post(handler, path="/api/settings/file_transfer", deps=deps)
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [(503, disabled)]
+
+
+def test_plugin_management_applies_individual_setting_live() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=False)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[tuple[object, bool, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda plugin_id, enabled, *, expected_package_digest=None: (
+            received.append((plugin_id, enabled, expected_package_digest))
+            or {
+                "ok": True,
+                "plugin_id": plugin_id,
+                "enabled": enabled,
+                "active": enabled,
+                "restart_required": False,
+            }
+        ),
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert received == [("echo", False, _PLUGIN_PACKAGE_DIGEST)]
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "plugin_id": "echo",
+                "enabled": False,
+                "active": False,
+                "restart_required": False,
+            },
+        )
+    ]
+
+
+def test_plugin_management_returns_structured_unknown_plugin_error() -> None:
+    body = _plugin_request_body(plugin_id="missing", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: {
+            "ok": False,
+            "error": {"code": "unknown_plugin", "message": "Unknown plugin ID"},
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            404,
+            {
+                "ok": False,
+                "error": {"code": "unknown_plugin", "message": "Unknown plugin ID"},
+            },
+        )
+    ]
+
+
+def test_plugin_management_rejects_stale_package_digest() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[object] = []
+
+    def _setter(
+        _plugin_id: object,
+        _enabled: bool,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        received.append(expected_package_digest)
+        return {
+            "ok": False,
+            "error": {
+                "code": "plugin_identity_changed",
+                "message": "Plugin package identity changed; refresh and review it",
+            },
+            "package_digest": _CURRENT_PLUGIN_PACKAGE_DIGEST,
+        }
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=_setter,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert received == [_PLUGIN_PACKAGE_DIGEST]
+    assert calls == [
+        (
+            409,
+            {
+                "ok": False,
+                "error": {
+                    "code": "plugin_identity_changed",
+                    "message": "Plugin package identity changed; refresh and review it",
+                },
+                "package_digest": _CURRENT_PLUGIN_PACKAGE_DIGEST,
+            },
+        )
+    ]
+
+
+def test_plugin_management_returns_structured_invalid_request_error() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled="yes")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: {
+            "ok": True
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            400,
+            {
+                "ok": False,
+                "error": {
+                    "code": "invalid_request",
+                    "message": "enabled must be a boolean",
+                },
+            },
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("path", "payload", "expected_message"),
+    (
+        (
+            "/api/settings/plugins",
+            {"plugin_id": "echo", "enabled": True},
+            "request body must contain only plugin_id, enabled, and package_digest",
+        ),
+        (
+            "/api/settings/plugins/config",
+            {"plugin_id": "echo", "settings": {}},
+            "request body must contain only plugin_id, settings, and package_digest",
+        ),
+        (
+            "/api/settings/plugins/routes",
+            {"plugin_id": "echo", "mesh_enabled": True, "console_enabled": True},
+            (
+                "request body must contain only plugin_id, mesh_enabled, "
+                "console_enabled, ticker_enabled, view_enabled, and package_digest"
+            ),
+        ),
+    ),
+)
+def test_plugin_mutations_require_package_digest(
+    path: str,
+    payload: dict[str, object],
+    expected_message: str,
+) -> None:
+    body = json.dumps(payload).encode("utf-8")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    updates: list[str] = []
+
+    def _set_enabled(
+        _plugin_id: object,
+        _enabled: bool,
+        *,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        updates.append(str(expected_package_digest))
+        return {"ok": True}
+
+    def _set_settings(
+        _plugin_id: object,
+        _settings: object,
+        *,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        updates.append(str(expected_package_digest))
+        return {"ok": True}
+
+    def _set_routes(
+        _plugin_id: object,
+        *,
+        mesh_enabled: bool,
+        console_enabled: bool,
+        ticker_enabled: bool,
+        view_enabled: bool,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        del mesh_enabled, console_enabled, ticker_enabled, view_enabled
+        updates.append(str(expected_package_digest))
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=_set_enabled,
+        set_plugin_settings_fn=_set_settings,
+        set_plugin_route_policy_fn=_set_routes,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path=path, deps=deps)
+
+    assert updates == []
+    assert calls == [
+        (
+            400,
+            {
+                "ok": False,
+                "error": {
+                    "code": "invalid_request",
+                    "message": expected_message,
+                },
+            },
+        )
+    ]
+
+
+def test_plugin_configuration_applies_validated_settings() -> None:
+    body = _plugin_request_body(
+        plugin_id="configured",
+        settings={"allowed_nodes": ["!01020304"]},
+    )
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[tuple[object, object, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_settings_fn=lambda plugin_id, settings, *, expected_package_digest=None: (
+            received.append((plugin_id, settings, expected_package_digest))
+            or {"ok": True, "plugin_id": plugin_id, "settings": settings}
+        ),
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins/config", deps=deps)
+
+    assert received == [
+        (
+            "configured",
+            {"allowed_nodes": ["!01020304"]},
+            _PLUGIN_PACKAGE_DIGEST,
+        )
+    ]
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "plugin_id": "configured",
+                "settings": {"allowed_nodes": ["!01020304"]},
+            },
+        )
+    ]
+
+
+def test_plugin_route_policy_applies_validated_booleans() -> None:
+    body = _plugin_request_body(
+        plugin_id="echo",
+        mesh_enabled=False,
+        console_enabled=True,
+        ticker_enabled=False,
+        view_enabled=False,
+    )
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[tuple[object, bool, bool, bool, bool, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_route_policy_fn=(
+            lambda plugin_id,
+            *,
+            mesh_enabled,
+            console_enabled,
+            ticker_enabled,
+            view_enabled,
+            expected_package_digest=None: (
+                received.append(
+                    (
+                        plugin_id,
+                        mesh_enabled,
+                        console_enabled,
+                        ticker_enabled,
+                        view_enabled,
+                        expected_package_digest,
+                    )
+                )
+                or {
+                    "ok": True,
+                    "plugin_id": plugin_id,
+                    "mesh_enabled": mesh_enabled,
+                    "console_enabled": console_enabled,
+                    "ticker_enabled": ticker_enabled,
+                    "view_enabled": view_enabled,
+                }
+            )
+        ),
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins/routes", deps=deps)
+
+    assert received == [("echo", False, True, False, False, _PLUGIN_PACKAGE_DIGEST)]
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "plugin_id": "echo",
+                "mesh_enabled": False,
+                "console_enabled": True,
+                "ticker_enabled": False,
+                "view_enabled": False,
+            },
+        )
+    ]
+
+
+def test_plugin_runtime_master_applies_validated_boolean() -> None:
+    body = _plugin_runtime_request_body(enabled=False)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[bool] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_runtime_enabled_fn=lambda enabled: (
+            received.append(enabled)
+            or {
+                "ok": True,
+                "runtime_enabled": enabled,
+                "enabled_plugins": [],
+            }
+        ),
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins/runtime", deps=deps)
 
     assert received == [False]
-    assert calls == [(200, {"ok": True, "enabled": False, "active_sessions": 0})]
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "runtime_enabled": False,
+                "enabled_plugins": [],
+            },
+        )
+    ]
 
 
-def test_handle_dashboard_post_requires_token_for_raw_packet_capture_settings() -> None:
+def test_plugin_runtime_master_rejects_invalid_request() -> None:
+    body = _plugin_runtime_request_body(enabled="false")
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    updates = 0
+
+    def _setter(_enabled: bool) -> dict[str, object]:
+        nonlocal updates
+        updates += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_runtime_enabled_fn=_setter,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins/runtime", deps=deps)
+
+    assert updates == 0
+    assert calls == [
+        (
+            400,
+            {
+                "ok": False,
+                "error": {
+                    "code": "invalid_request",
+                    "message": "enabled must be a boolean",
+                },
+            },
+        )
+    ]
+
+
+def test_plugin_configuration_rejects_stale_package_digest() -> None:
+    body = _plugin_request_body(plugin_id="configured", settings={"mode": "safe"})
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    received: list[object] = []
+
+    def _setter(
+        _plugin_id: object,
+        _settings: object,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        received.append(expected_package_digest)
+        return {
+            "ok": False,
+            "error": {
+                "code": "plugin_identity_changed",
+                "message": "Plugin package identity changed; refresh before saving",
+            },
+            "package_digest": _CURRENT_PLUGIN_PACKAGE_DIGEST,
+        }
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_settings_fn=_setter,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(
+        handler,
+        path="/api/settings/plugins/config",
+        deps=deps,
+    )
+
+    assert received == [_PLUGIN_PACKAGE_DIGEST]
+    assert calls == [
+        (
+            409,
+            {
+                "ok": False,
+                "error": {
+                    "code": "plugin_identity_changed",
+                    "message": "Plugin package identity changed; refresh before saving",
+                },
+                "package_digest": _CURRENT_PLUGIN_PACKAGE_DIGEST,
+            },
+        )
+    ]
+
+
+def test_plugin_configuration_uses_dashboard_access_when_token_configured() -> None:
+    body = _plugin_request_body(plugin_id="configured", settings={})
+    handler = _FakeHandler(
+        body,
+        headers=_same_origin_json_headers(body),
+    )
+    calls: list[tuple[int, object]] = []
+    updates = 0
+
+    def _setter(
+        _plugin_id: object,
+        _settings: object,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        nonlocal updates
+        del expected_package_digest
+        updates += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_settings_fn=_setter,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins/config", deps=deps)
+
+    assert updates == 1
+    assert calls == [(200, {"ok": True})]
+
+
+def test_plugin_management_without_token_allows_remote_dashboard_access() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+        },
+        client_host="192.0.2.20",
+    )
+    calls: list[tuple[int, object]] = []
+    updates = 0
+
+    def _setter(
+        _plugin_id: object,
+        _enabled: bool,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        nonlocal updates
+        del expected_package_digest
+        updates += 1
+        return {"ok": True}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=_setter,
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert updates == 1
+    assert calls == [(200, {"ok": True})]
+
+
+@pytest.mark.parametrize(
+    ("host_header", "client_host"),
+    (
+        ("localhost:8877", "127.0.0.1"),
+        ("127.0.0.42:8877", "127.0.0.1"),
+        ("[::1]:8877", "::1"),
+    ),
+)
+def test_request_is_loopback_accepts_loopback_hosts(
+    host_header: str,
+    client_host: str,
+) -> None:
+    handler = _FakeHandler(
+        headers={"Host": host_header},
+        client_host=client_host,
+    )
+
+    assert request_is_loopback(handler) is True
+
+
+@pytest.mark.parametrize(
+    ("header_name", "header_value"),
+    (
+        ("X-Forwarded-For", "127.0.0.1"),
+        ("X-Forwarded-Proto", "http"),
+        ("Forwarded", "for=127.0.0.1"),
+        ("X-Real-IP", "127.0.0.1"),
+        ("Via", "1.1 local-proxy"),
+    ),
+)
+def test_request_is_loopback_rejects_any_proxy_metadata(
+    header_name: str,
+    header_value: str,
+) -> None:
+    handler = _FakeHandler(
+        headers={
+            "Host": "127.0.0.1:8877",
+            header_name: header_value,
+        },
+    )
+
+    assert request_is_loopback(handler) is False
+
+
+def test_plugin_management_allows_dashboard_host_from_loopback_client() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "dashboard.example",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: {
+            "ok": True
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [(200, {"ok": True})]
+
+
+def test_plugin_management_requires_json_content_type() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={"Content-Length": str(len(body)), "Content-Type": "text/plain"},
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: {
+            "ok": True
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            415,
+            {
+                "ok": False,
+                "error": "Plugin administration requires application/json",
+            },
+        )
+    ]
+
+
+def test_plugin_management_rejects_cross_origin_browser_write() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json; charset=utf-8",
+            "Host": "127.0.0.1:8877",
+            "Origin": "https://attacker.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda _plugin_id, _enabled, *, expected_package_digest=None: {
+            "ok": True
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            403,
+            {
+                "ok": False,
+                "error": "Cross-origin plugin administration is not allowed",
+            },
+        )
+    ]
+
+
+def test_plugin_management_accepts_same_origin_browser_write() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "localhost:8877",
+            "Origin": "http://localhost:8877",
+            "Sec-Fetch-Site": "same-origin",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda plugin_id, enabled, *, expected_package_digest=None: {
+            "ok": True,
+            "plugin_id": plugin_id,
+            "enabled": enabled,
+        },
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "plugin_id": "echo",
+                "enabled": True,
+            },
+        )
+    ]
+
+
+def test_remote_non_browser_plugin_client_can_use_configured_token() -> None:
+    body = _plugin_request_body(plugin_id="echo", enabled=True)
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "X-API-Token": "secret",
+            "X-Forwarded-For": "192.0.2.20",
+        },
+        client_host="192.0.2.20",
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        set_plugin_enabled_fn=lambda plugin_id, enabled, *, expected_package_digest=None: {
+            "ok": True,
+            "plugin_id": plugin_id,
+            "enabled": enabled,
+            "active": enabled,
+        },
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/settings/plugins", deps=deps)
+
+    assert calls == [
+        (
+            200,
+            {
+                "ok": True,
+                "plugin_id": "echo",
+                "enabled": True,
+                "active": True,
+            },
+        )
+    ]
+
+
+def test_make_http_handler_wires_plugin_management_hook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "meshdash.http_api.build_get_route_dependencies",
+        lambda **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "meshdash.http_api.build_post_route_dependencies",
+        lambda **kwargs: captured.update(kwargs) or object(),
+    )
+    monkeypatch.setattr(
+        "meshdash.http_api.build_dashboard_handler_class",
+        lambda **_kwargs: object,
+    )
+
+    def _state_fn() -> dict[str, object]:
+        return {}
+
+    def _set_plugin_enabled(
+        plugin_id: object,
+        enabled: bool,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        del expected_package_digest
+        return {"ok": True, "plugin_id": plugin_id, "enabled": enabled}
+
+    def _set_plugin_settings(
+        plugin_id: object,
+        settings: object,
+        *,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        del expected_package_digest
+        return {"ok": True, "plugin_id": plugin_id, "settings": settings}
+
+    def _set_plugin_route_policy(
+        plugin_id: object,
+        *,
+        mesh_enabled: bool,
+        console_enabled: bool,
+        ticker_enabled: bool,
+        view_enabled: bool,
+        expected_package_digest: object | None = None,
+    ) -> dict[str, object]:
+        del expected_package_digest
+        return {
+            "ok": True,
+            "plugin_id": plugin_id,
+            "mesh_enabled": mesh_enabled,
+            "console_enabled": console_enabled,
+            "ticker_enabled": ticker_enabled,
+            "view_enabled": view_enabled,
+        }
+
+    def _set_plugin_runtime_enabled(enabled: bool) -> dict[str, object]:
+        return {"ok": True, "runtime_enabled": enabled}
+
+    def _run_plugin_console_command(**kwargs: object) -> dict[str, object]:
+        return {"ok": True, "command": kwargs.get("command")}
+
+    setattr(_state_fn, "set_plugin_enabled_fn", _set_plugin_enabled)
+    setattr(_state_fn, "set_plugin_settings_fn", _set_plugin_settings)
+    setattr(_state_fn, "set_plugin_route_policy_fn", _set_plugin_route_policy)
+    setattr(_state_fn, "set_plugin_runtime_enabled_fn", _set_plugin_runtime_enabled)
+    setattr(_state_fn, "run_plugin_console_command_fn", _run_plugin_console_command)
+
+    make_http_handler("<html></html>", _state_fn)
+
+    assert captured["set_plugin_enabled_fn"] is _set_plugin_enabled
+    assert captured["set_plugin_settings_fn"] is _set_plugin_settings
+    assert captured["set_plugin_route_policy_fn"] is _set_plugin_route_policy
+    assert captured["set_plugin_runtime_enabled_fn"] is _set_plugin_runtime_enabled
+    assert captured["run_plugin_console_command_fn"] is _run_plugin_console_command
+
+
+def test_handle_dashboard_post_requires_token_for_external_raw_packet_capture_settings() -> None:
     body = json.dumps({"capture_enabled": True}).encode("utf-8")
     handler = _FakeHandler(body, headers={"Content-Length": str(len(body))})
     calls: list[tuple[int, object]] = []
@@ -172,7 +1987,9 @@ def test_handle_dashboard_post_requires_token_for_raw_packet_capture_settings() 
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -200,7 +2017,9 @@ def test_handle_dashboard_post_runs_system_update(monkeypatch: pytest.MonkeyPatc
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -208,6 +2027,45 @@ def test_handle_dashboard_post_runs_system_update(monkeypatch: pytest.MonkeyPatc
 
     assert captured["target_branch"] == "beta"
     assert calls == [(200, {"ok": True, "updated": False, "state": "up_to_date"})]
+
+
+def test_handle_dashboard_post_rejects_cross_origin_system_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    update_calls = 0
+
+    def _run_update(**kwargs: object) -> dict[str, object]:
+        nonlocal update_calls
+        update_calls += 1
+        return {"ok": True}
+
+    monkeypatch.setattr("meshdash.http_routes_post._run_update_from_github_helper", _run_update)
+    body = b'{"branch":"beta"}'
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "127.0.0.1:8877",
+            "Origin": "https://attacker.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/system/update", deps=deps)
+
+    assert update_calls == 0
+    assert calls == [(403, {"ok": False, "error": "Cross-origin writes are not allowed"})]
 
 
 def test_handle_dashboard_post_rolls_back_system_update(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -243,7 +2101,9 @@ def test_handle_dashboard_post_rolls_back_system_update(monkeypatch: pytest.Monk
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -251,10 +2111,14 @@ def test_handle_dashboard_post_rolls_back_system_update(monkeypatch: pytest.Monk
 
     assert update_calls == 0
     assert captured == {"target_branch": "main", "target_commit": "dddddddd"}
-    assert calls == [(200, {"ok": True, "rollback": True, "rollback_branch": "rollback/main-dddddddd1111"})]
+    assert calls == [
+        (200, {"ok": True, "rollback": True, "rollback_branch": "rollback/main-dddddddd1111"})
+    ]
 
 
-def test_handle_dashboard_post_syncs_system_update_branches(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_dashboard_post_syncs_system_update_branches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     captured: dict[str, object] = {}
 
     def _sync_update(**kwargs: object) -> dict[str, object]:
@@ -278,14 +2142,18 @@ def test_handle_dashboard_post_syncs_system_update_branches(monkeypatch: pytest.
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
     handle_dashboard_post(handler, path="/api/system/update/sync", deps=deps)
 
     assert captured["target_branch"] == "dev"
-    assert calls == [(200, {"ok": True, "synced": True, "updated": False, "state": "update_available"})]
+    assert calls == [
+        (200, {"ok": True, "synced": True, "updated": False, "state": "update_available"})
+    ]
 
 
 def test_handle_dashboard_post_repairs_dirty_checkout(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -346,7 +2214,9 @@ def test_handle_dashboard_post_cleans_rollback_branches(monkeypatch: pytest.Monk
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -366,7 +2236,9 @@ def test_handle_dashboard_post_cleans_rollback_branches(monkeypatch: pytest.Monk
     ]
 
 
-def test_handle_dashboard_post_requires_token_for_system_update(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_dashboard_post_system_update_uses_dashboard_access_when_token_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     update_calls = 0
 
     def _run_update(**kwargs: object) -> dict[str, object]:
@@ -375,23 +2247,27 @@ def test_handle_dashboard_post_requires_token_for_system_update(monkeypatch: pyt
         return {"ok": True}
 
     monkeypatch.setattr("meshdash.http_routes_post._run_update_from_github_helper", _run_update)
-    handler = _FakeHandler()
+    handler = _FakeHandler(headers=_same_origin_json_headers(b""))
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
     handle_dashboard_post(handler, path="/api/system/update", deps=deps)
 
-    assert update_calls == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert update_calls == 1
+    assert calls == [(200, {"ok": True})]
 
 
-def test_handle_dashboard_post_requires_token_for_system_update_sync(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_dashboard_post_system_update_sync_uses_dashboard_access_when_token_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     sync_calls = 0
 
     def _sync_update(**kwargs: object) -> dict[str, object]:
@@ -399,24 +2275,30 @@ def test_handle_dashboard_post_requires_token_for_system_update_sync(monkeypatch
         sync_calls += 1
         return {"ok": True}
 
-    monkeypatch.setattr("meshdash.http_routes_post._sync_update_branches_from_github_helper", _sync_update)
-    handler = _FakeHandler()
+    monkeypatch.setattr(
+        "meshdash.http_routes_post._sync_update_branches_from_github_helper", _sync_update
+    )
+    handler = _FakeHandler(headers=_same_origin_json_headers(b""))
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
     handle_dashboard_post(handler, path="/api/system/update/sync", deps=deps)
 
-    assert sync_calls == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert sync_calls == 1
+    assert calls == [(200, {"ok": True})]
 
 
-def test_handle_dashboard_post_requires_token_for_checkout_repair(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_dashboard_post_checkout_repair_uses_dashboard_access_when_token_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     repair_calls = 0
 
     def _repair_checkout(**kwargs: object) -> dict[str, object]:
@@ -428,23 +2310,27 @@ def test_handle_dashboard_post_requires_token_for_checkout_repair(monkeypatch: p
         "meshdash.http_routes_post._repair_dirty_update_checkout_helper",
         _repair_checkout,
     )
-    handler = _FakeHandler()
+    handler = _FakeHandler(headers=_same_origin_json_headers(b""))
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
     handle_dashboard_post(handler, path="/api/system/update/repair", deps=deps)
 
-    assert repair_calls == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert repair_calls == 1
+    assert calls == [(200, {"ok": True})]
 
 
-def test_handle_dashboard_post_requires_token_for_rollback_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_dashboard_post_rollback_cleanup_uses_dashboard_access_when_token_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     cleanup_calls = 0
 
     def _cleanup_rollbacks(**kwargs: object) -> dict[str, object]:
@@ -456,20 +2342,22 @@ def test_handle_dashboard_post_requires_token_for_rollback_cleanup(monkeypatch: 
         "meshdash.http_routes_post._cleanup_update_rollback_branches_helper",
         _cleanup_rollbacks,
     )
-    handler = _FakeHandler()
+    handler = _FakeHandler(headers=_same_origin_json_headers(b""))
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
     handle_dashboard_post(handler, path="/api/system/update/rollback-cleanup", deps=deps)
 
-    assert cleanup_calls == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert cleanup_calls == 1
+    assert calls == [(200, {"ok": True})]
 
 
 def test_handle_dashboard_post_schedules_system_restart() -> None:
@@ -496,7 +2384,9 @@ def test_handle_dashboard_post_schedules_system_restart() -> None:
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
@@ -516,7 +2406,7 @@ def test_handle_dashboard_post_schedules_system_restart() -> None:
     ]
 
 
-def test_handle_dashboard_post_requires_token_for_system_restart() -> None:
+def test_handle_dashboard_post_system_restart_uses_dashboard_access_when_token_configured() -> None:
     restart_calls = 0
 
     def _schedule_restart() -> dict[str, object]:
@@ -524,7 +2414,7 @@ def test_handle_dashboard_post_requires_token_for_system_restart() -> None:
         restart_calls += 1
         return {"ok": True}
 
-    handler = _FakeHandler()
+    handler = _FakeHandler(headers=_same_origin_json_headers(b""))
     calls: list[tuple[int, object]] = []
     deps = build_post_route_dependencies(
         send_chat_fn=None,
@@ -535,11 +2425,13 @@ def test_handle_dashboard_post_requires_token_for_system_restart() -> None:
     deps = type(deps)(
         **{
             **deps.__dict__,
-            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: (
+                calls.append((status_code, payload_obj))
+            ),
         }
     )
 
     handle_dashboard_post(handler, path="/api/system/restart", deps=deps)
 
-    assert restart_calls == 0
-    assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+    assert restart_calls == 1
+    assert calls == [(202, {"ok": True})]

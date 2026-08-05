@@ -755,7 +755,42 @@
       }}
       const text = String(rawLine == null ? "" : rawLine).trim();
       if (!text) return "";
-      if (String(session.mode || "") !== "standalone") {{
+      const mode = String(session.mode || "").trim().toLowerCase();
+      if (mode === "plugin") {{
+        const command = String(session.command || session.name || "").trim().toLowerCase();
+        if (!command) {{
+          stopConsoleInteractiveSession("invalid plugin session", false);
+          return "[console] plugin session is missing its command.";
+        }}
+        const payload = await postPluginConsoleCommand(command, text, session.sessionId || "", "auto");
+        const nextSessionId = String(payload && payload.session_id ? payload.session_id : session.sessionId || "").trim();
+        if (nextSessionId) {{
+          session.sessionId = nextSessionId;
+          persistConsoleSessionState();
+        }}
+        const replyTextRaw = String(
+          payload && Object.prototype.hasOwnProperty.call(payload, "reply_text")
+            ? (payload.reply_text ?? "")
+            : ""
+        );
+        const replyText = command === "zork"
+          ? normalizeStandaloneZorkReplyText(replyTextRaw)
+          : replyTextRaw.trim();
+        if (replyText.trim()) {{
+          const receivedAtMs = Date.now();
+          appendConsoleLine(
+            `interactive|plugin|${{command}}|${{String(session.sessionId || "session")}}|${{receivedAtMs}}`,
+            replyText,
+            receivedAtMs,
+            true
+          );
+        }}
+        if (payload && payload.active_session === false) {{
+          stopConsoleInteractiveSession("session ended", false);
+        }}
+        return "";
+      }}
+      if (mode !== "standalone") {{
         stopConsoleInteractiveSession("unsupported mode", false);
         return "[console] interactive session mode is no longer supported. Type \"zork\" to start a new local game.";
       }}

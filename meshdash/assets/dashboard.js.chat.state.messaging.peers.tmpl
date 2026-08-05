@@ -19,68 +19,117 @@
       return normalizeChatNodeNavigatorSortKeyPref(sortKeyRaw) === chatNodeNavigatorDefaultSortKey;
     }}
 
-    function normalizeChatNodeNavigatorPinDirectHistoryPref(value) {{
+    function normalizeChatNodeNavigatorTogglePref(optionId, value) {{
+      const fallback = chatNodeNavigatorDefaultToggleOptionValue(optionId);
       if (typeof parseBoolToken === "function") {{
-        return parseBoolToken(value, false);
+        return parseBoolToken(value, fallback);
       }}
-      if (value == null) return false;
+      if (value == null) return fallback;
       const clean = String(value).trim().toLowerCase();
-      return clean === "1" || clean === "true" || clean === "on" || clean === "yes";
+      if (clean === "1" || clean === "true" || clean === "on" || clean === "yes") return true;
+      if (clean === "0" || clean === "false" || clean === "off" || clean === "no") return false;
+      return fallback;
     }}
 
     function normalizeChatNodeNavigatorShowPacketDirectionPref(value) {{
-      if (typeof parseBoolToken === "function") {{
-        return parseBoolToken(value, true);
-      }}
-      if (value == null) return true;
-      const clean = String(value).trim().toLowerCase();
-      return !(clean === "0" || clean === "false" || clean === "off" || clean === "no");
+      return normalizeChatNodeNavigatorTogglePref("packet-direction", value);
     }}
 
     function normalizeChatNodeNavigatorShowIdlePref(value) {{
-      if (typeof parseBoolToken === "function") {{
-        return parseBoolToken(value, true);
-      }}
-      if (value == null) return true;
-      const clean = String(value).trim().toLowerCase();
-      return !(clean === "0" || clean === "false" || clean === "off" || clean === "no");
+      return normalizeChatNodeNavigatorTogglePref("idle", value);
     }}
 
     function normalizeChatNodeNavigatorShowCityPref(value) {{
-      if (typeof parseBoolToken === "function") {{
-        return parseBoolToken(value, true);
-      }}
-      if (value == null) return true;
-      const clean = String(value).trim().toLowerCase();
-      return !(clean === "0" || clean === "false" || clean === "off" || clean === "no");
+      return normalizeChatNodeNavigatorTogglePref("city", value);
     }}
 
     function normalizeChatNodeNavigatorShowStatusDotsPref(value) {{
-      if (typeof parseBoolToken === "function") {{
-        return parseBoolToken(value, true);
+      return normalizeChatNodeNavigatorTogglePref("status-dots", value);
+    }}
+
+    function chatNodeNavigatorToggleOptionValue(optionId) {{
+      const clean = String(optionId || "").trim().toLowerCase();
+      if (clean === "city") return chatNodeNavigatorShowCity;
+      if (clean === "idle") return chatNodeNavigatorShowIdle;
+      if (clean === "status-dots") return chatNodeNavigatorShowStatusDots;
+      if (clean === "packet-direction") return chatNodeNavigatorShowPacketDirection;
+      return chatNodeNavigatorDefaultToggleOptionValue(clean);
+    }}
+
+    function setChatNodeNavigatorToggleOptionValue(optionId, value) {{
+      const clean = String(optionId || "").trim().toLowerCase();
+      const normalized = normalizeChatNodeNavigatorTogglePref(clean, value);
+      if (clean === "city") {{
+        chatNodeNavigatorShowCity = normalized;
+      }} else if (clean === "idle") {{
+        chatNodeNavigatorShowIdle = normalized;
+      }} else if (clean === "status-dots") {{
+        chatNodeNavigatorShowStatusDots = normalized;
+      }} else if (clean === "packet-direction") {{
+        chatNodeNavigatorShowPacketDirection = normalized;
       }}
-      if (value == null) return true;
-      const clean = String(value).trim().toLowerCase();
-      return !(clean === "0" || clean === "false" || clean === "off" || clean === "no");
+      return normalized;
+    }}
+
+    function chatNodeNavigatorTogglePrefKey(optionId) {{
+      const def = chatNodeNavigatorToggleOptionDefById.get(String(optionId || "").trim().toLowerCase());
+      return def ? String(def.prefKey || "") : "";
+    }}
+
+    function chatNodeNavigatorTogglePreferencePayload() {{
+      const payload = {{}};
+      for (const def of chatNodeNavigatorToggleOptionDefs) {{
+        const prefKey = String(def && def.prefKey || "");
+        const optionId = String(def && def.id || "");
+        if (!prefKey || !optionId) continue;
+        if (typeof chatNodeNavigatorToggleOptionIsRetiredByPlugin === "function" && chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, latestState)) {{
+          payload[prefKey] = false;
+          continue;
+        }}
+        payload[prefKey] = normalizeChatNodeNavigatorTogglePref(
+          optionId,
+          chatNodeNavigatorToggleOptionValue(optionId)
+        );
+      }}
+      return payload;
     }}
 
     function normalizeChatNodeNavigatorMetaFieldIdsPref(rawIds, options = null) {{
       const opts = options && typeof options === "object" ? options : {{}};
       const fallbackToDefaults = opts.fallbackToDefaults !== false;
-      const defs = nodeExplorerRosterMetadataFieldDefs();
-      const allowed = new Set(defs.map((def) => String(def && def.id || "")));
+      const state = opts.state && typeof opts.state === "object" ? opts.state : null;
+      const defs = chatNodeNavigatorFieldOptionDefs(state);
+      const allowed = new Set(defs.map((def) => String(def && def.fieldId || "")));
       const source = Array.isArray(rawIds)
         ? rawIds
         : (rawIds == null ? [] : [rawIds]);
       const normalized = [];
       for (const value of source) {{
-        const fieldId = normalizeNodeExplorerFieldId(value);
-        if (!fieldId || !allowed.has(fieldId) || normalized.includes(fieldId)) continue;
-        normalized.push(fieldId);
+        const cleanValue = String(value || "").trim().toLowerCase();
+        const fieldId = normalizeNodeExplorerFieldId(value, state)
+          || (nodeExplorerPluginFieldIdPattern.test(cleanValue) ? cleanValue : "");
+        const pluginFieldsLoaded = typeof nodeExplorerPluginRuntimeFieldRows === "function"
+          && nodeExplorerPluginRuntimeFieldRows(state).length > 0;
+        const replacementFieldId = (typeof nodeExplorerNativeFieldReplacementByPlugin === "function")
+          ? nodeExplorerNativeFieldReplacementByPlugin(fieldId, state)
+          : "";
+        const effectiveFieldId = replacementFieldId || fieldId;
+        const preserveDeferredPluginField = (
+          nodeExplorerPluginFieldIdPattern.test(effectiveFieldId)
+          && !pluginFieldsLoaded
+          && opts.preserveDeferredPluginFields !== false
+        );
+        if (
+          !replacementFieldId
+          && typeof nodeExplorerNativeFieldIsRetiredByPlugin === "function"
+          && nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state)
+        ) continue;
+        if (!effectiveFieldId || (!allowed.has(effectiveFieldId) && !preserveDeferredPluginField) || normalized.includes(effectiveFieldId)) continue;
+        normalized.push(effectiveFieldId);
       }}
       if (normalized.length > 0) return normalized;
       return fallbackToDefaults
-        ? nodeExplorerDefaultRosterMetadataFieldIds()
+        ? nodeExplorerDefaultRosterMetadataFieldIds(state)
         : [];
     }}
 
@@ -220,15 +269,11 @@
         const payload = {{
           sortKey: normalizeChatNodeNavigatorSortKeyPref(chatNodeNavigatorSortKey),
           sortDir: normalizeChatNodeNavigatorSortDirPref(chatNodeNavigatorSortDir),
-          pinDirectHistory: normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory),
-          showCity: normalizeChatNodeNavigatorShowCityPref(chatNodeNavigatorShowCity),
-          showIdle: normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle),
-          showStatusDots: normalizeChatNodeNavigatorShowStatusDotsPref(chatNodeNavigatorShowStatusDots),
-          showPacketDirection: normalizeChatNodeNavigatorShowPacketDirectionPref(chatNodeNavigatorShowPacketDirection),
           metaFields: normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
             fallbackToDefaults: false,
           }}),
         }};
+        Object.assign(payload, chatNodeNavigatorTogglePreferencePayload());
         window.localStorage.setItem(chatNodeNavigatorPrefsStorageKey, JSON.stringify(payload));
       }} catch (_err) {{
       }}
@@ -247,54 +292,69 @@
       if (!hasExplicitSortDir && prefs.sortKey != null && nextSortKey !== chatNodeNavigatorSortKey) {{
         nextSortDir = chatNodeNavigatorDefaultSortDirForKey(nextSortKey);
       }}
-      const nextPinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(
-        prefs.pinDirectHistory != null ? prefs.pinDirectHistory : chatNodeNavigatorPinDirectHistory
-      );
-      const nextShowCity = normalizeChatNodeNavigatorShowCityPref(
-        prefs.showCity != null ? prefs.showCity : chatNodeNavigatorShowCity
-      );
       const rawMetaFieldIds = prefs.metaFields != null ? prefs.metaFields : chatNodeNavigatorMetaFieldIds;
       const legacyLastHeardMetaAsFreshness = (
         prefs.metaFields != null
         && chatNodeNavigatorMetaFieldIdsIncludeLegacyLastHeard(prefs.metaFields)
       );
-      const nextShowIdle = normalizeChatNodeNavigatorShowIdlePref(
-        prefs.showIdle != null
-          ? prefs.showIdle
-          : (legacyLastHeardMetaAsFreshness ? true : chatNodeNavigatorShowIdle)
-      );
-      const nextShowStatusDots = normalizeChatNodeNavigatorShowStatusDotsPref(
-        prefs.showStatusDots != null ? prefs.showStatusDots : chatNodeNavigatorShowStatusDots
-      );
-      const nextShowPacketDirection = normalizeChatNodeNavigatorShowPacketDirectionPref(
-        prefs.showPacketDirection != null ? prefs.showPacketDirection : chatNodeNavigatorShowPacketDirection
-      );
+      const nextToggleValues = new Map();
+      let migrateNativeCityToggleToPluginField = false;
+      for (const def of chatNodeNavigatorToggleOptionDefs) {{
+        const optionId = String(def && def.id || "");
+        const prefKey = String(def && def.prefKey || "");
+        if (!optionId || !prefKey) continue;
+        let rawValue = prefs[prefKey] != null
+          ? prefs[prefKey]
+          : chatNodeNavigatorToggleOptionValue(optionId);
+        if (optionId === "idle" && prefs[prefKey] == null && legacyLastHeardMetaAsFreshness) {{
+          rawValue = true;
+        }}
+        if (typeof chatNodeNavigatorToggleOptionIsRetiredByPlugin === "function" && chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, latestState)) {{
+          if (optionId === "city" && normalizeChatNodeNavigatorTogglePref(optionId, rawValue)) {{
+            migrateNativeCityToggleToPluginField = true;
+          }}
+          rawValue = false;
+        }}
+        nextToggleValues.set(optionId, normalizeChatNodeNavigatorTogglePref(optionId, rawValue));
+      }}
       const nextMetaFieldIds = normalizeChatNodeNavigatorMetaFieldIdsPref(
         rawMetaFieldIds,
         {{ fallbackToDefaults: false }}
       );
+      if (migrateNativeCityToggleToPluginField) {{
+        const pluginCityFieldId = normalizeNodeExplorerFieldId("plugin:node_list:city", latestState);
+        if (pluginCityFieldId && !nextMetaFieldIds.includes(pluginCityFieldId)) {{
+          nextMetaFieldIds.push(pluginCityFieldId);
+        }}
+      }}
+      const togglesChanged = chatNodeNavigatorToggleOptionDefs.some((def) => {{
+        const optionId = String(def && def.id || "");
+        return optionId && nextToggleValues.has(optionId)
+          && nextToggleValues.get(optionId) !== chatNodeNavigatorToggleOptionValue(optionId);
+      }});
+      const sortAffectingToggleChanged = chatNodeNavigatorToggleOptionDefs.some((def) => {{
+        const optionId = String(def && def.id || "");
+        return !!(def && def.sortAffects)
+          && optionId
+          && nextToggleValues.has(optionId)
+          && nextToggleValues.get(optionId) !== chatNodeNavigatorToggleOptionValue(optionId);
+      }});
       const changed = (
         nextSortKey !== chatNodeNavigatorSortKey
         || nextSortDir !== chatNodeNavigatorSortDir
-        || nextPinDirectHistory !== chatNodeNavigatorPinDirectHistory
-        || nextShowCity !== chatNodeNavigatorShowCity
-        || nextShowIdle !== chatNodeNavigatorShowIdle
-        || nextShowStatusDots !== chatNodeNavigatorShowStatusDots
-        || nextShowPacketDirection !== chatNodeNavigatorShowPacketDirection
+        || togglesChanged
         || !chatNodeNavigatorMetaFieldIdsEqual(nextMetaFieldIds, chatNodeNavigatorMetaFieldIds)
       );
       const sortChanged = (
         nextSortKey !== chatNodeNavigatorSortKey
         || nextSortDir !== chatNodeNavigatorSortDir
-        || nextPinDirectHistory !== chatNodeNavigatorPinDirectHistory
+        || sortAffectingToggleChanged
       );
       chatNodeNavigatorSortKey = nextSortKey;
       chatNodeNavigatorSortDir = nextSortDir;
-      chatNodeNavigatorPinDirectHistory = nextPinDirectHistory;
-      chatNodeNavigatorShowCity = nextShowCity;
-      chatNodeNavigatorShowIdle = nextShowIdle;
-      chatNodeNavigatorShowStatusDots = nextShowStatusDots;
-      chatNodeNavigatorShowPacketDirection = nextShowPacketDirection;
+      for (const [optionId, value] of nextToggleValues.entries()) {{
+        setChatNodeNavigatorToggleOptionValue(optionId, value);
+      }}
       chatNodeNavigatorMetaFieldIds = nextMetaFieldIds;
       if (opts.persist !== false) {{
         persistChatNodeNavigatorPreferences();
@@ -370,52 +430,6 @@
         unreadByPeer.set(peerId, (unreadByPeer.get(peerId) || 0) + 1);
       }}
       return unreadByPeer;
-    }}
-
-    function chatNodeNavigatorDirectHistoryPeerIds(state = latestState) {{
-      const safeState = state && typeof state === "object" ? state : (latestState || {{}});
-      const traffic = (safeState.traffic && typeof safeState.traffic === "object")
-        ? safeState.traffic
-        : {{}};
-      const recentChat = Array.isArray(traffic.recent_chat) ? traffic.recent_chat : [];
-      const localNodeId = normalizeNodeId(
-        typeof resolveLocalNodeId === "function" ? resolveLocalNodeId(safeState) : ""
-      );
-      const peerIds = new Set();
-      for (const msg of recentChat) {{
-        if (!msg || typeof msg !== "object") continue;
-        if (typeof classifyMessageChannel === "function" && classifyMessageChannel(msg) !== "direct") continue;
-        const endpoints = (typeof endpointsForMessage === "function")
-          ? endpointsForMessage(msg)
-          : {{
-              fromId: normalizeNodeId(msg && (msg.from || msg.sender || "")),
-              toId: normalizeNodeId(msg && (msg.to || msg.destination || "")),
-            }};
-        const fromId = normalizeNodeId(endpoints && endpoints.fromId);
-        const toId = normalizeNodeId(endpoints && endpoints.toId);
-        const candidates = [];
-        if (isCanonicalNodeId(localNodeId)) {{
-          if (fromId === localNodeId && isSelectableNodeId(toId) && !isSelfNodeId(toId)) {{
-            candidates.push(toId);
-          }}
-          if (toId === localNodeId && isSelectableNodeId(fromId) && !isSelfNodeId(fromId)) {{
-            candidates.push(fromId);
-          }}
-        }}
-        if (candidates.length <= 0) {{
-          if (isSelectableNodeId(fromId) && !isSelfNodeId(fromId)) {{
-            candidates.push(fromId);
-          }}
-          if (isSelectableNodeId(toId) && toId !== fromId && !isSelfNodeId(toId)) {{
-            candidates.push(toId);
-          }}
-        }}
-        for (const peerId of candidates) {{
-          if (!isNodeVisibleByLists(peerId)) continue;
-          peerIds.add(peerId);
-        }}
-      }}
-      return peerIds;
     }}
 
     function chatNodeNavigatorUnreadDirectCount(unreadDirectByPeer, rawPeerId) {{
@@ -1723,6 +1737,53 @@
       return byNode;
     }}
 
+    function chatNodeNavigatorFieldRenderKind(def, fallback = "chip") {{
+      if (!def || typeof def !== "object") return normalizeNodeExplorerRenderKind(fallback, "chip");
+      return normalizeNodeExplorerRenderKind(def.defaultRenderKind, fallback);
+    }}
+
+    function chatNodeNavigatorFieldRenderShape(renderKind) {{
+      const kind = normalizeNodeExplorerRenderKind(renderKind, "chip");
+      if (kind === "text" || kind === "timestamp") return "text";
+      return "pill";
+    }}
+
+    function chatNodeNavigatorFieldSuppressVisibleLabel(fieldId, def) {{
+      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
+      const pluginId = String(def && def.pluginId || "").trim().toLowerCase();
+      const pluginFieldId = String(def && def.pluginFieldId || "").trim().toLowerCase();
+      return cleanFieldId === "plugin:node_list:city" || (pluginId === "node_list" && pluginFieldId === "city");
+    }}
+
+    function buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field, options = null) {{
+      const opts = options && typeof options === "object" ? options : {{}};
+      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
+      const label = String(opts.label || (def && def.label) || cleanFieldId).trim() || cleanFieldId;
+      const value = String((field && field.text != null) ? field.text : "n/a").trim() || "n/a";
+      const title = String((field && field.title != null) ? field.title : value).trim() || value;
+      const renderKind = chatNodeNavigatorFieldRenderKind(def, "chip");
+      const renderShape = chatNodeNavigatorFieldRenderShape(renderKind);
+      const source = String(def && def.source || "node_field").trim().toLowerCase() || "node_field";
+      const suppressVisibleLabel = chatNodeNavigatorFieldSuppressVisibleLabel(cleanFieldId, def);
+      const titleText = suppressVisibleLabel ? title : `${{label}}: ${{title}}`;
+      if (renderShape === "text") {{
+        const keyHtml = suppressVisibleLabel
+          ? ""
+          : `<span class="chat-member-metadata-text-key">${{escAttr(label)}}</span>`;
+        return `<span class="chat-member-metadata-text" data-node-field-id="${{escAttr(cleanFieldId)}}" data-node-field-source="${{escAttr(source)}}" data-node-field-render-kind="${{escAttr(renderKind)}}" title="${{escAttr(titleText)}}">
+          ${{keyHtml}}
+          <span class="chat-member-metadata-text-value">${{escAttr(value)}}</span>
+        </span>`;
+      }}
+      const keyHtml = suppressVisibleLabel
+        ? ""
+        : `<span class="chat-member-metadata-key">${{escAttr(label)}}</span>`;
+      return `<span class="chat-member-metadata-chip" data-node-field-id="${{escAttr(cleanFieldId)}}" data-node-field-source="${{escAttr(source)}}" data-node-field-render-kind="${{escAttr(renderKind)}}" title="${{escAttr(titleText)}}">
+        ${{keyHtml}}
+        <span class="chat-member-metadata-value">${{escAttr(value)}}</span>
+      </span>`;
+    }}
+
     function buildChatNodeNavigatorMemberHtml(item, context) {{
       try {{
         const ctx = context && typeof context === "object" ? context : {{}};
@@ -1735,7 +1796,6 @@
         const packetSparklineByNode = ctx.packetSparklineByNode instanceof Map ? ctx.packetSparklineByNode : new Map();
         const malformedTextByNode = ctx.malformedTextByNode instanceof Map ? ctx.malformedTextByNode : new Map();
         const unreadDirectByPeer = ctx.unreadDirectByPeer instanceof Map ? ctx.unreadDirectByPeer : new Map();
-        const directHistoryPeerIds = ctx.directHistoryPeerIds instanceof Set ? ctx.directHistoryPeerIds : new Set();
         const linkQualityByNode = ctx.linkQualityByNode instanceof Map ? ctx.linkQualityByNode : new Map();
         const state = (ctx.state && typeof ctx.state === "object") ? ctx.state : latestState;
         const resolveChatNodeFreshnessFn = (typeof ctx.resolveChatNodeFreshnessFn === "function")
@@ -1769,6 +1829,7 @@
           node || {{ id: nodeId, long_name: (item && item.name) || nodeId }},
           {{
             nowUnix,
+            state,
             historyCaps: historyCapsById.get(nodeId) || null,
             linkQuality: linkQualityByNode.get(nodeId) || null,
             freshnessUnix: snapshot && snapshot.lastSeenUnix,
@@ -1815,16 +1876,23 @@
         const noteText = String((noteEntry && noteEntry.note) || "").trim();
         const muted = (typeof isMutedNode === "function") && isMutedNode(nodeId);
         const unreadDirectCount = Math.max(0, Math.trunc(Number(unreadDirectByPeer.get(nodeId) || 0)));
-        const hasDirectHistory = directHistoryPeerIds.has(nodeId);
         const idleText = Number.isFinite(Number(snapshot && snapshot.lastSeenUnix))
           ? formatIdleAge(snapshot.lastSeenUnix, nowUnix)
           : "n/a";
-        const showIdle = (typeof normalizeChatNodeNavigatorShowIdlePref === "function")
-          ? normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle)
-          : !!chatNodeNavigatorShowIdle;
-        const showCity = (typeof normalizeChatNodeNavigatorShowCityPref === "function")
-          ? normalizeChatNodeNavigatorShowCityPref(chatNodeNavigatorShowCity)
-          : !!chatNodeNavigatorShowCity;
+        const nativeLastHeardRetired = (typeof nodeExplorerNativeFieldIsRetiredByPlugin === "function")
+          && nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);
+        const showIdle = !nativeLastHeardRetired && (
+          (typeof normalizeChatNodeNavigatorShowIdlePref === "function")
+            ? normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle)
+            : !!chatNodeNavigatorShowIdle
+        );
+        const nativeCityRetired = (typeof nodeExplorerNodeListPluginProvidesField === "function")
+          && nodeExplorerNodeListPluginProvidesField("city", state);
+        const showCity = !nativeCityRetired && (
+          (typeof normalizeChatNodeNavigatorShowCityPref === "function")
+            ? normalizeChatNodeNavigatorShowCityPref(chatNodeNavigatorShowCity)
+            : !!chatNodeNavigatorShowCity
+        );
         const showPacketTrend = nodeNavigatorPacketTrendEnabled();
         const showPacketDirection = (typeof normalizeChatNodeNavigatorShowPacketDirectionPref === "function")
           ? normalizeChatNodeNavigatorShowPacketDirectionPref(chatNodeNavigatorShowPacketDirection)
@@ -1914,14 +1982,17 @@
           ? ctx.visibleMetaFieldIds
           : normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
               fallbackToDefaults: false,
+              state,
             }});
         const showLinkQuality = Array.isArray(visibleMetaFieldIds)
           && visibleMetaFieldIds.includes("link_quality");
-        const showHops = Array.isArray(visibleMetaFieldIds)
+        const nativeHopsRetired = (typeof nodeExplorerNativeFieldIsRetiredByPlugin === "function")
+          && nodeExplorerNativeFieldIsRetiredByPlugin("hops", state);
+        const showHops = !nativeHopsRetired && Array.isArray(visibleMetaFieldIds)
           && visibleMetaFieldIds.includes("hops");
         const showSnr = Array.isArray(visibleMetaFieldIds)
           && visibleMetaFieldIds.includes("snr");
-        const showLastHeardMeta = Array.isArray(visibleMetaFieldIds)
+        const showLastHeardMeta = !nativeLastHeardRetired && Array.isArray(visibleMetaFieldIds)
           && visibleMetaFieldIds.includes("last_heard");
         const linkQuality = linkQualityByNode.get(nodeId) || null;
         const linkQualityBarsRaw = Number(linkQuality && linkQuality.bars);
@@ -2002,7 +2073,6 @@
           : "";
         const linkQualityInlineHtml = (showLinkQuality && linkQualityBars != null)
           ? `<span class="chat-member-link-quality is-${{escAttr(linkQualityLevel)}}" title="${{escAttr(linkQualityTitle)}}" aria-label="${{escAttr(linkQualityAria)}}">
-            <span class="chat-member-link-quality-label">Link</span>
             <span class="chat-member-link-quality-bars" aria-hidden="true">
               <span class="chat-member-link-quality-bar level-1${{linkQualityBars >= 1 ? " is-on" : ""}}"></span>
               <span class="chat-member-link-quality-bar level-2${{linkQualityBars >= 2 ? " is-on" : ""}}"></span>
@@ -2044,31 +2114,48 @@
         if (showCity && memberCityHtml) memberMetaRowParts.push(memberCityHtml);
         if (idleRowHtml) memberMetaRowParts.push(idleRowHtml);
         if (hopsInlineHtml) memberMetaRowParts.push(hopsInlineHtml);
-        if (linkQualityInlineHtml) memberMetaRowParts.push(linkQualityInlineHtml);
         if (snrInlineHtml) memberMetaRowParts.push(snrInlineHtml);
+        const specialRosterFieldIds = new Set(["favorite", "hops", "link_quality", "snr", "last_heard"]);
+        const collectRosterLineFieldHtml = (targetLine) => {{
+          const visibleFieldIds = Array.isArray(visibleMetaFieldIds) ? visibleMetaFieldIds : [];
+          if (visibleFieldIds.length <= 0) return [];
+          const chunks = [];
+          for (const fieldIdRaw of visibleFieldIds) {{
+            const fieldId = normalizeNodeExplorerFieldId(fieldIdRaw, state);
+            if (!fieldId || specialRosterFieldIds.has(fieldId)) continue;
+            const def = nodeExplorerFieldDef(fieldId, state);
+            if (!def || nodeExplorerRosterLineForDef(def, 2) !== targetLine) continue;
+            const field = nodeProjection && nodeProjection.fields ? nodeProjection.fields[fieldId] : null;
+            if (!field) continue;
+            chunks.push(buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field));
+          }}
+          return chunks;
+        }};
+        memberMetaRowParts.push(...collectRosterLineFieldHtml(1));
         const memberMetaRowHtml = memberMetaRowParts.length > 0
           ? `<span class="chat-member-meta-row">${{memberMetaRowParts.join("")}}</span>`
           : "";
         const memberFieldsRowHtml = (() => {{
           const visibleFieldIds = Array.isArray(visibleMetaFieldIds) ? visibleMetaFieldIds : [];
           if (visibleFieldIds.length <= 0) return "";
-          const chips = [];
+          const chipsByLine = new Map();
           for (const fieldIdRaw of visibleFieldIds) {{
-            const fieldId = normalizeNodeExplorerFieldId(fieldIdRaw);
-            if (!fieldId || fieldId === "favorite" || fieldId === "hops" || fieldId === "link_quality" || fieldId === "snr" || fieldId === "last_heard") continue;
-            const def = nodeExplorerFieldDef(fieldId);
+            const fieldId = normalizeNodeExplorerFieldId(fieldIdRaw, state);
+            if (!fieldId || specialRosterFieldIds.has(fieldId)) continue;
+            const def = nodeExplorerFieldDef(fieldId, state);
+            if (!def) continue;
+            const rosterLine = nodeExplorerRosterLineForDef(def, 2);
+            if (rosterLine <= 1) continue;
             const field = nodeProjection && nodeProjection.fields ? nodeProjection.fields[fieldId] : null;
-            if (!def || !field) continue;
-            const chipLabel = String(def.label || fieldId).trim() || fieldId;
-            const chipValue = String((field.text != null) ? field.text : "n/a").trim() || "n/a";
-            const chipTitle = `${{chipLabel}}: ${{String((field.title != null) ? field.title : chipValue)}}`;
-            chips.push(`<span class="chat-member-metadata-chip" title="${{escAttr(chipTitle)}}">
-              <span class="chat-member-metadata-key">${{escAttr(chipLabel)}}</span>
-              <span class="chat-member-metadata-value">${{escAttr(chipValue)}}</span>
-            </span>`);
+            if (!field) continue;
+            if (!chipsByLine.has(rosterLine)) chipsByLine.set(rosterLine, []);
+            chipsByLine.get(rosterLine).push(buildChatNodeNavigatorMetadataFieldHtml(fieldId, def, field));
           }}
-          if (chips.length <= 0) return "";
-          return `<span class="chat-member-fields-row">${{chips.join("")}}</span>`;
+          if (chipsByLine.size <= 0) return "";
+          return Array.from(chipsByLine.entries())
+            .sort(([left], [right]) => left - right)
+            .map(([line, chips]) => `<span class="chat-member-fields-row" data-roster-line="${{escAttr(String(line))}}">${{chips.join("")}}</span>`)
+            .join("");
         }})();
         const tagStyleVars = tagActive ? nodeTagStyleVars(tagEntry) : "";
         const appearanceStyleVars = appearanceActive && typeof nodeAppearanceStyleVars === "function"
@@ -2114,6 +2201,7 @@
             </span>`
           : "";
         const packetSparkClass = packetSparkWrapHtml ? " has-packet-spark" : "";
+        const linkQualityRailClass = linkQualityInlineHtml ? " has-link-quality" : "";
         const nodeVisualEmoji = (typeof nodeVisualEmojiForNode === "function")
           ? nodeVisualEmojiForNode(nodeId, tagEntry, node)
           : "";
@@ -2141,18 +2229,21 @@
           ? statusGlyphAttrs
           : ' aria-hidden="true"';
         const statusMarkerHtml = autoNewStatusEntry
-          ? `<span class="chat-member-status chat-member-status-new status-${{statusKey}}${{statusMarkerClass}}"${{statusMarkerAttrs}}><span class="chat-member-status-new-text" aria-hidden="true">N</span></span>`
+          ? `<span class="chat-member-status chat-member-status-new status-${{statusKey}}${{statusMarkerClass}}"${{statusMarkerAttrs}}><span class="chat-member-status-core" aria-hidden="true"><span class="chat-member-status-new-text">N</span></span></span>`
           : hasNodeVisualEmoji
           ? `<span class="chat-member-status chat-member-status-emoji status-${{statusKey}}${{statusMarkerClass}}"${{statusMarkerAttrs}}>
-              <span class="chat-member-status-ring" aria-hidden="true"></span>
-              <span class="chat-member-status-emoji-glyph" aria-hidden="true">${{escAttr(cleanNodeVisualEmoji)}}</span>
+              <span class="chat-member-status-core" aria-hidden="true">
+                <span class="chat-member-status-ring"></span>
+                <span class="chat-member-status-emoji-glyph">${{escAttr(cleanNodeVisualEmoji)}}</span>
+              </span>
             </span>`
-          : `<span class="chat-member-status chat-member-status-dot status-${{statusKey}}${{statusMarkerClass}}"${{statusMarkerAttrs}}>●</span>`;
+          : `<span class="chat-member-status chat-member-status-dot status-${{statusKey}}${{statusMarkerClass}}"${{statusMarkerAttrs}}><span class="chat-member-status-core" aria-hidden="true">●</span></span>`;
         const actionRowHtml = removeBtn
           ? `<span class="chat-member-actions">${{removeBtn}}</span>`
           : '<span class="chat-member-actions"></span>';
-        return `<div class="chat-member-item status-${{statusKey}}${{statusVisibilityClass}}${{selectedNodeId === ((item && item.id) || nodeId) ? " selected-node" : ""}}${{tagClass}}${{profileClass}}${{autoNewClass}}${{mutedClass}}${{packetSparkClass}}${{liveTraceRunningForNode ? " is-traceroute-running" : ""}}" data-node-id="${{escAttr((item && item.id) || nodeId)}}" data-unread-direct-count="${{escAttr(unreadDirectCount)}}"${{memberStyleAttr}} aria-label="${{escAttr(memberTitle)}}">
+        return `<div class="chat-member-item status-${{statusKey}}${{statusVisibilityClass}}${{selectedNodeId === ((item && item.id) || nodeId) ? " selected-node" : ""}}${{tagClass}}${{profileClass}}${{autoNewClass}}${{mutedClass}}${{linkQualityRailClass}}${{packetSparkClass}}${{liveTraceRunningForNode ? " is-traceroute-running" : ""}}" data-node-id="${{escAttr((item && item.id) || nodeId)}}" data-unread-direct-count="${{escAttr(unreadDirectCount)}}"${{memberStyleAttr}} aria-label="${{escAttr(memberTitle)}}">
           ${{statusMarkerHtml}}
+          ${{linkQualityInlineHtml}}
           <span class="chat-member-main">
             <span class="chat-member-name-row">
               <span class="chat-member-name-left">
@@ -2182,8 +2273,8 @@
           : !!chatNodeNavigatorShowStatusDots;
         const fallbackStatusVisibilityClass = fallbackShowStatusDots ? "" : " status-hidden";
         const fallbackStatusHtml = fallbackShowStatusDots
-          ? '<span class="chat-member-status chat-member-status-dot status-unknown" title="Status: Unknown" aria-label="Status: Unknown">●</span>'
-          : '<span class="chat-member-status chat-member-status-dot status-unknown is-hidden" aria-hidden="true">●</span>';
+          ? '<span class="chat-member-status chat-member-status-dot status-unknown" title="Status: Unknown" aria-label="Status: Unknown"><span class="chat-member-status-core" aria-hidden="true">●</span></span>'
+          : '<span class="chat-member-status chat-member-status-dot status-unknown is-hidden" aria-hidden="true"><span class="chat-member-status-core" aria-hidden="true">●</span></span>';
         const fallbackShowIdle = (typeof normalizeChatNodeNavigatorShowIdlePref === "function")
           ? normalizeChatNodeNavigatorShowIdlePref(chatNodeNavigatorShowIdle)
           : !!chatNodeNavigatorShowIdle;
@@ -2563,10 +2654,9 @@
               : new Map()
           );
       const unreadDirectByPeer = normalizeChatNodeNavigatorUnreadDirectByPeer(opts.unreadDirectByPeer);
-      const pinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(chatNodeNavigatorPinDirectHistory);
-      const directHistoryPeerIds = chatNodeNavigatorDirectHistoryPeerIds(safeState);
       const visibleMetaFieldIds = normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
         fallbackToDefaults: false,
+        state: safeState,
       }});
       const shouldComputeLinkQuality = chatNodeNavigatorShouldComputeLinkQuality(
         visibleMetaFieldIds,
@@ -2622,7 +2712,6 @@
       const pinnedUnreadRows = [];
       const meshtasticRows = [];
       const pinnedManualRows = [];
-      const historyPriorityRows = [];
       const regularRows = [];
       for (const item of rosterFiltered) {{
         const nodeId = normalizeNodeId(item && item.id);
@@ -2636,8 +2725,6 @@
           meshtasticRows.push(item);
         }} else if ((typeof isPinnedNode === "function") && isPinnedNode(nodeId)) {{
           pinnedManualRows.push(item);
-        }} else if (pinDirectHistory && directHistoryPeerIds.has(nodeId)) {{
-          historyPriorityRows.push(item);
         }} else {{
           regularRows.push(item);
         }}
@@ -2651,7 +2738,6 @@
         packetSparklineByNode: packetMaps.packetSparklineByNode,
         malformedTextByNode,
         unreadDirectByPeer,
-        directHistoryPeerIds,
         linkQualityByNode,
         visibleMetaFieldIds,
         resolveChatNodeFreshnessFn,
@@ -2720,7 +2806,7 @@
           pinnedCountEl.textContent = String(usePrioritySections ? pinnedManualRows.length : 0);
         }}
       }}
-      const orderedRoomRows = historyPriorityRows.concat(regularRows);
+      const orderedRoomRows = regularRows;
       const pinnedSectionCount = usePrioritySections
         ? (pinnedUnreadRows.length + meshtasticRows.length + pinnedManualRows.length)
         : 0;
@@ -2766,7 +2852,6 @@
             packetSparklineByNode: packetMaps.packetSparklineByNode,
             malformedTextByNode,
             unreadDirectByPeer,
-            directHistoryPeerIds,
             linkQualityByNode,
             resolveChatNodeFreshnessFn,
           }})).join("")
@@ -2904,79 +2989,78 @@
         const selected = new Set(
           normalizeChatNodeNavigatorMetaFieldIdsPref(chatNodeNavigatorMetaFieldIds, {{
             fallbackToDefaults: false,
+            state: latestState,
           }})
         );
-        const pinDirectHistory = normalizeChatNodeNavigatorPinDirectHistoryPref(
-          chatNodeNavigatorPinDirectHistory
-        );
-        const showCity = normalizeChatNodeNavigatorShowCityPref(
-          chatNodeNavigatorShowCity
-        );
-        const showIdle = normalizeChatNodeNavigatorShowIdlePref(
-          chatNodeNavigatorShowIdle
-        );
-        const showStatusDots = normalizeChatNodeNavigatorShowStatusDotsPref(
-          chatNodeNavigatorShowStatusDots
-        );
-        const showPacketDirection = normalizeChatNodeNavigatorShowPacketDirectionPref(
-          chatNodeNavigatorShowPacketDirection
-        );
-        const fieldsHtml = nodeExplorerRosterMetadataFieldDefs().map((def) => {{
-          const fieldId = normalizeNodeExplorerFieldId(def && def.id);
-          if (!fieldId) return "";
-          const checked = selected.has(fieldId) ? " checked" : "";
-          return `<label class="chat-node-navigator-field-option">
-            <input type="checkbox" data-meta-field-id="${{escAttr(fieldId)}}"${{checked}} />
-            <span>${{escAttr(def.label || fieldId)}}</span>
+        const optionDefs = chatNodeNavigatorOptionDefs(latestState);
+        const checkedByOptionId = new Map(optionDefs.map((def) => {{
+          const optionId = String(def && def.id || "");
+          const kind = String(def && def.kind || "").trim().toLowerCase();
+          const checked = kind === "meta"
+            ? selected.has(String(def && def.fieldId || ""))
+            : normalizeChatNodeNavigatorTogglePref(optionId, chatNodeNavigatorToggleOptionValue(optionId));
+          return [optionId, checked];
+        }}));
+        const renderOption = (def) => {{
+          const optionId = String(def && def.id || "").trim();
+          if (!optionId) return "";
+          const kind = String(def && def.kind || "toggle").trim().toLowerCase();
+          const fieldId = kind === "meta" ? normalizeNodeExplorerFieldId(def && def.fieldId, latestState) : "";
+          if (kind === "meta" && !fieldId) return "";
+          const checked = !!checkedByOptionId.get(optionId);
+          const checkedAttr = checked ? " checked" : "";
+          const checkedClass = checked ? " is-checked" : "";
+          const fieldAttr = fieldId ? ` data-nav-field-id="${{escAttr(fieldId)}}"` : "";
+          return `<label class="chat-node-navigator-field-option${{checkedClass}}">
+            <input type="checkbox" data-nav-option-id="${{escAttr(optionId)}}" data-nav-option-kind="${{escAttr(kind)}}"${{fieldAttr}}${{checkedAttr}} />
+            <span>${{escAttr(def.label || fieldId || optionId)}}</span>
           </label>`;
-        }}).join("")
-          + `<label class="chat-node-navigator-field-option">
-            <input type="checkbox" data-nav-toggle-id="direct-history"${{pinDirectHistory ? " checked" : ""}} />
-            <span>DM history first</span>
-          </label>`
-          + `<label class="chat-node-navigator-field-option">
-            <input type="checkbox" data-nav-toggle-id="city"${{showCity ? " checked" : ""}} />
-            <span>City</span>
-          </label>`
-          + `<label class="chat-node-navigator-field-option">
-            <input type="checkbox" data-nav-toggle-id="idle"${{showIdle ? " checked" : ""}} />
-            <span>Idle / Last Heard</span>
-          </label>`
-          + `<label class="chat-node-navigator-field-option">
-            <input type="checkbox" data-nav-toggle-id="status-dots"${{showStatusDots ? " checked" : ""}} />
-            <span>Status</span>
-          </label>`
-          + `<label class="chat-node-navigator-field-option">
-            <input type="checkbox" data-nav-toggle-id="packet-direction"${{showPacketDirection ? " checked" : ""}} />
-            <span>Packet plot</span>
-          </label>`;
+        }};
+        const optionDefsByGroup = new Map();
+        for (const def of optionDefs) {{
+          const optionId = String(def && def.id || "").trim();
+          if (!optionId) continue;
+          const kind = String(def && def.kind || "toggle").trim().toLowerCase();
+          const groupId = String(def && def.group || (kind === "meta" ? "fields" : "display")).trim().toLowerCase();
+          if (!groupId) continue;
+          if (!optionDefsByGroup.has(groupId)) optionDefsByGroup.set(groupId, []);
+          optionDefsByGroup.get(groupId).push(def);
+        }}
+        const groupDefs = Array.isArray(chatNodeNavigatorOptionGroupDefs) ? chatNodeNavigatorOptionGroupDefs : [];
+        const knownGroupIds = new Set(
+          groupDefs
+            .map((group) => String(group && group.id || "").trim().toLowerCase())
+            .filter((groupId) => !!groupId)
+        );
+        const renderGroup = (groupId, groupLabel, defs) => {{
+          if (!groupId || !Array.isArray(defs) || defs.length <= 0) return "";
+          const optionsHtml = defs.map(renderOption).join("");
+          if (!optionsHtml) return "";
+          return `<section class="chat-node-navigator-option-section" data-nav-option-group="${{escAttr(groupId)}}">
+            <div class="chat-node-navigator-fields-head">${{escAttr(groupLabel || groupId)}}</div>
+            <div class="chat-node-navigator-option-grid">${{optionsHtml}}</div>
+          </section>`;
+        }};
+        const registeredGroupHtml = groupDefs.map((group) => {{
+          const groupId = String(group && group.id || "").trim().toLowerCase();
+          return renderGroup(groupId, String(group && group.label || groupId), optionDefsByGroup.get(groupId) || []);
+        }}).join("");
+        const extraGroupHtml = Array.from(optionDefsByGroup.entries())
+          .filter(([groupId]) => !knownGroupIds.has(groupId))
+          .map(([groupId, defs]) => renderGroup(groupId, groupId, defs))
+          .join("");
+        const fieldsHtml = registeredGroupHtml + extraGroupHtml;
         if (fieldsHost.__meshFieldsHtml !== fieldsHtml) {{
           fieldsHost.innerHTML = fieldsHtml;
           fieldsHost.__meshFieldsHtml = fieldsHtml;
         }} else {{
-          for (const input of fieldsHost.querySelectorAll('input[type="checkbox"][data-meta-field-id]')) {{
+          for (const input of fieldsHost.querySelectorAll('input[type="checkbox"][data-nav-option-id]')) {{
             if (!(input instanceof HTMLInputElement)) continue;
-            const fieldId = normalizeNodeExplorerFieldId(input.dataset.metaFieldId || "");
-            input.checked = selected.has(fieldId);
-          }}
-          for (const input of fieldsHost.querySelectorAll('input[type="checkbox"][data-nav-toggle-id]')) {{
-            if (!(input instanceof HTMLInputElement)) continue;
-            const toggleId = String(input.dataset.navToggleId || "").trim().toLowerCase();
-            if (toggleId === "direct-history") {{
-              input.checked = pinDirectHistory;
-            }}
-            if (toggleId === "city") {{
-              input.checked = showCity;
-            }}
-            if (toggleId === "idle") {{
-              input.checked = showIdle;
-            }}
-            if (toggleId === "status-dots") {{
-              input.checked = showStatusDots;
-            }}
-            if (toggleId === "packet-direction") {{
-              input.checked = showPacketDirection;
-            }}
+            const optionId = String(input.dataset.navOptionId || "").trim();
+            const checked = !!checkedByOptionId.get(optionId);
+            input.checked = checked;
+            const optionLabel = input.closest(".chat-node-navigator-field-option");
+            if (optionLabel instanceof HTMLElement) optionLabel.classList.toggle("is-checked", checked);
           }}
         }}
       }}
@@ -3030,56 +3114,23 @@
           const target = ev.target;
           if (!(target instanceof HTMLInputElement)) return;
           if (target.type !== "checkbox") return;
-          const toggleId = String(target.dataset.navToggleId || "").trim().toLowerCase();
-          if (toggleId === "direct-history") {{
-            applyChatNodeNavigatorPreferences({{
-              pinDirectHistory: !!target.checked,
-            }}, {{
-              persist: true,
-              rerender: true,
-            }});
-            return;
-          }}
-          if (toggleId === "city") {{
-            applyChatNodeNavigatorPreferences({{
-              showCity: !!target.checked,
-            }}, {{
-              persist: true,
-              rerender: true,
-            }});
-            return;
-          }}
-          if (toggleId === "idle") {{
-            applyChatNodeNavigatorPreferences({{
-              showIdle: !!target.checked,
-            }}, {{
-              persist: true,
-              rerender: true,
-            }});
-            return;
-          }}
-          if (toggleId === "status-dots") {{
-            applyChatNodeNavigatorPreferences({{
-              showStatusDots: !!target.checked,
-            }}, {{
-              persist: true,
-              rerender: true,
-            }});
-            return;
-          }}
-          if (toggleId === "packet-direction") {{
-            applyChatNodeNavigatorPreferences({{
-              showPacketDirection: !!target.checked,
-            }}, {{
+          const optionLabel = target.closest(".chat-node-navigator-field-option");
+          if (optionLabel instanceof HTMLElement) optionLabel.classList.toggle("is-checked", !!target.checked);
+          const optionId = String(target.dataset.navOptionId || "").trim().toLowerCase();
+          const togglePrefKey = chatNodeNavigatorTogglePrefKey(optionId);
+          if (togglePrefKey) {{
+            const nextPrefs = {{}};
+            nextPrefs[togglePrefKey] = !!target.checked;
+            applyChatNodeNavigatorPreferences(nextPrefs, {{
               persist: true,
               rerender: true,
             }});
             return;
           }}
           const nextFields = [];
-          for (const input of fieldsHost.querySelectorAll('input[type="checkbox"][data-meta-field-id]')) {{
+          for (const input of fieldsHost.querySelectorAll('input[type="checkbox"][data-nav-option-kind="meta"]')) {{
             if (!(input instanceof HTMLInputElement) || !input.checked) continue;
-            nextFields.push(input.dataset.metaFieldId || "");
+            nextFields.push(input.dataset.navFieldId || "");
           }}
           applyChatNodeNavigatorPreferences({{
             metaFields: nextFields,

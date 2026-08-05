@@ -109,7 +109,43 @@ class SetRawPacketCaptureSettingsFn(Protocol):
         ...
 
 
-class SetFileTransferAutoAcceptEnabledFn(Protocol):
+class SetPluginEnabledFn(Protocol):
+    def __call__(
+        self,
+        plugin_id: object,
+        enabled: bool,
+        *,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        ...
+
+
+class SetPluginSettingsFn(Protocol):
+    def __call__(
+        self,
+        plugin_id: object,
+        settings: object,
+        *,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        ...
+
+
+class SetPluginRoutePolicyFn(Protocol):
+    def __call__(
+        self,
+        plugin_id: object,
+        *,
+        mesh_enabled: bool,
+        console_enabled: bool,
+        ticker_enabled: bool,
+        view_enabled: bool,
+        expected_package_digest: object,
+    ) -> dict[str, object]:
+        ...
+
+
+class SetPluginRuntimeEnabledFn(Protocol):
     def __call__(self, enabled: bool) -> dict[str, object]:
         ...
 
@@ -240,6 +276,18 @@ class PlayStandaloneZorkFn(Protocol):
         ...
 
 
+class RunPluginConsoleCommandFn(Protocol):
+    def __call__(
+        self,
+        *,
+        command: object,
+        text: object = "",
+        session_id: object = None,
+        handler: object = "auto",
+    ) -> dict[str, object]:
+        ...
+
+
 class RunNetworkToolFn(Protocol):
     def __call__(self, request: NetworkToolRequest) -> dict[str, object]:
         ...
@@ -348,9 +396,10 @@ class DashboardPostRouteDependencies:
     set_custom_telemetry_settings_fn: Optional[SetCustomTelemetrySettingsFn] = None
     parse_custom_telemetry_settings_request_fn: Optional[ParseCustomTelemetrySettingsRequestFn] = None
     set_raw_packet_capture_settings_fn: Optional[SetRawPacketCaptureSettingsFn] = None
-    set_file_transfer_auto_accept_enabled_fn: Optional[
-        SetFileTransferAutoAcceptEnabledFn
-    ] = None
+    set_plugin_enabled_fn: Optional[SetPluginEnabledFn] = None
+    set_plugin_settings_fn: Optional[SetPluginSettingsFn] = None
+    set_plugin_route_policy_fn: Optional[SetPluginRoutePolicyFn] = None
+    set_plugin_runtime_enabled_fn: Optional[SetPluginRuntimeEnabledFn] = None
     parse_raw_packet_capture_settings_request_fn: Optional[ParseRawPacketCaptureSettingsRequestFn] = None
     apply_radio_settings_fn: Optional[ApplyRadioSettingsFn] = None
     parse_radio_settings_request_fn: Optional[ParseRadioSettingsRequestFn] = None
@@ -358,6 +407,7 @@ class DashboardPostRouteDependencies:
     parse_channel_settings_request_fn: Optional[ParseChannelSettingsRequestFn] = None
     play_standalone_zork_fn: Optional[PlayStandaloneZorkFn] = None
     parse_standalone_zork_request_fn: Optional[ParseStandaloneZorkRequestFn] = None
+    run_plugin_console_command_fn: Optional[RunPluginConsoleCommandFn] = None
     run_network_tool_fn: Optional[RunNetworkToolFn] = None
     parse_network_tool_request_fn: Optional[ParseNetworkToolRequestFn] = None
     schedule_backend_restart_fn: Optional[ScheduleBackendRestartFn] = None

@@ -46,12 +46,14 @@ Options:
   --history-db <path>      History DB path on target host.
   --games-enable           Enable local games and standalone console support in dashboard.env.
   --no-games-enable        Disable local games and standalone console support in dashboard.env.
+  --plugins-enable         Enable the Python plugin runtime in dashboard.env.
+  --no-plugins-enable      Disable the Python plugin runtime in dashboard.env.
+  --plugins-directory <path>  Persistent local plugin directory on the target.
+  --plugins-state-db <path>   Persistent plugin state database on the target.
+  --plugins-files-directory <path>
+                           Approved plugin file-send root on the target.
   --file-transfer-enable   Enable file transfer in dashboard.env (requires disclaimer).
   --no-file-transfer-enable Disable file transfer in dashboard.env.
-  --file-transfer-auto-accept
-                           Enable backend auto accept and default browser preference.
-  --no-file-transfer-auto-accept
-                           Disable backend auto accept; default browsers to manual accept.
   --file-transfer-max-bytes <bytes>
                            Max file transfer size written to dashboard.env.
   --accept-file-transfer-traffic-disclaimer
@@ -94,8 +96,13 @@ Env overrides:
   MESH_DASH_DEPLOY_HISTORY_DB
   MESH_DASH_DEPLOY_PYTHON_UNBUFFERED
   MESH_DASH_DEPLOY_GAMES_ENABLE
+  MESH_DASH_DEPLOY_PLUGINS_ENABLE
+  MESH_DASH_DEPLOY_PLUGINS_DIRECTORY
+  MESH_DASH_DEPLOY_PLUGINS_STATE_DB
+  MESH_DASH_DEPLOY_PLUGINS_FILES_DIRECTORY
+  MESH_DASH_DEPLOY_PLUGIN_ENABLE
+  MESH_DASH_DEPLOY_PLUGIN_DISABLE
   MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE
-  MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT
   MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES
   MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER
   MESH_DASH_DEPLOY_GIT_COMMIT
@@ -144,8 +151,13 @@ REFRESH_MS="${MESH_DASH_DEPLOY_REFRESH_MS:-3000}"
 HISTORY_DB="${MESH_DASH_DEPLOY_HISTORY_DB:-}"
 PYTHON_UNBUFFERED="${MESH_DASH_DEPLOY_PYTHON_UNBUFFERED:-1}"
 GAMES_ENABLE="${MESH_DASH_DEPLOY_GAMES_ENABLE:-0}"
+PLUGINS_ENABLE="${MESH_DASH_DEPLOY_PLUGINS_ENABLE:-1}"
+PLUGINS_DIRECTORY="${MESH_DASH_DEPLOY_PLUGINS_DIRECTORY:-}"
+PLUGINS_STATE_DB="${MESH_DASH_DEPLOY_PLUGINS_STATE_DB:-}"
+PLUGINS_FILES_DIRECTORY="${MESH_DASH_DEPLOY_PLUGINS_FILES_DIRECTORY:-}"
+PLUGIN_ENABLE_LIST="${MESH_DASH_DEPLOY_PLUGIN_ENABLE:-}"
+PLUGIN_DISABLE_LIST="${MESH_DASH_DEPLOY_PLUGIN_DISABLE:-}"
 FILE_TRANSFER_ENABLE="${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE:-0}"
-FILE_TRANSFER_AUTO_ACCEPT="${MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT:-0}"
 FILE_TRANSFER_MAX_BYTES="${MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES:-65536}"
 ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER="${MESH_DASH_DEPLOY_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER:-0}"
 DEPLOY_GIT_COMMIT="${MESH_DASH_DEPLOY_GIT_COMMIT:-${MESH_DASH_GIT_COMMIT:-}}"
@@ -153,18 +165,38 @@ DEPLOY_PR_NUMBER="${MESH_DASH_DEPLOY_PR_NUMBER:-${MESH_DASH_PR_NUMBER:-}}"
 MAP_PACK_ZIP="${MESH_DASH_DEPLOY_MAP_PACK_ZIP:-}"
 MAP_PACKS_DIR=""
 GAMES_ENABLE_SET=0
+PLUGINS_ENABLE_SET=0
+PLUGINS_DIRECTORY_SET=0
+PLUGINS_STATE_DB_SET=0
+PLUGINS_FILES_DIRECTORY_SET=0
+PLUGIN_ENABLE_LIST_SET=0
+PLUGIN_DISABLE_LIST_SET=0
 FILE_TRANSFER_ENABLE_SET=0
-FILE_TRANSFER_AUTO_ACCEPT_SET=0
 FILE_TRANSFER_MAX_BYTES_SET=0
 ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET=0
 if [[ -n "${MESH_DASH_DEPLOY_GAMES_ENABLE+x}" ]]; then
   GAMES_ENABLE_SET=1
 fi
+if [[ -n "${MESH_DASH_DEPLOY_PLUGINS_ENABLE+x}" ]]; then
+  PLUGINS_ENABLE_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_PLUGINS_DIRECTORY+x}" ]]; then
+  PLUGINS_DIRECTORY_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_PLUGINS_STATE_DB+x}" ]]; then
+  PLUGINS_STATE_DB_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_PLUGINS_FILES_DIRECTORY+x}" ]]; then
+  PLUGINS_FILES_DIRECTORY_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_PLUGIN_ENABLE+x}" ]]; then
+  PLUGIN_ENABLE_LIST_SET=1
+fi
+if [[ -n "${MESH_DASH_DEPLOY_PLUGIN_DISABLE+x}" ]]; then
+  PLUGIN_DISABLE_LIST_SET=1
+fi
 if [[ -n "${MESH_DASH_DEPLOY_FILE_TRANSFER_ENABLE+x}" ]]; then
   FILE_TRANSFER_ENABLE_SET=1
-fi
-if [[ -n "${MESH_DASH_DEPLOY_FILE_TRANSFER_AUTO_ACCEPT+x}" ]]; then
-  FILE_TRANSFER_AUTO_ACCEPT_SET=1
 fi
 if [[ -n "${MESH_DASH_DEPLOY_FILE_TRANSFER_MAX_BYTES+x}" ]]; then
   FILE_TRANSFER_MAX_BYTES_SET=1
@@ -439,6 +471,28 @@ read_existing_dashboard_env_value() {
   ssh_cmd "${TARGET}" "if [[ -f '${CONFIG_DIR}/dashboard.env' ]]; then awk -F= -v key='${key}' 'index(\$0, key \"=\") == 1 { value = substr(\$0, length(key) + 2); found = 1 } END { if (found) print value }' '${CONFIG_DIR}/dashboard.env'; fi" 2>/dev/null || true
 }
 
+resolve_remote_data_path() {
+  local path="${1:-}"
+  if [[ "${path}" == /* ]]; then
+    printf '%s\n' "${path}"
+  else
+    printf '%s/%s\n' "${REMOTE_ROOT}" "${path}"
+  fi
+}
+
+assert_single_line_deploy_value() {
+  local label="$1"
+  local value="${2:-}"
+  if [[ "${value}" == *$'\n'* || "${value}" == *$'\r'* ]]; then
+    echo "${label} must not contain line breaks" >&2
+    exit 2
+  fi
+}
+
+remote_shell_quote() {
+  printf '%q' "${1:-}"
+}
+
 read_remote_identity() {
   local identity
   identity="$(
@@ -525,6 +579,34 @@ while [[ $# -gt 0 ]]; do
       GAMES_ENABLE_SET=1
       shift
       ;;
+    --plugins-enable)
+      PLUGINS_ENABLE=1
+      PLUGINS_ENABLE_SET=1
+      shift
+      ;;
+    --no-plugins-enable)
+      PLUGINS_ENABLE=0
+      PLUGINS_ENABLE_SET=1
+      shift
+      ;;
+    --plugins-directory)
+      require_arg "$1" "${2:-}"
+      PLUGINS_DIRECTORY="$2"
+      PLUGINS_DIRECTORY_SET=1
+      shift 2
+      ;;
+    --plugins-state-db)
+      require_arg "$1" "${2:-}"
+      PLUGINS_STATE_DB="$2"
+      PLUGINS_STATE_DB_SET=1
+      shift 2
+      ;;
+    --plugins-files-directory)
+      require_arg "$1" "${2:-}"
+      PLUGINS_FILES_DIRECTORY="$2"
+      PLUGINS_FILES_DIRECTORY_SET=1
+      shift 2
+      ;;
     --file-transfer-enable)
       FILE_TRANSFER_ENABLE=1
       FILE_TRANSFER_ENABLE_SET=1
@@ -533,16 +615,6 @@ while [[ $# -gt 0 ]]; do
     --no-file-transfer-enable)
       FILE_TRANSFER_ENABLE=0
       FILE_TRANSFER_ENABLE_SET=1
-      shift
-      ;;
-    --file-transfer-auto-accept)
-      FILE_TRANSFER_AUTO_ACCEPT=1
-      FILE_TRANSFER_AUTO_ACCEPT_SET=1
-      shift
-      ;;
-    --no-file-transfer-auto-accept)
-      FILE_TRANSFER_AUTO_ACCEPT=0
-      FILE_TRANSFER_AUTO_ACCEPT_SET=1
       shift
       ;;
     --file-transfer-max-bytes)
@@ -723,6 +795,15 @@ fi
 if [[ -z "${HISTORY_DB}" ]]; then
   HISTORY_DB="${REMOTE_ROOT}/mesh_dashboard_history.sqlite3"
 fi
+if [[ -z "${PLUGINS_DIRECTORY}" ]]; then
+  PLUGINS_DIRECTORY="${REMOTE_ROOT}/plugins"
+fi
+if [[ -z "${PLUGINS_STATE_DB}" ]]; then
+  PLUGINS_STATE_DB="${REMOTE_ROOT}/plugin-state.sqlite3"
+fi
+if [[ -z "${PLUGINS_FILES_DIRECTORY}" ]]; then
+  PLUGINS_FILES_DIRECTORY="${REMOTE_ROOT}/plugin-files"
+fi
 
 if [[ "${UNINSTALL}" -eq 1 && "${WIPE_REMOTE_ROOT}" -eq 1 ]]; then
   echo "use either --uninstall or --wipe-remote-root, not both" >&2
@@ -779,17 +860,41 @@ if [[ "${GAMES_ENABLE_SET}" -eq 0 ]]; then
   fi
 fi
 
+if [[ "${PLUGINS_ENABLE_SET}" -eq 0 ]]; then
+  existing_plugins_enable="$(read_existing_dashboard_env_value "MESH_DASH_PLUGINS_ENABLE")"
+  if [[ -n "${existing_plugins_enable}" ]]; then
+    PLUGINS_ENABLE="${existing_plugins_enable}"
+  fi
+fi
+if [[ "${PLUGINS_DIRECTORY_SET}" -eq 0 ]]; then
+  existing_plugins_directory="$(read_existing_dashboard_env_value "MESH_DASH_PLUGINS_DIRECTORY")"
+  if [[ -n "${existing_plugins_directory}" ]]; then
+    PLUGINS_DIRECTORY="${existing_plugins_directory}"
+  fi
+fi
+if [[ "${PLUGINS_STATE_DB_SET}" -eq 0 ]]; then
+  existing_plugins_state_db="$(read_existing_dashboard_env_value "MESH_DASH_PLUGINS_STATE_DB")"
+  if [[ -n "${existing_plugins_state_db}" ]]; then
+    PLUGINS_STATE_DB="${existing_plugins_state_db}"
+  fi
+fi
+if [[ "${PLUGINS_FILES_DIRECTORY_SET}" -eq 0 ]]; then
+  existing_plugins_files_directory="$(read_existing_dashboard_env_value "MESH_DASH_PLUGINS_FILES_DIRECTORY")"
+  if [[ -n "${existing_plugins_files_directory}" ]]; then
+    PLUGINS_FILES_DIRECTORY="${existing_plugins_files_directory}"
+  fi
+fi
+if [[ "${PLUGIN_ENABLE_LIST_SET}" -eq 0 ]]; then
+  PLUGIN_ENABLE_LIST="$(read_existing_dashboard_env_value "MESH_DASH_PLUGIN_ENABLE")"
+fi
+if [[ "${PLUGIN_DISABLE_LIST_SET}" -eq 0 ]]; then
+  PLUGIN_DISABLE_LIST="$(read_existing_dashboard_env_value "MESH_DASH_PLUGIN_DISABLE")"
+fi
+
 if [[ "${FILE_TRANSFER_MAX_BYTES_SET}" -eq 0 ]]; then
   existing_file_transfer_max_bytes="$(read_existing_dashboard_env_value "MESH_DASH_FILE_TRANSFER_MAX_BYTES")"
   if [[ -n "${existing_file_transfer_max_bytes}" ]]; then
     FILE_TRANSFER_MAX_BYTES="${existing_file_transfer_max_bytes}"
-  fi
-fi
-
-if [[ "${FILE_TRANSFER_AUTO_ACCEPT_SET}" -eq 0 ]]; then
-  existing_file_transfer_auto_accept="$(read_existing_dashboard_env_value "MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT")"
-  if [[ -n "${existing_file_transfer_auto_accept}" ]]; then
-    FILE_TRANSFER_AUTO_ACCEPT="${existing_file_transfer_auto_accept}"
   fi
 fi
 
@@ -799,6 +904,28 @@ if [[ "${ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER_SET}" -eq 0 ]]; then
     ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER="${existing_file_transfer_disclaimer}"
   fi
 fi
+
+# Systemd starts Meshyface in REMOTE_ROOT. Store absolute paths in dashboard.env
+# so directory creation and runtime path resolution agree for relative overrides.
+PLUGINS_DIRECTORY="$(resolve_remote_data_path "${PLUGINS_DIRECTORY}")"
+PLUGINS_STATE_DB="$(resolve_remote_data_path "${PLUGINS_STATE_DB}")"
+PLUGINS_FILES_DIRECTORY="$(resolve_remote_data_path "${PLUGINS_FILES_DIRECTORY}")"
+PLUGINS_STATE_DB_PARENT="$(dirname -- "${PLUGINS_STATE_DB}")"
+
+assert_single_line_deploy_value "plugin enablement" "${PLUGINS_ENABLE}"
+assert_single_line_deploy_value "plugin directory" "${PLUGINS_DIRECTORY}"
+assert_single_line_deploy_value "plugin state database" "${PLUGINS_STATE_DB}"
+assert_single_line_deploy_value "plugin files directory" "${PLUGINS_FILES_DIRECTORY}"
+assert_single_line_deploy_value "plugin enable list" "${PLUGIN_ENABLE_LIST}"
+assert_single_line_deploy_value "plugin disable list" "${PLUGIN_DISABLE_LIST}"
+
+REMOTE_ROOT_Q="$(remote_shell_quote "${REMOTE_ROOT}")"
+APP_DIR_Q="$(remote_shell_quote "${APP_DIR}")"
+CONFIG_DIR_Q="$(remote_shell_quote "${CONFIG_DIR}")"
+LOG_DIR_Q="$(remote_shell_quote "${LOG_DIR}")"
+PLUGINS_DIRECTORY_Q="$(remote_shell_quote "${PLUGINS_DIRECTORY}")"
+PLUGINS_STATE_DB_PARENT_Q="$(remote_shell_quote "${PLUGINS_STATE_DB_PARENT}")"
+PLUGINS_FILES_DIRECTORY_Q="$(remote_shell_quote "${PLUGINS_FILES_DIRECTORY}")"
 
 if ! [[ "${FILE_TRANSFER_MAX_BYTES}" =~ ^[0-9]+$ ]]; then
   echo "--file-transfer-max-bytes must be an integer" >&2
@@ -823,7 +950,8 @@ if [[ -n "${SERIAL_PATH}" ]]; then
   echo "[deploy] mesh_serial_path=${SERIAL_PATH} dash=${DASH_HOST}:${DASH_PORT} refresh_ms=${REFRESH_MS}"
 fi
 echo "[deploy] games_enable=${GAMES_ENABLE}"
-echo "[deploy] file_transfer_enable=${FILE_TRANSFER_ENABLE} file_transfer_auto_accept=${FILE_TRANSFER_AUTO_ACCEPT} file_transfer_max_bytes=${FILE_TRANSFER_MAX_BYTES}"
+echo "[deploy] plugins_enable=${PLUGINS_ENABLE}"
+echo "[deploy] file_transfer_enable=${FILE_TRANSFER_ENABLE} file_transfer_max_bytes=${FILE_TRANSFER_MAX_BYTES}"
 if [[ -n "${DEPLOY_PR_NUMBER}" ]]; then
   echo "[deploy] revision=${DEPLOY_GIT_COMMIT} · PR #${DEPLOY_PR_NUMBER}"
 else
@@ -844,7 +972,7 @@ if [[ "${WIPE_REMOTE_ROOT}" -eq 1 ]]; then
   uninstall_remote_meshyface
 fi
 
-ssh_cmd "${TARGET}" "mkdir -p '${REMOTE_ROOT}' '${APP_DIR}' '${CONFIG_DIR}' '${LOG_DIR}'"
+ssh_cmd "${TARGET}" "mkdir -p ${REMOTE_ROOT_Q} ${APP_DIR_Q} ${CONFIG_DIR_Q} ${LOG_DIR_Q} ${PLUGINS_DIRECTORY_Q} ${PLUGINS_STATE_DB_PARENT_Q} ${PLUGINS_FILES_DIRECTORY_Q}"
 
 if [[ "${CLEAN_APP_DIR}" -eq 1 ]]; then
   if [[ -z "${APP_DIR}" || "${APP_DIR}" == "/" ]]; then
@@ -938,6 +1066,17 @@ Restart=always
 RestartSec=2
 KillSignal=SIGINT
 TimeoutStopSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+CapabilityBoundingSet=
+AmbientCapabilities=
 
 [Install]
 WantedBy=multi-user.target
@@ -964,8 +1103,13 @@ REFRESH_MS=${REFRESH_MS}
 MESH_DASH_HISTORY_DB=${HISTORY_DB}
 MESH_DASHBOARD_MAP_PACKS_DIR=${MAP_PACKS_DIR}
 MESH_DASH_GAMES_ENABLE=${GAMES_ENABLE}
+MESH_DASH_PLUGINS_ENABLE=${PLUGINS_ENABLE}
+MESH_DASH_PLUGINS_DIRECTORY=${PLUGINS_DIRECTORY}
+MESH_DASH_PLUGINS_STATE_DB=${PLUGINS_STATE_DB}
+MESH_DASH_PLUGINS_FILES_DIRECTORY=${PLUGINS_FILES_DIRECTORY}
+MESH_DASH_PLUGIN_ENABLE=${PLUGIN_ENABLE_LIST}
+MESH_DASH_PLUGIN_DISABLE=${PLUGIN_DISABLE_LIST}
 MESH_DASH_FILE_TRANSFER_ENABLE=${FILE_TRANSFER_ENABLE}
-MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=${FILE_TRANSFER_AUTO_ACCEPT}
 MESH_DASH_FILE_TRANSFER_MAX_BYTES=${FILE_TRANSFER_MAX_BYTES}
 MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER=${ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER}
 MESH_DASH_GIT_COMMIT=${DEPLOY_GIT_COMMIT}
@@ -994,16 +1138,8 @@ if grep -q '^MESH_DASH_DEPLOY_PAYLOAD_HASH=' '${CONFIG_DIR}/dashboard.env'; then
   sed -i \"s/^MESH_DASH_DEPLOY_PAYLOAD_HASH=.*/MESH_DASH_DEPLOY_PAYLOAD_HASH=${remote_payload_hash}/\" '${CONFIG_DIR}/dashboard.env'; \
 else \
   printf '\nMESH_DASH_DEPLOY_PAYLOAD_HASH=%s\n' '${remote_payload_hash}' >> '${CONFIG_DIR}/dashboard.env'; \
-fi"
-  if [[ "${FILE_TRANSFER_AUTO_ACCEPT_SET}" -eq 1 ]]; then
-    echo "[deploy] updating file transfer auto accept in existing ${CONFIG_DIR}/dashboard.env"
-    ssh_cmd "${TARGET}" "\
-if grep -q '^MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=' '${CONFIG_DIR}/dashboard.env'; then \
-  sed -i \"s/^MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=.*/MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=${FILE_TRANSFER_AUTO_ACCEPT}/\" '${CONFIG_DIR}/dashboard.env'; \
-else \
-  printf '\nMESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=%s\n' '${FILE_TRANSFER_AUTO_ACCEPT}' >> '${CONFIG_DIR}/dashboard.env'; \
-fi"
-  fi
+fi && \
+sed -i '/^MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT=/d' '${CONFIG_DIR}/dashboard.env'"
 fi
 
 if ! ssh_cmd "${TARGET}" "test -x '${REMOTE_PYTHON}'"; then

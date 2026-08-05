@@ -1391,6 +1391,14 @@ def build_dashboard_state_typed(
                 summary["file_transfer"] = dict(file_transfer_runtime)
         except Exception:
             pass
+    get_plugin_runtime_fn = getattr(tracker, "get_plugin_runtime", None)
+    if callable(get_plugin_runtime_fn):
+        try:
+            plugin_runtime = get_plugin_runtime_fn()
+            if isinstance(plugin_runtime, Mapping):
+                summary["plugins"] = dict(plugin_runtime)
+        except Exception:
+            pass
 
     merged_recent_chat = _merge_recent_chat_entries(
         recent_chat=tracker_data.recent_chat,

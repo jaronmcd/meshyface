@@ -1,0 +1,57 @@
+    function registerConsoleLiveCommands() {{
+      registerConsoleCommand({{
+        name: "live",
+        usage: "live [-v|-vv|-vvv|-vvvv] [grep|rg [-i] [-v <text>] <text> [from!=%self]|filter=<text>] [-l1] [-l2] [-l3] [--layer=1,2,3]",
+        description: "Stream live packet lines until Ctrl+C or q with optional text, exclude, field, verbosity, and layer filters.",
+        supportsVerbosity: true,
+        run: (ctx) => {{
+          const verbosity = Math.max(0, Math.min(4, Number(ctx && ctx.verbosity) || 0));
+          const layerSelection = parseConsoleLiveLayerSelection(ctx);
+          if (layerSelection.unknownArgs.length) {{
+            return `[live] unknown argument(s): ${{layerSelection.unknownArgs.join(", ")}}`;
+          }}
+          if (layerSelection.missingFilter) {{
+            return '[live] missing filter text. Example: live grep -i "TEXT_MESSAGE_APP" from!=%self';
+          }}
+          if (layerSelection.unresolvedMacros.length) {{
+            return layerSelection.unresolvedMacros.map((line) => `[live] ${{line}}`);
+          }}
+          if (layerSelection.unknownOptions.length) {{
+            const optionLabel = layerSelection.unknownOptions
+              .map((token) => `--${{String(token || "").trim()}}`)
+              .join(", ");
+            return `[live] unknown option(s): ${{optionLabel}}`;
+          }}
+          if (consoleLiveModeActive) {{
+            return "[live] already running. Press Ctrl+C or q to stop.";
+          }}
+          consoleShowTimestamps = true;
+          const timestampsToggle = document.getElementById("console-timestamps");
+          if (timestampsToggle instanceof HTMLInputElement) {{
+            timestampsToggle.checked = true;
+          }}
+          persistConsoleSessionState();
+          consoleLiveVerbosity = verbosity;
+          consoleLiveLayers = layerSelection.layers;
+          consoleLiveFilterText = String(layerSelection.filterText || "").trim();
+          consoleLiveFilterSpec = layerSelection.filterSpec || null;
+          consoleLiveModeActive = true;
+          startConsoleRunningCommand("live", (reason, emitStatus) => {{
+            consoleLiveModeActive = false;
+            consoleLiveVerbosity = 0;
+            consoleLiveLayers = null;
+            consoleLiveFilterText = "";
+            consoleLiveFilterSpec = null;
+            if (emitStatus) {{
+              appendConsoleEventLine(`[live] stopped (${{String(reason || "done")}}).`);
+            }}
+            renderConsoleBuffer(true);
+          }});
+          renderConsole((latestState && latestState.traffic) || {{}});
+          const verbosityLabel = verbosity > 0 ? ` verbosity=-${{"v".repeat(verbosity)}}` : "";
+          const layerLabel = formatConsoleLiveLayerLabel(layerSelection.layers);
+          const filterLabel = formatConsoleLiveFilterLabel(consoleLiveFilterSpec || consoleLiveFilterText);
+          return `[live] streaming packet traffic.${{verbosityLabel}}${{layerLabel}}${{filterLabel}} Press Ctrl+C or q to stop.`;
+        }},
+      }});
+    }}

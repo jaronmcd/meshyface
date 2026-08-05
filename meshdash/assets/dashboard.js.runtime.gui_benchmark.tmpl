@@ -316,6 +316,78 @@
       return Number.isFinite(value) ? Math.max(0, value) : null;
     }}
 
+    function meshGuiBenchmarkPollStepErrorSequence() {{
+      const value = (typeof window !== "undefined")
+        ? Number(window.__meshPollStepErrorSequence)
+        : 0;
+      return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
+    }}
+
+    function meshGuiBenchmarkPollStepErrorsSince(startSequence) {{
+      const rows = (typeof window !== "undefined" && Array.isArray(window.__meshPollStepErrors))
+        ? window.__meshPollStepErrors
+        : [];
+      const safeStart = Math.max(0, Math.trunc(Number(startSequence) || 0));
+      return rows
+        .filter((entry) => entry && Number(entry.sequence) > safeStart)
+        .map((entry) => (
+          entry && typeof entry === "object" ? {{ ...entry }} : {{ message: String(entry || "poll step failed") }}
+        ));
+    }}
+
+    function meshGuiBenchmarkAssertPollSucceeded(pollRuns, pollStepErrors) {{
+      const runs = Array.isArray(pollRuns) ? pollRuns : [];
+      const failedRun = runs.find((run) => run && String(run.status || "").toLowerCase() === "error");
+      if (failedRun) {{
+        const message = String(failedRun.message || "poll reported an error").trim();
+        throw new Error(`poll failed: ${{message}}`);
+      }}
+      const stepErrors = Array.isArray(pollStepErrors) ? pollStepErrors : [];
+      if (stepErrors.length > 0) {{
+        const first = stepErrors[0] && typeof stepErrors[0] === "object" ? stepErrors[0] : {{}};
+        const step = String(first.step || "unknown step").trim();
+        const message = String(first.message || "poll step failed").trim();
+        throw new Error(`poll step failed: ${{step}}: ${{message}}`);
+      }}
+    }}
+
+    function meshGuiBenchmarkScriptsViewContract(state) {{
+      if (normalizeLayoutView(activeLayoutView || "chat") !== "scripts") return null;
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      const list = document.getElementById("scripts-list");
+      const status = document.getElementById("scripts-runtime-status-text");
+      if (!(list instanceof HTMLElement)) {{
+        throw new Error("Scripts view contract failed: #scripts-list is missing");
+      }}
+      const listText = String(list.textContent || "").trim();
+      const loading = /loading scripts/i.test(listText);
+      const scriptItems = meshGuiBenchmarkQueryCount(".scripts-item", list);
+      const emptyItems = meshGuiBenchmarkQueryCount(".scripts-empty", list);
+      const nodeRosterItems = meshGuiBenchmarkQueryCount(
+        ".chat-member-item[data-node-id]",
+        document.getElementById("chat-left-panel") || document
+      );
+      if (loading) {{
+        throw new Error("Scripts view contract failed: loading state remained after poll");
+      }}
+      if (scriptItems <= 0 && emptyItems !== 1) {{
+        throw new Error("Scripts view contract failed: empty state did not render");
+      }}
+      if (nodes.length > 0 && nodeRosterItems <= 0) {{
+        throw new Error("Scripts view contract failed: node roster was emptied by Scripts rendering");
+      }}
+      return {{
+        loading,
+        scriptItems,
+        emptyItems,
+        emptyText: emptyItems > 0 ? listText : "",
+        runtimeStatus: status instanceof HTMLElement ? String(status.textContent || "").trim() : "",
+        stateNodeCount: nodes.length,
+        nodeRosterItems,
+      }};
+    }}
+
     function meshGuiBenchmarkSampleTimingBreakdown(detail, callbackMs) {{
       const fields = {{}};
       const pollRun = meshGuiBenchmarkLastRunFromDetail(detail, "pollPerfRuns");
@@ -346,6 +418,7 @@
       let running = true;
       let frameId = 0;
       const startedAtMs = meshGuiBenchmarkNowMs();
+      const beforePollStepErrors = meshGuiBenchmarkPollStepErrorSequence();
       let lastFrameMs = startedAtMs;
       let observer = null;
       if (typeof PerformanceObserver !== "undefined") {{
@@ -417,6 +490,15 @@
       const longTaskStats = meshGuiBenchmarkStats(longTaskDurations);
       const timingBreakdown = meshGuiBenchmarkSampleTimingBreakdown(detail, callbackMs);
       const domSnapshot = meshGuiBenchmarkDomSnapshot();
+      const pollStepErrors = meshGuiBenchmarkPollStepErrorsSince(beforePollStepErrors);
+      if (!error && pollStepErrors.length > 0) {{
+        const first = pollStepErrors[0] && typeof pollStepErrors[0] === "object"
+          ? pollStepErrors[0]
+          : {{}};
+        const step = String(first.step || "unknown step").trim();
+        const message = String(first.message || "poll step failed").trim();
+        error = `poll step failed: ${{step}}: ${{message}}`;
+      }}
       const actionSyncMs = detail && typeof detail === "object"
         ? meshGuiBenchmarkOptionalNumber(detail.actionSyncMs)
         : null;
@@ -437,6 +519,7 @@
         dom: domSnapshot,
         meta: (meta && typeof meta === "object") ? {{ ...meta }} : {{}},
         detail: detail && typeof detail === "object" ? detail : {{}},
+        pollStepErrors,
         error,
         ...(errorStack ? {{ errorStack }} : {{}}),
       }};
@@ -765,6 +848,7 @@
       const beforeChatRuns = meshGuiBenchmarkChatRenderRunCount();
       const beforeGraphRuns = meshGuiBenchmarkNetworkGraphRenderRunCount();
       const beforePollRuns = meshGuiBenchmarkPollPerfRunCount();
+      const beforePollStepErrors = meshGuiBenchmarkPollStepErrorSequence();
       const beforeEnvMetricsRuns = meshGuiBenchmarkEnvironmentMetricsRenderRunCount();
       await poll();
       if (meshGuiBenchmarkViewUsesEnvironmentMetrics(view, subview)) {{
@@ -772,9 +856,14 @@
       }}
       await meshGuiBenchmarkNextFrame();
       const chatPerfDelta = chatPerfStats.samples - beforeChatSamples;
+      const pollPerfRuns = meshGuiBenchmarkPollPerfRunsSince(beforePollRuns);
+      const pollStepErrors = meshGuiBenchmarkPollStepErrorsSince(beforePollStepErrors);
+      meshGuiBenchmarkAssertPollSucceeded(pollPerfRuns, pollStepErrors);
+      const scripts = meshGuiBenchmarkScriptsViewContract(latestState);
       return {{
         state: meshGuiBenchmarkStateSnapshot(),
         alreadyActive,
+        ...(scripts ? {{ scripts }} : {{}}),
         chatPerf: {{
           samplesAdded: chatPerfDelta,
           lastMs: meshGuiBenchmarkRoundMs(chatPerfStats.lastMs),
@@ -789,7 +878,8 @@
         chatRenderRunsAdded: Math.max(0, meshGuiBenchmarkChatRenderRunCount() - beforeChatRuns),
         chatRenderRuns: meshGuiBenchmarkChatRenderRunsSince(beforeChatRuns),
         pollPerfRunsAdded: Math.max(0, meshGuiBenchmarkPollPerfRunCount() - beforePollRuns),
-        pollPerfRuns: meshGuiBenchmarkPollPerfRunsSince(beforePollRuns),
+        pollPerfRuns,
+        pollStepErrors,
         environmentMetricsRenderRunsAdded: Math.max(0, meshGuiBenchmarkEnvironmentMetricsRenderRunCount() - beforeEnvMetricsRuns),
         environmentMetricsRenderRuns: meshGuiBenchmarkEnvironmentMetricsRenderRunsSince(beforeEnvMetricsRuns),
         networkGraphRenderRunsAdded: Math.max(0, meshGuiBenchmarkNetworkGraphRenderRunCount() - beforeGraphRuns),
@@ -1162,6 +1252,7 @@
     function meshGuiBenchmarkDefaultViewSpecs() {{
       return [
         {{ view: "chat", subview: "" }},
+        {{ view: "scripts", subview: "" }},
         {{ view: "network", subview: "map" }},
         {{ view: "network", subview: "graph" }},
         {{ view: "history", subview: "" }},

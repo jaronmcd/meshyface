@@ -112,7 +112,7 @@ def initialize_history_store_runtime(
     )
     store._custom_telemetry_rules = custom_rules
     store._custom_telemetry_updated_unix = custom_rules_updated_unix
-    store._meshyface_profile_processing_enabled = False
+    store._meshyface_profile_processing_enabled = True
     store._meshyface_profile_processing_updated_unix = 0
     initialize_raw_packet_store_runtime_fn(
         store,

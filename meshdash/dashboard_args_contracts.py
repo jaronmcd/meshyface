@@ -20,4 +20,12 @@ class DashboardArgs(Protocol):
     http_host: str
     http_port: int
     allow_tokenless_raw_packet_download: bool
+    plugins_enable: bool
+    plugins_directory: str
+    plugins_state_db: str
+    plugins_files_directory: str
+    plugins_handler_timeout: float
+    plugins_event_queue_size: int
+    plugin_enable: list[str]
+    plugin_disable: list[str]
     games_enable: bool

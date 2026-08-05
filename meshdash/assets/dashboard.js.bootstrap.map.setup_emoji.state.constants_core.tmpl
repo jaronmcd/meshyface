@@ -3,71 +3,385 @@
     const consoleCommandHistoryMax = 120;
     const consoleFontSizePxByKey = Object.freeze({{ sm: 10, md: 12, lg: 14, xl: 16 }});
     const consoleCommandRegistry = new Map();
+    const consolePluginCommandNames = new Set();
     const tableSortState = {{
       "nodes-table": {{ index: 0, dir: "desc" }},
       "links-table": {{ index: 2, dir: "desc" }},
       "ports-table": {{ index: 1, dir: "desc" }},
     }};
     const nodeExplorerFieldDefs = Object.freeze([
-      Object.freeze({{ id: "last_heard", label: "Last Heard", sortable: true, rosterMeta: false, rosterDefault: false }}),
-      Object.freeze({{ id: "id", label: "ID", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "name", label: "Name", sortable: true, rosterMeta: false, rosterDefault: false }}),
-      Object.freeze({{ id: "hardware", label: "HW", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "snr", label: "SNR", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "hops", label: "Hops", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "link_quality", label: "Link", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "links", label: "Links", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "battery", label: "Battery", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "saved", label: "Total Packets", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "pos", label: "Pos", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "location_points", label: "Location Points", sortable: true, rosterMeta: true, rosterDefault: false }}),
-      Object.freeze({{ id: "favorite", label: "Tag", sortable: false, rosterMeta: true, rosterDefault: false }}),
+      Object.freeze({{ id: "last_heard", label: "Last Heard", sortable: true, rosterMeta: false, rosterDefault: false, rosterSort: true, valueType: "timestamp", renderKinds: Object.freeze(["timestamp", "text", "chip"]), defaultRenderKind: "timestamp", rosterSlot: "meta" }}),
+      Object.freeze({{ id: "id", label: "ID", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "text", renderKinds: Object.freeze(["text", "chip"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "name", label: "Name", sortable: true, rosterMeta: false, rosterDefault: false, rosterSort: true, valueType: "text", renderKinds: Object.freeze(["text"]), defaultRenderKind: "text", rosterSlot: "name" }}),
+      Object.freeze({{ id: "hardware", label: "HW", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "text", renderKinds: Object.freeze(["text", "chip", "badge"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "snr", label: "SNR", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "number", renderKinds: Object.freeze(["metric", "text", "chip", "bar"]), defaultRenderKind: "metric", rosterSlot: "meta" }}),
+      Object.freeze({{ id: "hops", label: "Hops", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "integer", renderKinds: Object.freeze(["metric", "text", "chip", "pill"]), defaultRenderKind: "metric", rosterSlot: "meta" }}),
+      Object.freeze({{ id: "link_quality", label: "Quality", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, rosterSortLabel: "Link quality", valueType: "number", renderKinds: Object.freeze(["bar", "pill", "metric", "text"]), defaultRenderKind: "bar", rosterSlot: "meta" }}),
+      Object.freeze({{ id: "links", label: "Links", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "integer", renderKinds: Object.freeze(["metric", "chip", "text"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "battery", label: "Battery", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "integer", renderKinds: Object.freeze(["metric", "pill", "bar", "chip", "text"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "saved", label: "Total Packets", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "integer", renderKinds: Object.freeze(["metric", "chip", "text"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "pos", label: "Pos", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "text", renderKinds: Object.freeze(["text", "chip"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "location_points", label: "Location Points", sortable: true, rosterMeta: true, rosterDefault: false, rosterSort: true, valueType: "integer", renderKinds: Object.freeze(["metric", "chip", "text"]), defaultRenderKind: "chip", rosterSlot: "fields" }}),
+      Object.freeze({{ id: "favorite", label: "Tag", sortable: false, rosterMeta: true, rosterDefault: false, rosterSort: true, rosterSortLabel: "Tagged", valueType: "text", renderKinds: Object.freeze(["badge", "pill", "text"]), defaultRenderKind: "badge", rosterSlot: "name" }}),
     ]);
     const nodeExplorerFieldDefById = new Map(
       nodeExplorerFieldDefs.map((def) => [String(def.id || ""), def])
     );
-    const chatNodeNavigatorDefaultSortKey = "status";
-    const chatNodeNavigatorDefaultSortDir = "asc";
-    const chatNodeNavigatorSortDefs = Object.freeze([
-      Object.freeze({{ id: "status", label: "Status" }}),
-      Object.freeze({{ id: "activity", label: "Recent Message" }}),
-      Object.freeze({{ id: "last_heard", label: "Last Heard" }}),
-      Object.freeze({{ id: "idle", label: "Idle" }}),
-      Object.freeze({{ id: "name", label: "Name" }}),
-      Object.freeze({{ id: "snr", label: "SNR" }}),
-      Object.freeze({{ id: "hops", label: "Hops" }}),
-      Object.freeze({{ id: "link_quality", label: "Link quality" }}),
-      Object.freeze({{ id: "links", label: "Links" }}),
-      Object.freeze({{ id: "battery", label: "Battery" }}),
-      Object.freeze({{ id: "favorite", label: "Tagged" }}),
-      Object.freeze({{ id: "saved", label: "Total Packets" }}),
-      Object.freeze({{ id: "hardware", label: "HW" }}),
-      Object.freeze({{ id: "id", label: "ID" }}),
-      Object.freeze({{ id: "pos", label: "Pos" }}),
-      Object.freeze({{ id: "location_points", label: "Location Points" }}),
+    const nodeExplorerPluginFieldIdPattern = /^plugin:[a-z][a-z0-9_-]{{0,63}}:[a-z][a-z0-9_-]{{0,31}}$/;
+    const nodeExplorerNodeListPluginNativeFieldIds = new Set([
+      "last_heard",
+      "id",
+      "hardware",
+      "snr",
+      "hops",
+      "links",
+      "battery",
+      "saved",
+      "pos",
+      "location_points",
     ]);
-    const chatNodeNavigatorSortDefById = new Map(
-      chatNodeNavigatorSortDefs.map((def) => [String(def.id || ""), def])
-    );
-    function normalizeNodeExplorerFieldId(value) {{
+    const nodeExplorerPluginFieldDefsByState = (typeof WeakMap === "function") ? new WeakMap() : null;
+    const nodeExplorerPluginFieldValueIndexByState = (typeof WeakMap === "function") ? new WeakMap() : null;
+    const nodeExplorerSupportedRenderKinds = Object.freeze([
+      "text",
+      "chip",
+      "pill",
+      "badge",
+      "metric",
+      "bar",
+      "sparkline",
+      "timestamp",
+      "icon",
+    ]);
+    const nodeExplorerSupportedRenderKindSet = new Set(nodeExplorerSupportedRenderKinds);
+    const nodeExplorerSupportedValueTypes = new Set(["text", "number", "integer", "timestamp", "boolean"]);
+    function normalizeNodeExplorerRenderKind(value, fallback = "text") {{
       const clean = String(value || "").trim().toLowerCase();
-      return nodeExplorerFieldDefById.has(clean) ? clean : "";
+      if (nodeExplorerSupportedRenderKindSet.has(clean)) return clean;
+      const cleanFallback = String(fallback || "").trim().toLowerCase();
+      return nodeExplorerSupportedRenderKindSet.has(cleanFallback) ? cleanFallback : "text";
     }}
 
-    function nodeExplorerFieldDef(fieldId) {{
-      const clean = normalizeNodeExplorerFieldId(fieldId);
-      return clean ? (nodeExplorerFieldDefById.get(clean) || null) : null;
+    function normalizeNodeExplorerRenderKinds(value, fallback = "text") {{
+      const source = Array.isArray(value) ? value : [fallback];
+      const out = [];
+      for (const item of source) {{
+        const clean = normalizeNodeExplorerRenderKind(item, "");
+        if (!clean || out.includes(clean)) continue;
+        out.push(clean);
+      }}
+      if (out.length > 0) return Object.freeze(out);
+      return Object.freeze([normalizeNodeExplorerRenderKind(fallback, "text")]);
     }}
 
-    function nodeExplorerRosterMetadataFieldDefs() {{
-      return nodeExplorerFieldDefs.filter((def) => !!(def && def.rosterMeta));
+    function normalizeNodeExplorerRosterLine(value, fallback = 2) {{
+      const fallbackRaw = Number(fallback);
+      const fallbackLine = Number.isFinite(fallbackRaw)
+        ? Math.max(1, Math.min(4, Math.trunc(fallbackRaw)))
+        : 2;
+      const raw = Number(value);
+      if (!Number.isFinite(raw)) return fallbackLine;
+      return Math.max(1, Math.min(4, Math.trunc(raw)));
     }}
 
-    function nodeExplorerDefaultRosterMetadataFieldIds() {{
-      return nodeExplorerFieldDefs
+    function nodeExplorerRosterLineForDef(def, fallback = 2) {{
+      if (!def || typeof def !== "object") return normalizeNodeExplorerRosterLine(fallback, 2);
+      const raw = Number(def.rosterLine);
+      if (Number.isFinite(raw)) return Math.max(0, Math.min(4, Math.trunc(raw)));
+      const slot = String(def.rosterSlot || "").trim().toLowerCase();
+      if (slot === "name") return 0;
+      if (slot === "meta") return 1;
+      if (slot === "fields") return 2;
+      return normalizeNodeExplorerRosterLine(fallback, 2);
+    }}
+
+    function nodeExplorerStateForPluginRuntime(state = null) {{
+      return state && typeof state === "object"
+        ? state
+        : ((typeof latestState !== "undefined" && latestState && typeof latestState === "object") ? latestState : null);
+    }}
+
+    function nodeExplorerPluginRuntimeFieldRows(state = null) {{
+      const safeState = nodeExplorerStateForPluginRuntime(state);
+      const summary = safeState && safeState.summary && typeof safeState.summary === "object"
+        ? safeState.summary
+        : null;
+      const plugins = summary && summary.plugins && typeof summary.plugins === "object"
+        ? summary.plugins
+        : null;
+      const runtime = plugins && plugins.runtime && typeof plugins.runtime === "object"
+        ? plugins.runtime
+        : null;
+      const rows = runtime && Array.isArray(runtime.node_fields) ? runtime.node_fields : [];
+      return rows.filter((row) => row && typeof row === "object");
+    }}
+
+    function nodeExplorerNodeListPluginProvidesField(fieldId, state = null) {{
+      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
+      if (!cleanFieldId) return false;
+      for (const row of nodeExplorerPluginRuntimeFieldRows(state)) {{
+        const namespacedId = String(row.id || "").trim().toLowerCase();
+        const pluginId = String(row.plugin_id || "").trim().toLowerCase();
+        const pluginFieldId = String(row.field_id || "").trim().toLowerCase();
+        if (namespacedId === `plugin:node_list:${{cleanFieldId}}`) return true;
+        if (pluginId === "node_list" && pluginFieldId === cleanFieldId) return true;
+      }}
+      return false;
+    }}
+
+    function nodeExplorerNativeFieldReplacementByPlugin(fieldId, state = null) {{
+      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
+      if (!nodeExplorerNodeListPluginNativeFieldIds.has(cleanFieldId)) return "";
+      return nodeExplorerNodeListPluginProvidesField(cleanFieldId, state)
+        ? `plugin:node_list:${{cleanFieldId}}`
+        : "";
+    }}
+
+    function nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state = null) {{
+      return !!nodeExplorerNativeFieldReplacementByPlugin(fieldId, state);
+    }}
+
+    function nodeExplorerPluginRuntimeFieldValueRows(state = null) {{
+      const safeState = nodeExplorerStateForPluginRuntime(state);
+      const summary = safeState && safeState.summary && typeof safeState.summary === "object"
+        ? safeState.summary
+        : null;
+      const plugins = summary && summary.plugins && typeof summary.plugins === "object"
+        ? summary.plugins
+        : null;
+      const runtime = plugins && plugins.runtime && typeof plugins.runtime === "object"
+        ? plugins.runtime
+        : null;
+      const rows = runtime && Array.isArray(runtime.node_field_values) ? runtime.node_field_values : [];
+      return rows.filter((row) => row && typeof row === "object");
+    }}
+
+    function nodeExplorerPluginRuntimeFieldValueIndex(state = null) {{
+      const safeState = nodeExplorerStateForPluginRuntime(state);
+      if (nodeExplorerPluginFieldValueIndexByState instanceof WeakMap && safeState && typeof safeState === "object") {{
+        const cached = nodeExplorerPluginFieldValueIndexByState.get(safeState);
+        if (cached instanceof Map) return cached;
+      }}
+      const index = new Map();
+      for (const row of nodeExplorerPluginRuntimeFieldValueRows(safeState)) {{
+        const rowNodeId = (typeof normalizeNodeId === "function")
+          ? normalizeNodeId(row.node_id)
+          : String(row.node_id || "").trim().toLowerCase();
+        if (!rowNodeId) continue;
+        const namespacedId = String(row.id || "").trim().toLowerCase();
+        const pluginId = String(row.plugin_id || "").trim().toLowerCase();
+        const pluginFieldId = String(row.field_id || "").trim().toLowerCase();
+        const rowFieldId = nodeExplorerPluginFieldIdPattern.test(namespacedId)
+          ? namespacedId
+          : (
+              pluginId && pluginFieldId
+                ? `plugin:${{pluginId}}:${{pluginFieldId}}`
+                : ""
+            );
+        if (!nodeExplorerPluginFieldIdPattern.test(rowFieldId)) continue;
+        if (!index.has(rowNodeId)) index.set(rowNodeId, new Map());
+        index.get(rowNodeId).set(rowFieldId, row);
+      }}
+      if (nodeExplorerPluginFieldValueIndexByState instanceof WeakMap && safeState && typeof safeState === "object") {{
+        nodeExplorerPluginFieldValueIndexByState.set(safeState, index);
+      }}
+      return index;
+    }}
+
+    function nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, state = null) {{
+      const cleanNodeId = (typeof normalizeNodeId === "function")
+        ? normalizeNodeId(nodeId)
+        : String(nodeId || "").trim().toLowerCase();
+      const cleanFieldId = String(fieldId || "").trim().toLowerCase();
+      if (!cleanNodeId || !nodeExplorerPluginFieldIdPattern.test(cleanFieldId)) return null;
+      const nodeValues = nodeExplorerPluginRuntimeFieldValueIndex(state).get(cleanNodeId);
+      return nodeValues instanceof Map ? (nodeValues.get(cleanFieldId) || null) : null;
+    }}
+
+    function nodeExplorerPluginFieldDefsFromState(state = null) {{
+      const safeState = nodeExplorerStateForPluginRuntime(state);
+      if (nodeExplorerPluginFieldDefsByState instanceof WeakMap && safeState && typeof safeState === "object") {{
+        const cached = nodeExplorerPluginFieldDefsByState.get(safeState);
+        if (Array.isArray(cached)) return cached;
+      }}
+      const defs = [];
+      const seen = new Set();
+      for (const row of nodeExplorerPluginRuntimeFieldRows(safeState)) {{
+        const namespacedId = String(row.id || "").trim().toLowerCase();
+        const pluginId = String(row.plugin_id || "").trim().toLowerCase();
+        const pluginFieldId = String(row.field_id || "").trim().toLowerCase();
+        const fieldId = nodeExplorerPluginFieldIdPattern.test(namespacedId)
+          ? namespacedId
+          : (
+              pluginId && pluginFieldId
+                ? `plugin:${{pluginId}}:${{pluginFieldId}}`
+                : ""
+            );
+        if (!fieldId || !nodeExplorerPluginFieldIdPattern.test(fieldId) || seen.has(fieldId)) continue;
+        const label = String(row.label || pluginFieldId || fieldId).trim().slice(0, 32) || pluginFieldId || fieldId;
+        const groupLabel = String(row.group || "Plugins").trim().slice(0, 24) || "Plugins";
+        const valueTypeRaw = String(row.value_type || "text").trim().toLowerCase();
+        const valueType = nodeExplorerSupportedValueTypes.has(valueTypeRaw) ? valueTypeRaw : "text";
+        const renderKinds = normalizeNodeExplorerRenderKinds(row.render_kinds, row.default_render_kind || "text");
+        const defaultRenderKind = renderKinds.includes(String(row.default_render_kind || "").trim().toLowerCase())
+          ? String(row.default_render_kind || "").trim().toLowerCase()
+          : renderKinds[0];
+        const rosterLine = normalizeNodeExplorerRosterLine(row.roster_line, 2);
+        seen.add(fieldId);
+        defs.push(Object.freeze({{
+          id: fieldId,
+          label,
+          sortable: !!row.sortable,
+          rosterMeta: true,
+          rosterDefault: !!row.default_visible,
+          rosterSort: !!row.sortable,
+          rosterSortLabel: label,
+          source: "plugin",
+          pluginId: pluginId || fieldId.split(":")[1],
+          pluginFieldId: pluginFieldId || fieldId.split(":")[2],
+          group: groupLabel,
+          valueType,
+          renderKinds,
+          defaultRenderKind,
+          rosterLine,
+        }}));
+      }}
+      if (nodeExplorerPluginFieldDefsByState instanceof WeakMap && safeState && typeof safeState === "object") {{
+        nodeExplorerPluginFieldDefsByState.set(safeState, defs);
+      }}
+      return defs;
+    }}
+
+    function nodeExplorerFieldDefsForState(state = null) {{
+      return nodeExplorerFieldDefs.concat(nodeExplorerPluginFieldDefsFromState(state));
+    }}
+
+    function nodeExplorerPluginFieldDef(fieldId, state = null) {{
+      const clean = String(fieldId || "").trim().toLowerCase();
+      if (!nodeExplorerPluginFieldIdPattern.test(clean)) return null;
+      return nodeExplorerPluginFieldDefsFromState(state).find((def) => String(def && def.id || "") === clean) || null;
+    }}
+
+    function normalizeNodeExplorerFieldId(value, state = null) {{
+      const clean = String(value || "").trim().toLowerCase();
+      if (nodeExplorerFieldDefById.has(clean)) return clean;
+      return nodeExplorerPluginFieldDef(clean, state) ? clean : "";
+    }}
+
+    function nodeExplorerFieldDef(fieldId, state = null) {{
+      const clean = normalizeNodeExplorerFieldId(fieldId, state);
+      if (!clean) return null;
+      return nodeExplorerFieldDefById.get(clean) || nodeExplorerPluginFieldDef(clean, state);
+    }}
+
+    function nodeExplorerRosterMetadataFieldDefs(state = null) {{
+      return nodeExplorerFieldDefsForState(state).filter((def) => !!(def && def.rosterMeta));
+    }}
+
+    function nodeExplorerDefaultRosterMetadataFieldIds(state = null) {{
+      return nodeExplorerFieldDefsForState(state)
         .filter((def) => !!(def && def.rosterMeta && def.rosterDefault))
         .map((def) => String(def.id || ""))
         .filter((id) => !!id);
+    }}
+
+    const chatNodeNavigatorDefaultSortKey = "status";
+    const chatNodeNavigatorDefaultSortDir = "asc";
+    const chatNodeNavigatorBaseSortDefs = Object.freeze([
+      Object.freeze({{ id: "status", label: "Status", source: "navigator" }}),
+      Object.freeze({{ id: "activity", label: "Recent Message", source: "navigator" }}),
+      Object.freeze({{ id: "idle", label: "Idle", source: "navigator" }}),
+    ]);
+    const chatNodeNavigatorFieldSortOrder = Object.freeze([
+      "last_heard",
+      "name",
+      "snr",
+      "hops",
+      "link_quality",
+      "links",
+      "battery",
+      "favorite",
+      "saved",
+      "hardware",
+      "id",
+      "pos",
+      "location_points",
+    ]);
+    function chatNodeNavigatorFieldSortDefs() {{
+      return chatNodeNavigatorFieldSortOrder
+        .map((fieldId) => nodeExplorerFieldDef(fieldId))
+        .filter((def) => !!(def && def.rosterSort))
+        .map((def) => Object.freeze({{
+          id: String(def.id || ""),
+          label: String(def.rosterSortLabel || def.label || def.id || ""),
+          source: String(def && def.source || "node_field"),
+          fieldId: String(def.id || ""),
+        }}));
+    }}
+    const chatNodeNavigatorNodeFieldSortDefs = Object.freeze(chatNodeNavigatorFieldSortDefs());
+    const chatNodeNavigatorSortDefs = Object.freeze(
+      chatNodeNavigatorBaseSortDefs
+        .slice(0, 2)
+        .concat(chatNodeNavigatorNodeFieldSortDefs.slice(0, 1))
+        .concat(chatNodeNavigatorBaseSortDefs.slice(2))
+        .concat(chatNodeNavigatorNodeFieldSortDefs.slice(1))
+    );
+    const chatNodeNavigatorSortDefById = new Map(
+      chatNodeNavigatorSortDefs.map((def) => [String(def.id || ""), def])
+    );
+    const chatNodeNavigatorToggleOptionDefs = Object.freeze([
+      Object.freeze({{ id: "city", label: "City", prefKey: "showCity", defaultValue: true, sortAffects: false, group: "display" }}),
+      Object.freeze({{ id: "idle", label: "Idle / Last Heard", prefKey: "showIdle", defaultValue: false, sortAffects: false, group: "display" }}),
+      Object.freeze({{ id: "status-dots", label: "Status", prefKey: "showStatusDots", defaultValue: true, sortAffects: false, group: "display" }}),
+      Object.freeze({{ id: "packet-direction", label: "Packet plot", prefKey: "showPacketDirection", defaultValue: false, sortAffects: false, group: "display" }}),
+    ]);
+    const chatNodeNavigatorToggleOptionDefById = new Map(
+      chatNodeNavigatorToggleOptionDefs.map((def) => [String(def.id || ""), def])
+    );
+    const chatNodeNavigatorOptionGroupDefs = Object.freeze([
+      Object.freeze({{ id: "fields", label: "Fields" }}),
+      Object.freeze({{ id: "display", label: "Display" }}),
+      Object.freeze({{ id: "plugins", label: "Plugins" }}),
+    ]);
+    function chatNodeNavigatorFieldOptionDefs(state = null) {{
+      return nodeExplorerRosterMetadataFieldDefs(state).filter((def) => {{
+        const source = String(def && def.source || "node_field").trim().toLowerCase();
+        const fieldId = String(def && def.id || "").trim().toLowerCase();
+        return source === "plugin" || !nodeExplorerNativeFieldIsRetiredByPlugin(fieldId, state);
+      }}).map((def) => {{
+        const fieldId = normalizeNodeExplorerFieldId(def && def.id, state);
+        return Object.freeze({{
+          id: `field:${{fieldId}}`,
+          label: String(def && (def.rosterLabel || def.label) || fieldId),
+          kind: "meta",
+          fieldId,
+          source: String(def && def.source || "node_field"),
+          group: fieldId === "favorite" || fieldId === "link_quality"
+            ? "display"
+            : (String(def && def.source || "") === "plugin" ? "plugins" : "fields"),
+          fieldGroup: String(def && def.group || "").trim(),
+          renderKinds: Array.isArray(def && def.renderKinds) ? def.renderKinds : Object.freeze([]),
+          defaultRenderKind: String(def && def.defaultRenderKind || ""),
+          rosterLine: nodeExplorerRosterLineForDef(def, 2),
+        }});
+      }}).filter((def) => !!(def && def.fieldId));
+    }}
+
+    function chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, state = null) {{
+      const optionId = String(def && def.id || "").trim().toLowerCase();
+      if (optionId === "idle") return nodeExplorerNativeFieldIsRetiredByPlugin("last_heard", state);
+      if (optionId === "city") return nodeExplorerNodeListPluginProvidesField("city", state);
+      return false;
+    }}
+
+    function chatNodeNavigatorOptionDefs(state = null) {{
+      return chatNodeNavigatorFieldOptionDefs(state).concat(
+        chatNodeNavigatorToggleOptionDefs.filter((def) => !chatNodeNavigatorToggleOptionIsRetiredByPlugin(def, state))
+      );
+    }}
+    function chatNodeNavigatorDefaultToggleOptionValue(optionId) {{
+      const def = chatNodeNavigatorToggleOptionDefById.get(String(optionId || "").trim().toLowerCase());
+      return def ? !!def.defaultValue : false;
     }}
 
     function nodeExplorerBuildProjection(nodeInput, options = null) {{
@@ -232,6 +546,62 @@
         location_points: {{ sort: positionPoints, text: String(positionPoints), title: locationPointsTitle }},
         favorite: {{ sort: favorite ? 1 : 0, text: tagName, title: tagTitle }},
       }};
+      const pluginFieldsRaw = (
+        node
+        && typeof node === "object"
+        && node.plugin_fields
+        && typeof node.plugin_fields === "object"
+      )
+        ? node.plugin_fields
+        : null;
+      for (const def of nodeExplorerPluginFieldDefsFromState(opts.state || null)) {{
+        const fieldId = String(def && def.id || "");
+        const pluginId = String(def && def.pluginId || "");
+        const pluginFieldId = String(def && def.pluginFieldId || "");
+        if (!fieldId || fields[fieldId]) continue;
+        let rawValue = null;
+        if (pluginFieldsRaw) {{
+          if (Object.prototype.hasOwnProperty.call(pluginFieldsRaw, fieldId)) {{
+            rawValue = pluginFieldsRaw[fieldId];
+          }} else if (
+            pluginId
+            && pluginFieldId
+            && pluginFieldsRaw[pluginId]
+            && typeof pluginFieldsRaw[pluginId] === "object"
+            && Object.prototype.hasOwnProperty.call(pluginFieldsRaw[pluginId], pluginFieldId)
+          ) {{
+            rawValue = pluginFieldsRaw[pluginId][pluginFieldId];
+          }}
+        }}
+        if (rawValue == null) {{
+          rawValue = nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, opts.state || null);
+        }}
+        const rawObject = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)
+          ? rawValue
+          : null;
+        const displayValue = rawObject && rawObject.value != null
+          ? rawObject.value
+          : (rawObject && rawObject.text != null ? rawObject.text : rawValue);
+        let text = "n/a";
+        if (displayValue != null) {{
+          if (def.valueType === "boolean") {{
+            text = displayValue ? "yes" : "no";
+          }} else if (def.valueType === "timestamp" && Number.isFinite(Number(displayValue)) && typeof formatLocalChatTime === "function") {{
+            text = formatLocalChatTime(Number(displayValue), "n/a", nowUnix);
+          }} else {{
+            text = String(displayValue).trim() || "n/a";
+          }}
+        }}
+        const sortValue = rawObject && rawObject.sort != null
+          ? rawObject.sort
+          : (
+              def.valueType === "number" || def.valueType === "integer" || def.valueType === "timestamp"
+                ? (Number.isFinite(Number(displayValue)) ? Number(displayValue) : "")
+                : text
+            );
+        const title = String(rawObject && rawObject.title != null ? rawObject.title : `${{def.label || pluginFieldId || fieldId}}: ${{text}}`).trim();
+        fields[fieldId] = {{ sort: sortValue, text, title }};
+      }}
 
       return {{
         node,
@@ -261,7 +631,7 @@
       const cleanTab = String(settingsTab || "").trim().toLowerCase();
       return cleanTab === "channels";
     }}
-    const knownLayoutViews = new Set(["chat", "files", "games", "network", "console", "settings"]);
+    const knownLayoutViews = new Set(["chat", "files", "games", "scripts", "plugin", "network", "console", "settings"]);
     const reversiBoardSize = 8;
     const reversiPiece = Object.freeze({{ empty: 0, black: 1, white: -1 }});
     const reversiDirections = Object.freeze([
@@ -328,7 +698,7 @@
     const roomSlugRe = /^[a-z0-9][a-z0-9_-]{0,47}$/;
     const chatMessageMaxBytes = Math.max(1, Math.trunc(Number({chat_max_bytes}) || 0));
     const fileTransferFeatureEnabled = !!Number({file_transfer_enabled});
-    const fileTransferAutoAcceptDefault = !!Number({file_transfer_auto_accept});
+    const pluginsFeatureEnabled = !!Number({plugins_enabled});
     const fileTransferProtocolPrefix = "MF_FILE_V2";
     // Browser-facing V2 frames are an internal JSON/API representation. The
     // backend converts them to compact binary before radio transmission.
@@ -355,10 +725,6 @@
       fileTransferMaxChunks,
       Math.ceil(fileTransferChunkCacheMaxBytes / fileTransferChunkBytes)
     );
-    const fileTransferMetaAdmissionMaxPeers = 128;
-    const fileTransferMetaAdmissionPeerCooldownMs = 2 * 1000;
-    const fileTransferMetaAdmissionGlobalCooldownMs = 250;
-    const fileTransferMetaAdmissionPeerTtlMs = 20 * 60 * 1000;
     const fileTransferCompressionCodecRaw = "raw";
     const fileTransferCompressionCodecLzss = "lzss";
     const fileTransferCompressionEnabled = true;
@@ -369,7 +735,6 @@
     const fileTransferCompressionMinMatchBytes = 4;
     const fileTransferCompressionMaxMatchBytes = 130;
     const fileTransferDestinationStorageKey = "meshDashboardFileTransferDestinationV1";
-    const fileTransferAutoAcceptStorageKey = "meshDashboardFileTransferAutoAcceptV1";
     const fileTransferDismissedStorageKey = "meshDashboardFileTransferDismissedV1";
     const fileTransferInboundDecisionStorageKey = "meshDashboardFileTransferInboundDecisionV1";
     const fileTransferInboundFlowStorageKey = "meshDashboardFileTransferInboundFlowV1";

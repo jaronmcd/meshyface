@@ -54,6 +54,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'id="layout-view-menu-apps-current"' in html
     assert 'id="layout-view-menu-apps-meta"' in html
     assert 'id="layout-view-menu-apps-submenu"' in html
+    assert 'class="card plugin-workspace workspace-app-shell"' in html
+    assert 'id="plugin-workspace-host"' in html
     assert 'class="topbar-view-submenu-item is-active"' in html
     assert 'id="settings-about-version"' not in html
     assert 'id="settings-about-commit"' not in html
@@ -187,6 +189,14 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert ".topbar-view-submenu[data-side=\"overlay\"] {" in css
     assert ".topbar-view-submenu-item {" in css
     assert "z-index: 1350;" in css
+    assert ".layout.view-plugin {" in css
+    assert ".layout.view-plugin .plugin-workspace {" in css
+    assert ".plugin-workspace-host {" in css
+    plugin_heading_section = css.split(".plugin-workspace-content h2,", 1)[1].split("}", 1)[0]
+    assert "background: transparent;" in plugin_heading_section
+    assert "border: 0;" in plugin_heading_section
+    assert "letter-spacing: 0;" in plugin_heading_section
+    assert "text-transform: none;" in plugin_heading_section
     topbar_section = css.split(".topbar {", 1)[1].split("}", 1)[0]
     topbar_sub_section = css.split(".topbar .sub {", 1)[1].split("}", 1)[0]
     _topbar_summary_row_padding_section = css.split(".topbar .sub .summary-ticker-row {", 3)[2].split("}", 1)[0]
@@ -272,6 +282,9 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     )
 
     assert "function syncLayoutViewLauncherButtonState(viewName = activeLayoutView) {" in js
+    assert "function normalizePluginViewKey(raw)" in js
+    assert "topbar-view-menu-item-plugin" in js
+    assert "function renderPluginWorkspaceView(state = latestState)" in js
     assert "TopbarUpdateTicker" not in js
     assert "topbarUpdateTicker" not in js
     assert "topbar-update-ticker" not in js
@@ -328,11 +341,14 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "async function runSettingsGithubUpdate() {" in js
     assert "async function runSettingsCheckoutRepair() {" in js
     assert "async function runSettingsRollbackCleanup() {" in js
-    assert "async function runSettingsUpdateBranchSync() {" not in js
-    assert 'fetch("/api/system/update/sync"' not in js
+    assert "function settingsUpdateBranchSyncReady(info, selectedBranch) {" in js
+    assert 'state === "diverged"' in js
+    assert "async function runSettingsUpdateBranchSync() {" in js
+    assert 'fetch("/api/system/update/sync"' in js
     assert 'fetch("/api/system/update/repair"' in js
     assert 'fetch("/api/system/update/rollback-cleanup"' in js
-    assert "settingsUpdateSyncInFlight" not in js
+    assert "settingsUpdateSyncInFlight" in js
+    assert "Sync Branch" in js
     assert 'document.getElementById("settings-update-sync")' not in js
     assert 'document.getElementById("settings-update-repair")' in js
     assert 'document.getElementById("settings-update-cleanup-rollbacks")' in js
@@ -356,6 +372,8 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert 'fetch("/api/system/update"' in js
     assert "async function runSettingsUpdatePrimaryAction() {" in js
     assert "settingsUpdateActionReadyBranch === selectedBranch" in js
+    assert "settingsUpdateBranchSyncReady(info, selectedBranch)" in js
+    assert "void runSettingsUpdateBranchSync();" in js
     assert 'void hydrateSettingsUpdateStatus(true, true);' in js
     assert 'checkBtn.textContent = settingsUpdateApplyInFlight' in js
     assert 'Run Latest' in js
@@ -439,6 +457,10 @@ def test_workspace_view_launcher_replaces_legacy_rail_nav() -> None:
     assert "function currentWorkspaceLauncherLabel(viewName = activeLayoutView) {" in js
     assert 'target.closest("#layout-view-menu-apps-submenu .topbar-view-submenu-item")' in js
     assert 'target.closest(\'#layout-view-menu .topbar-view-menu-item[data-submenu="apps"]\')' in js
+    assert "if (submenuName === \"apps\") return currentAppsLauncherViewName(activeLayoutView);" in js
+    assert "const syncAppsSubmenuIntent = (ev) => {" in js
+    assert "document.addEventListener(\"mouseover\", syncAppsSubmenuIntent);" in js
+    assert "closeLayoutViewMenu();" in js
     assert 'return `Apps · ${currentAppsLauncherLabel(viewName)}`;' in js
     assert 'Math.max(260, Math.ceil(btnRect.width))' in js
     assert "document.body.appendChild(submenu);" in js

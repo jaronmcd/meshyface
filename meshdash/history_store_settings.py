@@ -75,7 +75,7 @@ def load_meshyface_profile_processing_settings(
             (_MESHYFACE_PROFILE_PROCESSING_SETTINGS_KEY,),
         ).fetchone()
         if not row:
-            enabled = False
+            enabled = True
             updated_unix = 0
         else:
             value_json = row[0] if len(row) > 0 else "{}"
@@ -85,7 +85,7 @@ def load_meshyface_profile_processing_settings(
             except Exception:
                 parsed = {}
             source = parsed if isinstance(parsed, dict) else {}
-            enabled = _coerce_bool(source.get("enabled"), fallback=False)
+            enabled = _coerce_bool(source.get("enabled"), fallback=True)
         setattr(store, "_meshyface_profile_processing_enabled", bool(enabled))
         setattr(store, "_meshyface_profile_processing_updated_unix", int(updated_unix))
     return {

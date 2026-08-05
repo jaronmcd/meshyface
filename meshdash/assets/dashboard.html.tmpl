@@ -280,7 +280,7 @@
                   role="menuitem"
                   aria-haspopup="menu"
                   aria-expanded="false"
-                  title="Games and app workspaces"
+                  title="{apps_workspaces_title}"
                 >
                   <span class="topbar-view-menu-item-icon" aria-hidden="true">AP</span>
                   <span class="topbar-view-menu-item-copy">
@@ -288,7 +288,7 @@
                       <span class="topbar-view-menu-item-label">Apps</span>
                       <span id="layout-view-menu-apps-current" class="topbar-view-menu-item-context">Games</span>
                     </span>
-                    <span id="layout-view-menu-apps-meta" class="topbar-view-menu-item-meta">Games and extras</span>
+                    <span id="layout-view-menu-apps-meta" class="topbar-view-menu-item-meta">{apps_workspaces_meta}</span>
                   </span>
                   <span class="topbar-view-menu-item-badge" hidden>0</span>
                   <span class="topbar-view-menu-item-branch" aria-hidden="true"></span>
@@ -326,6 +326,25 @@
                         <span class="topbar-view-submenu-item-beta">BETA</span>
                       </span>
                       <span class="topbar-view-submenu-item-meta">Transfers and inbox</span>
+                    </span>
+                  </button>
+                  <button
+                    class="topbar-view-submenu-item"
+                    data-view="scripts"
+                    data-app-view="scripts"
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked="false"
+                    title="Scripts workspace"
+                    {scripts_tab_hidden_attrs}
+                  >
+                    <span class="topbar-view-submenu-item-icon" aria-hidden="true">SC</span>
+                    <span class="topbar-view-submenu-item-copy">
+                      <span class="topbar-view-submenu-item-label-row">
+                        <span class="topbar-view-submenu-item-label">Scripts</span>
+                        <span class="topbar-view-submenu-item-alpha">ALPHA</span>
+                      </span>
+                      <span class="topbar-view-submenu-item-meta">Python automations</span>
                     </span>
                   </button>
                 </div>
@@ -420,8 +439,8 @@
           id="chat-node-navigator-menu-btn"
           class="chat-peer-add-toggle-btn chat-node-navigator-menu-btn chat-node-navigator-dock-btn"
           type="button"
-          title="Configure node navigator sort and metadata"
-          aria-label="Configure node navigator sort and metadata"
+          title="Configure node navigator"
+          aria-label="Configure node navigator"
           aria-expanded="false"
           aria-controls="chat-node-navigator-menu"
         >
@@ -436,8 +455,7 @@
             <select id="chat-node-navigator-sort-select" class="chat-peer-input chat-node-navigator-select" aria-label="Sort node navigator list"></select>
             <button id="chat-node-navigator-sort-dir-btn" class="chat-peer-add-btn chat-node-navigator-sort-dir-btn" type="button" aria-label="Toggle sort direction">Asc</button>
           </div>
-          <div class="chat-node-navigator-fields-head">Metadata</div>
-          <div id="chat-node-navigator-fields" class="chat-node-navigator-fields"></div>
+          <div id="chat-node-navigator-fields" class="chat-node-navigator-fields" aria-label="Node navigator options"></div>
         </div>
       </div>
     </aside>
@@ -2440,7 +2458,7 @@
                           data-unread-direct-count="0"
                           aria-label="Shared appearance preview"
                         >
-                          <span class="chat-member-status chat-member-status-dot status-online" title="Status: Online" aria-label="Status: Online">●</span>
+                          <span class="chat-member-status chat-member-status-dot status-online" title="Status: Online" aria-label="Status: Online"><span class="chat-member-status-core" aria-hidden="true">●</span></span>
                           <span class="chat-member-main">
                             <span class="chat-member-name-row">
                               <span class="chat-member-name-left">
@@ -2795,13 +2813,6 @@
         <div class="files-shell">
           <div class="files-controls">
             <div id="files-caption" class="files-caption">Send small files as chunked direct messages on your configured Files send channel.</div>
-            <label
-              class="files-option files-auto-accept-option"
-              title="Automatically accept direct inbound files. Files are still saved only when you download them."
-            >
-              <input id="files-auto-accept-toggle" type="checkbox" />
-              <span>Auto accept received files</span>
-            </label>
             <label class="files-field">
               <span class="files-label">Send Channel</span>
               <div class="files-channel-row">
@@ -2877,6 +2888,107 @@
               </div>
             </div>
             <pre id="files-console-log" class="files-console-log" aria-live="polite">No file transfer activity yet.</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card scripts workspace-app-shell" aria-label="Scripts"{scripts_section_hidden_attrs}>
+      <div class="body">
+        <div class="scripts-shell">
+          <header class="scripts-head workspace-chrome-bar workspace-stack-head-shell">
+            <div class="scripts-toolbar workspace-chrome-row">
+              <div id="scripts-tabs" class="scripts-tabs workspace-pillbar" role="tablist" aria-label="Scripts sections">
+                <button
+                  id="scripts-tab-plugins"
+                  class="scripts-tab-btn workspace-pill-btn is-active"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="scripts-panel-plugins"
+                  data-scripts-tab="plugins"
+                >Plugins</button>
+                <button
+                  id="scripts-tab-debug"
+                  class="scripts-tab-btn workspace-pill-btn"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="scripts-panel-debug"
+                  data-scripts-tab="debug"
+                >Debug</button>
+              </div>
+              <button
+                id="scripts-runtime-master-toggle"
+                class="btn btn-secondary scripts-runtime-master-toggle"
+                type="button"
+                aria-pressed="true"
+                disabled
+              >Disable</button>
+            </div>
+          </header>
+          <div
+            id="scripts-panel-plugins"
+            class="scripts-tab-panel scripts-tab-panel-plugins"
+            role="tabpanel"
+            aria-labelledby="scripts-tab-plugins"
+          >
+            <div id="scripts-runtime-message" class="scripts-runtime-message" role="alert" hidden></div>
+            <div id="scripts-list" class="scripts-list" aria-live="polite">
+              <div class="scripts-empty">Loading scripts…</div>
+            </div>
+            <div
+              id="scripts-readme-modal"
+              class="scripts-readme-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="scripts-readme-title"
+              hidden
+            >
+              <div class="scripts-readme-panel">
+                <header class="scripts-readme-head">
+                  <div class="scripts-readme-title-block">
+                    <h3 id="scripts-readme-title">Plugin README</h3>
+                    <span id="scripts-readme-meta"></span>
+                  </div>
+                  <button
+                    id="scripts-readme-close"
+                    class="btn btn-secondary"
+                    type="button"
+                    data-script-readme-close
+                  >Close</button>
+                </header>
+                <div id="scripts-readme-body" class="scripts-readme-body"></div>
+              </div>
+            </div>
+          </div>
+          <section
+            id="scripts-panel-debug"
+            class="scripts-debug-console scripts-tab-panel"
+            aria-label="Script debug output"
+            role="tabpanel"
+            aria-labelledby="scripts-tab-debug"
+            hidden
+          >
+            <div class="scripts-debug-head">
+              <div>
+                <h3>Script debug output</h3>
+                <span id="scripts-debug-count">0 entries</span>
+              </div>
+              <button id="scripts-debug-clear" class="btn btn-secondary" type="button">Clear</button>
+            </div>
+            <pre id="scripts-debug-output" class="scripts-debug-output" aria-live="polite">No script debug output yet.</pre>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="card plugin-workspace workspace-app-shell" aria-label="Plugin view">
+      <div class="body">
+        <div id="plugin-workspace-host" class="plugin-workspace-host">
+          <div class="plugin-workspace-empty">
+            <h2>Plugin</h2>
+            <p>No plugin views are available.</p>
           </div>
         </div>
       </div>

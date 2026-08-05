@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 import re
 
-from ..contracts import GameCommandSpec, GameResult
+from .contracts import GameCommandSpec, GameResult
 
 from .world import INITIAL_OBJECT_LOCATIONS, OBJECTS, ROOMS, START_ROOM, object_name, room_name
 
@@ -382,8 +382,8 @@ class ZorkGame:
     """Peer-to-peer classic Zork gameplay.
 
     The transport shell remains generic, but the Zork game logic lives here.
-    This implementation keeps the game isolated to the `meshdash/games/zork/`
-    folder and drives the live game from the archived upstream map + object data.
+    This implementation keeps the game isolated inside the bundled Zork plugin
+    and drives the live game from the archived upstream map + object data.
     """
 
     SPEC = GameCommandSpec(

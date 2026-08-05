@@ -51,6 +51,7 @@ class RenderHtmlFn(Protocol):
         light_theme_vars: dict | None = None,
         dark_theme_vars: dict | None = None,
         file_transfer_enabled: bool = False,
+        plugins_enabled: bool = True,
         games_enabled: bool = False,
         file_transfer_max_bytes: int = 64 * 1024,
     ) -> str:
@@ -91,6 +92,7 @@ class SendChatFn(Protocol):
         reply_id: Optional[int] = None,
         retry_of: Optional[int] = None,
         emoji: object = None,
+        retry_unacked: bool = True,
     ) -> dict[str, object]:
         ...
 
@@ -185,6 +187,7 @@ class SendChatMessageFn(Protocol):
         outgoing_retry_poll_seconds: float = ...,
         outgoing_retry_limit: int = ...,
         outgoing_retry_async: bool = ...,
+        retry_unacked: bool = True,
         sleep_fn: Callable[[float], None] = ...,
     ) -> dict[str, object]:
         ...

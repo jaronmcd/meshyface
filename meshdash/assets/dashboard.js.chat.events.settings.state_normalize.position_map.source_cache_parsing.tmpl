@@ -34,12 +34,12 @@
     }}
 
     function loadSettingsAppearancePreferences() {{
-      settingsMeshyfaceThemeSharingEnabled = false;
+      settingsMeshyfaceThemeSharingEnabled = true;
       settingsScreenWakeLockEnabled = true;
       try {{
         settingsMeshyfaceThemeSharingEnabled = parseBoolToken(
           window.localStorage.getItem(settingsMeshyfaceThemeSharingStorageKey),
-          false
+          true
         );
         settingsScreenWakeLockEnabled = parseBoolToken(
           window.localStorage.getItem(settingsScreenWakeLockStorageKey),

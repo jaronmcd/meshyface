@@ -17,6 +17,13 @@ MESH_GUI_BENCH_OUTPUT=benchmarks/gui_responsiveness/results/local-live-target.js
 python -m pytest -m gui_benchmark --run-gui-benchmark
 ```
 
+The default view set includes **Scripts (Alpha)**. Its first measured poll must
+replace the loading placeholder with either installed script cards or the empty
+state, preserve the node navigator roster when nodes are present, and produce
+no caught poll or poll-step errors. This turns renderer exceptions that the
+long-running dashboard safely contains into benchmark failures instead of
+silently green samples.
+
 For one-off comparisons, use `scripts/benchmark_gui_responsiveness.py` directly and write outputs under `benchmarks/gui_responsiveness/results/`. That directory is ignored because benchmark output can include local hosts, URLs, and runtime-specific data.
 
 To render a saved JSON result as a compact Markdown report:

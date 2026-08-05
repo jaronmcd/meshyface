@@ -1039,7 +1039,8 @@
    }}
    .workspace-main > .layout.view-chat,
     .workspace-main > .layout.view-console,
-    .workspace-main > .layout.view-settings {{
+    .workspace-main > .layout.view-settings,
+    .workspace-main > .layout.view-plugin {{
       grid-row: 1 / -1;
     }}
     .layout.view-chat {{
@@ -1301,6 +1302,7 @@
     .layout.view-chat .map,
     .layout.view-chat .map-data,
     .layout.view-chat .summary,
+    .layout.view-chat .plugin-workspace,
     .layout.view-chat .nodes,
     .layout.view-chat .console,
     .layout.view-chat .splitter,
@@ -1340,6 +1342,7 @@
     .layout.view-files .chat,
     .layout.view-files .settings,
     .layout.view-files .games,
+    .layout.view-files .plugin-workspace,
     .layout.view-files .nodes,
     .layout.view-files .map,
     .layout.view-files .map-data,
@@ -1349,6 +1352,102 @@
     .layout.view-files .hsplitter[data-target="top"],
     .layout.view-files .hsplitter[data-target="mid"],
     .layout.view-files .hsplitter[data-target="low"] {{
+      display: none !important;
+    }}
+
+    .layout.view-scripts {{
+      height: 100%;
+      min-height: 0;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+    }}
+    .layout.view-scripts .scripts {{
+      grid-column: 1;
+      grid-row: 1;
+      display: flex;
+      height: 100%;
+      min-height: 0;
+      max-height: 100%;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      overflow: visible;
+    }}
+    .layout.view-scripts .scripts .body {{
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+      background: transparent;
+      padding: 0;
+    }}
+    .layout.view-scripts .chat,
+    .layout.view-scripts .files,
+    .layout.view-scripts .settings,
+    .layout.view-scripts .games,
+    .layout.view-scripts .plugin-workspace,
+    .layout.view-scripts .nodes,
+    .layout.view-scripts .map,
+    .layout.view-scripts .map-data,
+    .layout.view-scripts .console,
+    .layout.view-scripts .summary,
+    .layout.view-scripts .splitter,
+    .layout.view-scripts .hsplitter[data-target="top"],
+    .layout.view-scripts .hsplitter[data-target="mid"],
+    .layout.view-scripts .hsplitter[data-target="low"] {{
+      display: none !important;
+    }}
+
+    .layout.view-plugin {{
+      height: 100%;
+      min-height: 0;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+      background: transparent;
+      overflow: visible;
+    }}
+    .layout.view-plugin .plugin-workspace {{
+      grid-column: 1;
+      grid-row: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      height: 100%;
+      min-height: 0;
+      max-height: 100%;
+      width: 100%;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      overflow: visible;
+    }}
+    .layout.view-plugin .plugin-workspace .body {{
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      overflow: hidden;
+      background: transparent;
+      padding: 0;
+    }}
+    .layout.view-plugin .chat,
+    .layout.view-plugin .files,
+    .layout.view-plugin .scripts,
+    .layout.view-plugin .settings,
+    .layout.view-plugin .games,
+    .layout.view-plugin .nodes,
+    .layout.view-plugin .map,
+    .layout.view-plugin .map-data,
+    .layout.view-plugin .console,
+    .layout.view-plugin .summary,
+    .layout.view-plugin .splitter,
+    .layout.view-plugin .hsplitter[data-target="top"],
+    .layout.view-plugin .hsplitter[data-target="mid"],
+    .layout.view-plugin .hsplitter[data-target="low"] {{
       display: none !important;
     }}
 
@@ -1571,6 +1670,7 @@
     }}
     .layout.view-network .map-data,
     .layout.view-network .chat,
+    .layout.view-network .plugin-workspace,
     .layout.view-network .console,
     .layout.view-network .hsplitter[data-target="top"],
     .layout.view-network .hsplitter[data-target="mid"],
@@ -1639,6 +1739,7 @@
     }}
     .layout.view-console .chat,
     .layout.view-console .nodes,
+    .layout.view-console .plugin-workspace,
     .layout.view-console .map,
     .layout.view-console .map-data,
     .layout.view-console .splitter,
@@ -1702,6 +1803,7 @@
     }}
     .layout.view-settings .chat,
     .layout.view-settings .nodes,
+    .layout.view-settings .plugin-workspace,
     .layout.view-settings .map,
     .layout.view-settings .map-data,
     .layout.view-settings .splitter,
@@ -1741,6 +1843,7 @@
     }}
     .layout.view-games .chat,
     .layout.view-games .settings,
+    .layout.view-games .plugin-workspace,
     .layout.view-games .nodes,
     .layout.view-games .map,
     .layout.view-games .map-data,
@@ -2872,10 +2975,14 @@
       --chat-member-node-border: var(--workspace-shell-border-muted);
       --chat-member-node-fg: var(--workspace-shell-text);
       --chat-member-node-selected-border: var(--workspace-shell-border-strong);
+      --chat-member-status-cap-width: 28px;
+      --chat-member-status-mark-size: var(--chat-member-status-cap-width);
+      --chat-member-link-cap-width: var(--chat-member-status-cap-width);
+      --chat-member-packet-cap-width: 56px;
       display: grid;
-      grid-template-columns: 18px minmax(0, 1fr);
-      gap: 6px;
-      align-items: center;
+      grid-template-columns: var(--chat-member-status-cap-width) minmax(0, 1fr);
+      gap: 5px;
+      align-items: stretch;
       border: 0;
       border-bottom: 1px solid var(--chat-member-node-border);
       background: var(--chat-member-node-gradient), var(--chat-member-node-bg);
@@ -2887,20 +2994,30 @@
       cursor: pointer;
       flex: 0 0 auto;
     }}
+    .chat-member-item.has-link-quality {{
+      grid-template-columns: var(--chat-member-status-cap-width) var(--chat-member-link-cap-width) minmax(0, 1fr);
+    }}
     .chat-member-item.has-packet-spark {{
-      grid-template-columns: 18px minmax(0, 1fr) 56px;
-      align-items: stretch;
+      grid-template-columns: var(--chat-member-status-cap-width) minmax(0, 1fr) var(--chat-member-packet-cap-width);
+    }}
+    .chat-member-item.has-link-quality.has-packet-spark {{
+      grid-template-columns: var(--chat-member-status-cap-width) var(--chat-member-link-cap-width) minmax(0, 1fr) var(--chat-member-packet-cap-width);
     }}
     .chat-member-item.status-hidden {{
       grid-template-columns: 0 minmax(0, 1fr);
       gap: 0;
     }}
+    .chat-member-item.status-hidden.has-link-quality {{
+      grid-template-columns: 0 var(--chat-member-link-cap-width) minmax(0, 1fr);
+      gap: 4px;
+    }}
     .chat-member-item.status-hidden.has-packet-spark {{
-      grid-template-columns: 0 minmax(0, 1fr) 56px;
+      grid-template-columns: 0 minmax(0, 1fr) var(--chat-member-packet-cap-width);
       gap: 3px;
     }}
-    .chat-member-item.has-packet-spark .chat-member-status {{
-      align-self: center;
+    .chat-member-item.status-hidden.has-link-quality.has-packet-spark {{
+      grid-template-columns: 0 var(--chat-member-link-cap-width) minmax(0, 1fr) var(--chat-member-packet-cap-width);
+      gap: 4px;
     }}
     .chat-member-item:hover {{
       background: var(--chat-member-node-gradient-hover), var(--chat-member-node-bg-hover);
@@ -2995,11 +3112,13 @@
     }}
     .chat-member-status {{
       position: relative;
-      width: 18px;
-      min-width: 18px;
-      height: 18px;
+      width: var(--chat-member-status-cap-width, 18px);
+      min-width: var(--chat-member-status-cap-width, 18px);
+      height: auto;
+      min-height: 100%;
+      align-self: stretch;
       text-align: center;
-      font-size: 11px;
+      font-size: 13px;
       font-weight: 700;
       line-height: 1;
       color: var(--ui-accent);
@@ -3011,16 +3130,31 @@
       visibility: hidden;
     }}
     .chat-member-status-dot {{
-      font-size: 11px;
+      font-size: 18px;
+    }}
+    .chat-member-status-core {{
+      position: relative;
+      width: var(--chat-member-status-mark-size, 18px);
+      height: var(--chat-member-status-mark-size, 18px);
+      min-width: var(--chat-member-status-mark-size, 18px);
+      min-height: var(--chat-member-status-mark-size, 18px);
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      box-sizing: border-box;
+    }}
+    .chat-member-status-dot .chat-member-status-core {{
       transform: translateY(-0.4px);
     }}
     .chat-member-status-new {{
-      font-size: 11px;
+      font-size: 13px;
       font-weight: 900;
+    }}
+    .chat-member-status-new .chat-member-status-core {{
       border: 1.5px solid currentColor;
-      border-radius: 3px;
       background: color-mix(in srgb, var(--chat-member-node-bg, var(--ui-panel)) 88%, transparent);
-      box-sizing: border-box;
       text-shadow:
         0 0 2px color-mix(in srgb, var(--chat-member-node-bg, var(--ui-panel)) 86%, #000000 14%),
         0 0 3px color-mix(in srgb, currentColor 38%, transparent);
@@ -3040,7 +3174,7 @@
       transform: translateY(-0.1px);
     }}
     .chat-member-status-emoji {{
-      font-size: 13px;
+      font-size: 18px;
       font-weight: 500;
       isolation: isolate;
     }}
@@ -3066,6 +3200,9 @@
       }}
     }}
     .chat-member-item.is-traceroute-running .chat-member-status::after {{
+      display: none;
+    }}
+    .chat-member-item.is-traceroute-running .chat-member-status-core::after {{
       content: "";
       position: absolute;
       inset: -1px;
@@ -3079,7 +3216,7 @@
       opacity: 0.92;
       z-index: 2;
     }}
-    .chat-member-item.is-traceroute-running .chat-member-status.chat-member-status-emoji::after {{
+    .chat-member-item.is-traceroute-running .chat-member-status.chat-member-status-emoji .chat-member-status-core::after {{
       display: none;
     }}
     .chat-member-item.is-traceroute-running .chat-member-status.chat-member-status-emoji .chat-member-status-ring {{
@@ -3102,6 +3239,7 @@
     .chat-member-main {{
       display: flex;
       flex-direction: column;
+      justify-content: center;
       min-width: 0;
       gap: 1px;
     }}
@@ -3437,42 +3575,39 @@
       text-align: right;
     }}
     .chat-member-link-quality {{
-      flex: 0 0 auto;
-      margin-left: auto;
+      flex: 0 0 var(--chat-member-link-cap-width);
       display: inline-flex;
-      align-items: flex-end;
-      gap: 5px;
+      align-items: center;
+      justify-content: center;
       min-width: 0;
+      width: var(--chat-member-link-cap-width);
+      height: auto;
+      min-height: 100%;
+      align-self: stretch;
       white-space: nowrap;
       user-select: none;
-    }}
-    .chat-member-link-quality-label {{
-      font-size: 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--surface-tint-text-soft);
-      opacity: 0.72;
-      line-height: 1;
-      transform: translateY(-1px);
     }}
     .chat-member-link-quality-bars {{
       display: inline-flex;
       align-items: flex-end;
+      justify-content: center;
       gap: 2px;
-      height: 12px;
-      width: 22px;
+      width: var(--chat-member-status-mark-size);
+      height: var(--chat-member-status-mark-size);
+      aspect-ratio: 1 / 1;
     }}
     .chat-member-link-quality-bar {{
-      width: 3px;
+      width: 4px;
+      min-height: 3px;
       border-radius: 1px 1px 0 0;
       background: color-mix(in srgb, var(--surface-tint-text-soft) 34%, transparent);
       transition: background-color 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
       opacity: 0.72;
     }}
-    .chat-member-link-quality-bar.level-1 {{ height: 4px; }}
-    .chat-member-link-quality-bar.level-2 {{ height: 7px; }}
-    .chat-member-link-quality-bar.level-3 {{ height: 10px; }}
-    .chat-member-link-quality-bar.level-4 {{ height: 12px; }}
+    .chat-member-link-quality-bar.level-1 {{ height: 30%; }}
+    .chat-member-link-quality-bar.level-2 {{ height: 50%; }}
+    .chat-member-link-quality-bar.level-3 {{ height: 72%; }}
+    .chat-member-link-quality-bar.level-4 {{ height: 100%; }}
     .chat-member-link-quality.is-none .chat-member-link-quality-bar.is-on {{
       background: color-mix(in srgb, var(--surface-tint-text-soft) 72%, transparent);
       opacity: 0.7;
@@ -3507,10 +3642,31 @@
     .chat-member-fields-row {{
       display: flex;
       flex-wrap: wrap;
+      align-items: baseline;
       gap: 4px;
       margin-top: 2px;
       min-width: 0;
       width: 100%;
+    }}
+    .chat-member-metadata-text {{
+      display: inline-flex;
+      align-items: baseline;
+      gap: 3px;
+      min-width: 0;
+      max-width: 100%;
+      font-size: 9px;
+      line-height: 1.25;
+      color: var(--surface-tint-text-soft);
+      opacity: 0.72;
+      white-space: nowrap;
+    }}
+    .chat-member-metadata-text-key {{
+      flex: 0 0 auto;
+    }}
+    .chat-member-metadata-text-value {{
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }}
     .chat-member-metadata-chip {{
       border: 1px solid color-mix(in srgb, var(--surface-tint-border) 58%, transparent);
@@ -3601,6 +3757,7 @@
       gap: 4px;
       padding: 5px 4px;
     }}
+    .workspace-shell.chat-panel-collapsed .chat-member-item.has-link-quality,
     .workspace-shell.chat-panel-collapsed .chat-member-item.has-packet-spark {{
       grid-template-columns: 10px minmax(0, 1fr);
     }}
@@ -3615,6 +3772,7 @@
     .workspace-shell.chat-panel-collapsed .chat-member-meta-row,
     .workspace-shell.chat-panel-collapsed .chat-member-fields-row,
     .workspace-shell.chat-panel-collapsed .chat-member-task-progress,
+    .workspace-shell.chat-panel-collapsed .chat-member-link-quality,
     .workspace-shell.chat-panel-collapsed .chat-member-packet-spark-wrap,
     .workspace-shell.chat-panel-collapsed .chat-member-tag-chip,
     .workspace-shell.chat-panel-collapsed .chat-member-alert-chip {{

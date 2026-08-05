@@ -1,0 +1,145 @@
+    let pluginWorkspaceLastRenderSignature = "";
+    let activePluginViewKey = "";
+
+    function normalizePluginViewKey(raw) {{
+      const clean = String(raw || "").trim().toLowerCase();
+      const match = /^plugin:([a-z][a-z0-9_-]{{0,63}}):([a-z][a-z0-9_-]{{0,31}})$/.exec(clean);
+      return match ? `plugin:${{match[1]}}:${{match[2]}}` : "";
+    }}
+
+    function pluginWorkspaceViewsFromState(state = latestState) {{
+      if (!pluginsFeatureEnabled) return [];
+      const safeState = state && typeof state === "object" ? state : {{}};
+      const summary = safeState.summary && typeof safeState.summary === "object"
+        ? safeState.summary
+        : {{}};
+      const plugins = summary.plugins && typeof summary.plugins === "object"
+        ? summary.plugins
+        : {{}};
+      const rows = Array.isArray(plugins.views) ? plugins.views : [];
+      return rows
+        .filter((row) => row && typeof row === "object" && normalizePluginViewKey(row.id))
+        .slice(0, 64);
+    }}
+
+    function pluginWorkspaceViewByKey(key, state = latestState) {{
+      const cleanKey = normalizePluginViewKey(key);
+      if (!cleanKey) return null;
+      return pluginWorkspaceViewsFromState(state)
+        .find((row) => normalizePluginViewKey(row.id) === cleanKey) || null;
+    }}
+
+    function pluginWorkspaceDefaultViewKey(state = latestState) {{
+      const first = pluginWorkspaceViewsFromState(state)[0];
+      return first ? normalizePluginViewKey(first.id) : "";
+    }}
+
+    function pluginWorkspaceKeyAvailable(key, state = latestState) {{
+      return !!pluginWorkspaceViewByKey(key, state);
+    }}
+
+    function pluginWorkspaceViewLabel(view) {{
+      if (!view || typeof view !== "object") return "Plugin";
+      return String(view.label || view.view_id || "Plugin").trim() || "Plugin";
+    }}
+
+    function pluginWorkspaceViewIcon(view) {{
+      const raw = view && typeof view === "object" ? String(view.icon || "").trim().toUpperCase() : "";
+      return /^[A-Z0-9]{{1,4}}$/.test(raw) ? raw : pluginWorkspaceViewLabel(view).slice(0, 2).toUpperCase();
+    }}
+
+    function pluginWorkspaceContentHtml(content, fallback = "") {{
+      const text = String(content || fallback || "").trim();
+      if (!text) {{
+        return "<p>No view content published yet.</p>";
+      }}
+      if (typeof scriptsReadmeMarkdownHtml === "function") {{
+        return scriptsReadmeMarkdownHtml(text);
+      }}
+      return `<p>${{escAttr(text)}}</p>`;
+    }}
+
+    function renderPluginWorkspaceView(state = latestState) {{
+      const host = document.getElementById("plugin-workspace-host");
+      if (!(host instanceof HTMLElement)) return false;
+      const requestedKey = normalizePluginViewKey(activePluginViewKey);
+      let view = requestedKey ? pluginWorkspaceViewByKey(requestedKey, state) : null;
+      if (!view) {{
+        const fallbackKey = pluginWorkspaceDefaultViewKey(state);
+        activePluginViewKey = fallbackKey;
+        view = fallbackKey ? pluginWorkspaceViewByKey(fallbackKey, state) : null;
+      }}
+
+      const viewKey = view ? normalizePluginViewKey(view.id) : "";
+      const pluginName = view ? String(view.plugin_name || view.plugin_id || "Plugin").trim() : "Plugin";
+      const label = pluginWorkspaceViewLabel(view);
+      const icon = pluginWorkspaceViewIcon(view);
+      const description = view ? String(view.description || "").trim() : "";
+      const status = view ? String(view.runtime_status || "").trim() : "";
+      const active = !!(view && view.active === true);
+      const content = view ? String(view.content || "") : "";
+      const bodyHtml = pluginWorkspaceContentHtml(
+        active ? content : "",
+        active ? description : "This plugin view is waiting for its script runtime."
+      );
+      const signature = JSON.stringify([
+        viewKey,
+        pluginName,
+        label,
+        icon,
+        description,
+        status,
+        active,
+        bodyHtml,
+      ]);
+      if (signature === pluginWorkspaceLastRenderSignature) return false;
+      if (!view) {{
+        host.innerHTML = `
+          <div class="plugin-workspace-empty">
+            <h2>Plugin</h2>
+            <p>No plugin views are available.</p>
+          </div>
+        `;
+        pluginWorkspaceLastRenderSignature = signature;
+        return true;
+      }}
+      host.innerHTML = `
+        <div class="plugin-workspace-shell">
+          <header class="plugin-workspace-head workspace-chrome-bar workspace-stack-head-shell">
+            <div class="plugin-workspace-title">
+              <span class="plugin-workspace-icon" aria-hidden="true">${{escAttr(icon)}}</span>
+              <span class="plugin-workspace-copy">
+                <span class="plugin-workspace-label">${{escAttr(label)}}</span>
+                <span class="plugin-workspace-meta">${{escAttr(pluginName)}}${{status ? ` · ${{status}}` : ""}}</span>
+              </span>
+            </div>
+            <button
+              class="btn btn-secondary plugin-workspace-scripts-btn"
+              type="button"
+              data-plugin-workspace-open-scripts
+            >Scripts</button>
+          </header>
+          <div class="plugin-workspace-scroll">
+            ${{description ? `<p class="plugin-workspace-description">${{escAttr(description)}}</p>` : ""}}
+            <div class="plugin-workspace-content">${{bodyHtml}}</div>
+          </div>
+        </div>
+      `;
+      pluginWorkspaceLastRenderSignature = signature;
+      return true;
+    }}
+
+    function bindPluginWorkspaceView() {{
+      if (window.__meshPluginWorkspaceViewBound === true) return;
+      window.__meshPluginWorkspaceViewBound = true;
+      document.addEventListener("click", (ev) => {{
+        const target = ev && ev.target instanceof Element
+          ? ev.target
+          : (ev && ev.target instanceof Node ? ev.target.parentElement : null);
+        if (!(target instanceof Element)) return;
+        const button = target.closest("[data-plugin-workspace-open-scripts]");
+        if (!(button instanceof HTMLButtonElement)) return;
+        ev.preventDefault();
+        applyLayoutView("scripts", true);
+      }});
+    }}

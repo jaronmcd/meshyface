@@ -940,26 +940,37 @@ def test_node_navigator_status_marker_geometry_supports_dot_and_emoji_variants(e
     hidden_item_section = extract_css_block(css, ".chat-member-item.status-hidden")
     status_section = extract_css_block(css, ".chat-member-status")
     dot_section = extract_css_block(css, ".chat-member-status-dot")
+    core_section = extract_css_block(css, ".chat-member-status-core")
+    dot_core_section = extract_css_block(css, ".chat-member-status-dot .chat-member-status-core")
     new_section = extract_css_block(css, ".chat-member-status-new")
+    new_core_section = extract_css_block(css, ".chat-member-status-new .chat-member-status-core")
     new_text_section = extract_css_block(css, ".chat-member-status-new-text")
     emoji_section = extract_css_block(css, ".chat-member-status-emoji")
     ring_section = extract_css_block(css, ".chat-member-status-ring")
     glyph_section = extract_css_block(css, ".chat-member-status-emoji-glyph")
 
+    assert "--chat-member-status-cap-width: 28px;" in css
+    assert "--chat-member-status-mark-size: var(--chat-member-status-cap-width);" in css
     assert "grid-template-columns: 0 minmax(0, 1fr);" in hidden_item_section
-    assert "width: 18px;" in status_section
-    assert "min-width: 18px;" in status_section
-    assert "height: 18px;" in status_section
+    assert "width: var(--chat-member-status-cap-width, 18px);" in status_section
+    assert "min-width: var(--chat-member-status-cap-width, 18px);" in status_section
+    assert "height: auto;" in status_section
+    assert "min-height: 100%;" in status_section
+    assert "align-self: stretch;" in status_section
     assert "display: inline-flex;" in status_section
     assert "justify-content: center;" in status_section
-    assert "font-size: 11px;" in dot_section
-    assert "font-size: 11px;" in new_section
+    assert "font-size: 18px;" in dot_section
+    assert "width: var(--chat-member-status-mark-size, 18px);" in core_section
+    assert "height: var(--chat-member-status-mark-size, 18px);" in core_section
+    assert "border-radius: 999px;" in core_section
+    assert "display: inline-flex;" in core_section
+    assert "justify-content: center;" in core_section
+    assert "transform: translateY(-0.4px);" in dot_core_section
+    assert "font-size: 13px;" in new_section
     assert "font-weight: 900;" in new_section
-    assert "border: 1.5px solid currentColor;" in new_section
-    assert "border-radius: 3px;" in new_section
-    assert "background: color-mix(in srgb, var(--chat-member-node-bg, var(--ui-panel)) 88%, transparent);" in new_section
-    assert "box-sizing: border-box;" in new_section
-    assert "text-shadow:" in new_section
+    assert "border: 1.5px solid currentColor;" in new_core_section
+    assert "background: color-mix(in srgb, var(--chat-member-node-bg, var(--ui-panel)) 88%, transparent);" in new_core_section
+    assert "text-shadow:" in new_core_section
     assert "color: #ffffff;" in new_text_section
     assert "font-family: \"IBM Plex Mono\", \"Roboto Mono\", monospace;" in new_text_section
     assert "font-size: 11px;" in new_text_section
@@ -967,7 +978,7 @@ def test_node_navigator_status_marker_geometry_supports_dot_and_emoji_variants(e
     assert "letter-spacing: 0;" in new_text_section
     assert "0 0 2px rgba(0, 0, 0, 0.95)," in new_text_section
     assert "transform: translateY(-0.1px);" in new_text_section
-    assert "font-size: 13px;" in emoji_section
+    assert "font-size: 18px;" in emoji_section
     assert "isolation: isolate;" in emoji_section
     assert "position: absolute;" in ring_section
     assert "border-radius: 999px;" in ring_section
@@ -1344,7 +1355,7 @@ def test_settings_view_removes_outer_card_shell_but_keeps_inner_panels() -> None
     grid_section = css.split(".layout.view-settings .settings-grid {", 1)[1].split("}", 1)[0]
     grid_panel_section = css.split(".layout.view-settings .settings-grid > .settings-panel {", 1)[1].split("}", 1)[0]
 
-    assert ".workspace-main > .layout.view-chat,\n    .workspace-main > .layout.view-console,\n    .workspace-main > .layout.view-settings {" in css
+    assert ".workspace-main > .layout.view-chat,\n    .workspace-main > .layout.view-console,\n    .workspace-main > .layout.view-settings,\n    .workspace-main > .layout.view-plugin {" in css
     assert "background: transparent;" in settings_section
     assert "border: 0;" in settings_section
     assert "box-shadow: none;" in settings_section
@@ -1429,7 +1440,14 @@ def test_full_app_shells_opt_out_of_global_dark_card_painting() -> None:
     app_shells = set(
         re.findall(r'<section class="card ([^" ]+) workspace-app-shell"', html)
     )
-    assert app_shells == {"chat", "settings", "files", "games"}
+    assert app_shells == {
+        "chat",
+        "settings",
+        "files",
+        "games",
+        "scripts",
+        "plugin-workspace",
+    }
     assert html.count("workspace-app-shell") == len(app_shells)
     assert 'class="card environment' not in html
     assert 'id="environment-metrics-home"' not in html

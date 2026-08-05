@@ -91,6 +91,7 @@ class DashboardTracker:
     def __init__(self, packet_limit: int, history_store: Optional[HistoryStore] = None) -> None:
         self._lock = threading.Lock()
         self._accept_packets = True
+        self._accepted_packet_listeners: list[object] = []
         _initialize_dashboard_tracker_runtime_helper(
             self,
             packet_limit=packet_limit,
@@ -209,6 +210,7 @@ class DashboardTracker:
         return None
 
     def on_receive(self, packet: dict[str, object], interface: object) -> None:
+        listeners: tuple[object, ...] = ()
         with self._lock:
             if not self._accept_packets:
                 return
@@ -227,6 +229,28 @@ class DashboardTracker:
             self._record_packet_unlocked(packet, interface, include_live_count=True)
             self._purge_live_state_unlocked(bump_revision=False)
             self._bump_state_revision_unlocked()
+            listeners = tuple(self._accepted_packet_listeners)
+        for listener in listeners:
+            if callable(listener):
+                try:
+                    listener(packet, interface)
+                except Exception:
+                    # Optional consumers must never break radio ingestion.
+                    pass
+
+    def add_accepted_packet_listener(self, listener: object) -> None:
+        if not callable(listener):
+            raise TypeError("accepted packet listener must be callable")
+        with self._lock:
+            if listener not in self._accepted_packet_listeners:
+                self._accepted_packet_listeners.append(listener)
+
+    def remove_accepted_packet_listener(self, listener: object) -> None:
+        with self._lock:
+            try:
+                self._accepted_packet_listeners.remove(listener)
+            except ValueError:
+                pass
 
     def stop_receiving(self) -> None:
         with self._lock:
@@ -377,14 +401,14 @@ class DashboardTracker:
             None,
         )
         if not callable(load_settings_fn):
-            return False
+            return True
         try:
             response = load_settings_fn()
         except Exception:
-            return False
+            return True
         if not isinstance(response, Mapping):
-            return False
-        return bool(response.get("enabled"))
+            return True
+        return bool(response.get("enabled", True))
 
     def _persist_meshyface_profile_processing_enabled_unlocked(self, enabled: bool) -> None:
         history_store = getattr(self, "_history_store", None)

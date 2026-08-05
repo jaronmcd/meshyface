@@ -52,6 +52,7 @@
       network: 0,
       console: 0,
       apps: 0,
+      plugin: 0,
       settings: 0,
     }};
     const appsLauncherSeenKeys = new Set();
@@ -76,6 +77,7 @@
     let consoleCommandHistory = [];
     let consoleCommandHistoryCursor = -1;
     let consoleCommandDraft = "";
+    const pluginConsoleCommandSessionIds = new Map();
     let consoleAutocompleteState = null;
     let consoleAutocompleteMenuSelectedIndex = 0;
     let consoleAutocompleteMenuSignature = "";
@@ -138,10 +140,6 @@
     let chatSendInFlight = false;
     let fileTransferSendInFlight = false;
     let fileTransferDestinationId = "";
-    let fileTransferAutoAcceptInbound = !!fileTransferAutoAcceptDefault;
-    let fileTransferAutoAcceptLoaded = false;
-    let fileTransferAutoAcceptUpdateInFlight = false;
-    let fileTransferAutoAcceptPendingValue = null;
     const peerDmFileTransferUiByPeer = new Map();
     let fileTransferRows = [];
     const fileTransferBlobByKey = new Map();
@@ -154,8 +152,6 @@
     const fileTransferInboundDecisionByKey = new Map();
     const fileTransferInboundFlowByKey = new Map();
     const fileTransferInboundDecisionPromptByKey = new Map();
-    const fileTransferMetaAdmissionByPeer = new Map();
-    let fileTransferLastMetaAdmissionAtMs = null;
     let fileTransferInboundDecisionLoaded = false;
     let fileTransferInboundFlowLoaded = false;
     const fileTransferAckSentState = new Map();
@@ -179,6 +175,7 @@
     let settingsUpdateActionReadyBranch = "";
     let settingsUpdateApplyInFlight = false;
     let settingsUpdateApplyMode = "";
+    let settingsUpdateSyncInFlight = false;
     let settingsBackendReloadInFlight = false;
     let settingsUpdateRepairInFlight = false;
     let settingsUpdateRollbackCleanupInFlight = false;

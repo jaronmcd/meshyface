@@ -13,8 +13,13 @@ except Exception:
     _package_version = "0.0.0"
 from meshdash.config import (
     DEFAULT_APP_VERSION_FALLBACK,
+    DEFAULT_PLUGINS_ENABLED,
+    DEFAULT_PLUGINS_DIRECTORY,
+    DEFAULT_PLUGINS_EVENT_QUEUE_SIZE,
+    DEFAULT_PLUGINS_FILES_DIRECTORY,
+    DEFAULT_PLUGINS_HANDLER_TIMEOUT_SECONDS,
+    DEFAULT_PLUGINS_STATE_DB,
     DEFAULT_CHAT_MAX_BYTES,
-    DEFAULT_FILE_TRANSFER_AUTO_ACCEPT,
     DEFAULT_FILE_TRANSFER_ENABLED,
     DEFAULT_FILE_TRANSFER_MAX_BYTES,
     DEFAULT_GATEWAY_HOST,
@@ -482,7 +487,7 @@ def _build_render_html_fn_with_theme(
 ):
     settings = theme_preset_settings or _build_theme_preset_settings(args)
     file_transfer_enabled = bool(getattr(args, "file_transfer_enable", False))
-    file_transfer_auto_accept = bool(getattr(args, "file_transfer_auto_accept", False))
+    plugins_enabled = bool(getattr(args, "plugins_enable", False))
     games_enabled = bool(getattr(args, "games_enable", False))
     file_transfer_max_bytes = _normalize_file_transfer_max_bytes(
         getattr(args, "file_transfer_max_bytes", DEFAULT_FILE_TRANSFER_MAX_BYTES)
@@ -507,7 +512,7 @@ def _build_render_html_fn_with_theme(
                 initial_background_settings if isinstance(initial_background_settings, dict) else None
             ),
             file_transfer_enabled=file_transfer_enabled,
-            file_transfer_auto_accept=file_transfer_auto_accept,
+            plugins_enabled=plugins_enabled,
             games_enabled=games_enabled,
             file_transfer_max_bytes=file_transfer_max_bytes,
         )
@@ -706,11 +711,21 @@ def main() -> None:
         env_private_mode=os.environ.get("MESH_DASH_PRIVATE_MODE"),
         env_api_token=os.environ.get("MESH_DASH_API_TOKEN"),
         default_file_transfer_enable=DEFAULT_FILE_TRANSFER_ENABLED,
-        default_file_transfer_auto_accept=DEFAULT_FILE_TRANSFER_AUTO_ACCEPT,
+        default_plugins_enable=DEFAULT_PLUGINS_ENABLED,
+        default_plugins_directory=DEFAULT_PLUGINS_DIRECTORY,
+        default_plugins_state_db=DEFAULT_PLUGINS_STATE_DB,
+        default_plugins_files_directory=DEFAULT_PLUGINS_FILES_DIRECTORY,
+        default_plugins_handler_timeout=DEFAULT_PLUGINS_HANDLER_TIMEOUT_SECONDS,
+        default_plugins_event_queue_size=DEFAULT_PLUGINS_EVENT_QUEUE_SIZE,
         default_games_enable=DEFAULT_GAMES_ENABLED,
         default_file_transfer_max_bytes=DEFAULT_FILE_TRANSFER_MAX_BYTES,
         env_file_transfer_enable=os.environ.get("MESH_DASH_FILE_TRANSFER_ENABLE"),
-        env_file_transfer_auto_accept=os.environ.get("MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT"),
+        env_plugins_enable=os.environ.get("MESH_DASH_PLUGINS_ENABLE"),
+        env_plugins_directory=os.environ.get("MESH_DASH_PLUGINS_DIRECTORY"),
+        env_plugins_state_db=os.environ.get("MESH_DASH_PLUGINS_STATE_DB"),
+        env_plugins_files_directory=os.environ.get("MESH_DASH_PLUGINS_FILES_DIRECTORY"),
+        env_plugin_enable=os.environ.get("MESH_DASH_PLUGIN_ENABLE"),
+        env_plugin_disable=os.environ.get("MESH_DASH_PLUGIN_DISABLE"),
         env_games_enable=os.environ.get("MESH_DASH_GAMES_ENABLE"),
         env_file_transfer_max_bytes=os.environ.get("MESH_DASH_FILE_TRANSFER_MAX_BYTES"),
         env_accept_file_transfer_traffic_disclaimer=os.environ.get(

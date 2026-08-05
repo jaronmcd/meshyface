@@ -93,7 +93,7 @@ fi
 
 python "${ROOT_DIR}/scripts/benchmark_gui_responsiveness.py" \
   --url "${URL}" \
-  --views "${MESH_GUI_BENCH_VIEWS:-chat,network:map,network:graph,network:sensors,history,settings,console}" \
+  --views "${MESH_GUI_BENCH_VIEWS:-chat,scripts,network:map,network:graph,network:sensors,history,settings,console}" \
   --iterations "${MESH_GUI_BENCH_ITERATIONS:-1}" \
   --warmup "${MESH_GUI_BENCH_WARMUP:-1}" \
   --no-selection \

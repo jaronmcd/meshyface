@@ -22,7 +22,7 @@ def test_dashboard_js_keeps_layout_switches_in_app() -> None:
     assert "window.requestAnimationFrame(() => {" in switcher_block
 
 
-def test_dashboard_js_omits_removed_bbs_and_bots_views() -> None:
+def test_dashboard_js_omits_removed_bbs_and_legacy_bot_views() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
@@ -259,6 +259,8 @@ def test_dashboard_js_keeps_supported_gated_apps_in_channel_routing() -> None:
     assert 'if (fileTransferFeatureEnabled) {' in routing_block
     assert 'id: "files"' in routing_block
     assert 'label: "Files"' in routing_block
+    assert 'id: "scripts"' not in routing_block
+    assert 'label: "Scripts"' not in routing_block
     assert 'id: "bots"' not in routing_block
     assert 'label: "Bots"' not in routing_block
     assert 'id: "games"' in routing_block
@@ -281,6 +283,7 @@ def test_dashboard_js_exposes_files_in_app_channel_routing_when_enabled() -> Non
     assert 'id: "files"' in routing_block
     assert 'label: "Files"' in routing_block
     assert 'if (token === "files" && fileTransferFeatureEnabled) return "files";' in js
+    assert 'if (token === "scripts"' not in js
     assert 'if (token === "bots"' not in js
     assert 'id: "games"' in routing_block
     assert 'label: "Games"' in routing_block
@@ -338,27 +341,23 @@ def test_dashboard_js_syncs_files_destination_from_node_selection() -> None:
     assert "const selectedSeed = syncFileTransferDestinationFromSelectedNode(state, { persist: true });" in render_block
 
 
-def test_dashboard_js_uses_backend_file_transfer_runtime_for_rows_and_ack_suppression() -> None:
+def test_dashboard_js_uses_script_accepted_transfer_keys_for_rows_and_ack_suppression() -> None:
     js = build_dashboard_js(
         refresh_ms=1000,
         node_history_hours=24,
         node_history_max_points=240,
         file_transfer_enabled=True,
-        file_transfer_auto_accept=True,
     )
 
     assert "function fileTransferBackendRuntime(state = latestState)" in js
-    assert "function fileTransferBackendAutoAcceptEnabled(state = latestState)" in js
     assert "function fileTransferBackendSessions(state = latestState)" in js
+    assert "function fileTransferBackendAcceptedKeys(state = latestState)" in js
     assert "function mergeBackendFileTransferRuntimeRows(rows, state, context = null)" in js
-    assert "const backendAutoAcceptEnabled = fileTransferBackendAutoAcceptEnabled(state);" in js
-    assert "const backendAutoAcceptEnabled = fileTransferBackendAutoAcceptEnabled(latestState);" in js
-    assert "toggle.disabled = !fileTransferFeatureEnabled || fileTransferAutoAcceptUpdateInFlight;" in js
-    assert 'fetch("/api/settings/file_transfer"' in js
-    assert "body: JSON.stringify({ enabled })" in js
-    assert "if (backendAutoAcceptEnabled) {" in js
-    assert "source: \"backend_auto_accept\"" in js
+    assert "const backendAcceptedKeys = fileTransferBackendAcceptedKeys(state);" in js
+    assert "if (backendAcceptedKeys.has(transferKey)) {" in js
+    assert "source: \"script_accept\"" in js
     assert "backendAuthoritative: true" in js
+    assert 'fetch("/api/settings/file_transfer"' not in js
     assert "Complete on receiver" in js
     assert "Backend receiver has the complete transfer; this browser does not have download bytes." in js
 
@@ -417,10 +416,8 @@ def test_dashboard_js_bounds_inbound_file_transfer_metadata_and_ack_work() -> No
     assert "findAckForOutgoingSession(outgoingSession, ackByTransferKey, localNodeId)" in js
     assert "const fileTransferInboundStateMaxEntries = 1200;" in js
     assert "const fileTransferActiveInboundMaxEntries = fileTransferChunkCacheMaxEntries;" in js
-    assert "function admitFileTransferAutoAcceptMetadata(senderIdRaw, nowMsRaw = Date.now())" in js
-    assert "fileTransferMetaAdmissionByPeer" in js
-    assert "fileTransferMetaAdmissionPeerCooldownMs" in js
-    assert "fileTransferMetaAdmissionGlobalCooldownMs" in js
+    assert "admitFileTransferAutoAcceptMetadata" not in js
+    assert "fileTransferMetaAdmissionByPeer" not in js
     assert "fileTransferAcceptedInboundDecisionCount() >= fileTransferActiveInboundMaxEntries" in js
     assert "fileTransferInboundDecisionByKey.size >= fileTransferInboundStateMaxEntries" in js
     assert "function setBoundedFileTransferMapEntry(targetMap, keyRaw, value, maxEntriesRaw)" in js

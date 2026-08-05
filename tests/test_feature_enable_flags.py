@@ -50,11 +50,11 @@ def _build_parser(**overrides: object) -> argparse.ArgumentParser:
         "env_theme_preset": None,
         "env_theme_settings_file": None,
         "default_file_transfer_enable": False,
-        "default_file_transfer_auto_accept": False,
+        "default_plugins_enable": True,
         "default_games_enable": False,
         "default_file_transfer_max_bytes": 64 * 1024,
         "env_file_transfer_enable": None,
-        "env_file_transfer_auto_accept": None,
+        "env_plugins_enable": None,
         "env_games_enable": None,
         "env_file_transfer_max_bytes": None,
         "env_accept_file_transfer_traffic_disclaimer": None,
@@ -63,7 +63,7 @@ def _build_parser(**overrides: object) -> argparse.ArgumentParser:
     return build_dashboard_parser(**kwargs)
 
 
-def test_render_html_omits_removed_bbs_and_bots_workspaces() -> None:
+def test_render_html_omits_removed_bbs_and_legacy_bot_workspaces() -> None:
     html = _render_html()
 
     assert "bbsFeatureEnabled" not in html
@@ -72,7 +72,19 @@ def test_render_html_omits_removed_bbs_and_bots_workspaces() -> None:
     assert "/api/settings/bbs" not in html
     assert "/api/bbs/host" not in html
     assert 'const gamesFeatureEnabled = !!Number(0);' in html
+    assert 'const pluginsFeatureEnabled = !!Number(1);' in html
     assert 'data-app-view="games"' in html
+    scripts_tab = html.split('data-app-view="scripts"', 1)[1].split(">", 1)[0]
+    scripts_section = html.split(
+        '<section class="card scripts workspace-app-shell"',
+        1,
+    )[1].split(">", 1)[0]
+    assert 'hidden disabled aria-hidden="true"' not in scripts_tab
+    assert 'hidden aria-hidden="true"' not in scripts_section
+    assert (
+        '<span id="layout-view-menu-apps-meta" '
+        'class="topbar-view-menu-item-meta">Games and scripts</span>'
+    ) in html
     assert '<section class="card games workspace-app-shell" aria-label="Games">' in html
     assert 'data-app-view="bots"' not in html
     assert 'class="card bots"' not in html
@@ -84,26 +96,41 @@ def test_render_html_exposes_games_flag_when_enabled() -> None:
     html = _render_html(games_enabled=True)
 
     assert 'const gamesFeatureEnabled = !!Number(1);' in html
-    assert "if (gamesFeatureEnabled) {" in html
     assert 'data-app-view="games"' in html
     assert '<section class="card games workspace-app-shell" aria-label="Games">' in html
     assert 'id="games-library-select"' in html
-    assert 'fetch("/api/games/zork"' in html
-    assert 'name: "zork"' in html
+    assert 'fetch("/api/plugins/console"' in html
+    assert 'name: "zork"' not in html
     assert 'data-app-view="bots"' not in html
 
 
-def test_render_html_exposes_file_transfer_auto_accept_default() -> None:
-    html = _render_html(
-        file_transfer_enabled=True,
-        file_transfer_auto_accept=True,
-    )
+def test_render_html_uses_plugins_master_flag_for_scripts_workspace() -> None:
+    html = _render_html(plugins_enabled=True)
+
+    assert 'const pluginsFeatureEnabled = !!Number(1);' in html
+    scripts_tab = html.split('data-app-view="scripts"', 1)[1].split(">", 1)[0]
+    scripts_section = html.split(
+        '<section class="card scripts workspace-app-shell"',
+        1,
+    )[1].split(">", 1)[0]
+    assert " hidden" not in scripts_tab
+    assert " hidden" not in scripts_section
+    assert (
+        '<span id="layout-view-menu-apps-meta" '
+        'class="topbar-view-menu-item-meta">Games and scripts</span>'
+    ) in html
+    assert 'clean === "scripts" && pluginsFeatureEnabled' in html
+    assert 'if (!pluginsFeatureEnabled) return;' in html
+
+
+def test_render_html_has_no_global_file_auto_accept_control() -> None:
+    html = _render_html(file_transfer_enabled=True)
 
     assert 'const fileTransferFeatureEnabled = !!Number(1);' in html
-    assert 'const fileTransferAutoAcceptDefault = !!Number(1);' in html
-    assert 'id="files-auto-accept-toggle"' in html
-    assert "meshDashboardFileTransferAutoAcceptV1" in html
-    assert "function autoAcceptInboundFileTransferIfEnabled(" in html
+    assert "fileTransferBackendAcceptedKeys" in html
+    assert 'id="files-auto-accept-toggle"' not in html
+    assert "/api/settings/file_transfer" not in html
+    assert "fileTransferAutoAccept" not in html
 
 
 def test_dashboard_parser_swallows_removed_bbs_flags_without_restoring_bbs() -> None:
@@ -118,18 +145,71 @@ def test_dashboard_parser_swallows_removed_bbs_flags_without_restoring_bbs() -> 
     assert "bbs" not in parser.format_help().lower()
 
 
-def test_dashboard_parser_rejects_removed_bot_flags() -> None:
+def test_dashboard_parser_supports_master_plugins_enable_flag_and_env_default() -> None:
     parser = _build_parser()
 
-    for flag in (
-        "--bots-enable",
-        "--ping-bot-enable",
-        "--zork-bot-enable",
-    ):
+    default_args = parser.parse_args([])
+    assert default_args.plugins_enable is True
+
+    explicit_enable_args = parser.parse_args(["--plugins-enable"])
+    assert explicit_enable_args.plugins_enable is True
+
+    explicit_disable_args = parser.parse_args(["--no-plugins-enable"])
+    assert explicit_disable_args.plugins_enable is False
+
+    env_enabled_parser = _build_parser(env_plugins_enable="true")
+    assert env_enabled_parser.parse_args([]).plugins_enable is True
+    assert env_enabled_parser.parse_args(["--no-plugins-enable"]).plugins_enable is False
+
+    env_disabled_parser = _build_parser(env_plugins_enable="false")
+    assert env_disabled_parser.parse_args([]).plugins_enable is False
+    assert env_disabled_parser.parse_args(["--plugins-enable"]).plugins_enable is True
+
+    help_text = parser.format_help()
+    assert "--plugins-enable" in help_text
+    assert "--no-plugins-enable" in help_text
+
+
+def test_dashboard_parser_supports_plugin_paths_limits_and_individual_overrides() -> None:
+    parser = _build_parser(
+        env_plugins_directory="/data/plugins",
+        env_plugins_state_db="/data/plugin-state.sqlite3",
+        env_plugins_files_directory="/data/plugin-files",
+        env_plugin_enable="echo, city",
+        env_plugin_disable="old",
+    )
+    args = parser.parse_args(
+        [
+            "--plugins-handler-timeout",
+            "2.5",
+            "--plugins-event-queue-size",
+            "32",
+            "--plugin-enable",
+            "files",
+            "--plugin-disable",
+            "noisy",
+        ]
+    )
+
+    assert args.plugins_directory == "/data/plugins"
+    assert args.plugins_state_db == "/data/plugin-state.sqlite3"
+    assert args.plugins_files_directory == "/data/plugin-files"
+    assert args.plugins_handler_timeout == 2.5
+    assert args.plugins_event_queue_size == 32
+    assert args.plugin_enable == ["echo", "city", "files"]
+    assert args.plugin_disable == ["old", "noisy"]
+
+
+def test_dashboard_parser_rejects_removed_individual_bot_flags() -> None:
+    parser = _build_parser()
+
+    for flag in ("--ping-bot-enable", "--zork-bot-enable"):
         with pytest.raises(SystemExit) as exc:
             parser.parse_args([flag])
         assert exc.value.code == 2
-    assert "bot" not in parser.format_help().lower()
+    help_text = parser.format_help()
+    assert "--ping-bot-enable" not in help_text
+    assert "--zork-bot-enable" not in help_text
 
 
 def test_dashboard_parser_supports_games_enable_flag_and_env_default() -> None:
@@ -145,17 +225,14 @@ def test_dashboard_parser_supports_games_enable_flag_and_env_default() -> None:
     assert explicit_enable_args.games_enable is True
 
 
-def test_dashboard_parser_supports_file_transfer_auto_accept_flag_and_env_default() -> None:
-    parser = _build_parser(env_file_transfer_auto_accept="1")
+def test_dashboard_parser_rejects_removed_file_transfer_auto_accept_flags() -> None:
+    parser = _build_parser()
 
-    env_default_args = parser.parse_args([])
-    assert env_default_args.file_transfer_auto_accept is True
-
-    explicit_disable_args = parser.parse_args(["--no-file-transfer-auto-accept"])
-    assert explicit_disable_args.file_transfer_auto_accept is False
-
-    explicit_enable_args = parser.parse_args(["--file-transfer-auto-accept"])
-    assert explicit_enable_args.file_transfer_auto_accept is True
+    for flag in ("--file-transfer-auto-accept", "--no-file-transfer-auto-accept"):
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args([flag])
+        assert exc.value.code == 2
+    assert "file-transfer-auto-accept" not in parser.format_help()
 
 
 def test_file_transfer_enable_requires_traffic_disclaimer() -> None:

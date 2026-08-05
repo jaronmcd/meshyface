@@ -1,3 +1,4 @@
+import json
 import os
 import socket
 import subprocess
@@ -28,6 +29,7 @@ def test_local_gui_benchmark_script_refuses_accidental_existing_server() -> None
     assert "already responds" in script
     assert "MESH_GUI_BENCH_URL" in script
     assert "MESH_GUI_BENCH_PORT" in script
+    assert "chat,scripts,network:map" in script
 
 
 @pytest.mark.gui_benchmark
@@ -55,4 +57,29 @@ def test_local_gui_responsiveness_stays_within_thresholds(
     )
 
     assert proc.returncode == 0, proc.stdout
-    assert Path(env["MESH_GUI_BENCH_OUTPUT"]).exists()
+    output_path = Path(env["MESH_GUI_BENCH_OUTPUT"])
+    assert output_path.exists()
+    result = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "ReferenceError" not in json.dumps(result)
+    scripts_switches = [
+        sample
+        for sample in result["samples"]
+        if sample.get("label") == "switch:scripts"
+    ]
+    assert scripts_switches
+    assert all(not sample.get("error") for sample in scripts_switches)
+    scripts_polls = [
+        sample
+        for sample in result["samples"]
+        if sample.get("label") == "poll:scripts"
+    ]
+    assert scripts_polls
+    assert all(not sample.get("error") for sample in scripts_polls)
+    for sample in scripts_polls:
+        contract = sample["detail"]["scripts"]
+        assert contract["loading"] is False
+        assert contract["scriptItems"] == 0
+        assert contract["emptyItems"] == 1
+        assert contract["emptyText"]
+        assert contract["runtimeStatus"] != "Waiting for runtime status"
+        assert contract["nodeRosterItems"] == contract["stateNodeCount"]

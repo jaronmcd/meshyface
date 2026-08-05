@@ -11,7 +11,8 @@ The current UI exposes:
 - Network workspace for map, overview, links, routes, sensors, Top 10 rankings,
   node details, and on-demand history
 - Console workspace for live packet/log output
-- Apps workspace with Games and a Files tab when file transfer is enabled
+- Apps workspace with Scripts (Alpha), Games, and a Files tab when file transfer
+  is enabled
 - Settings workspace with radio, device, connectivity, location, channels,
   tickers, lists, appearance, and about panes
 - SQLite-backed history, search, rollups, theme persistence, and custom
@@ -93,8 +94,8 @@ screenshot.
 
 Meshyface nodes can share compact appearance packets containing a node-theme
 recipe and an optional ghost or watermark. Configure and preview your node in
-`Settings > Appearance > Node Appearance`, enable **Share node appearance**,
-then use **Broadcast appearance** to publish it.
+`Settings > Appearance > Node Appearance`, then use **Broadcast appearance** to
+publish it. **Share node appearance** is on by default for fresh installs.
 
 - Appearance packets use the configured Profiles send channel and inherit the
   radio's hop-limit setting; Meshyface does not impose a separate hop limit.
@@ -191,6 +192,20 @@ contributes to the same persisted packet, chat, node, and rollup history.
 Operational commands that inspect or repair local dashboard data are documented
 in [docs/maintenance.md](docs/maintenance.md).
 
+### Plugins and Scripts (Alpha)
+
+Administrator-installed Python plugins run in a spawned worker that is shown by
+default.
+Each plugin currently exports one `Script` with bounded dispatch, handler
+timeouts, durable JSON state, direct-message sessions, validated chat actions,
+node/location lookups, and host-managed file jobs. New local plugins still start
+disabled until an administrator enables them. Script Python is trusted code,
+not sandboxed code. Its management surface is **Apps → Scripts (Alpha)**; it
+shows plugin runtime and enablement status but does not edit or upload code.
+See [Plugins and Script API (Alpha)](docs/plugins.md) for the in-repository
+reference plugins, one-restart enablement flow, package format, API names, trust
+model, and troubleshooting.
+
 ## Links View Semantics
 
 The `Links` subview is a topology view, not a packet-route replay.
@@ -240,8 +255,9 @@ Related environment variables:
   as advanced network diagnostics
 - `--private-mode` / `--no-private-mode`: strip public chat slices and block
   selected public endpoints
-- `--api-token <token>`: require auth on write endpoints via
-  `Authorization: Bearer <token>` or `X-API-Token`; prefer
+- `--api-token <token>`: require auth for external API-style write clients via
+  `Authorization: Bearer <token>` or `X-API-Token`. The dashboard UI uses
+  same-origin browser checks instead of a separate key prompt. Prefer
   `MESH_DASH_API_TOKEN` on shared hosts because command-line tokens may appear
   in process listings and shell history
 - `--allow-tokenless-raw-packet-download` /
@@ -276,8 +292,6 @@ not shown in the dashboard.
 
 - `--file-transfer-enable`: enable the Files app; requires
   `--accept-file-transfer-traffic-disclaimer`
-- `--file-transfer-auto-accept`: accept direct inbound transfers without a
-  browser confirmation
 - `--file-transfer-max-bytes <bytes>`: per-file limit, default `65536` and
   constrained to `1024`-`524288`
 
@@ -290,7 +304,6 @@ configured limit. The Files app displays the selected limit and its source.
 Related environment variables:
 
 - `MESH_DASH_FILE_TRANSFER_ENABLE`
-- `MESH_DASH_FILE_TRANSFER_AUTO_ACCEPT`
 - `MESH_DASH_FILE_TRANSFER_MAX_BYTES`
 - `MESH_DASH_ACCEPT_FILE_TRANSFER_TRAFFIC_DISCLAIMER`
 
@@ -343,7 +356,8 @@ Related environment variables:
 - This dashboard is intended for trusted LAN/VPN environments.
 - Do not expose it directly to the public internet without a reverse proxy and
   access control.
-- Use `--private-mode` and/or an API token for stricter write-path control.
+- Use `--private-mode`, a reverse proxy, or an API token for stricter external
+  API-client write control.
 - Prefer `MESH_DASH_API_TOKEN` over `--api-token` on shared or multi-user
   hosts. A command-line token can be visible in process listings and retained
   in shell history.

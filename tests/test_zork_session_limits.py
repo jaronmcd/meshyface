@@ -1,4 +1,4 @@
-from meshdash.games.zork.engine import ZorkGame
+from meshdash.included_plugins.zork.zork_core.engine import ZorkGame
 
 
 def test_zork_game_evicts_oldest_session_at_capacity() -> None:

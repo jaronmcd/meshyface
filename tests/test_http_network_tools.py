@@ -16,7 +16,9 @@ from meshdash.http_routes_post import handle_dashboard_post
 class _FakeHandler:
     def __init__(self, body: bytes = b"", *, headers: dict[str, object] | None = None) -> None:
         self.path = "/api/tools/network"
-        self.headers = headers or {}
+        self.headers = dict(headers or {})
+        self.headers.setdefault("Host", "127.0.0.1:8877")
+        self.client_address = ("127.0.0.1", 12345)
         self.rfile = io.BytesIO(body)
         self.wfile = io.BytesIO()
 
@@ -28,6 +30,16 @@ class _FakeHandler:
 
     def end_headers(self) -> None:
         pass
+
+
+def _same_origin_json_headers(body: bytes) -> dict[str, str]:
+    return {
+        "Content-Length": str(len(body)),
+        "Content-Type": "application/json",
+        "Host": "127.0.0.1:8877",
+        "Origin": "http://127.0.0.1:8877",
+        "Sec-Fetch-Site": "same-origin",
+    }
 
 
 def test_build_post_route_dependencies_exposes_network_parser_and_runner() -> None:
@@ -89,10 +101,48 @@ def test_handle_dashboard_post_blocks_network_tools_in_private_mode() -> None:
     assert calls == [(403, {"ok": False, "error": "This endpoint is disabled in private mode"})]
 
 
-def test_handle_dashboard_post_requires_token_for_network_tools() -> None:
+def test_handle_dashboard_post_allows_browser_network_tools_when_token_configured() -> None:
+    body = b'{"command":"nodes"}'
+    handler = _FakeHandler(body, headers=_same_origin_json_headers(body))
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_network_tool(request: NetworkToolRequest) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True, "command": request.command}
+
+    deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "run_network_tool_fn": _run_network_tool,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/tools/network", deps=deps)
+
+    assert runs == 1
+    assert calls == [(200, {"ok": True, "command": "nodes"})]
+
+
+def test_handle_dashboard_post_requires_token_for_external_network_tools() -> None:
     handler = _FakeHandler()
     calls: list[tuple[int, object]] = []
-    deps = build_post_route_dependencies(send_chat_fn=None, api_token="secret", to_int_fn=to_int)
+    runs = 0
+
+    def _run_network_tool(request: NetworkToolRequest) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True, "command": request.command}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_network_tool_fn=_run_network_tool,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
     deps = type(deps)(
         **{
             **deps.__dict__,
@@ -102,7 +152,47 @@ def test_handle_dashboard_post_requires_token_for_network_tools() -> None:
 
     handle_dashboard_post(handler, path="/api/tools/network", deps=deps)
 
+    assert runs == 0
     assert calls == [(401, {"ok": False, "error": "API token required for write endpoint"})]
+
+
+def test_handle_dashboard_post_rejects_cross_origin_network_tools() -> None:
+    body = b'{"command":"nodes"}'
+    handler = _FakeHandler(
+        body,
+        headers={
+            "Content-Length": str(len(body)),
+            "Content-Type": "application/json",
+            "Host": "127.0.0.1:8877",
+            "Origin": "https://attacker.example",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    calls: list[tuple[int, object]] = []
+    runs = 0
+
+    def _run_network_tool(request: NetworkToolRequest) -> dict[str, object]:
+        nonlocal runs
+        runs += 1
+        return {"ok": True, "command": request.command}
+
+    deps = build_post_route_dependencies(
+        send_chat_fn=None,
+        run_network_tool_fn=_run_network_tool,
+        api_token="secret",
+        to_int_fn=to_int,
+    )
+    deps = type(deps)(
+        **{
+            **deps.__dict__,
+            "write_json_response_fn": lambda handler, *, status_code, payload_obj, **kwargs: calls.append((status_code, payload_obj)),
+        }
+    )
+
+    handle_dashboard_post(handler, path="/api/tools/network", deps=deps)
+
+    assert runs == 0
+    assert calls == [(403, {"ok": False, "error": "Cross-origin writes are not allowed"})]
 
 
 def test_handle_dashboard_post_dispatches_network_tool_requests() -> None:
