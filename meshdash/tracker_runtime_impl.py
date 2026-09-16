@@ -227,7 +227,10 @@ class DashboardTracker:
                     pass
             self._record_meshyface_profile_unlocked(packet)
             self._record_packet_unlocked(packet, interface, include_live_count=True)
-            self._purge_live_state_unlocked(bump_revision=False)
+            # Trim to the retention caps now, inside the same revision bump. A later
+            # snapshot must never find rows to trim: that would change state after the
+            # response ETag was computed and force the next poll to rebuild.
+            self._purge_live_state_unlocked(force=True, bump_revision=False)
             self._bump_state_revision_unlocked()
             listeners = tuple(self._accepted_packet_listeners)
         for listener in listeners:
@@ -319,14 +322,14 @@ class DashboardTracker:
                 now_unix_fn=time.time,
             )
             if changed:
-                self._purge_live_state_unlocked(bump_revision=False)
+                self._purge_live_state_unlocked(force=True, bump_revision=False)
                 self._bump_state_revision_unlocked()
 
     def seed_packet(self, packet: dict[str, object], interface: object) -> None:
         with self._lock:
             self._record_meshyface_profile_unlocked(packet)
             self._record_packet_unlocked(packet, interface, include_live_count=False)
-            self._purge_live_state_unlocked(bump_revision=False)
+            self._purge_live_state_unlocked(force=True, bump_revision=False)
             self._bump_state_revision_unlocked()
 
     def _record_meshyface_profile_unlocked(self, packet: object) -> bool:
@@ -590,7 +593,9 @@ class DashboardTracker:
 
     def snapshot_typed(self, nodes_by_id: dict[str, dict[str, object]]) -> TrackerSnapshot:
         with self._lock:
-            self._purge_live_state_unlocked(force=True, bump_revision=True)
+            # Defensive trim only: inserts already enforce the caps. It must not bump the
+            # revision, because the caller keyed its cache and ETag before this snapshot.
+            self._purge_live_state_unlocked(force=True, bump_revision=False)
             return _build_tracker_snapshot_for_tracker_typed_helper(
                 self,
                 nodes_by_id=nodes_by_id,

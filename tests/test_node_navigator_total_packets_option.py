@@ -325,6 +325,9 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
     assert "const nodeValues = nodeExplorerPluginRuntimeFieldValueIndex(state).get(cleanNodeId);" in js
     assert "runtime.node_fields" in js
     assert "runtime.node_field_values" in js
+    assert "function nodeListMirrorFieldValueForNode(nodeInput, fieldIdRaw, state = null) {" in js
+    assert "rawValue = nodeListMirrorFieldValueForNode(node, pluginFieldId, opts.state || null);" in js
+    assert "runtime.node_list_cities" in js
     assert "function nodeExplorerNodeListPluginProvidesField(fieldId, state = null)" in js
     assert "const nodeExplorerNodeListPluginNativeFieldIds = new Set([" in js
     for field_id in (

@@ -198,6 +198,117 @@
       return nodeValues instanceof Map ? (nodeValues.get(cleanFieldId) || null) : null;
     }}
 
+    // node_list mirror fields are not shipped per node: the server would repeat the node
+    // rows this state already carries (8k+ rows on a large mesh). Derive them here with the
+    // same value/sort/title rules the server used; only city labels come from the server.
+    const nodeListMirrorFieldIds = new Set([...nodeExplorerNodeListPluginNativeFieldIds, "city"]);
+
+    function nodeListMirrorFirstPresent(row, keys) {{
+      for (const key of keys) {{
+        const value = row[key];
+        if (value !== undefined && value !== null && value !== "") return value;
+      }}
+      return null;
+    }}
+
+    function nodeListMirrorNumber(value) {{
+      if (typeof value === "number") return Number.isFinite(value) ? value : null;
+      if (typeof value !== "string" || !value.trim()) return null;
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    }}
+
+    function nodeListMirrorInteger(value) {{
+      if (typeof value === "number") return Number.isFinite(value) ? Math.trunc(value) : null;
+      if (typeof value !== "string" || !/^\s*[+-]?\d+\s*$/.test(value)) return null;
+      return Number.parseInt(value, 10);
+    }}
+
+    function nodeListMirrorLocation(row) {{
+      const position = row.position && typeof row.position === "object" ? row.position : null;
+      const source = position || row;
+      const lat = nodeListMirrorNumber(nodeListMirrorFirstPresent(source, ["latitude", "lat"]));
+      const lon = nodeListMirrorNumber(nodeListMirrorFirstPresent(source, ["longitude", "lon"]));
+      if (lat == null || lon == null) return null;
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+      if (Math.abs(lat) < 1e-9 && Math.abs(lon) < 1e-9) return null;
+      return {{ lat, lon }};
+    }}
+
+    function nodeListMirrorCityLabel(nodeId, state = null) {{
+      const safeState = nodeExplorerStateForPluginRuntime(state);
+      const runtime = safeState && safeState.summary && safeState.summary.plugins && safeState.summary.plugins.runtime;
+      const cities = runtime && runtime.node_list_cities && typeof runtime.node_list_cities === "object"
+        ? runtime.node_list_cities
+        : null;
+      const label = cities && Object.prototype.hasOwnProperty.call(cities, nodeId) ? cities[nodeId] : null;
+      return typeof label === "string" && label.trim() ? label.trim() : null;
+    }}
+
+    function nodeListMirrorFieldValueForNode(nodeInput, fieldIdRaw, state = null) {{
+      const row = nodeInput && typeof nodeInput === "object" ? nodeInput : null;
+      const fieldId = String(fieldIdRaw || "").trim().toLowerCase();
+      if (!row || !nodeListMirrorFieldIds.has(fieldId)) return null;
+      const nodeId = String(row.id || "").trim().toLowerCase();
+      if (!/^![0-9a-f]{{8}}$/.test(nodeId)) return null;
+      const counted = (number, title) => ({{ value: number == null ? "n/a" : number, sort: number, title }});
+      if (fieldId === "id") {{
+        return {{ value: nodeId, sort: nodeId, title: `Node ID: ${{nodeId}}` }};
+      }}
+      if (fieldId === "snr") {{
+        const number = nodeListMirrorNumber(nodeListMirrorFirstPresent(row, ["snr", "rx_snr", "avg_snr"]));
+        // The server formatted SNR as a Python float, so whole numbers read "-6.0".
+        const snrText = number != null && Number.isInteger(number) ? number.toFixed(1) : String(number);
+        return counted(number, number == null ? "SNR: n/a" : `SNR: ${{snrText}} dB`);
+      }}
+      if (fieldId === "hardware") {{
+        const text = String(nodeListMirrorFirstPresent(row, ["hardware_model", "hardware"]) || "").trim() || "n/a";
+        return {{ value: text, sort: text.toLowerCase(), title: `Hardware: ${{text}}` }};
+      }}
+      if (fieldId === "battery") {{
+        const number = nodeListMirrorInteger(nodeListMirrorFirstPresent(row, ["battery_level", "battery"]));
+        return counted(number, number == null ? "Battery: n/a" : `Battery: ${{number}}%`);
+      }}
+      if (fieldId === "hops") {{
+        const number = nodeListMirrorInteger(nodeListMirrorFirstPresent(row, ["hops_away", "hops", "last_hops"]));
+        return counted(number, `Hops: ${{number == null ? "n/a" : number}}`);
+      }}
+      if (fieldId === "last_heard") {{
+        const number = nodeListMirrorInteger(nodeListMirrorFirstPresent(row, ["last_heard_unix", "last_heard_epoch", "last_heard"]));
+        return counted(number != null && number > 0 ? number : null, "Last heard");
+      }}
+      if (fieldId === "links") {{
+        const number = nodeListMirrorInteger(nodeListMirrorFirstPresent(row, ["link_count", "links"]));
+        const packets = nodeListMirrorInteger(nodeListMirrorFirstPresent(row, ["link_packet_count", "link_packets"]));
+        if (number == null) return counted(null, "Links: n/a");
+        const nodesText = `${{number}} linked node${{number !== 1 ? "s" : ""}}`;
+        return counted(
+          number,
+          packets != null && packets > 0
+            ? `${{nodesText}}; ${{packets}} link packet${{packets !== 1 ? "s" : ""}}`
+            : nodesText
+        );
+      }}
+      if (fieldId === "saved") {{
+        const number = nodeListMirrorInteger(nodeListMirrorFirstPresent(row, ["saved_packets", "total_packets"]));
+        return counted(number, `Total packets: ${{number == null ? "n/a" : number}}`);
+      }}
+      if (fieldId === "pos") {{
+        const location = nodeListMirrorLocation(row);
+        if (!location) return {{ value: "n/a", sort: null, title: "Position: n/a" }};
+        const text = `${{location.lat.toFixed(5)}}, ${{location.lon.toFixed(5)}}`;
+        return {{ value: text, sort: location.lat, title: `Position: ${{text}}` }};
+      }}
+      if (fieldId === "location_points") {{
+        const number = nodeListMirrorInteger(nodeListMirrorFirstPresent(row, ["position_points", "location_points"]));
+        return counted(number, `Location points: ${{number == null ? "n/a" : number}}`);
+      }}
+      const city = nodeListMirrorCityLabel(nodeId, state);
+      return city
+        ? {{ value: city, sort: city.toLowerCase(), title: city }}
+        : {{ value: "n/a", sort: null, title: "City: n/a" }};
+    }}
+
     function nodeExplorerPluginFieldDefsFromState(state = null) {{
       const safeState = nodeExplorerStateForPluginRuntime(state);
       if (nodeExplorerPluginFieldDefsByState instanceof WeakMap && safeState && typeof safeState === "object") {{
@@ -575,6 +686,9 @@
         }}
         if (rawValue == null) {{
           rawValue = nodeExplorerPluginFieldRuntimeValueForNode(nodeId, fieldId, opts.state || null);
+        }}
+        if (rawValue == null && pluginId === "node_list") {{
+          rawValue = nodeListMirrorFieldValueForNode(node, pluginFieldId, opts.state || null);
         }}
         const rawObject = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)
           ? rawValue

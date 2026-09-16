@@ -1,3 +1,5 @@
+import json
+
 import meshdash.api_system as api_system_module
 
 from meshdash.api_system import (
@@ -741,7 +743,7 @@ def test_handle_state_get_exposes_only_public_plugin_health_and_tickers() -> Non
     assert "worker_pid" not in serialized
 
 
-def test_handle_state_get_mirrors_node_list_plugin_fields_from_current_node_rows(monkeypatch) -> None:
+def test_handle_state_get_sends_node_list_cities_instead_of_mirror_rows(monkeypatch) -> None:
     monkeypatch.setattr(
         api_system_module,
         "_nearest_city",
@@ -880,18 +882,91 @@ def test_handle_state_get_mirrors_node_list_plugin_fields_from_current_node_rows
         private_mode=False,
     )
 
-    values = written[0]["payload_obj"]["summary"]["plugins"]["runtime"]["node_field_values"]
-    by_key = {
-        (row["node_id"], row["field_id"]): row
-        for row in values
-    }
-    assert by_key[("!01020304", "saved")]["value"] == 42
-    assert by_key[("!05060708", "saved")]["value"] == 7
-    assert by_key[("!01020304", "links")]["value"] == 3
-    assert by_key[("!01020304", "location_points")]["value"] == 9
-    assert by_key[("!01020304", "city")]["value"] == "Saint Paul, Minnesota"
-    assert by_key[("!01020304", "city")]["title"] == "Saint Paul, Minnesota"
-    assert len([row for row in values if row["field_id"] == "saved"]) == 2
+    runtime = written[0]["payload_obj"]["summary"]["plugins"]["runtime"]
+    # Mirror values are derived in the browser from the node rows; stale worker rows for
+    # mirror fields are dropped rather than forwarded.
+    assert runtime["node_field_values"] == []
+    assert runtime["node_list_cities"] == {"!01020304": "Saint Paul, Minnesota"}
+    assert [field["field_id"] for field in runtime["node_fields"]] == ["saved", "links", "location_points", "city"]
+
+
+def test_handle_state_get_node_list_payload_stays_small_on_large_meshes(monkeypatch) -> None:
+    # Guard: node_list used to ship 11 rows per node (8k+ rows, ~1.5 MB on a 750-node mesh)
+    # and resolve a city per request. The public runtime must now grow by a short city label
+    # per positioned node only, with one city lookup per node.
+    lookups: list[tuple[float, float]] = []
+
+    def fake_nearest_city(lat: float, lon: float) -> dict[str, str]:
+        lookups.append((lat, lon))
+        return {"name": "Saint Paul", "state": "Minnesota", "country": "United States"}
+
+    monkeypatch.setattr(api_system_module, "_nearest_city", fake_nearest_city)
+    node_count = 2000
+    nodes = [
+        {
+            "id": f"!{index:08x}",
+            "hardware_model": "HELTEC_V3",
+            "battery_level": 80,
+            "hops_away": 2,
+            "last_heard_unix": 1_700_000_000 + index,
+            "snr": -7.25,
+            "link_count": 4,
+            "link_packet_count": 12,
+            "saved_packets": 900,
+            "lat": 44.9 + index * 1e-4,
+            "lon": -93.1,
+            "position_points": 30,
+        }
+        for index in range(node_count)
+    ]
+    node_fields = [
+        {
+            "id": f"plugin:node_list:{field_id}",
+            "plugin_id": "node_list",
+            "field_id": field_id,
+            "label": field_id,
+            "group": "Node List",
+            "value_type": "text",
+            "render_kinds": ["text"],
+            "default_render_kind": "text",
+            "default_visible": False,
+            "sortable": True,
+            "roster_line": 2,
+            "runtime_status": "running",
+        }
+        for field_id in sorted(api_system_module._NODE_LIST_MIRROR_FIELD_IDS)
+    ]
+
+    def state_fn():
+        return {
+            "generated_at": "now",
+            "nodes": nodes,
+            "summary": {
+                "plugins": {
+                    "enabled": True,
+                    "enabled_plugins": ["node_list"],
+                    "scripts": [],
+                    "runtime": {"status": "running", "worker_alive": True, "tickers": [], "node_fields": node_fields},
+                }
+            },
+            "traffic": {},
+        }
+
+    written: list[dict[str, object]] = []
+    handle_state_get(
+        _Handler(),
+        state_fn=state_fn,
+        write_json_response_fn=lambda _handler, **kwargs: written.append(kwargs),
+        query="lite=1",
+        private_mode=False,
+    )
+
+    runtime = written[0]["payload_obj"]["summary"]["plugins"]["runtime"]
+    assert runtime["node_field_values"] == []
+    assert len(runtime["node_list_cities"]) == node_count
+    assert len(lookups) == node_count
+    runtime_bytes = len(json.dumps(runtime, separators=(",", ":")))
+    assert runtime_bytes < 64 * node_count, runtime_bytes
 
 
 def test_handle_state_get_ignores_bad_etag_and_fault_history_helpers() -> None:
