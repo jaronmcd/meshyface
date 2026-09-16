@@ -1444,6 +1444,12 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "LONG_FAST: { rangeKm: 52, strongKm: 15 }" in js
     assert "const dashboardLivemapEstimatedRangeMaxLinks = 360;" in js
     assert "const dashboardLivemapEstimatedRangeMaxLinksPerNode = 5;" in js
+    # Guard: estimated links are O(points²); the input and rebuild cadence must stay bounded.
+    assert "const dashboardLivemapEstimatedRangeMaxPoints = 500;" in js
+    assert "const dashboardLivemapEstimatedRangeRebuildMs = 15000;" in js
+    assert "function dashboardLivemapEstimatedRangeLinksForGeometry(points, nowUnix, rangeProfile) {" in js
+    assert "const estimatedRangeLinks = dashboardLivemapEstimatedRangeLinksForGeometry(points, nowUnix, rangeProfile);" in js
+    assert "dashboardLivemapBuildEstimatedRangeLinks(points, nowUnix, rangeProfile);" not in js
     assert "function dashboardLivemapNormalizeModemPreset(value) {" in js
     assert "function dashboardLivemapModemPresetFromState(state) {" in js
     assert "function dashboardLivemapEstimatedRangeProfile(state) {" in js

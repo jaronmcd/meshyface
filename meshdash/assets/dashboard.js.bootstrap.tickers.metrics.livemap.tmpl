@@ -28,6 +28,7 @@
     let dashboardLivemapMeshFadeStartedAt = null;
     let dashboardLivemapCachedNodeView = null;
     let dashboardLivemapBestNodeView = null;
+    let dashboardLivemapEstimatedRangeCache = null;
 
     const dashboardLivemapGeometryRefreshMs = 5000;
     const dashboardLivemapMinViewSpan = 0.004;
@@ -75,6 +76,12 @@
     }});
     const dashboardLivemapEstimatedRangeMaxLinks = 360;
     const dashboardLivemapEstimatedRangeMaxLinksPerNode = 5;
+    // Estimated links compare every pair of positioned nodes, and in a metro mesh most pairs
+    // are within radio range, so no spatial index helps. Keep the cost fixed as the mesh grows:
+    // consider only the most recently heard nodes (stale ones get the faintest links anyway)
+    // and rebuild on a slow cadence instead of on every poll.
+    const dashboardLivemapEstimatedRangeMaxPoints = 500;
+    const dashboardLivemapEstimatedRangeRebuildMs = 15000;
     const dashboardLivemapMaxMercatorLat = 85.05112878;
 
     // Offline map expansion packs: the background reuses the map screen's
@@ -362,6 +369,56 @@
       if (ageSeconds <= 15 * 60) return 1;
       if (ageSeconds >= 2 * 60 * 60) return 0.35;
       return 1 - ((ageSeconds - (15 * 60)) / ((2 * 60 * 60) - (15 * 60)) * 0.65);
+    }}
+
+    function dashboardLivemapEstimatedRangePoints(points) {{
+      if (!Array.isArray(points) || points.length <= dashboardLivemapEstimatedRangeMaxPoints) return points;
+      const recencyOf = (point) => Math.max(
+        Number(point && point.positionLastSeenUnix) || 0,
+        Number(point && point.lastHeardUnix) || 0
+      );
+      const kept = new Set(
+        points
+          .map((point, index) => [index, recencyOf(point)])
+          .sort((left, right) => (right[1] - left[1]) || (left[0] - right[0]))
+          .slice(0, dashboardLivemapEstimatedRangeMaxPoints)
+          .map((entry) => entry[0])
+      );
+      // Keep the original order so tie-breaking in the link builder is unchanged.
+      return points.filter((_point, index) => kept.has(index));
+    }}
+
+    function dashboardLivemapEstimatedRangeLinksForGeometry(points, nowUnix, rangeProfile) {{
+      const nowMs = dashboardLivemapNowMs();
+      const rangeKm = Number(rangeProfile && rangeProfile.rangeKm);
+      const strongKm = Number(rangeProfile && rangeProfile.strongKm);
+      const cache = dashboardLivemapEstimatedRangeCache;
+      if (
+        cache &&
+        cache.rangeKm === rangeKm &&
+        cache.strongKm === strongKm &&
+        (nowMs - cache.builtAtMs) < dashboardLivemapEstimatedRangeRebuildMs
+      ) {{
+        const pointsByKey = new Map();
+        for (const point of (Array.isArray(points) ? points : [])) {{
+          if (point && point.key) pointsByKey.set(point.key, point);
+        }}
+        const links = [];
+        for (const link of cache.links) {{
+          const a = pointsByKey.get(link.aKey);
+          const b = pointsByKey.get(link.bKey);
+          if (!a || !b) continue;
+          links.push({{ ...link, ax: a.x, ay: a.y, bx: b.x, by: b.y }});
+        }}
+        return links;
+      }}
+      const links = dashboardLivemapBuildEstimatedRangeLinks(
+        dashboardLivemapEstimatedRangePoints(points),
+        nowUnix,
+        rangeProfile
+      );
+      dashboardLivemapEstimatedRangeCache = {{ builtAtMs: nowMs, rangeKm, strongKm, links }};
+      return links;
     }}
 
     function dashboardLivemapBuildEstimatedRangeLinks(points, nowUnix, rangeProfile = null) {{
@@ -1259,7 +1316,7 @@
         }});
       }}
       const rangeProfile = dashboardLivemapEstimatedRangeProfile(state);
-      const estimatedRangeLinks = dashboardLivemapBuildEstimatedRangeLinks(points, nowUnix, rangeProfile);
+      const estimatedRangeLinks = dashboardLivemapEstimatedRangeLinksForGeometry(points, nowUnix, rangeProfile);
       dashboardLivemapGeometry = {{ points, links, estimatedRangeLinks, rangeProfile, nowUnix }};
       dashboardLivemapSyncLinkTransitions(dashboardLivemapGeometry, dashboardLivemapNowMs());
       const hasLivePoints = points.length > 0;
@@ -1767,6 +1824,7 @@
         dashboardLivemapBestNodeView = null;
         dashboardLivemapView = null;
         dashboardLivemapLinkTransitions = new Map();
+        dashboardLivemapEstimatedRangeCache = null;
       }}
       dashboardLivemapActive = true;
       refreshDashboardLivemapGeometry();
