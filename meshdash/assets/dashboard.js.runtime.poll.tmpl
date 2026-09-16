@@ -695,7 +695,9 @@
         }}
         if (typeof refreshConsoleNodeRowsCache === "function") {{
           refreshConsoleNodeRowsCache(rawState);
-          refreshConsoleNodeRowsCache(state);
+          if (state !== rawState) {{
+            refreshConsoleNodeRowsCache(state);
+          }}
         }}
         latestStatePollProfile = pollProfile;
         if (typeof requestDashboardLivemapRefit === "function") {{

@@ -1066,40 +1066,57 @@
         projectionById.set(nodeId, projection);
         return projection;
       }};
+      // The key helpers are pure, so evaluate them once per row rather than on each of the
+      // O(n log n) comparisons; projection-based keys stay lazy like the projections.
+      const pinSections = activeChatChannel === "direct" && usePrioritySections;
+      const sortKeysByRow = new Map();
+      const sortKeysFor = (row) => {{
+        let keys = sortKeysByRow.get(row);
+        if (!keys) {{
+          keys = {{
+            unread: chatNodeNavigatorUnreadDirectCount(sourceUnreadDirectByPeer, row && row.id),
+            pinned: Number(!!(row && row.p2pPinned)),
+            projected: false,
+            value: null,
+            status: null,
+            lastUpdate: null,
+          }};
+          sortKeysByRow.set(row, keys);
+        }}
+        return keys;
+      }};
+      const projectedSortKeysFor = (row) => {{
+        const keys = sortKeysFor(row);
+        if (!keys.projected) {{
+          const projection = projectionFor(row);
+          keys.value = chatNodeNavigatorSortValue(row, projection, sortKey, nowUnix);
+          keys.status = chatNodeNavigatorStatusSortValue(row, projection);
+          keys.lastUpdate = chatNodeNavigatorLastUpdateUnix(row, projection);
+          keys.projected = true;
+        }}
+        return keys;
+      }};
       rows.sort((a, b) => {{
-        const unreadDiff = (
-          chatNodeNavigatorUnreadDirectCount(sourceUnreadDirectByPeer, b && b.id)
-          - chatNodeNavigatorUnreadDirectCount(sourceUnreadDirectByPeer, a && a.id)
-        );
+        const unreadDiff = sortKeysFor(b).unread - sortKeysFor(a).unread;
         if (unreadDiff !== 0) return unreadDiff;
 
-        const pinDiff = activeChatChannel === "direct" && usePrioritySections
-          ? (Number(!!(b && b.p2pPinned)) - Number(!!(a && a.p2pPinned)))
-          : 0;
+        const pinDiff = pinSections ? (sortKeysFor(b).pinned - sortKeysFor(a).pinned) : 0;
         if (pinDiff !== 0) return pinDiff;
 
-        const aProjection = projectionFor(a);
-        const bProjection = projectionFor(b);
-        const aValue = chatNodeNavigatorSortValue(a, aProjection, sortKey, nowUnix);
-        const bValue = chatNodeNavigatorSortValue(b, bProjection, sortKey, nowUnix);
-        const cmp = chatNodeNavigatorCompareSortValues(aValue, bValue);
+        const aKeys = projectedSortKeysFor(a);
+        const bKeys = projectedSortKeysFor(b);
+        const cmp = chatNodeNavigatorCompareSortValues(aKeys.value, bKeys.value);
         if (cmp !== 0) {{
           return sortDir === "desc" ? -cmp : cmp;
         }}
 
-        const statusCmp = chatNodeNavigatorCompareSortValues(
-          chatNodeNavigatorStatusSortValue(a, aProjection),
-          chatNodeNavigatorStatusSortValue(b, bProjection)
-        );
+        const statusCmp = chatNodeNavigatorCompareSortValues(aKeys.status, bKeys.status);
         if (statusCmp !== 0) return statusCmp;
 
         // Status is the default grouped view. Within each freshness bucket,
         // keep the nodes we most recently received from at the top.
         if (sortKey === "status") {{
-          const receivedCmp = chatNodeNavigatorCompareSortValues(
-            chatNodeNavigatorLastUpdateUnix(b, bProjection),
-            chatNodeNavigatorLastUpdateUnix(a, aProjection)
-          );
+          const receivedCmp = chatNodeNavigatorCompareSortValues(bKeys.lastUpdate, aKeys.lastUpdate);
           if (receivedCmp !== 0) return receivedCmp;
         }}
 

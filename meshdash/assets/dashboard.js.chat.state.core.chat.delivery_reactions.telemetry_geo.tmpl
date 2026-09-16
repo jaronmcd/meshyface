@@ -682,6 +682,23 @@
       return estimates;
     }}
 
+    const nodeCityLocationNodesByState = (typeof WeakMap === "function") ? new WeakMap() : null;
+
+    function nodeCityLocationNodeById(safeState, cleanNodeId) {{
+      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
+      // Called for every roster row; a linear find made each render O(rows x nodes).
+      let byId = nodeCityLocationNodesByState ? nodeCityLocationNodesByState.get(nodes) : null;
+      if (!(byId instanceof Map)) {{
+        byId = new Map();
+        for (const node of nodes) {{
+          const id = normalizeNodeId(node && node.id);
+          if (!byId.has(id)) byId.set(id, node);
+        }}
+        if (nodeCityLocationNodesByState) nodeCityLocationNodesByState.set(nodes, byId);
+      }}
+      return byId.get(cleanNodeId) || null;
+    }}
+
     function resolveNodeCityLocationMeta(nodeId, state = latestState, item = null, options = null) {{
       const safeState = (state && typeof state === "object") ? state : {{}};
       const opts = (options && typeof options === "object") ? options : {{}};
@@ -704,10 +721,9 @@
       )
         ? [safeState.local_state, safeState.localState]
         : [];
-      const nodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
       let matchedNode = null;
       if (isSelectableNodeId(cleanNodeId)) {{
-        matchedNode = nodes.find((node) => normalizeNodeId(node && node.id) === cleanNodeId) || null;
+        matchedNode = nodeCityLocationNodeById(safeState, cleanNodeId);
       }}
       const extraSources = Array.isArray(opts.extraSources) ? opts.extraSources : [];
       const gpsSources = [item, matchedNode, ...localNodeSources, ...extraSources]

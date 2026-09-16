@@ -897,6 +897,14 @@
       }}
     }}
 
+    function consoleLayoutActive() {{
+      // Anchoring and autoscroll read scroll metrics, which forces a full-page layout. The
+      // console has no layout while another view is active, yet its prompt is re-rendered on
+      // every poll; skip the measurements then. Switching to the console re-renders the
+      // buffer and its ResizeObserver re-anchors it.
+      return typeof activeLayoutView === "undefined" || activeLayoutView === "console";
+    }}
+
     function applyConsoleBottomAnchor(pre) {{
       if (!(pre instanceof HTMLElement)) return;
       const baseTopPadding = 12;
@@ -957,6 +965,7 @@
       }}
       consoleAnchorRefreshRaf = window.requestAnimationFrame(() => {{
         consoleAnchorRefreshRaf = null;
+        if (!consoleLayoutActive()) return;
         applyConsoleBottomAnchor(pre);
         applyConsoleAutoscroll(pre, forceScroll);
       }});
@@ -986,6 +995,7 @@
       if (typeof renderConsoleAutocompleteMenu === "function") {{
         renderConsoleAutocompleteMenu(consoleCommandInputElement(), latestState);
       }}
+      if (!consoleLayoutActive()) return;
       applyConsoleBottomAnchor(pre);
       applyConsoleAutoscroll(pre, forceScroll);
       scheduleConsoleAnchorRefresh(pre, forceScroll);
@@ -1016,6 +1026,7 @@
       if (typeof renderConsoleAutocompleteMenu === "function") {{
         renderConsoleAutocompleteMenu(consoleCommandInputElement(), latestState);
       }}
+      if (!consoleLayoutActive()) return;
       applyConsoleBottomAnchor(pre);
       applyConsoleAutoscroll(pre, forceScroll);
       scheduleConsoleAnchorRefresh(pre, forceScroll);

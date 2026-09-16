@@ -400,8 +400,9 @@ def test_dashboard_js_only_applies_saved_peer_pin_sorting_in_direct_mode() -> No
         node_history_max_points=240,
     )
 
-    assert 'const pinDiff = activeChatChannel === "direct"' in js
-    assert '? (Number(!!(b && b.p2pPinned)) - Number(!!(a && a.p2pPinned)))' in js
+    assert 'const pinSections = activeChatChannel === "direct" && usePrioritySections;' in js
+    assert "pinned: Number(!!(row && row.p2pPinned))," in js
+    assert "const pinDiff = pinSections ? (sortKeysFor(b).pinned - sortKeysFor(a).pinned) : 0;" in js
     assert '? (Number(!!b.p2pPinned) - Number(!!a.p2pPinned))' in js
 
 
@@ -598,8 +599,8 @@ def test_dashboard_js_sorts_status_using_visible_freshness_snapshot() -> None:
     assert "freshnessUnix: entry && entry.lastSeenUnix," in js
     assert "freshnessUnix: snapshot && snapshot.lastSeenUnix," in js
     assert "return chatNodeNavigatorStatusSortValue(safeItem, safeProjection);" in js
-    assert "chatNodeNavigatorStatusSortValue(a, aProjection)" in js
-    assert "chatNodeNavigatorStatusSortValue(b, bProjection)" in js
+    assert "keys.status = chatNodeNavigatorStatusSortValue(row, projection);" in js
+    assert "const statusCmp = chatNodeNavigatorCompareSortValues(aKeys.status, bKeys.status);" in js
 
 
 def test_dashboard_js_orders_equal_status_nodes_by_latest_received() -> None:
@@ -610,12 +611,10 @@ def test_dashboard_js_orders_equal_status_nodes_by_latest_received() -> None:
     )
 
     received_tie_break = """if (sortKey === \"status\") {
-          const receivedCmp = chatNodeNavigatorCompareSortValues(
-            chatNodeNavigatorLastUpdateUnix(b, bProjection),
-            chatNodeNavigatorLastUpdateUnix(a, aProjection)
-          );
+          const receivedCmp = chatNodeNavigatorCompareSortValues(bKeys.lastUpdate, aKeys.lastUpdate);
           if (receivedCmp !== 0) return receivedCmp;
         }"""
+    assert "keys.lastUpdate = chatNodeNavigatorLastUpdateUnix(row, projection);" in js
     assert received_tie_break in js
     assert js.index(received_tie_break) < js.index("const activityCmp = chatNodeNavigatorCompareSortValues(")
 
