@@ -50,12 +50,10 @@
       return !!rawHex && (suffix === rawHex || suffix === shortHex);
     }}
 
-    function rememberNodeNameCacheCandidate(nodeIdRaw, candidateRaw, options = null) {{
-      const nodeId = normalizeNodeId(nodeIdRaw || "");
+    function nextNodeNameCacheLabel(nodeId, currentRaw, candidateRaw, options = null) {{
+      const current = String(currentRaw || "").trim();
       const candidate = String(candidateRaw || "").trim();
-      if (!isSelectableNodeId(nodeId) || !candidate) return false;
-      const current = String(nodeNameCache.get(nodeId) || "").trim();
-      if (current && current === candidate) return false;
+      if (!candidate || (current && current === candidate)) return current;
       const preferCandidate = !!(options && options.preferCandidate);
       if (current) {{
         const currentEmoji = (typeof normalizeNodeTagEmoji === "function")
@@ -66,7 +64,7 @@
           : "";
         // Keep the richer label if it already carries an emoji and the replacement does not.
         if (currentEmoji && !candidateEmoji && !preferCandidate) {{
-          return false;
+          return current;
         }}
       }}
       if (
@@ -74,37 +72,62 @@
         && !isGenericNodeCacheLabel(current, nodeId)
         && isGenericNodeCacheLabel(candidate, nodeId)
       ) {{
-        return false;
+        return current;
       }}
-      nodeNameCache.set(nodeId, candidate);
+      return candidate;
+    }}
+
+    function rememberNodeNameCacheCandidate(nodeIdRaw, candidateRaw, options = null) {{
+      const nodeId = normalizeNodeId(nodeIdRaw || "");
+      if (!isSelectableNodeId(nodeId)) return false;
+      const current = String(nodeNameCache.get(nodeId) || "").trim();
+      const next = nextNodeNameCacheLabel(nodeId, current, candidateRaw, options);
+      if (!next || next === current) return false;
+      nodeNameCache.set(nodeId, next);
       return true;
     }}
 
     function updateNodeNameCache(nodes, historyCaps = null) {{
-      let changed = false;
+      // Every node offers up to four names (node short/long, history short/long) and the long
+      // name usually wins. Applying each one straight to the cache rewrote most entries twice
+      // per call, so the whole cache was re-serialized to localStorage on every poll. Fold the
+      // candidates per node in the same order and write only entries whose final label changed.
+      const candidatesByNode = new Map();
+      const offerCandidate = (nodeId, candidateRaw, preferCandidate) => {{
+        const candidate = String(candidateRaw || "").trim();
+        if (!candidate) return;
+        let candidates = candidatesByNode.get(nodeId);
+        if (!candidates) {{
+          candidates = [];
+          candidatesByNode.set(nodeId, candidates);
+        }}
+        candidates.push({{ candidate, preferCandidate }});
+      }};
       for (const node of (nodes || [])) {{
         const nodeId = normalizeNodeId(node.id || "");
         if (!isSelectableNodeId(nodeId)) continue;
-        const shortName = node && node.short_name;
-        const longName = node && node.long_name;
-        if (rememberNodeNameCacheCandidate(nodeId, shortName)) {{
-          changed = true;
-        }}
-        if (rememberNodeNameCacheCandidate(nodeId, longName, {{ preferCandidate: true }})) {{
-          changed = true;
-        }}
+        offerCandidate(nodeId, node && node.short_name, false);
+        offerCandidate(nodeId, node && node.long_name, true);
       }}
       const historyCapsObj = historyCaps && typeof historyCaps === "object" ? historyCaps : null;
       if (historyCapsObj) {{
         for (const [rawNodeId, caps] of Object.entries(historyCapsObj)) {{
           const nodeId = normalizeNodeId(rawNodeId || "");
           if (!isSelectableNodeId(nodeId) || !(caps && typeof caps === "object")) continue;
-          if (rememberNodeNameCacheCandidate(nodeId, caps.last_short_name)) {{
-            changed = true;
-          }}
-          if (rememberNodeNameCacheCandidate(nodeId, caps.last_long_name, {{ preferCandidate: true }})) {{
-            changed = true;
-          }}
+          offerCandidate(nodeId, caps.last_short_name, false);
+          offerCandidate(nodeId, caps.last_long_name, true);
+        }}
+      }}
+      let changed = false;
+      for (const [nodeId, candidates] of candidatesByNode) {{
+        const current = String(nodeNameCache.get(nodeId) || "").trim();
+        let next = current;
+        for (const entry of candidates) {{
+          next = nextNodeNameCacheLabel(nodeId, next, entry.candidate, {{ preferCandidate: entry.preferCandidate }});
+        }}
+        if (next && next !== current) {{
+          nodeNameCache.set(nodeId, next);
+          changed = true;
         }}
       }}
       if (changed) {{

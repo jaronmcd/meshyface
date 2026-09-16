@@ -73,22 +73,36 @@
       return String(fallback);
     }}
 
+    // Node names are re-checked for emoji thousands of times per poll (name cache, labels,
+    // map markers), and grapheme segmentation dominates that cost. The result depends only
+    // on the text, so remember it; the map is cleared when full to stay bounded.
+    const nodeTagEmojiByText = new Map();
+    const nodeTagEmojiByTextMaxEntries = 4096;
+
     function normalizeNodeTagEmoji(value, fallback = "") {{
       const fallbackEmoji = String(fallback == null ? "" : fallback).trim();
       const raw = String(value == null ? "" : value).trim();
       if (!raw) return fallbackEmoji;
+      const cached = nodeTagEmojiByText.get(raw);
+      if (cached !== undefined) return cached || fallbackEmoji;
       const graphemes = (typeof chatSplitGraphemes === "function")
         ? chatSplitGraphemes(raw).filter((entry) => String(entry == null ? "" : entry).trim())
         : Array.from(raw).filter((entry) => String(entry == null ? "" : entry).trim());
+      let found = "";
       for (const grapheme of graphemes) {{
         const clean = String(grapheme == null ? "" : grapheme).trim();
         if (!clean) continue;
         const isEmoji = (typeof chatIsEmojiOnlyText === "function")
           ? chatIsEmojiOnlyText(clean)
           : (typeof chatInlineEmojiTokenRe !== "undefined" && chatInlineEmojiTokenRe instanceof RegExp && chatInlineEmojiTokenRe.test(clean));
-        if (isEmoji) return clean;
+        if (isEmoji) {{
+          found = clean;
+          break;
+        }}
       }}
-      return fallbackEmoji;
+      if (nodeTagEmojiByText.size >= nodeTagEmojiByTextMaxEntries) nodeTagEmojiByText.clear();
+      nodeTagEmojiByText.set(raw, found);
+      return found || fallbackEmoji;
     }}
 
     function stripNodeVisualEmojiFromLabel(value, emoji) {{
