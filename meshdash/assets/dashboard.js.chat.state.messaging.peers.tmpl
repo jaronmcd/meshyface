@@ -4823,6 +4823,14 @@
       chatImmediatePollTimer = window.setTimeout(() => {{
         chatImmediatePollTimer = null;
         if (document.hidden) return;
+        // Still typing: wait for the pause instead of fetching state between keystrokes.
+        const typingRemainingMs = typeof dashboardTextEntryRenderDeferRemainingMs === "function"
+          ? dashboardTextEntryRenderDeferRemainingMs()
+          : 0;
+        if (typingRemainingMs > 0 && latestState) {{
+          requestImmediatePoll(Math.ceil(typingRemainingMs) + 80);
+          return;
+        }}
         if (typeof pollOnce === "function") {{
           void pollOnce();
           return;
