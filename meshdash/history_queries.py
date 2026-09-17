@@ -139,6 +139,10 @@ def fetch_environment_metric_rollup_rows(
     return conn.execute(sql, tuple(params)).fetchall()
 
 
+# The catalog groups rows from a recent window. Grouping by the bare column lets SQLite pick
+# the (metric_key|node_id, bucket_unix) index and scan the entire rollup table, which grows
+# for as long as rollups are retained (1.3 s over 1.7M rows on a 1-vCPU host). The unary plus
+# keeps grouping identical but steers the planner to the last_seen_unix range instead.
 def fetch_environment_metric_catalog_metric_rows(
     conn: SqlConnection,
     *,
@@ -175,7 +179,7 @@ def fetch_environment_metric_catalog_metric_rows(
                COUNT(*) AS row_total
         FROM environment_metrics_1m
         WHERE {' AND '.join(where_clauses)}
-        GROUP BY metric_key
+        GROUP BY +metric_key
         ORDER BY sample_total DESC, metric_label ASC
         """
     return conn.execute(sql, tuple(params)).fetchall()
@@ -208,7 +212,7 @@ def fetch_environment_metric_catalog_node_rows(
                COUNT(*) AS row_total
         FROM environment_metrics_1m
         WHERE {' AND '.join(where_clauses)}
-        GROUP BY node_id
+        GROUP BY +node_id
         ORDER BY sample_total DESC, node_label ASC, node_id ASC
         """
     return conn.execute(sql, tuple(params)).fetchall()
