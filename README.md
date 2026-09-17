@@ -288,6 +288,20 @@ endpoint, and its `version` field retains release/package metadata.
 `MESH_DASH_VERSION` is likewise reserved for explicit release packaging and is
 not shown in the dashboard.
 
+### Health and performance
+
+- `/api/health` returns service status plus a `performance` block. It has
+  per-poll-profile `/api/state` server times (p50, p95, and max over recent
+  full responses), the share of `304 Not Modified` polls, and the latest and
+  largest response sizes. It also reports process memory.
+- `/metrics` exposes the same values in Prometheus text format:
+  `meshdash_state_response_ms`, `meshdash_state_responses_total`,
+  `meshdash_state_body_bytes`, and `meshdash_process_resident_memory_bytes`.
+  It adds known and omitted node counts when the poll node window is active.
+- When recent full `/api/state` responses exceed 500 ms at p95 or 1.5 MB, the
+  service logs a `Performance warning:` line, at most once per 15 minutes per
+  profile.
+
 ### File transfer
 
 - `--file-transfer-enable`: enable the Files app; requires

@@ -3,6 +3,7 @@ from hmac import compare_digest
 from importlib import import_module
 import ipaddress
 import os
+import time
 from pathlib import Path
 from urllib.parse import parse_qs
 
@@ -266,6 +267,41 @@ def _record_state_poll_request(deps: DashboardGetRouteDependencies) -> None:
         record_fn()
 
 
+def _state_response_profile(query: str) -> str:
+    params = parse_qs(query or "")
+    lite = str((params.get("lite") or [""])[0]).strip().lower() not in {"", "0", "false", "no", "off"}
+    profile = str((params.get("profile") or [""])[0]).strip().lower().replace("_", "-")
+    if not lite:
+        return "full"
+    return f"lite-{profile}" if profile else "lite"
+
+
+def _record_state_response(
+    deps: DashboardGetRouteDependencies,
+    *,
+    query: str,
+    status_code: int,
+    elapsed_ms: float,
+    body_bytes: int | None,
+) -> None:
+    record_fn = getattr(deps.api_metrics, "record_state_response", None)
+    if callable(record_fn):
+        record_fn(
+            profile=_state_response_profile(query),
+            status_code=status_code,
+            elapsed_ms=elapsed_ms,
+            body_bytes=body_bytes,
+        )
+
+
+def _performance_snapshot(deps: DashboardGetRouteDependencies) -> dict[str, object] | None:
+    snapshot_fn = getattr(deps.api_metrics, "performance_snapshot", None)
+    if not callable(snapshot_fn):
+        return None
+    snapshot = snapshot_fn()
+    return snapshot if isinstance(snapshot, dict) else None
+
+
 def _record_state_poll_error(deps: DashboardGetRouteDependencies) -> None:
     metrics = deps.api_metrics
     record_fn = getattr(metrics, "record_state_poll_error", None)
@@ -504,6 +540,9 @@ def handle_dashboard_get(
         try:
             state_payload = _state_snapshot_for_ops(deps.state_fn)
             payload = _build_health_payload(state_payload)
+            performance = _performance_snapshot(deps)
+            if performance is not None:
+                payload["performance"] = performance
             deps.write_json_response_fn(handler, status_code=200, payload_obj=payload, no_store=True)
         except Exception as exc:
             deps.write_json_response_fn(
@@ -528,6 +567,7 @@ def handle_dashboard_get(
         metrics_text = _build_prometheus_metrics_text_helper(
             state_payload=state_payload,
             counters=counter_snapshot,
+            performance=_performance_snapshot(deps),
         )
         deps.write_text_response_fn(
             handler,
@@ -539,13 +579,32 @@ def handle_dashboard_get(
 
     if path == "/api/state":
         _record_state_poll_request(deps)
+        started = time.perf_counter()
+        written: dict[str, object] = {}
+
+        def recording_write_json_response(response_handler, **kwargs):
+            byte_count = deps.write_json_response_fn(response_handler, **kwargs)
+            written["status_code"] = kwargs.get("status_code")
+            written["body_bytes"] = byte_count if isinstance(byte_count, int) else None
+            return byte_count
+
         try:
             _handle_state_get_helper(
                 handler,
                 query=query,
                 state_fn=deps.state_fn,
-                write_json_response_fn=deps.write_json_response_fn,
+                write_json_response_fn=recording_write_json_response,
                 private_mode=deps.private_mode,
+            )
+            # The only response the state handler writes directly is a 304.
+            status_code = written.get("status_code")
+            body_bytes = written.get("body_bytes")
+            _record_state_response(
+                deps,
+                query=query,
+                status_code=int(status_code) if isinstance(status_code, int) else 304,
+                elapsed_ms=(time.perf_counter() - started) * 1000.0,
+                body_bytes=body_bytes if isinstance(body_bytes, int) else None,
             )
         except Exception as exc:
             _record_state_poll_error(deps)

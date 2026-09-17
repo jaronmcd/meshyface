@@ -104,8 +104,9 @@ def write_json_response(
     payload_obj: object,
     no_store: bool = False,
     extra_headers: Optional[Mapping[str, str]] = None,
-) -> None:
+) -> int:
     payload = json_bytes(payload_obj)
+    json_byte_count = len(payload)
     payload, content_encoding = _gzip_if_accepted(handler, payload)
     handler.send_response(status_code)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
@@ -120,6 +121,7 @@ def write_json_response(
     handler.send_header("Content-Length", str(len(payload)))
     handler.end_headers()
     handler.wfile.write(payload)
+    return json_byte_count
 
 
 def write_html_response(

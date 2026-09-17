@@ -319,7 +319,7 @@ class WriteJsonResponseFn(Protocol):
         payload_obj: object,
         no_store: bool = False,
         extra_headers: Optional[Mapping[str, str]] = None,
-    ) -> None:
+    ) -> int | None:
         ...
 
 

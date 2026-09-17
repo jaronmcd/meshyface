@@ -1,4 +1,6 @@
-from collections.abc import Mapping
+import time
+from collections import deque
+from collections.abc import Callable, Mapping
 from threading import Lock
 
 from .helpers import to_int as _to_int
@@ -149,6 +151,7 @@ def build_prometheus_metrics_text(
     *,
     state_payload: object,
     counters: Mapping[str, object] | None,
+    performance: Mapping[str, object] | None = None,
 ) -> str:
     packet_rate = estimate_packet_rate_per_second(state_payload)
     node_count = derive_node_count(state_payload)
@@ -187,17 +190,123 @@ def build_prometheus_metrics_text(
         "# TYPE meshdash_radio_link_up gauge",
         f"meshdash_radio_link_up {radio_link_up}",
     ]
+    summary = _state_summary(state_payload)
+    known_node_count = _to_int(summary.get("known_node_count"))
+    if known_node_count is not None:
+        lines.extend(
+            [
+                "# HELP meshdash_known_node_count Nodes known to the radio interface before the poll node window.",
+                "# TYPE meshdash_known_node_count gauge",
+                f"meshdash_known_node_count {max(0, int(known_node_count))}",
+                "# HELP meshdash_node_window_omitted_count Known nodes omitted from routine polls by the node window.",
+                "# TYPE meshdash_node_window_omitted_count gauge",
+                f"meshdash_node_window_omitted_count {max(0, int(_to_int(summary.get('node_window_omitted_count')) or 0))}",
+            ]
+        )
+    lines.extend(_performance_metric_lines(performance))
     return "\n".join(lines) + "\n"
 
 
+def _performance_metric_lines(performance: Mapping[str, object] | None) -> list[str]:
+    if not isinstance(performance, Mapping):
+        return []
+    lines: list[str] = []
+    profiles = performance.get("state_profiles")
+    if isinstance(profiles, Mapping) and profiles:
+        lines.extend(
+            [
+                "# HELP meshdash_state_responses_total /api/state responses by poll profile and HTTP status.",
+                "# TYPE meshdash_state_responses_total counter",
+            ]
+        )
+        for profile, stats in profiles.items():
+            totals = stats.get("responses_total") if isinstance(stats, Mapping) else None
+            for status, total in (totals or {}).items():
+                lines.append(f'meshdash_state_responses_total{{profile="{profile}",status="{status}"}} {int(total)}')
+        lines.extend(
+            [
+                "# HELP meshdash_state_response_ms Server time for recent full /api/state responses.",
+                "# TYPE meshdash_state_response_ms gauge",
+            ]
+        )
+        for profile, stats in profiles.items():
+            if not isinstance(stats, Mapping):
+                continue
+            for quantile, key in (("0.5", "full_ms_p50"), ("0.95", "full_ms_p95"), ("1", "full_ms_max")):
+                value = stats.get(key)
+                if value is not None:
+                    lines.append(f'meshdash_state_response_ms{{profile="{profile}",quantile="{quantile}"}} {float(value):.1f}')
+        lines.extend(
+            [
+                "# HELP meshdash_state_body_bytes Uncompressed JSON size of the latest full /api/state response.",
+                "# TYPE meshdash_state_body_bytes gauge",
+            ]
+        )
+        for profile, stats in profiles.items():
+            value = stats.get("body_bytes_last") if isinstance(stats, Mapping) else None
+            if value is not None:
+                lines.append(f'meshdash_state_body_bytes{{profile="{profile}"}} {int(value)}')
+    process = performance.get("process")
+    rss = process.get("rss_bytes") if isinstance(process, Mapping) else None
+    if rss is not None:
+        lines.extend(
+            [
+                "# HELP meshdash_process_resident_memory_bytes Dashboard process resident memory.",
+                "# TYPE meshdash_process_resident_memory_bytes gauge",
+                f"meshdash_process_resident_memory_bytes {int(rss)}",
+            ]
+        )
+    return lines
+
+
+# Budgets for routine /api/state responses on a small (1 vCPU) host. Exceeding them logs a
+# rate-limited warning so a slowdown shows up in the service journal before users report it.
+STATE_RESPONSE_BUDGET_MS = 500.0
+STATE_BODY_BUDGET_BYTES = 1_500_000
+STATE_SAMPLES_PER_PROFILE = 240
+STATE_BUDGET_MIN_FULL_SAMPLES = 20
+STATE_BUDGET_WARNING_INTERVAL_SECONDS = 15 * 60
+
+
+def _percentile(sorted_values: list[float], fraction: float) -> float | None:
+    if not sorted_values:
+        return None
+    index = min(len(sorted_values) - 1, max(0, int(round(fraction * (len(sorted_values) - 1)))))
+    return sorted_values[index]
+
+
+def _process_memory_bytes() -> dict[str, int | None]:
+    rss = None
+    peak = None
+    try:
+        with open("/proc/self/status", encoding="ascii", errors="ignore") as handle:
+            for line in handle:
+                if line.startswith("VmRSS:"):
+                    rss = int(line.split()[1]) * 1024
+                elif line.startswith("VmHWM:"):
+                    peak = int(line.split()[1]) * 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return {"rss_bytes": rss, "peak_rss_bytes": peak}
+
+
 class DashboardApiMetrics:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        monotonic_fn: Callable[[], float] = time.monotonic,
+        log_fn: Callable[[str], None] | None = None,
+    ) -> None:
         self._lock = Lock()
         self._state_poll_requests_total = 0
         self._state_poll_errors_total = 0
         self._write_auth_denied_total = 0
         self._private_mode_blocks_total = 0
-
+        self._monotonic_fn = monotonic_fn
+        self._log_fn = log_fn if log_fn is not None else (lambda message: print(message, flush=True))
+        self._state_samples: dict[str, deque[tuple[int, float, int | None]]] = {}
+        self._state_status_totals: dict[tuple[str, int], int] = {}
+        self._state_warned_at: dict[tuple[str, str], float] = {}
     def record_state_poll_request(self) -> None:
         with self._lock:
             self._state_poll_requests_total += 1
@@ -222,3 +331,101 @@ class DashboardApiMetrics:
                 "write_auth_denied_total": self._write_auth_denied_total,
                 "private_mode_blocks_total": self._private_mode_blocks_total,
             }
+
+    def record_state_response(
+        self,
+        *,
+        profile: str,
+        status_code: int,
+        elapsed_ms: float,
+        body_bytes: int | None,
+    ) -> None:
+        clean_profile = str(profile or "unknown")
+        warnings: list[str] = []
+        with self._lock:
+            samples = self._state_samples.get(clean_profile)
+            if samples is None:
+                samples = deque(maxlen=STATE_SAMPLES_PER_PROFILE)
+                self._state_samples[clean_profile] = samples
+            samples.append((int(status_code), float(elapsed_ms), body_bytes))
+            status_key = (clean_profile, int(status_code))
+            self._state_status_totals[status_key] = self._state_status_totals.get(status_key, 0) + 1
+            stats = self._state_profile_stats_unlocked(clean_profile)
+            now = self._monotonic_fn()
+            p95 = stats["full_ms_p95"]
+            if (
+                stats["full_samples"] >= STATE_BUDGET_MIN_FULL_SAMPLES
+                and p95 is not None
+                and p95 > STATE_RESPONSE_BUDGET_MS
+                and self._should_warn_unlocked(clean_profile, "time", now)
+            ):
+                warnings.append(
+                    f"Performance warning: /api/state profile={clean_profile} p95 response "
+                    f"{p95:.0f} ms over the last {stats['full_samples']} full responses "
+                    f"exceeds the {STATE_RESPONSE_BUDGET_MS:.0f} ms budget."
+                )
+            if (
+                int(status_code) == 200
+                and body_bytes is not None
+                and body_bytes > STATE_BODY_BUDGET_BYTES
+                and self._should_warn_unlocked(clean_profile, "size", now)
+            ):
+                warnings.append(
+                    f"Performance warning: /api/state profile={clean_profile} body {body_bytes} bytes "
+                    f"exceeds the {STATE_BODY_BUDGET_BYTES} byte budget."
+                )
+        for message in warnings:
+            try:
+                self._log_fn(message)
+            except Exception:
+                pass
+
+    def _should_warn_unlocked(self, profile: str, kind: str, now: float) -> bool:
+        key = (profile, kind)
+        last = self._state_warned_at.get(key)
+        if last is not None and (now - last) < STATE_BUDGET_WARNING_INTERVAL_SECONDS:
+            return False
+        self._state_warned_at[key] = now
+        return True
+
+    def _state_profile_stats_unlocked(self, profile: str) -> dict[str, object]:
+        samples = list(self._state_samples.get(profile) or ())
+        full = [sample for sample in samples if sample[0] == 200]
+        full_ms = sorted(sample[1] for sample in full)
+        full_bytes = [sample[2] for sample in full if sample[2] is not None]
+        not_modified = sum(1 for sample in samples if sample[0] == 304)
+        return {
+            "samples": len(samples),
+            "full_samples": len(full),
+            "not_modified_ratio": round(not_modified / len(samples), 3) if samples else None,
+            "full_ms_p50": _percentile(full_ms, 0.5),
+            "full_ms_p95": _percentile(full_ms, 0.95),
+            "full_ms_max": full_ms[-1] if full_ms else None,
+            "body_bytes_last": full_bytes[-1] if full_bytes else None,
+            "body_bytes_max": max(full_bytes) if full_bytes else None,
+        }
+
+    def performance_snapshot(self) -> dict[str, object]:
+        with self._lock:
+            profiles = {}
+            for profile in sorted(self._state_samples):
+                stats = self._state_profile_stats_unlocked(profile)
+                for key in ("full_ms_p50", "full_ms_p95", "full_ms_max"):
+                    if stats[key] is not None:
+                        stats[key] = round(float(stats[key]), 1)
+                stats["within_budget"] = (
+                    (stats["full_ms_p95"] is None or stats["full_ms_p95"] <= STATE_RESPONSE_BUDGET_MS)
+                    and (stats["body_bytes_max"] is None or stats["body_bytes_max"] <= STATE_BODY_BUDGET_BYTES)
+                )
+                stats["responses_total"] = {
+                    str(status): total
+                    for (total_profile, status), total in sorted(self._state_status_totals.items())
+                    if total_profile == profile
+                }
+                profiles[profile] = stats
+        return {
+            "state_budget_ms": STATE_RESPONSE_BUDGET_MS,
+            "state_body_budget_bytes": STATE_BODY_BUDGET_BYTES,
+            "state_profiles": profiles,
+            "process": _process_memory_bytes(),
+        }
