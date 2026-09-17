@@ -5,14 +5,18 @@ from .helpers import to_int as _to_int
 from .history_analytics import (
     build_summary_metrics_payload as _build_summary_metrics_payload_helper,
 )
+from .history_summary_analytics import (
+    build_downsampled_summary_metrics_payload as _build_downsampled_summary_metrics_payload_helper,
+)
 from .history_queries import (
     fetch_summary_packet_type_rows as _fetch_summary_packet_type_rows_helper,
     fetch_summary_metrics_rows as _fetch_summary_metrics_rows_helper,
 )
 from .history_read_history import (
-    load_summary_metrics_history_data as _load_summary_metrics_history_data_helper,
+    fetch_summary_metrics_history_rows as _fetch_summary_metrics_history_rows_helper,
 )
 from .history_summary_sampling import (
+    summary_metrics_bucket_seconds as _summary_metrics_bucket_seconds,
     summary_metrics_bucket_unix as _summary_metrics_bucket_unix,
 )
 from .history_store_runtime_contracts import (
@@ -90,6 +94,7 @@ def load_summary_metrics(
     window_hours: int,
     *,
     include_packet_series: bool = True,
+    max_points: int | None = None,
 ) -> dict[str, object]:
     read_conn = getattr(store, "_read_conn", None)
     if read_conn is None or read_conn is store._conn:
@@ -98,12 +103,27 @@ def load_summary_metrics(
     else:
         read_lock = getattr(store, "_read_lock", None) or store._lock
     with read_lock:
-        return _load_summary_metrics_history_data_helper(
+        hours, rows, packet_type_rows = _fetch_summary_metrics_history_rows_helper(
             read_conn,
             window_hours=window_hours,
             fetch_summary_metrics_rows_fn=_fetch_summary_metrics_rows_helper,
             fetch_summary_packet_type_rows_fn=_fetch_summary_packet_type_rows_helper,
-            build_summary_metrics_payload_fn=_build_summary_metrics_payload_helper,
             now_unix_fn=time.time,
             include_packet_series=include_packet_series,
         )
+    # Build points outside the shared read lock: long windows are CPU work that state polls,
+    # which need the same connection, must not wait behind.
+    if max_points is not None:
+        return _build_downsampled_summary_metrics_payload_helper(
+            window_hours=hours,
+            rows=rows,
+            packet_type_rows=packet_type_rows,
+            bucket_seconds=_summary_metrics_bucket_seconds(),
+            max_points=max_points,
+        )
+    return _build_summary_metrics_payload_helper(
+        window_hours=hours,
+        rows=rows,
+        packet_type_rows=packet_type_rows,
+        bucket_seconds=_summary_metrics_bucket_seconds(),
+    )

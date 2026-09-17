@@ -20,6 +20,7 @@ class HistoryViewStore(Protocol):
         *,
         window_hours: int,
         include_packet_series: bool = True,
+        max_points: int | None = None,
     ) -> dict[str, object]:
         ...
 
@@ -129,6 +130,7 @@ def build_summary_metrics_loader(
         hours_override: Optional[int] = None,
         *,
         include_packet_series: bool = True,
+        max_points: Optional[int] = None,
     ) -> dict[str, object]:
         hours = (
             hours_override
@@ -140,11 +142,11 @@ def build_summary_metrics_loader(
         load_summary_metrics_fn = getattr(history_store, "load_summary_metrics", None)
         if not callable(load_summary_metrics_fn):
             return empty_summary_metrics(hours)
+        kwargs: dict[str, object] = {"window_hours": hours, "include_packet_series": include_packet_series}
+        if max_points is not None:
+            kwargs["max_points"] = max_points
         try:
-            return load_summary_metrics_fn(
-                window_hours=hours,
-                include_packet_series=include_packet_series,
-            )
+            return load_summary_metrics_fn(**kwargs)
         except Exception:
             return empty_summary_metrics(hours)
 
