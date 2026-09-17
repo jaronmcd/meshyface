@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "description": "Budgets for scripts/benchmark_gui_realtime.py (wall-clock Chromium, synthetic 750 and 3000 node polls at 1x CPU). Scaling ratios are the regression signal; absolute limits only catch severe slowdowns on slow hosts.",
+  "min": {
+    "/scenarios/nodes=750,cpu=1/polls": 8,
+    "/scenarios/nodes=3000,cpu=1/polls": 8
+  },
+  "max": {
+    "/scenarios/nodes=750,cpu=1/js_exceptions": 0,
+    "/scenarios/nodes=3000,cpu=1/js_exceptions": 0,
+    "/scenarios/nodes=750,cpu=1/long_task_max_ms": 600,
+    "/scenarios/nodes=3000,cpu=1/long_task_max_ms": 1500,
+    "/scenarios/nodes=3000,cpu=1/busy_percent": 40,
+    "/scaling/cpu=1/busy_percent_ratio": 4.0,
+    "/scaling/cpu=1/long_task_max_ratio": 5.0
+  }
+}

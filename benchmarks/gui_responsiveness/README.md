@@ -24,6 +24,38 @@ no caught poll or poll-step errors. This turns renderer exceptions that the
 long-running dashboard safely contains into benchmark failures instead of
 silently green samples.
 
+## Real-time scaling benchmark
+
+The benchmark above uses Chromium virtual time. Virtual time hides wall-clock costs such as
+network waits and long tasks, so it cannot catch a dashboard that gets slower as the mesh
+grows. `scripts/benchmark_gui_realtime.py` drives Chromium in real time over the DevTools
+protocol, as follows:
+
+- It replaces `/api/state` with generated payloads (750 and 3,000 synthetic nodes by
+  default). Every poll is a full `200` with a few freshly heard nodes.
+- It records main-thread busy time, long tasks, event-loop lag, DOM size, and JavaScript
+  exceptions for each scenario.
+
+Absolute timings depend on the host, so the main budget is how cost scales from 750 to
+3,000 nodes. A regression that is per node or per node pair shows up as a large ratio on
+any machine. `realtime_thresholds.json` allows up to 4x busy time and 5x worst long task
+for 4x the nodes. Before the 2026-09 fixes, the ratios were about 8x and 13x. After them,
+they were about 2x and 2.5x.
+
+Run it against a local dashboard, which only needs to serve the UI assets:
+
+```bash
+python scripts/benchmark_gui_realtime.py --url http://127.0.0.1:8877/ \
+  --thresholds benchmarks/gui_responsiveness/realtime_thresholds.json
+```
+
+Add `--cpu-throttle 4` to approximate a slower laptop or phone. Pytest runs the gated
+version as an opt-in test: it starts a temporary offline dashboard itself.
+
+```bash
+python -m pytest -m gui_benchmark --run-gui-benchmark tests/test_gui_realtime_benchmark.py
+```
+
 For one-off comparisons, use `scripts/benchmark_gui_responsiveness.py` directly and write outputs under `benchmarks/gui_responsiveness/results/`. That directory is ignored because benchmark output can include local hosts, URLs, and runtime-specific data.
 
 To render a saved JSON result as a compact Markdown report:

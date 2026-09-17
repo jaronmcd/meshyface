@@ -75,9 +75,12 @@
 
     // Node names are re-checked for emoji thousands of times per poll (name cache, labels,
     // map markers), and grapheme segmentation dominates that cost. The result depends only
-    // on the text, so remember it; the map is cleared when full to stay bounded.
+    // on the text, so remember it. The cap must comfortably exceed the distinct names in a
+    // large mesh (short + long names per node): clearing everything when a smaller cap
+    // filled made every poll re-segment every name at 3,000 nodes. When full, drop the
+    // oldest quarter so memory stays bounded without thrashing.
     const nodeTagEmojiByText = new Map();
-    const nodeTagEmojiByTextMaxEntries = 4096;
+    const nodeTagEmojiByTextMaxEntries = 16384;
 
     function normalizeNodeTagEmoji(value, fallback = "") {{
       const fallbackEmoji = String(fallback == null ? "" : fallback).trim();
@@ -100,7 +103,14 @@
           break;
         }}
       }}
-      if (nodeTagEmojiByText.size >= nodeTagEmojiByTextMaxEntries) nodeTagEmojiByText.clear();
+      if (nodeTagEmojiByText.size >= nodeTagEmojiByTextMaxEntries) {{
+        let evicted = 0;
+        for (const key of nodeTagEmojiByText.keys()) {{
+          nodeTagEmojiByText.delete(key);
+          evicted += 1;
+          if (evicted >= nodeTagEmojiByTextMaxEntries / 4) break;
+        }}
+      }}
       nodeTagEmojiByText.set(raw, found);
       return found || fallbackEmoji;
     }}
