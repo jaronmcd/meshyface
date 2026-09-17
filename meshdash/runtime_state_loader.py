@@ -9,6 +9,7 @@ from .state_service_contracts import StateTracker
 from .helpers import to_jsonable as _to_jsonable
 from .helpers_security import redact_secrets as _redact_secrets
 from .state_nodes import collect_local_state as _collect_local_state
+from .state_service import search_state_nodes as _search_state_nodes
 
 
 def build_state_snapshot_loader(
@@ -399,6 +400,19 @@ def build_state_snapshot_loader_with_dependencies(
 
     def raw_local_state() -> dict[str, object]:
         return _maybe_redact(_collect_local_state(dependencies.iface))  # type: ignore[return-value]
+
+    def search_nodes(query: str, limit: int = 40) -> dict[str, object]:
+        return _search_state_nodes(
+            iface=dependencies.iface,
+            tracker=dependencies.tracker,
+            query=query,
+            limit=limit,
+        )
+
+    try:
+        setattr(state_fn, "search_nodes", search_nodes)
+    except Exception:
+        pass
 
     try:
         setattr(state_fn, "raw_my_info", raw_my_info)

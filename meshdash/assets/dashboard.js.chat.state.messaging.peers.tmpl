@@ -1543,6 +1543,74 @@
       return matches;
     }}
 
+    // Routine state polls carry only nodes heard within the server's node window
+    // (summary.node_window_omitted_count says how many were left out). Roster search asks the
+    // server for older matches so every known node stays reachable.
+    const nodeWindowSearchDebounceMs = 250;
+    const nodeWindowSearchLimit = 40;
+    let nodeWindowSearchQuery = "";
+    let nodeWindowSearchCapsById = new Map();
+    let nodeWindowSearchPendingQuery = "";
+    let nodeWindowSearchTimer = null;
+
+    function nodeWindowSearchActive(state) {{
+      const summary = state && state.summary && typeof state.summary === "object" ? state.summary : null;
+      return Number(summary && summary.node_window_omitted_count) > 0;
+    }}
+
+    function nodeWindowSearchCapsFromPayload(payload) {{
+      const capsById = new Map();
+      const caps = payload && payload.history_caps && typeof payload.history_caps === "object"
+        ? payload.history_caps
+        : {{}};
+      for (const [rawNodeId, entry] of Object.entries(caps)) {{
+        const nodeId = normalizeNodeId(rawNodeId || "");
+        if (isSelectableNodeId(nodeId) && entry && typeof entry === "object") {{
+          capsById.set(nodeId, entry);
+        }}
+      }}
+      for (const node of (Array.isArray(payload && payload.nodes) ? payload.nodes : [])) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        if (!isSelectableNodeId(nodeId) || capsById.has(nodeId)) continue;
+        capsById.set(nodeId, {{
+          last_long_name: node.long_name,
+          last_short_name: node.short_name,
+          last_seen_unix: node.last_heard_unix,
+        }});
+      }}
+      return capsById;
+    }}
+
+    function requestNodeWindowSearch(queryRaw) {{
+      const query = normalizeSearchQuery(queryRaw || "");
+      if (!query || query === nodeWindowSearchQuery || query === nodeWindowSearchPendingQuery) return;
+      if (typeof window === "undefined" || typeof window.setTimeout !== "function" || typeof fetch !== "function") return;
+      nodeWindowSearchPendingQuery = query;
+      if (nodeWindowSearchTimer !== null) {{
+        window.clearTimeout(nodeWindowSearchTimer);
+      }}
+      nodeWindowSearchTimer = window.setTimeout(async () => {{
+        nodeWindowSearchTimer = null;
+        let capsById = new Map();
+        try {{
+          const resp = await fetch(
+            `/api/nodes/search?q=${{encodeURIComponent(query)}}&limit=${{nodeWindowSearchLimit}}`,
+            {{ cache: "no-store" }}
+          );
+          capsById = nodeWindowSearchCapsFromPayload(resp.ok ? await resp.json() : null);
+        }} catch (_err) {{
+          // Keep the empty result for this query so a failing request is not retried on every render.
+        }}
+        if (nodeWindowSearchPendingQuery !== query) return;
+        nodeWindowSearchPendingQuery = "";
+        nodeWindowSearchQuery = query;
+        nodeWindowSearchCapsById = capsById;
+        if (capsById.size > 0 && typeof rerenderNodeSearchDependents === "function") {{
+          rerenderNodeSearchDependents(latestState, {{ delayMs: 0 }});
+        }}
+      }}, nodeWindowSearchDebounceMs);
+    }}
+
     function touchChatNodeNavigatorRetainedNodes(touchNodeById) {{
       if (typeof touchNodeById !== "function") return;
       if (favoriteNodeIds && typeof favoriteNodeIds.forEach === "function") {{
@@ -1672,6 +1740,20 @@
             lastMessageUnix: lastSeenUnix > 0 ? lastSeenUnix : null,
             p2pPinned: manualDirectPeerIds.has(normalizeNodeId(nodeId)),
           }});
+        }}
+      }}
+      if (includeHistoricalOnDemand && nodeWindowSearchActive(safeState)) {{
+        requestNodeWindowSearch(searchQuery);
+        if (nodeWindowSearchQuery === searchQuery) {{
+          for (const [nodeId, caps] of nodeWindowSearchCapsById) {{
+            if (participants.has(nodeId)) continue;
+            const lastSeenUnix = Math.trunc(Number(caps && caps.last_seen_unix) || 0);
+            touchNodeById(nodeId, {{
+              name: chatNodeNavigatorHistoryCapsDisplayName(caps, nodeId),
+              lastMessageUnix: lastSeenUnix > 0 ? lastSeenUnix : null,
+              p2pPinned: manualDirectPeerIds.has(nodeId),
+            }});
+          }}
         }}
       }}
       touchChatNodeNavigatorRetainedNodes((nodeId) => {{

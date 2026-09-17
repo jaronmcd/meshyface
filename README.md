@@ -329,6 +329,11 @@ Related environment variables:
 Related environment variables:
 
 - `MESH_DASH_HISTORY_DB`
+- `MESH_DASH_STATE_NODE_WINDOW_DAYS`: default `14`. Routine dashboard polls
+  include nodes heard within this many days, plus favorites, the local node,
+  and nodes referenced by current chat, packets, or links. Older nodes stay in
+  history and appear in node search through `/api/nodes/search`. Use `0` to
+  send every known node.
 
 ### Themes
 

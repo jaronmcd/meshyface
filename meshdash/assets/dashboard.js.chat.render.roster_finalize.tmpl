@@ -92,6 +92,23 @@
 
       markRenderChatPhase("roster-build");
       const rosterQuery = globalNodeSearchQuery();
+      if (rosterQuery && typeof nodeWindowSearchActive === "function" && nodeWindowSearchActive(state)) {{
+        // Nodes outside the poll window are not in this state; show server search matches.
+        requestNodeWindowSearch(rosterQuery);
+        if (nodeWindowSearchQuery === normalizeSearchQuery(rosterQuery)) {{
+          for (const [nodeId, caps] of nodeWindowSearchCapsById) {{
+            if (participants.has(nodeId) || !isNodeVisibleByLists(nodeId)) continue;
+            const lastSeenUnix = Math.trunc(Number(caps && caps.last_seen_unix) || 0);
+            participants.set(nodeId, {{
+              id: nodeId,
+              name: chatNodeNavigatorHistoryCapsDisplayName(caps, nodeId),
+              status: freshnessStatus(lastSeenUnix > 0 ? lastSeenUnix : null, nowUnix),
+              lastSeenUnix: lastSeenUnix > 0 ? lastSeenUnix : null,
+              lastMessageUnix: null,
+            }});
+          }}
+        }}
+      }}
       const roomList = document.getElementById("chat-room-list");
       const rosterAll = (() => {{
         const rows = Array.from(participants.values());

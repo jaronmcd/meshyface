@@ -610,6 +610,19 @@ def handle_dashboard_get(
         deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
         return
 
+    if path == "/api/nodes/search":
+        # Routine state polls omit nodes outside the node window; search covers every known node.
+        search_fn = getattr(deps.state_fn, "search_nodes", None)
+        query_obj = parse_qs(query or "")
+        search_query = str((query_obj.get("q") or [""])[0] or "")
+        limit = deps.to_int_fn((query_obj.get("limit") or ["40"])[0]) or 40
+        if callable(search_fn):
+            response_obj = search_fn(search_query, limit)
+        else:
+            response_obj = {"ok": False, "query": search_query, "nodes": [], "history_caps": {}}
+        deps.write_json_response_fn(handler, status_code=200, payload_obj=response_obj, no_store=True)
+        return
+
     if path == "/api/raw/local_state":
         raw_fn = getattr(deps.state_fn, "raw_local_state", None)
         if callable(raw_fn):

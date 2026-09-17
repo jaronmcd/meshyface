@@ -25,6 +25,11 @@ from .radio_connection_status import get_radio_connection_status as _get_radio_c
 from .file_transfer_protocol import is_file_transfer_protocol_chat_entry as _is_file_transfer_protocol_chat_entry
 from .game_protocol import is_game_protocol_chat_entry as _is_game_protocol_chat_entry
 from .state_node_contracts import CollectedNodes, coerce_collected_nodes
+from .state_node_window import filter_node_rows_for_window as _filter_node_rows_for_window_helper
+from .state_node_window import normalize_node_id_text as _normalize_window_node_id
+from .state_node_window import node_matches_search as _node_matches_search_helper
+from .state_node_window import referenced_node_ids as _referenced_node_ids_helper
+from .state_node_window import state_node_window_seconds as _state_node_window_seconds_helper
 from .state_payload_contracts import DashboardStatePayload, StateTrafficPayload
 from .state_service_contracts import (
     ApplyNodeSavedCountsFn,
@@ -619,6 +624,68 @@ def _slim_nodes_for_chat(nodes: list[dict[str, object]]) -> list[dict[str, objec
     return slimmed
 
 
+_NODE_SEARCH_CAPS_KEYS = (
+    "first_seen_unix",
+    "last_seen_unix",
+    "has_position",
+    "last_position_unix",
+    "last_hops",
+    "battery_level",
+    "last_short_name",
+    "last_long_name",
+)
+_NODE_SEARCH_MAX_LIMIT = 100
+
+
+def search_state_nodes(
+    *,
+    iface: object,
+    tracker: StateTracker,
+    query: str,
+    limit: int = 40,
+    collect_nodes_fn: CollectNodesFn = _collect_nodes_helper,
+    load_tracker_node_capabilities_safe_fn: LoadTrackerNodeCapabilitiesSafeFn = _load_tracker_node_capabilities_safe_helper,
+) -> dict[str, object]:
+    """Find nodes by id or name across every known node, including ones outside the poll window."""
+    needle = str(query or "").strip()
+    clean_limit = max(1, min(_NODE_SEARCH_MAX_LIMIT, int(limit or 0) or 1))
+    if not needle:
+        return {"ok": True, "query": "", "nodes": [], "history_caps": {}}
+    matched_nodes: list[dict[str, object]] = []
+    try:
+        collected = coerce_collected_nodes(collect_nodes_fn(iface))
+        for row in collected.rows:
+            if len(matched_nodes) >= clean_limit:
+                break
+            if _node_matches_search_helper(needle, row.get("id"), row.get("short_name"), row.get("long_name")):
+                matched_nodes.append(row)
+    except Exception:
+        matched_nodes = []
+    capabilities, _error = load_tracker_node_capabilities_safe_fn(tracker)
+    matched_caps: list[tuple[int, str, dict[str, object]]] = []
+    for raw_node_id, caps in (capabilities or {}).items():
+        if not isinstance(caps, Mapping):
+            continue
+        node_id = str(raw_node_id or "").strip()
+        if not node_id or node_id.startswith("^"):
+            continue
+        if not _node_matches_search_helper(needle, node_id, caps.get("last_short_name"), caps.get("last_long_name")):
+            continue
+        try:
+            last_seen = int(caps.get("last_seen_unix") or 0)
+        except (TypeError, ValueError, OverflowError):
+            last_seen = 0
+        slim_caps = {key: caps.get(key) for key in _NODE_SEARCH_CAPS_KEYS if caps.get(key) is not None}
+        matched_caps.append((last_seen, node_id, slim_caps))
+    matched_caps.sort(key=lambda item: (-item[0], item[1]))
+    return {
+        "ok": True,
+        "query": needle,
+        "nodes": _slim_nodes_for_chat(matched_nodes),
+        "history_caps": {node_id: caps for _last_seen, node_id, caps in matched_caps[:clean_limit]},
+    }
+
+
 def _slim_edges_for_network(edges: list[dict[str, object]]) -> list[dict[str, object]]:
     slimmed: list[dict[str, object]] = []
     for row in edges:
@@ -1198,6 +1265,7 @@ def build_dashboard_state_typed(
     include_debug: bool = True,
     include_nodes_full: bool = True,
     include_node_packet_trends: bool = True,
+    node_window_seconds: int = 0,
 ) -> DashboardStatePayload:
     local_node_id = "local"
     try:
@@ -1235,6 +1303,31 @@ def build_dashboard_state_typed(
     radio_link_error = _tracker_radio_link_error(tracker)
     if radio_link_error:
         tracker_error = f"{tracker_error} | {radio_link_error}" if tracker_error else radio_link_error
+
+    # Drop long-unheard nodes before per-node enrichment so the window also saves that work.
+    known_node_count = len(nodes.rows)
+    omitted_node_count = 0
+    if node_window_seconds > 0:
+        keep_node_ids = _referenced_node_ids_helper(
+            recent_chat=tracker_data.recent_chat,
+            recent_packets=tracker_data.recent_packets,
+            edges=tracker_data.edges,
+        )
+        keep_node_ids.add(_normalize_window_node_id(local_node_id))
+        window_rows, omitted_node_count = _filter_node_rows_for_window_helper(
+            nodes.rows,
+            window_seconds=node_window_seconds,
+            keep_node_ids=keep_node_ids,
+        )
+        if omitted_node_count:
+            nodes = CollectedNodes(
+                rows=window_rows,
+                full=nodes.full,
+                by_id=nodes.by_id,
+                with_position_count=sum(
+                    1 for row in window_rows if row.get("lat") is not None and row.get("lon") is not None
+                ),
+            )
 
     node_saved_counts_raw, node_saved_counts_error = load_tracker_node_saved_counts_safe_fn(tracker)
     try:
@@ -1380,6 +1473,9 @@ def build_dashboard_state_typed(
     summary["online_node_count"] = max(0, int(summary_online_node_count))
     summary["online_node_count_source"] = summary_online_node_count_source
     summary["online_node_window_seconds"] = _ONLINE_NODE_WINDOW_SECONDS
+    summary["known_node_count"] = known_node_count
+    summary["node_window_seconds"] = max(0, int(node_window_seconds))
+    summary["node_window_omitted_count"] = omitted_node_count
     summary["radio_link"] = _build_radio_link_summary(tracker=tracker, target=target)
     if isinstance(radio_connection_status, Mapping) and radio_connection_status:
         summary["radio_connection"] = dict(radio_connection_status)
@@ -1553,6 +1649,7 @@ def build_dashboard_state_lite(
         include_debug=False,
         include_nodes_full=False,
         include_node_packet_trends=_lite_profile_includes_node_packet_trends(profile_name),
+        node_window_seconds=_state_node_window_seconds_helper(),
     )
     if profile_name == "status":
         slim_recent_packets = []
