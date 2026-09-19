@@ -92,10 +92,23 @@ def test_dashboard_js_optimizes_link_quality_computation_path() -> None:
     assert "const chatNodeNavigatorLinkQualityCacheByState = (typeof WeakMap === \"function\")" in js
     assert "function chatNodeNavigatorShouldComputeLinkQuality(" in js
     assert "sortKey === \"link_quality\" || fieldIds.includes(\"link_quality\")" in js
-    assert "function chatNodeNavigatorMinHeapPush(" in js
-    assert "function chatNodeNavigatorMinHeapPop(" in js
     assert "const structuralPathLimit = Math.max(1, Math.min(pathLimit, sourceDegree, targetDegree));" in js
     assert "const shouldComputeLinkQuality = chatNodeNavigatorShouldComputeLinkQuality(" in js
+    # The path search runs on an indexed graph (CSR + typed arrays) with one shared
+    # first round; the Map-and-object search it replaced cost seconds per render on the
+    # all-time edge window. tests/test_chat_link_quality_browser.py checks equivalence.
+    assert "function chatNodeNavigatorBuildLinkQualityGraph(" in js
+    assert "function chatNodeNavigatorLinkQualityPathStats(" in js
+    assert "const heapNodes = new Int32Array(slotCount + 2);" in js
+    assert "search(-1);" in js
+    assert "function chatNodeNavigatorMinHeapPush(" not in js
+    assert "function chatNodeNavigatorFindWeightedPath(" not in js
+    assert "function chatNodeNavigatorEstimatePathDiversity(" not in js
+    # Path stats are cached on their real inputs, not on state-object identity, so a new
+    # poll with an unchanged edge set does not recompute them.
+    assert "function chatNodeNavigatorLinkQualityEdgeSignature(" in js
+    assert "const pathStatsKey = `${cacheSignature}::${chatNodeNavigatorLinkQualityEdgeSignature(filteredRawEdges)}`;" in js
+    assert "chatNodeNavigatorLinkQualityPathStatsCache = { key: pathStatsKey, value: pathStatsByNode };" in js
 
 
 def test_dashboard_css_styles_chat_member_link_quality_bars() -> None:
