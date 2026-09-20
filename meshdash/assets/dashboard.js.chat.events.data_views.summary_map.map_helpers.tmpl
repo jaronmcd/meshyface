@@ -2671,13 +2671,33 @@
       return applyMapNodeTraceResultStyle(progressStyle, resultFlash);
     }}
 
+    // Marker refreshes look nodes up per marker; an index per state payload keeps
+    // that from scanning the whole node list each time. State payloads are
+    // replaced (never mutated) on each poll, so the WeakMap entry stays valid.
+    const mapNodeEntryByIdCache = new WeakMap();
+
+    function mapNodeEntryById(nodeId, state = latestState) {{
+      const cleanNodeId = normalizeNodeId(nodeId || "");
+      if (!cleanNodeId) return null;
+      const safeState = (state && typeof state === "object") ? state : latestState;
+      if (!safeState || typeof safeState !== "object") return null;
+      let byId = mapNodeEntryByIdCache.get(safeState);
+      if (!byId) {{
+        byId = new Map();
+        for (const entry of (Array.isArray(safeState.nodes) ? safeState.nodes : [])) {{
+          const entryId = normalizeNodeId(entry && entry.id);
+          if (entryId && !byId.has(entryId)) byId.set(entryId, entry);
+        }}
+        mapNodeEntryByIdCache.set(safeState, byId);
+      }}
+      return byId.get(cleanNodeId) || null;
+    }}
+
     function resolveMapNodeEmoji(nodeId, state = latestState) {{
       if (typeof nodeEmojiMarkersAreEnabled === "function" && !nodeEmojiMarkersAreEnabled()) return "";
       const cleanNodeId = normalizeNodeId(nodeId || "");
       if (!cleanNodeId) return "";
-      const safeState = (state && typeof state === "object") ? state : latestState;
-      const nodes = Array.isArray(safeState && safeState.nodes) ? safeState.nodes : [];
-      const node = nodes.find((entry) => normalizeNodeId(entry && entry.id) === cleanNodeId) || null;
+      const node = mapNodeEntryById(cleanNodeId, state);
       return (typeof nodeVisualEmojiForNode === "function")
         ? nodeVisualEmojiForNode(cleanNodeId, null, node)
         : "";
@@ -3144,7 +3164,7 @@
       }};
     }}
 
-    function buildMapEmojiMarkerIcon(nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
+    function buildMapEmojiMarkerPresentation(nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
       if (!mapNodeUsesEmojiMarker(nodeId, markerKind, state)) return null;
       const emoji = resolveMapNodeEmoji(nodeId, state);
       if (!emoji) return null;
@@ -3177,29 +3197,89 @@
         traceResultFlash && traceResultFlash.ok === true ? "is-trace-success" : "",
         traceResultFlash && traceResultFlash.ok !== true ? "is-trace-failed" : "",
       ].filter(Boolean).join(" ");
-      const traceTitleAttr = traceResultFlash
-        ? ` title="${{escAttr(`Traceroute ${{traceResultLabel}}`)}}"`
+      const titleText = traceResultFlash
+        ? `Traceroute ${{traceResultLabel}}`
         : (traceProgress
-        ? ` title="${{escAttr(`Traceroute in progress (${{traceProgressPct}}%)`)}}"`
+        ? `Traceroute in progress (${{traceProgressPct}}%)`
         : "");
       const iconSize = isSelected ? 30 : 24;
       const iconAnchor = Math.round(iconSize / 2);
       const popupAnchorY = isSelected ? -16 : -13;
+      const styleText = `--map-node-flash:${{Number(flashStrength.toFixed(3))}}; --map-node-ring-color:${{ringColor}}; --map-node-ring-width:${{ringWidth.toFixed(1)}}px; --map-node-trace-progress:${{traceProgressPct.toFixed(0)}}; --map-node-trace-angle:${{traceAngleDeg}}; --map-node-trace-result:${{traceResultStrength.toFixed(3)}}; --map-node-trace-color:${{traceResultFlash ? traceResultColor : "#7dd3fc"}};${{appearanceStyleVars}}`;
+      const html = `<div class="${{markerClasses}}" style="${{escAttr(styleText)}}"${{titleText ? ` title="${{escAttr(titleText)}}"` : ""}}><span class="map-node-emoji-glyph" aria-hidden="true">${{escAttr(emoji)}}</span></div>`;
+      return {{
+        emoji,
+        markerClasses,
+        styleText,
+        titleText,
+        iconSize,
+        iconAnchor,
+        popupAnchorY,
+        html,
+        signature: `${{iconSize}}|${{html}}`,
+      }};
+    }}
+
+    function mapEmojiMarkerIconFromPresentation(presentation) {{
+      if (!(presentation && typeof presentation === "object")) return null;
       return L.divIcon({{
         className: "map-node-emoji-icon",
-        html: `
-          <div
-            class="${{markerClasses}}"
-            style="--map-node-flash:${{Number(flashStrength.toFixed(3))}}; --map-node-ring-color:${{escAttr(ringColor)}}; --map-node-ring-width:${{ringWidth.toFixed(1)}}px; --map-node-trace-progress:${{traceProgressPct.toFixed(0)}}; --map-node-trace-angle:${{traceAngleDeg}}; --map-node-trace-result:${{traceResultStrength.toFixed(3)}}; --map-node-trace-color:${{escAttr(traceResultFlash ? traceResultColor : "#7dd3fc")}};${{escAttr(appearanceStyleVars)}}"
-            ${{traceTitleAttr}}
-          >
-            <span class="map-node-emoji-glyph" aria-hidden="true">${{escAttr(emoji)}}</span>
-          </div>
-        `,
-        iconSize: [iconSize, iconSize],
-        iconAnchor: [iconAnchor, iconAnchor],
-        popupAnchor: [0, popupAnchorY],
+        html: presentation.html,
+        iconSize: [presentation.iconSize, presentation.iconSize],
+        iconAnchor: [presentation.iconAnchor, presentation.iconAnchor],
+        popupAnchor: [0, presentation.popupAnchorY],
       }});
+    }}
+
+    function buildMapEmojiMarkerIcon(nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState) {{
+      const presentation = buildMapEmojiMarkerPresentation(nodeId, isSelected, markerKind, markerConfidence, state);
+      return presentation ? mapEmojiMarkerIconFromPresentation(presentation) : null;
+    }}
+
+    // Refreshing an emoji marker used to call setIcon() with a fresh divIcon every
+    // time, which makes Leaflet tear down and recreate the marker's DOM element.
+    // Recreating ~35 shadow-and-filter-heavy elements on every poll (and on every
+    // activity-flash frame) is what made the map visibly flicker. Skip refreshes
+    // whose rendered output is unchanged, and patch class/style/title in place
+    // when only those change; setIcon remains the fallback for structural changes.
+    function applyMapEmojiMarkerPresentation(marker, presentation) {{
+      if (!(marker && typeof marker === "object" && presentation)) return false;
+      if (marker._meshMapNodeEmojiIconSignature === presentation.signature) return true;
+      const icon = mapEmojiMarkerIconFromPresentation(presentation);
+      const element = (typeof marker.getElement === "function") ? marker.getElement() : null;
+      const inner = element ? element.firstElementChild : null;
+      const glyph = inner ? inner.firstElementChild : null;
+      const canPatch = !!(
+        inner
+        && inner.classList
+        && inner.classList.contains("map-node-emoji-marker")
+        && glyph
+        && glyph.classList
+        && glyph.classList.contains("map-node-emoji-glyph")
+        && marker._meshMapNodeEmojiIconSize === presentation.iconSize
+      );
+      if (canPatch) {{
+        // Keep the icon option current so Leaflet re-creates the same content if
+        // it ever rebuilds the element (e.g. after a remove/re-add).
+        marker.options.icon = icon;
+        inner.className = presentation.markerClasses;
+        inner.setAttribute("style", presentation.styleText);
+        if (presentation.titleText) {{
+          inner.setAttribute("title", presentation.titleText);
+        }} else {{
+          inner.removeAttribute("title");
+        }}
+        if (glyph.textContent !== presentation.emoji) {{
+          glyph.textContent = presentation.emoji;
+        }}
+      }} else if (typeof marker.setIcon === "function") {{
+        marker.setIcon(icon);
+      }} else {{
+        return false;
+      }}
+      marker._meshMapNodeEmojiIconSignature = presentation.signature;
+      marker._meshMapNodeEmojiIconSize = presentation.iconSize;
+      return true;
     }}
 
     function mapNodeMarkerStyleWithOpacityScale(baseStyleRaw, scale) {{
@@ -3274,15 +3354,18 @@
 
     function createMapNodeMarker(lat, lon, nodeId, isSelected, markerKind = "actual", markerConfidence = 0.45, state = latestState, options = null) {{
       const opts = (options && typeof options === "object") ? options : {{}};
-      if (mapNodeUsesEmojiMarker(nodeId, markerKind, state)) {{
+      const emojiPresentation = buildMapEmojiMarkerPresentation(nodeId, isSelected, markerKind, markerConfidence, state);
+      if (emojiPresentation) {{
         const marker = L.marker([lat, lon], {{
-          icon: buildMapEmojiMarkerIcon(nodeId, isSelected, markerKind, markerConfidence, state),
+          icon: mapEmojiMarkerIconFromPresentation(emojiPresentation),
           keyboard: false,
           bubblingMouseEvents: false,
           riseOnHover: true,
           pane: mapNodeMarkerPaneName,
           zIndexOffset: isSelected ? 200 : 120,
         }});
+        marker._meshMapNodeEmojiIconSignature = emojiPresentation.signature;
+        marker._meshMapNodeEmojiIconSize = emojiPresentation.iconSize;
         bindMapNodeMarkerElementOpacitySync(marker);
         if (Number.isFinite(Number(opts.initialElementOpacity))) {{
           setMapNodeMarkerElementOpacity(marker, Number(opts.initialElementOpacity));
@@ -3328,10 +3411,9 @@
           marker.unbindTooltip();
         }}
       }}
-      if (mapNodeUsesEmojiMarker(nodeId, markerKind, state)) {{
-        if (typeof marker.setIcon === "function") {{
-          marker.setIcon(buildMapEmojiMarkerIcon(nodeId, isSelected, markerKind, markerConfidence, state));
-        }}
+      const emojiPresentation = buildMapEmojiMarkerPresentation(nodeId, isSelected, markerKind, markerConfidence, state);
+      if (emojiPresentation) {{
+        applyMapEmojiMarkerPresentation(marker, emojiPresentation);
         if (typeof marker.setZIndexOffset === "function") {{
           marker.setZIndexOffset(isSelected ? 200 : 120);
         }}
@@ -3353,7 +3435,15 @@
           setMapNodeMarkerOpacityScale(marker, activeFadeScale, resolvedStyle);
           return;
         }}
+        // Skip the canvas redraw when the resolved style is unchanged; any other
+        // style writer goes through setMapNodeMarkerOpacityScale, which clears
+        // this signature.
+        const styleSignature = JSON.stringify(resolvedStyle);
+        if (marker._meshMapNodeCircleStyleSignature === styleSignature) {{
+          return;
+        }}
         marker.setStyle(resolvedStyle);
+        marker._meshMapNodeCircleStyleSignature = styleSignature;
       }}
     }}
 
@@ -3405,6 +3495,7 @@
         : ((marker.options && typeof marker.options === "object") ? marker.options : {{}});
       const scaledStyle = mapNodeMarkerStyleWithOpacityScale(sourceStyle, safeScale);
       if (typeof marker.setStyle === "function") {{
+        marker._meshMapNodeCircleStyleSignature = null;
         marker.setStyle({{
           opacity: scaledStyle.opacity,
           fillOpacity: scaledStyle.fillOpacity,
