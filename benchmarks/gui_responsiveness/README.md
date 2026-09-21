@@ -66,18 +66,45 @@ python scripts/render_gui_benchmark_report.py \
   --output benchmarks/gui_responsiveness/results/local-gui-responsiveness.md
 ```
 
-Pass `--baseline-json <path>` to add a delta table against a previous run.
-The comparison puts app-owned signals first: poll work, DOM size, and long-task
-counts. Browser timing rows stay in an informational section because same-code
-CI runs can move them when headless Chrome or the runner scheduler stalls.
-Wall-clock duration stays in the run metadata for the same reason.
-In GitHub Actions, the report job downloads the latest successful benchmark
-artifact from the base branch and includes that comparison automatically when a
-baseline is available.
-On pull requests, CI also posts or updates a "GUI Benchmark Before/After" comment
-with the app-owned comparison table first so the before and after results are
-visible from the PR conversation page.
+CI labels this offline check **GUI smoke test**. It reports view-switching errors
+and basic responsiveness without comparing timings or DOM counts against a
+previous run. The empty offline workload does not measure busy-mesh performance.
+Normal local `pytest` runs skip browser checks unless explicitly enabled.
 
-GitHub Actions runs the same offline benchmark as an advisory report job. It
-does not require Meshtastic hardware and normal local `pytest` runs continue to
-skip the browser benchmark unless explicitly enabled.
+### Populated operation comparison
+
+On pull requests, CI also checks out the exact PR base commit and runs the same
+harness against both checkouts on the same runner. At 750 and 3,000 nodes, it
+alternates base and PR execution across three independent runs and reports
+median timings with minimum and maximum values. Overlapping ranges are
+inconclusive; the comparison is advisory, not a percentage-based merge gate.
+
+The workloads measure:
+
+- State generation and JSON size with 25% recent nodes and 75% stale nodes.
+- A SQLite-backed 30-day summary query with 172,800 rows, downsampled to 1,440 points.
+- Link-quality path searches over connected graphs with about three edges per
+  node, checking that the base and PR return identical results.
+- Twenty unchanged presentation updates to 150 real Leaflet emoji markers,
+  including the number of `setIcon` calls. Timing includes synchronous updates,
+  not browser paint or end-to-end interaction latency.
+
+Fixture construction and warmup are outside the measured operations. Each run
+uses temporary databases and an isolated server without radio hardware. These
+workloads cover specific operations; they do not establish performance for all
+views, sensor queries, animations, or real radio traffic. Missing or failed
+comparisons are reported as unavailable, never as a pass.
+
+To compare two local checkouts:
+
+```bash
+python scripts/benchmark_pr_operations.py \
+  --base /path/to/base-checkout \
+  --current /path/to/pr-checkout \
+  --browser /usr/bin/chromium \
+  --output /tmp/mesh-operations.json
+```
+
+The harness writes raw results to the JSON path and a Markdown report beside it.
+CI appends the populated comparison to the smoke-test comment and uploads both
+reports. It does not reuse timings from unrelated runners or older CI runs.

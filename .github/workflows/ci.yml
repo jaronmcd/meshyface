@@ -178,7 +178,7 @@ jobs:
           if-no-files-found: ignore
 
   gui-benchmark:
-    name: GUI benchmark report
+    name: GUI smoke test
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
@@ -190,6 +190,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Check out PR base for populated workloads
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .benchmark-base
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -221,7 +229,7 @@ jobs:
           "$browser" --version
           echo "MESH_GUI_BENCH_BROWSER=$browser" >> "$GITHUB_ENV"
 
-      - name: Run offline GUI benchmark
+      - name: Run offline GUI smoke test
         continue-on-error: true
         env:
           MESH_GUI_BENCH_OUTPUT: benchmarks/gui_responsiveness/results/ci-gui-responsiveness.json
@@ -229,67 +237,51 @@ jobs:
           MESH_GUI_BENCH_TIMEOUT: "180"
         run: scripts/run_gui_responsiveness_local.sh
 
-      - name: Download baseline benchmark
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BASE_BRANCH: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || 'main' }}
-          CURRENT_RUN_ID: ${{ github.run_id }}
+      - name: Compare populated operations
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        timeout-minutes: 20
         run: |
-          mkdir -p benchmarks/gui_responsiveness/results/baseline
-          baseline_run_id=""
-          for candidate_run_id in $(
-            gh run list \
-              --repo "$GITHUB_REPOSITORY" \
-              --workflow ci.yml \
-              --branch "$BASE_BRANCH" \
-              --status success \
-              --limit 20 \
-              --json databaseId \
-              --jq '.[].databaseId'
-          ); do
-            if [ "$candidate_run_id" != "$CURRENT_RUN_ID" ]; then
-              baseline_run_id="$candidate_run_id"
-              break
-            fi
-          done
-          if [ -z "$baseline_run_id" ]; then
-            echo "No successful baseline CI run found on ${BASE_BRANCH}."
-            exit 0
-          fi
-          echo "Downloading gui-benchmark-report from run ${baseline_run_id} on ${BASE_BRANCH}."
-          gh run download "$baseline_run_id" \
-            --repo "$GITHUB_REPOSITORY" \
-            --name gui-benchmark-report \
-            --dir benchmarks/gui_responsiveness/results/baseline \
-            || echo "Baseline artifact was not available on run ${baseline_run_id}."
+          python scripts/benchmark_pr_operations.py \
+            --base .benchmark-base \
+            --current . \
+            --browser "$MESH_GUI_BENCH_BROWSER" \
+            --output benchmarks/gui_responsiveness/results/ci-populated-operations.json
 
-      - name: Render benchmark summary
+      - name: Render smoke-test summary
         if: always()
         run: |
           mkdir -p benchmarks/gui_responsiveness/results
           if [ -f benchmarks/gui_responsiveness/results/ci-gui-responsiveness.json ]; then
-            baseline_args=()
-            if [ -f benchmarks/gui_responsiveness/results/baseline/ci-gui-responsiveness.json ]; then
-              baseline_args=(
-                --baseline-json
-                benchmarks/gui_responsiveness/results/baseline/ci-gui-responsiveness.json
-              )
-            fi
             python scripts/render_gui_benchmark_report.py \
               benchmarks/gui_responsiveness/results/ci-gui-responsiveness.json \
-              "${baseline_args[@]}" \
               --output benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md \
               --pr-comment-output benchmarks/gui_responsiveness/results/ci-gui-responsiveness-pr-comment.md \
               --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             cat benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md >> "$GITHUB_STEP_SUMMARY"
           else
-            printf '# Meshyface GUI Benchmark Report\n\nBenchmark JSON was not produced.\n' \
+            printf '# Meshyface GUI smoke test\n\nBenchmark JSON was not produced.\n' \
               | tee benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md \
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Post benchmark PR comment
+      - name: Include populated comparison in report
+        if: always() && github.event_name == 'pull_request'
+        run: |
+          comment=benchmarks/gui_responsiveness/results/ci-gui-responsiveness-pr-comment.md
+          populated=benchmarks/gui_responsiveness/results/ci-populated-operations.md
+          if [ ! -f "$comment" ]; then
+            printf '<!-- meshyface-gui-benchmark-report -->\n## GUI smoke test\n\nSmoke-test results unavailable; see the Actions log.\n' > "$comment"
+          fi
+          printf '\n' >> "$comment"
+          if [ -f "$populated" ]; then
+            cat "$populated" >> "$comment"
+            cat "$populated" >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'Populated operation comparison unavailable or failed. No performance conclusion can be drawn; see the Actions log.\n' >> "$comment"
+          fi
+
+      - name: Post smoke-test PR comment
         if: always() && github.event_name == 'pull_request'
         continue-on-error: true
         env:
@@ -323,7 +315,7 @@ jobs:
               --silent
           fi
 
-      - name: Upload benchmark report
+      - name: Upload smoke-test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -332,5 +324,6 @@ jobs:
             benchmarks/gui_responsiveness/results/ci-gui-responsiveness.json
             benchmarks/gui_responsiveness/results/ci-gui-responsiveness.md
             benchmarks/gui_responsiveness/results/ci-gui-responsiveness-pr-comment.md
-            benchmarks/gui_responsiveness/results/baseline/ci-gui-responsiveness.json
+            benchmarks/gui_responsiveness/results/ci-populated-operations.json
+            benchmarks/gui_responsiveness/results/ci-populated-operations.md
           if-no-files-found: ignore

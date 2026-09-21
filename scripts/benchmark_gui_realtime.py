@@ -254,6 +254,7 @@ def run_scenario(
     warmup_s: float,
     measure_s: float,
     extra_browser_args: list[str],
+    operation_probe: str | None = None,
 ) -> dict:
     payload = build_synthetic_state(node_count)
     rng = random.Random(node_count)
@@ -330,6 +331,9 @@ def run_scenario(
             pump(time.time() + measure_s)
             after = {item["name"]: item["value"] for item in cdp.call("Performance.getMetrics")["metrics"]}
             probe = cdp.evaluate("JSON.stringify(window.__meshRealtimeBench || {})")
+            operations = cdp.evaluate(operation_probe) if operation_probe else None
+            if operation_probe and not isinstance(operations, dict):
+                raise RuntimeError("Populated operation probe did not return results")
             dom_elements = cdp.evaluate("document.getElementsByTagName('*').length")
             exceptions += sum(1 for event in cdp.events if event.get("method") == "Runtime.exceptionThrown")
         finally:
@@ -344,6 +348,7 @@ def run_scenario(
     )
     busy_s = float(after.get("TaskDuration", 0.0)) - float(before.get("TaskDuration", 0.0))
     return {
+        **({"operations": operations} if operation_probe else {}),
         "nodes": node_count,
         "cpu_throttle": cpu_throttle,
         "measure_seconds": measure_s,
