@@ -73,22 +73,46 @@
       return String(fallback);
     }}
 
+    // Node names are re-checked for emoji thousands of times per poll (name cache, labels,
+    // map markers), and grapheme segmentation dominates that cost. The result depends only
+    // on the text, so remember it. The cap must comfortably exceed the distinct names in a
+    // large mesh (short + long names per node): clearing everything when a smaller cap
+    // filled made every poll re-segment every name at 3,000 nodes. When full, drop the
+    // oldest quarter so memory stays bounded without thrashing.
+    const nodeTagEmojiByText = new Map();
+    const nodeTagEmojiByTextMaxEntries = 16384;
+
     function normalizeNodeTagEmoji(value, fallback = "") {{
       const fallbackEmoji = String(fallback == null ? "" : fallback).trim();
       const raw = String(value == null ? "" : value).trim();
       if (!raw) return fallbackEmoji;
+      const cached = nodeTagEmojiByText.get(raw);
+      if (cached !== undefined) return cached || fallbackEmoji;
       const graphemes = (typeof chatSplitGraphemes === "function")
         ? chatSplitGraphemes(raw).filter((entry) => String(entry == null ? "" : entry).trim())
         : Array.from(raw).filter((entry) => String(entry == null ? "" : entry).trim());
+      let found = "";
       for (const grapheme of graphemes) {{
         const clean = String(grapheme == null ? "" : grapheme).trim();
         if (!clean) continue;
         const isEmoji = (typeof chatIsEmojiOnlyText === "function")
           ? chatIsEmojiOnlyText(clean)
           : (typeof chatInlineEmojiTokenRe !== "undefined" && chatInlineEmojiTokenRe instanceof RegExp && chatInlineEmojiTokenRe.test(clean));
-        if (isEmoji) return clean;
+        if (isEmoji) {{
+          found = clean;
+          break;
+        }}
       }}
-      return fallbackEmoji;
+      if (nodeTagEmojiByText.size >= nodeTagEmojiByTextMaxEntries) {{
+        let evicted = 0;
+        for (const key of nodeTagEmojiByText.keys()) {{
+          nodeTagEmojiByText.delete(key);
+          evicted += 1;
+          if (evicted >= nodeTagEmojiByTextMaxEntries / 4) break;
+        }}
+      }}
+      nodeTagEmojiByText.set(raw, found);
+      return found || fallbackEmoji;
     }}
 
     function stripNodeVisualEmojiFromLabel(value, emoji) {{

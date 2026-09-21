@@ -795,11 +795,13 @@ def test_dashboard_map_emoji_marker_ring_uses_node_marker_color() -> None:
     assert 'traceResultFlash ? "is-trace-result" : ""' in js
     assert 'traceResultFlash && traceResultFlash.ok === true ? "is-trace-success" : ""' in js
     assert 'traceResultFlash && traceResultFlash.ok !== true ? "is-trace-failed" : ""' in js
-    assert "--map-node-ring-color:${escAttr(ringColor)}" in js
+    assert "--map-node-ring-color:${ringColor}" in js
     assert "--map-node-ring-width:${ringWidth.toFixed(1)}px" in js
     assert "--map-node-trace-angle:${traceAngleDeg}" in js
     assert "--map-node-trace-result:${traceResultStrength.toFixed(3)}" in js
-    assert "--map-node-trace-color:${escAttr(traceResultFlash ? traceResultColor : \"#7dd3fc\")}" in js
+    assert "--map-node-trace-color:${traceResultFlash ? traceResultColor : \"#7dd3fc\"}" in js
+    # The style variables land in the icon html through one escaped attribute.
+    assert 'style="${escAttr(styleText)}"' in js
     assert "border: var(--map-node-ring-width, 2px) solid var(--map-node-ring-color, #86a9ff);" in css
     assert "background: conic-gradient(" in css
     assert ".map-node-emoji-marker.is-trace-running::before {" in css

@@ -488,157 +488,229 @@
       return 1 + (1 / Math.log2(weight + 2)) + hopPenalty;
     }}
 
-    function chatNodeNavigatorMinHeapPush(heap, nodeId, distance) {{
-      const targetHeap = Array.isArray(heap) ? heap : [];
-      const entry = {{
-        nodeId: normalizeNodeId(nodeId || ""),
-        distance: Number(distance) || 0,
-      }};
-      targetHeap.push(entry);
-      let index = targetHeap.length - 1;
-      while (index > 0) {{
-        const parent = Math.floor((index - 1) / 2);
-        if (targetHeap[parent].distance <= targetHeap[index].distance) break;
-        const swap = targetHeap[parent];
-        targetHeap[parent] = targetHeap[index];
-        targetHeap[index] = swap;
-        index = parent;
-      }}
-      return targetHeap;
-    }}
-
-    function chatNodeNavigatorMinHeapPop(heap) {{
-      if (!Array.isArray(heap) || heap.length <= 0) return null;
-      const first = heap[0];
-      const last = heap.pop();
-      if (heap.length > 0 && last) {{
-        heap[0] = last;
-        let index = 0;
-        while (true) {{
-          const left = (index * 2) + 1;
-          const right = left + 1;
-          let smallest = index;
-          if (left < heap.length && heap[left].distance < heap[smallest].distance) {{
-            smallest = left;
+    // Link-quality path search over an indexed graph.
+    //
+    // The roster asks for path diversity from the local node to every roster node. On the
+    // all-time edge window that is hundreds of targets over thousands of edges, and the
+    // previous Map-and-object implementation spent seconds per render allocating heap
+    // entries and re-normalizing ids in the inner loop. This version keeps the exact
+    // semantics (same edge costs, relaxation order, tie-breaking and per-target edge
+    // blocking) on flat typed arrays: ids become indices, adjacency is CSR, the heap is
+    // two parallel arrays and the visited/blocked sets are generation stamps.
+    function chatNodeNavigatorBuildLinkQualityGraph(adjacency) {{
+      const safeAdjacency = adjacency instanceof Map ? adjacency : new Map();
+      const ids = Array.from(safeAdjacency.keys());
+      const nodeCount = ids.length;
+      const indexOf = new Map();
+      for (let index = 0; index < nodeCount; index += 1) indexOf.set(ids[index], index);
+      const offsets = new Int32Array(nodeCount + 1);
+      for (let index = 0; index < nodeCount; index += 1) {{
+        const peers = safeAdjacency.get(ids[index]);
+        let degree = 0;
+        if (peers instanceof Map) {{
+          for (const peerId of peers.keys()) {{
+            if (indexOf.has(peerId)) degree += 1;
           }}
-          if (right < heap.length && heap[right].distance < heap[smallest].distance) {{
-            smallest = right;
-          }}
-          if (smallest === index) break;
-          const swap = heap[index];
-          heap[index] = heap[smallest];
-          heap[smallest] = swap;
-          index = smallest;
         }}
+        offsets[index + 1] = offsets[index] + degree;
       }}
-      return first;
-    }}
-
-    function chatNodeNavigatorFindWeightedPath(sourceNodeId, targetNodeId, adjacency, blockedEdgeKeys = null) {{
-      const source = normalizeNodeId(sourceNodeId || "");
-      const target = normalizeNodeId(targetNodeId || "");
-      if (
-        !isSelectableNodeId(source)
-        || !isSelectableNodeId(target)
-        || !(adjacency instanceof Map)
-        || !adjacency.has(source)
-        || !adjacency.has(target)
-      ) {{
-        return {{ path: [], edges: [], cost: Infinity }};
-      }}
-      if (source === target) {{
-        return {{ path: [source], edges: [], cost: 0 }};
-      }}
-      const blocked = blockedEdgeKeys instanceof Set ? blockedEdgeKeys : new Set();
-      const distances = new Map([[source, 0]]);
-      const previous = new Map();
-      const visited = new Set();
-      const queue = [];
-      chatNodeNavigatorMinHeapPush(queue, source, 0);
-      while (queue.length > 0) {{
-        const next = chatNodeNavigatorMinHeapPop(queue);
-        const currentId = normalizeNodeId(next && next.nodeId);
-        const currentDistance = Number(next && next.distance);
-        if (!isSelectableNodeId(currentId)) continue;
-        if (!Number.isFinite(currentDistance)) continue;
-        if (visited.has(currentId)) continue;
-        const bestKnownDistance = Number(distances.get(currentId));
-        if (!Number.isFinite(bestKnownDistance) || currentDistance > (bestKnownDistance + 1e-9)) continue;
-        visited.add(currentId);
-        if (currentId === target) break;
-        const peers = adjacency.get(currentId);
+      const slotCount = offsets[nodeCount];
+      const targets = new Int32Array(slotCount);
+      const edgeIds = new Int32Array(slotCount);
+      const costs = new Float64Array(slotCount);
+      // Blocking is by symmetric edge key, exactly as before; a slot whose key is empty
+      // can never be blocked.
+      const edgeIdByKey = new Map();
+      let slot = 0;
+      for (let index = 0; index < nodeCount; index += 1) {{
+        const peers = safeAdjacency.get(ids[index]);
         if (!(peers instanceof Map)) continue;
         for (const [peerId, edge] of peers.entries()) {{
-          if (visited.has(peerId)) continue;
-          const edgeKey = chatNodeNavigatorLinkQualityEdgeKey(currentId, peerId);
-          if (edgeKey && blocked.has(edgeKey)) continue;
-          const candidate = currentDistance + chatNodeNavigatorLinkQualityEdgeCost(edge);
-          const existing = distances.has(peerId) ? distances.get(peerId) : Infinity;
-          if (candidate + 1e-9 < existing) {{
-            distances.set(peerId, candidate);
-            previous.set(peerId, {{ nodeId: currentId, edge }});
-            chatNodeNavigatorMinHeapPush(queue, peerId, candidate);
+          const peerIndex = indexOf.get(peerId);
+          if (peerIndex === undefined) continue;
+          const edgeKey = chatNodeNavigatorLinkQualityEdgeKey(ids[index], peerId);
+          let edgeId = -1;
+          if (edgeKey) {{
+            edgeId = edgeIdByKey.get(edgeKey);
+            if (edgeId === undefined) {{
+              edgeId = edgeIdByKey.size;
+              edgeIdByKey.set(edgeKey, edgeId);
+            }}
           }}
-        }}
-      }}
-      if (!previous.has(target)) {{
-        return {{ path: [], edges: [], cost: Infinity }};
-      }}
-      const path = [target];
-      const edges = [];
-      let cursor = target;
-      while (cursor !== source) {{
-        const step = previous.get(cursor);
-        if (!step || !step.nodeId) {{
-          return {{ path: [], edges: [], cost: Infinity }};
-        }}
-        edges.unshift(step.edge);
-        cursor = step.nodeId;
-        path.unshift(cursor);
-      }}
-      return {{ path, edges, cost: Number(distances.get(target) || 0) }};
-    }}
-
-    function chatNodeNavigatorEstimatePathDiversity(sourceNodeId, targetNodeId, adjacency, maxPaths = 4) {{
-      const source = normalizeNodeId(sourceNodeId || "");
-      const target = normalizeNodeId(targetNodeId || "");
-      if (!isSelectableNodeId(source) || !isSelectableNodeId(target) || source === target) {{
-        return {{ pathCount: source === target ? 4 : 0, hops: source === target ? 0 : null, reachable: source === target }};
-      }}
-      const sourcePeers = adjacency instanceof Map ? adjacency.get(source) : null;
-      const targetPeers = adjacency instanceof Map ? adjacency.get(target) : null;
-      const sourceDegree = sourcePeers instanceof Map ? sourcePeers.size : 0;
-      const targetDegree = targetPeers instanceof Map ? targetPeers.size : 0;
-      if (sourceDegree <= 0 || targetDegree <= 0) {{
-        return {{ pathCount: 0, hops: null, reachable: false }};
-      }}
-      const pathLimit = Math.max(1, Math.min(6, Math.trunc(Number(maxPaths) || 4)));
-      const structuralPathLimit = Math.max(1, Math.min(pathLimit, sourceDegree, targetDegree));
-      const blockedEdgeKeys = new Set();
-      let pathCount = 0;
-      let shortestHops = null;
-      for (let index = 0; index < structuralPathLimit; index += 1) {{
-        const inferred = chatNodeNavigatorFindWeightedPath(source, target, adjacency, blockedEdgeKeys);
-        const path = Array.isArray(inferred && inferred.path) ? inferred.path : [];
-        if (path.length <= 1) break;
-        const hops = Math.max(0, path.length - 1);
-        if (shortestHops == null || hops < shortestHops) {{
-          shortestHops = hops;
-        }}
-        pathCount += 1;
-        const routeEdges = Array.isArray(inferred && inferred.edges) ? inferred.edges : [];
-        for (let edgeIndex = 0; edgeIndex < routeEdges.length; edgeIndex += 1) {{
-          const a = path[edgeIndex];
-          const b = path[edgeIndex + 1];
-          const edgeKey = chatNodeNavigatorLinkQualityEdgeKey(a, b);
-          if (edgeKey) blockedEdgeKeys.add(edgeKey);
+          targets[slot] = peerIndex;
+          edgeIds[slot] = edgeId;
+          costs[slot] = chatNodeNavigatorLinkQualityEdgeCost(edge);
+          slot += 1;
         }}
       }}
       return {{
-        pathCount,
-        hops: shortestHops,
-        reachable: pathCount > 0,
+        indexOf,
+        offsets,
+        targets,
+        edgeIds,
+        costs,
+        nodeCount,
+        slotCount,
+        edgeCount: edgeIdByKey.size,
       }};
+    }}
+
+    function chatNodeNavigatorLinkQualityPathStats(graph, localNodeId, participantNodeIds, maxPaths = 4) {{
+      const out = new Map();
+      const source = normalizeNodeId(localNodeId || "");
+      const nodeIds = Array.isArray(participantNodeIds) ? participantNodeIds : [];
+      const unreachable = () => ({{ pathCount: 0, hops: null, reachable: false }});
+      const safeGraph = (graph && typeof graph === "object" && graph.indexOf instanceof Map) ? graph : null;
+      const sourceIndex = safeGraph ? safeGraph.indexOf.get(source) : undefined;
+      if (!isSelectableNodeId(source) || sourceIndex === undefined) {{
+        for (const rawNodeId of nodeIds) {{
+          const nodeId = normalizeNodeId(rawNodeId || "");
+          if (isSelectableNodeId(nodeId) && nodeId !== source && !out.has(nodeId)) out.set(nodeId, unreachable());
+        }}
+        return out;
+      }}
+      const {{ offsets, targets, edgeIds, costs, nodeCount, slotCount, edgeCount }} = safeGraph;
+      const pathLimit = Math.max(1, Math.min(6, Math.trunc(Number(maxPaths) || 4)));
+      const sourceDegree = offsets[sourceIndex + 1] - offsets[sourceIndex];
+      const distance = new Float64Array(nodeCount);
+      const previousNode = new Int32Array(nodeCount);
+      const previousSlot = new Int32Array(nodeCount);
+      const seenStamp = new Int32Array(nodeCount);
+      const doneStamp = new Int32Array(nodeCount);
+      const blockedStamp = new Int32Array(Math.max(1, edgeCount));
+      // A search pushes at most once per adjacency slot, plus the source.
+      const heapNodes = new Int32Array(slotCount + 2);
+      const heapDistances = new Float64Array(slotCount + 2);
+      let heapLength = 0;
+      let stamp = 0;
+      let blockGeneration = 1;
+      let poppedNode = -1;
+      let poppedDistance = 0;
+
+      const heapPush = (nodeIndex, nodeDistance) => {{
+        let index = heapLength;
+        heapLength += 1;
+        heapNodes[index] = nodeIndex;
+        heapDistances[index] = nodeDistance;
+        while (index > 0) {{
+          const parent = (index - 1) >> 1;
+          if (heapDistances[parent] <= heapDistances[index]) break;
+          const swapNode = heapNodes[parent];
+          const swapDistance = heapDistances[parent];
+          heapNodes[parent] = heapNodes[index];
+          heapDistances[parent] = heapDistances[index];
+          heapNodes[index] = swapNode;
+          heapDistances[index] = swapDistance;
+          index = parent;
+        }}
+      }};
+      const heapPop = () => {{
+        poppedNode = heapNodes[0];
+        poppedDistance = heapDistances[0];
+        heapLength -= 1;
+        if (heapLength <= 0) return;
+        heapNodes[0] = heapNodes[heapLength];
+        heapDistances[0] = heapDistances[heapLength];
+        let index = 0;
+        for (;;) {{
+          const left = (index * 2) + 1;
+          const right = left + 1;
+          let smallest = index;
+          if (left < heapLength && heapDistances[left] < heapDistances[smallest]) smallest = left;
+          if (right < heapLength && heapDistances[right] < heapDistances[smallest]) smallest = right;
+          if (smallest === index) break;
+          const swapNode = heapNodes[index];
+          const swapDistance = heapDistances[index];
+          heapNodes[index] = heapNodes[smallest];
+          heapDistances[index] = heapDistances[smallest];
+          heapNodes[smallest] = swapNode;
+          heapDistances[smallest] = swapDistance;
+          index = smallest;
+        }}
+      }};
+
+      // Dijkstra from the source until targetIndex settles; -1 runs to exhaustion. Edges
+      // stamped with the current block generation are skipped.
+      const search = (targetIndex) => {{
+        stamp += 1;
+        heapLength = 0;
+        distance[sourceIndex] = 0;
+        seenStamp[sourceIndex] = stamp;
+        previousNode[sourceIndex] = -1;
+        heapPush(sourceIndex, 0);
+        while (heapLength > 0) {{
+          heapPop();
+          const current = poppedNode;
+          const currentDistance = poppedDistance;
+          if (doneStamp[current] === stamp) continue;
+          if (seenStamp[current] !== stamp || currentDistance > distance[current] + 1e-9) continue;
+          doneStamp[current] = stamp;
+          if (current === targetIndex) return true;
+          const end = offsets[current + 1];
+          for (let slot = offsets[current]; slot < end; slot += 1) {{
+            const peer = targets[slot];
+            if (doneStamp[peer] === stamp) continue;
+            const edgeId = edgeIds[slot];
+            if (edgeId >= 0 && blockedStamp[edgeId] === blockGeneration) continue;
+            const candidate = currentDistance + costs[slot];
+            const existing = seenStamp[peer] === stamp ? distance[peer] : Infinity;
+            if (candidate + 1e-9 < existing) {{
+              distance[peer] = candidate;
+              seenStamp[peer] = stamp;
+              previousNode[peer] = current;
+              previousSlot[peer] = slot;
+              heapPush(peer, candidate);
+            }}
+          }}
+        }}
+        return false;
+      }};
+
+      // Round one is shared: one full search from the source gives every target the path
+      // its own search would have stopped at, because a settled node's predecessor never
+      // changes afterwards. Only the later, edge-blocked rounds are per target.
+      search(-1);
+      const treeStamp = stamp;
+      const treeDone = doneStamp.slice();
+      const treePreviousNode = previousNode.slice();
+      const treePreviousSlot = previousSlot.slice();
+
+      for (const rawNodeId of nodeIds) {{
+        const nodeId = normalizeNodeId(rawNodeId || "");
+        if (!isSelectableNodeId(nodeId) || nodeId === source || out.has(nodeId)) continue;
+        const targetIndex = safeGraph.indexOf.get(nodeId);
+        if (targetIndex === undefined) {{
+          out.set(nodeId, unreachable());
+          continue;
+        }}
+        const targetDegree = offsets[targetIndex + 1] - offsets[targetIndex];
+        if (sourceDegree <= 0 || targetDegree <= 0 || treeDone[targetIndex] !== treeStamp) {{
+          out.set(nodeId, unreachable());
+          continue;
+        }}
+        const structuralPathLimit = Math.max(1, Math.min(pathLimit, sourceDegree, targetDegree));
+        blockGeneration += 1;
+        let pathCount = 1;
+        let shortestHops = 0;
+        for (let cursor = targetIndex; cursor !== sourceIndex; cursor = treePreviousNode[cursor]) {{
+          const edgeId = edgeIds[treePreviousSlot[cursor]];
+          if (edgeId >= 0) blockedStamp[edgeId] = blockGeneration;
+          shortestHops += 1;
+        }}
+        for (let round = 1; round < structuralPathLimit; round += 1) {{
+          if (!search(targetIndex)) break;
+          let hops = 0;
+          for (let cursor = targetIndex; cursor !== sourceIndex; cursor = previousNode[cursor]) {{
+            const edgeId = edgeIds[previousSlot[cursor]];
+            if (edgeId >= 0) blockedStamp[edgeId] = blockGeneration;
+            hops += 1;
+          }}
+          if (hops < shortestHops) shortestHops = hops;
+          pathCount += 1;
+        }}
+        out.set(nodeId, {{ pathCount, hops: shortestHops, reachable: true }});
+      }}
+      return out;
     }}
 
     function chatNodeNavigatorInferLinkQuality(hopsValue, pathCountValue, options = null) {{
@@ -712,6 +784,34 @@
       }};
     }}
 
+    // Content signature of the raw edge rows behind the link-quality graph. The history
+    // edge cache is replaced wholesale on every refresh, usually with identical rows, so
+    // keying on content rather than array identity is what lets the path search skip.
+    let chatNodeNavigatorLinkQualityEdgeSignatureMemo = null;
+    function chatNodeNavigatorLinkQualityEdgeSignature(rawEdges) {{
+      const edges = Array.isArray(rawEdges) ? rawEdges : [];
+      const memo = chatNodeNavigatorLinkQualityEdgeSignatureMemo;
+      if (memo && memo.edges === edges && memo.length === edges.length) return memo.signature;
+      let hashA = 2166136261;
+      let hashB = 5381;
+      for (const edge of edges) {{
+        if (!edge || typeof edge !== "object") continue;
+        const text = `${{edge.from}}|${{edge.to}}|${{edge.count}}|${{edge.lifetime_count}}|${{edge.session_count}}`
+          + `|${{edge.avg_hops}}|${{edge.hops_samples}}|${{edge.last_rx_unix}}|${{edge.last_rx_time}}`
+          + `|${{edge.last_seen_unix}}|${{edge.last_unix}};`;
+        for (let index = 0; index < text.length; index += 1) {{
+          const code = text.charCodeAt(index);
+          hashA = Math.imul(hashA ^ code, 16777619) >>> 0;
+          hashB = (Math.imul(hashB, 33) + code) >>> 0;
+        }}
+      }}
+      const signature = `${{edges.length}}:${{hashA.toString(16)}}:${{hashB.toString(16)}}`;
+      chatNodeNavigatorLinkQualityEdgeSignatureMemo = {{ edges, length: edges.length, signature }};
+      return signature;
+    }}
+
+    let chatNodeNavigatorLinkQualityPathStatsCache = null;
+
     function buildChatNodeNavigatorLinkQualityByNode(
       state = latestState,
       nodesById = null,
@@ -760,11 +860,13 @@
         ? networkGraphHistoryCapsForMode(baseHistoryCaps, historyMode)
         : baseHistoryCaps;
       const historyCapsMergedById = new Map(sourceHistoryCapsById);
+      const historyCapsForModeById = new Map();
       for (const [rawNodeId, rawCaps] of Object.entries(historyCapsForMode || {{}})) {{
         const nodeId = normalizeNodeId(rawNodeId || "");
         const caps = (rawCaps && typeof rawCaps === "object") ? rawCaps : null;
-        if (!isSelectableNodeId(nodeId) || !caps || historyCapsMergedById.has(nodeId)) continue;
-        historyCapsMergedById.set(nodeId, caps);
+        if (!isSelectableNodeId(nodeId) || !caps) continue;
+        historyCapsForModeById.set(nodeId, caps);
+        if (!historyCapsMergedById.has(nodeId)) historyCapsMergedById.set(nodeId, caps);
       }}
 
       const participantSet = new Set();
@@ -775,42 +877,77 @@
       }}
 
       const liveNodes = Array.isArray(safeState.nodes) ? safeState.nodes : [];
-      const nodeMap = (typeof buildNetworkGraphNodeMap === "function")
-        ? buildNetworkGraphNodeMap(liveNodes, historyCapsForMode, filteredRawEdges, {{
-            includeAllLiveNodes: true,
-            pinnedNodeIds: Array.from(participantSet),
-          }})
-        : new Map(sourceNodesById);
-      const combinedEdges = (typeof combineNetworkGraphEdges === "function")
-        ? combineNetworkGraphEdges(filteredRawEdges, nodeMap, {{ mode: historyMode }})
-        : [];
-      const adjacency = (typeof buildNetworkGraphAdjacency === "function")
-        ? buildNetworkGraphAdjacency(nodeMap, combinedEdges)
-        : new Map();
+      const liveNodeById = new Map();
+      for (const node of liveNodes) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        if (!isSelectableNodeId(nodeId) || liveNodeById.has(nodeId)) continue;
+        liveNodeById.set(nodeId, node);
+      }}
+
+      // The path stats depend only on the edge rows, the window mode, the local node and
+      // the participant set, so they are cached on that content: a new state object or a
+      // refreshed-but-identical edge cache reuses them. The hop candidates below come from
+      // the current state and are cheap, so they are always recomputed.
+      const pathStatsKey = `${{cacheSignature}}::${{chatNodeNavigatorLinkQualityEdgeSignature(filteredRawEdges)}}`;
+      const cachedPathStats = chatNodeNavigatorLinkQualityPathStatsCache;
+      let pathStatsByNode;
+      if (cachedPathStats && cachedPathStats.key === pathStatsKey && cachedPathStats.value instanceof Map) {{
+        pathStatsByNode = cachedPathStats.value;
+      }} else {{
+        const nodeMap = (typeof buildNetworkGraphNodeMap === "function")
+          ? buildNetworkGraphNodeMap(liveNodes, historyCapsForMode, filteredRawEdges, {{
+              includeAllLiveNodes: true,
+              pinnedNodeIds: Array.from(participantSet),
+            }})
+          : new Map(sourceNodesById);
+        const combinedEdges = (typeof combineNetworkGraphEdges === "function")
+          ? combineNetworkGraphEdges(filteredRawEdges, nodeMap, {{ mode: historyMode }})
+          : [];
+        const adjacency = (typeof buildNetworkGraphAdjacency === "function")
+          ? buildNetworkGraphAdjacency(nodeMap, combinedEdges)
+          : new Map();
+        pathStatsByNode = chatNodeNavigatorLinkQualityPathStats(
+          chatNodeNavigatorBuildLinkQualityGraph(adjacency),
+          localNodeId,
+          Array.from(participantSet),
+          4
+        );
+        chatNodeNavigatorLinkQualityPathStatsCache = {{ key: pathStatsKey, value: pathStatsByNode }};
+      }}
 
       out.set(localNodeId, chatNodeNavigatorInferLinkQuality(0, 4, {{ isSelf: true }}));
       for (const nodeId of participantSet) {{
         if (!isSelectableNodeId(nodeId) || nodeId === localNodeId) continue;
-        const node = sourceNodesById.get(nodeId) || nodeMap.get(nodeId) || null;
         const caps = historyCapsMergedById.get(nodeId) || null;
         const hopCandidates = [];
-        const liveHopsRaw = Number(node && (node.hops_away ?? node.hopsAway));
-        if (Number.isFinite(liveHopsRaw) && liveHopsRaw >= 0) {{
-          hopCandidates.push(Math.max(0, Math.trunc(liveHopsRaw)));
+        const node = sourceNodesById.get(nodeId) || liveNodeById.get(nodeId) || null;
+        if (node) {{
+          const liveHopsRaw = Number(node.hops_away ?? node.hopsAway);
+          if (Number.isFinite(liveHopsRaw) && liveHopsRaw >= 0) {{
+            hopCandidates.push(Math.max(0, Math.trunc(liveHopsRaw)));
+          }}
+        }} else {{
+          // Not a live node: the graph holds a placeholder for it whose hops_away is the
+          // window's history-caps last_hops clamped at zero (buildNetworkGraphPlaceholderNode).
+          const placeholderCaps = historyCapsForModeById.get(nodeId) || null;
+          const placeholderHopsRaw = Number(placeholderCaps && placeholderCaps.last_hops);
+          if (Number.isFinite(placeholderHopsRaw)) {{
+            hopCandidates.push(Math.max(0, Math.trunc(placeholderHopsRaw)));
+          }}
         }}
         const capsHopsRaw = Number(caps && caps.last_hops);
         if (Number.isFinite(capsHopsRaw) && capsHopsRaw >= 0) {{
           hopCandidates.push(Math.max(0, Math.trunc(capsHopsRaw)));
         }}
-        const pathStats = chatNodeNavigatorEstimatePathDiversity(localNodeId, nodeId, adjacency, 4);
-        const inferredHopCount = Number.isFinite(Number(pathStats && pathStats.hops))
+        const pathStats = pathStatsByNode.get(nodeId) || {{ pathCount: 0, hops: null, reachable: false }};
+        const inferredHopCount = Number.isFinite(Number(pathStats.hops))
           ? Math.max(0, Math.trunc(Number(pathStats.hops)))
           : null;
         const hopCount = hopCandidates.length > 0
           ? Math.min(...hopCandidates)
           : inferredHopCount;
         out.set(nodeId, chatNodeNavigatorInferLinkQuality(hopCount, pathStats.pathCount, {{
-          reachable: !!(pathStats && pathStats.reachable),
+          reachable: !!pathStats.reachable,
         }}));
       }}
       if (chatNodeNavigatorLinkQualityCacheByState instanceof WeakMap && safeState && typeof safeState === "object") {{
@@ -1066,40 +1203,57 @@
         projectionById.set(nodeId, projection);
         return projection;
       }};
+      // The key helpers are pure, so evaluate them once per row rather than on each of the
+      // O(n log n) comparisons; projection-based keys stay lazy like the projections.
+      const pinSections = activeChatChannel === "direct" && usePrioritySections;
+      const sortKeysByRow = new Map();
+      const sortKeysFor = (row) => {{
+        let keys = sortKeysByRow.get(row);
+        if (!keys) {{
+          keys = {{
+            unread: chatNodeNavigatorUnreadDirectCount(sourceUnreadDirectByPeer, row && row.id),
+            pinned: Number(!!(row && row.p2pPinned)),
+            projected: false,
+            value: null,
+            status: null,
+            lastUpdate: null,
+          }};
+          sortKeysByRow.set(row, keys);
+        }}
+        return keys;
+      }};
+      const projectedSortKeysFor = (row) => {{
+        const keys = sortKeysFor(row);
+        if (!keys.projected) {{
+          const projection = projectionFor(row);
+          keys.value = chatNodeNavigatorSortValue(row, projection, sortKey, nowUnix);
+          keys.status = chatNodeNavigatorStatusSortValue(row, projection);
+          keys.lastUpdate = chatNodeNavigatorLastUpdateUnix(row, projection);
+          keys.projected = true;
+        }}
+        return keys;
+      }};
       rows.sort((a, b) => {{
-        const unreadDiff = (
-          chatNodeNavigatorUnreadDirectCount(sourceUnreadDirectByPeer, b && b.id)
-          - chatNodeNavigatorUnreadDirectCount(sourceUnreadDirectByPeer, a && a.id)
-        );
+        const unreadDiff = sortKeysFor(b).unread - sortKeysFor(a).unread;
         if (unreadDiff !== 0) return unreadDiff;
 
-        const pinDiff = activeChatChannel === "direct" && usePrioritySections
-          ? (Number(!!(b && b.p2pPinned)) - Number(!!(a && a.p2pPinned)))
-          : 0;
+        const pinDiff = pinSections ? (sortKeysFor(b).pinned - sortKeysFor(a).pinned) : 0;
         if (pinDiff !== 0) return pinDiff;
 
-        const aProjection = projectionFor(a);
-        const bProjection = projectionFor(b);
-        const aValue = chatNodeNavigatorSortValue(a, aProjection, sortKey, nowUnix);
-        const bValue = chatNodeNavigatorSortValue(b, bProjection, sortKey, nowUnix);
-        const cmp = chatNodeNavigatorCompareSortValues(aValue, bValue);
+        const aKeys = projectedSortKeysFor(a);
+        const bKeys = projectedSortKeysFor(b);
+        const cmp = chatNodeNavigatorCompareSortValues(aKeys.value, bKeys.value);
         if (cmp !== 0) {{
           return sortDir === "desc" ? -cmp : cmp;
         }}
 
-        const statusCmp = chatNodeNavigatorCompareSortValues(
-          chatNodeNavigatorStatusSortValue(a, aProjection),
-          chatNodeNavigatorStatusSortValue(b, bProjection)
-        );
+        const statusCmp = chatNodeNavigatorCompareSortValues(aKeys.status, bKeys.status);
         if (statusCmp !== 0) return statusCmp;
 
         // Status is the default grouped view. Within each freshness bucket,
         // keep the nodes we most recently received from at the top.
         if (sortKey === "status") {{
-          const receivedCmp = chatNodeNavigatorCompareSortValues(
-            chatNodeNavigatorLastUpdateUnix(b, bProjection),
-            chatNodeNavigatorLastUpdateUnix(a, aProjection)
-          );
+          const receivedCmp = chatNodeNavigatorCompareSortValues(bKeys.lastUpdate, aKeys.lastUpdate);
           if (receivedCmp !== 0) return receivedCmp;
         }}
 
@@ -1526,6 +1680,74 @@
       return matches;
     }}
 
+    // Routine state polls carry only nodes heard within the server's node window
+    // (summary.node_window_omitted_count says how many were left out). Roster search asks the
+    // server for older matches so every known node stays reachable.
+    const nodeWindowSearchDebounceMs = 250;
+    const nodeWindowSearchLimit = 40;
+    let nodeWindowSearchQuery = "";
+    let nodeWindowSearchCapsById = new Map();
+    let nodeWindowSearchPendingQuery = "";
+    let nodeWindowSearchTimer = null;
+
+    function nodeWindowSearchActive(state) {{
+      const summary = state && state.summary && typeof state.summary === "object" ? state.summary : null;
+      return Number(summary && summary.node_window_omitted_count) > 0;
+    }}
+
+    function nodeWindowSearchCapsFromPayload(payload) {{
+      const capsById = new Map();
+      const caps = payload && payload.history_caps && typeof payload.history_caps === "object"
+        ? payload.history_caps
+        : {{}};
+      for (const [rawNodeId, entry] of Object.entries(caps)) {{
+        const nodeId = normalizeNodeId(rawNodeId || "");
+        if (isSelectableNodeId(nodeId) && entry && typeof entry === "object") {{
+          capsById.set(nodeId, entry);
+        }}
+      }}
+      for (const node of (Array.isArray(payload && payload.nodes) ? payload.nodes : [])) {{
+        const nodeId = normalizeNodeId(node && node.id);
+        if (!isSelectableNodeId(nodeId) || capsById.has(nodeId)) continue;
+        capsById.set(nodeId, {{
+          last_long_name: node.long_name,
+          last_short_name: node.short_name,
+          last_seen_unix: node.last_heard_unix,
+        }});
+      }}
+      return capsById;
+    }}
+
+    function requestNodeWindowSearch(queryRaw) {{
+      const query = normalizeSearchQuery(queryRaw || "");
+      if (!query || query === nodeWindowSearchQuery || query === nodeWindowSearchPendingQuery) return;
+      if (typeof window === "undefined" || typeof window.setTimeout !== "function" || typeof fetch !== "function") return;
+      nodeWindowSearchPendingQuery = query;
+      if (nodeWindowSearchTimer !== null) {{
+        window.clearTimeout(nodeWindowSearchTimer);
+      }}
+      nodeWindowSearchTimer = window.setTimeout(async () => {{
+        nodeWindowSearchTimer = null;
+        let capsById = new Map();
+        try {{
+          const resp = await fetch(
+            `/api/nodes/search?q=${{encodeURIComponent(query)}}&limit=${{nodeWindowSearchLimit}}`,
+            {{ cache: "no-store" }}
+          );
+          capsById = nodeWindowSearchCapsFromPayload(resp.ok ? await resp.json() : null);
+        }} catch (_err) {{
+          // Keep the empty result for this query so a failing request is not retried on every render.
+        }}
+        if (nodeWindowSearchPendingQuery !== query) return;
+        nodeWindowSearchPendingQuery = "";
+        nodeWindowSearchQuery = query;
+        nodeWindowSearchCapsById = capsById;
+        if (capsById.size > 0 && typeof rerenderNodeSearchDependents === "function") {{
+          rerenderNodeSearchDependents(latestState, {{ delayMs: 0 }});
+        }}
+      }}, nodeWindowSearchDebounceMs);
+    }}
+
     function touchChatNodeNavigatorRetainedNodes(touchNodeById) {{
       if (typeof touchNodeById !== "function") return;
       if (favoriteNodeIds && typeof favoriteNodeIds.forEach === "function") {{
@@ -1655,6 +1877,20 @@
             lastMessageUnix: lastSeenUnix > 0 ? lastSeenUnix : null,
             p2pPinned: manualDirectPeerIds.has(normalizeNodeId(nodeId)),
           }});
+        }}
+      }}
+      if (includeHistoricalOnDemand && nodeWindowSearchActive(safeState)) {{
+        requestNodeWindowSearch(searchQuery);
+        if (nodeWindowSearchQuery === searchQuery) {{
+          for (const [nodeId, caps] of nodeWindowSearchCapsById) {{
+            if (participants.has(nodeId)) continue;
+            const lastSeenUnix = Math.trunc(Number(caps && caps.last_seen_unix) || 0);
+            touchNodeById(nodeId, {{
+              name: chatNodeNavigatorHistoryCapsDisplayName(caps, nodeId),
+              lastMessageUnix: lastSeenUnix > 0 ? lastSeenUnix : null,
+              p2pPinned: manualDirectPeerIds.has(nodeId),
+            }});
+          }}
         }}
       }}
       touchChatNodeNavigatorRetainedNodes((nodeId) => {{
@@ -4724,6 +4960,14 @@
       chatImmediatePollTimer = window.setTimeout(() => {{
         chatImmediatePollTimer = null;
         if (document.hidden) return;
+        // Still typing: wait for the pause instead of fetching state between keystrokes.
+        const typingRemainingMs = typeof dashboardTextEntryRenderDeferRemainingMs === "function"
+          ? dashboardTextEntryRenderDeferRemainingMs()
+          : 0;
+        if (typingRemainingMs > 0 && latestState) {{
+          requestImmediatePoll(Math.ceil(typingRemainingMs) + 80);
+          return;
+        }}
         if (typeof pollOnce === "function") {{
           void pollOnce();
           return;

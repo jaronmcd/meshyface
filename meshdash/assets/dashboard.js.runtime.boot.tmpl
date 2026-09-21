@@ -169,21 +169,49 @@
 
     let pollInFlight = false;
     let pollQueued = false;
-    async function pollOnce() {{
+    let lastPollDurationMs = 0;
+    let lastPollFinishedMs = 0;
+    async function pollOnce(options = null) {{
+      const scheduled = !!(options && options.scheduled);
       if (pollInFlight) {{
-        pollQueued = true;
+        // Explicit requests (user actions, page activation) catch up once the running poll
+        // ends; scheduled ticks are simply skipped so slow polls never run back to back.
+        if (!scheduled) pollQueued = true;
         return;
       }}
       pollInFlight = true;
+      const startedMs = Date.now();
       try {{
         await poll();
       }} finally {{
         pollInFlight = false;
+        lastPollFinishedMs = Date.now();
+        lastPollDurationMs = Math.max(0, lastPollFinishedMs - startedMs);
         if (pollQueued) {{
           pollQueued = false;
           void pollOnce();
         }}
       }}
+    }}
+
+    function scheduledPollShouldWait(nowMs) {{
+      if (pollInFlight) return true;
+      // Give the page idle time at least as long as the last poll took (capped at one refresh
+      // interval), so a slow device or a slow server backs off instead of polling nonstop.
+      const idleNeededMs = Math.min(refreshMs, lastPollDurationMs);
+      if (lastPollFinishedMs > 0 && (nowMs - lastPollFinishedMs) < idleNeededMs) return true;
+      // While the user types, a poll would only fetch and parse state whose render is deferred.
+      // Skip it and let one catch-up poll run when typing pauses.
+      if (latestState && typeof dashboardTextEntryRenderDeferRemainingMs === "function") {{
+        const typingRemainingMs = dashboardTextEntryRenderDeferRemainingMs();
+        if (typingRemainingMs > 0) {{
+          if (typeof requestImmediatePoll === "function") {{
+            requestImmediatePoll(Math.ceil(typingRemainingMs) + 80);
+          }}
+          return true;
+        }}
+      }}
+      return false;
     }}
 
     const pageActivationPollThrottleMs = Math.max(1000, Math.min(5000, Math.trunc(Number(refreshMs) || 3000)));
@@ -270,8 +298,11 @@
       if (document.hidden && (nowMs - lastScheduledPollMs) < hiddenRefreshMs) {{
         return;
       }}
+      if (scheduledPollShouldWait(nowMs)) {{
+        return;
+      }}
       lastScheduledPollMs = nowMs;
-      void pollOnce();
+      void pollOnce({{ scheduled: true }});
     }}, refreshMs);
     setInterval(() => {{
       if (!hasActiveFileTransferSessions()) return;

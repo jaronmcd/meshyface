@@ -28,6 +28,7 @@
     let dashboardLivemapMeshFadeStartedAt = null;
     let dashboardLivemapCachedNodeView = null;
     let dashboardLivemapBestNodeView = null;
+    let dashboardLivemapEstimatedRangeCache = null;
 
     const dashboardLivemapGeometryRefreshMs = 5000;
     const dashboardLivemapMinViewSpan = 0.004;
@@ -39,8 +40,15 @@
     const dashboardLivemapViewSnapEpsilon = 0.000004;
     const dashboardLivemapMapFadeMs = 1600;
     const dashboardLivemapMeshFadeMs = 2800;
-    const dashboardLivemapLinkFadeInEasing = 0.025;
-    const dashboardLivemapLinkFadeOutEasing = 0.012;
+    // Link fades run on the clock with fixed durations. Per-frame easing never settled
+    // (an outgoing link needed ~450 frames), so any link change pinned the full-window
+    // canvas at 30 fps for ~15 s, and at throttled frame rates fades took minutes.
+    const dashboardLivemapLinkFadeInMs = 1500;
+    const dashboardLivemapLinkFadeOutMs = 2500;
+    const dashboardLivemapLinkRecencyFadeMs = 1200;
+    // Recency fades shift a little on every geometry refresh; changes this small are not
+    // visible, so they apply at once instead of starting another animation.
+    const dashboardLivemapLinkRecencySnapDelta = 0.05;
     const dashboardLivemapLinkPruneOpacity = 0.004;
     const dashboardLivemapNodePanAfterMapDelayMs = 450;
     const dashboardLivemapNodePanFallbackMapWaitMs = 2400;
@@ -68,6 +76,12 @@
     }});
     const dashboardLivemapEstimatedRangeMaxLinks = 360;
     const dashboardLivemapEstimatedRangeMaxLinksPerNode = 5;
+    // Estimated links compare every pair of positioned nodes, and in a metro mesh most pairs
+    // are within radio range, so no spatial index helps. Keep the cost fixed as the mesh grows:
+    // consider only the most recently heard nodes (stale ones get the faintest links anyway)
+    // and rebuild on a slow cadence instead of on every poll.
+    const dashboardLivemapEstimatedRangeMaxPoints = 500;
+    const dashboardLivemapEstimatedRangeRebuildMs = 15000;
     const dashboardLivemapMaxMercatorLat = 85.05112878;
 
     // Offline map expansion packs: the background reuses the map screen's
@@ -170,14 +184,7 @@
         return true;
       }}
       for (const transition of dashboardLivemapLinkTransitions.values()) {{
-        const opacity = Math.max(0, Math.min(1, Number(transition && transition.opacity) || 0));
-        const targetOpacity = Number(transition && transition.targetOpacity) > 0 ? 1 : 0;
-        const fade = Math.max(0, Math.min(1, Number(transition && transition.fade) || 0));
-        const fadeTarget = Math.max(0, Math.min(1, Number(transition && transition.fadeTarget) || 0));
-        if (
-          Math.abs(targetOpacity - opacity) > dashboardLivemapLinkPruneOpacity ||
-          Math.abs(fadeTarget - fade) > dashboardLivemapLinkPruneOpacity
-        ) {{
+        if (dashboardLivemapLinkTransitionAnimating(transition, nowMs)) {{
           return true;
         }}
       }}
@@ -362,6 +369,56 @@
       if (ageSeconds <= 15 * 60) return 1;
       if (ageSeconds >= 2 * 60 * 60) return 0.35;
       return 1 - ((ageSeconds - (15 * 60)) / ((2 * 60 * 60) - (15 * 60)) * 0.65);
+    }}
+
+    function dashboardLivemapEstimatedRangePoints(points) {{
+      if (!Array.isArray(points) || points.length <= dashboardLivemapEstimatedRangeMaxPoints) return points;
+      const recencyOf = (point) => Math.max(
+        Number(point && point.positionLastSeenUnix) || 0,
+        Number(point && point.lastHeardUnix) || 0
+      );
+      const kept = new Set(
+        points
+          .map((point, index) => [index, recencyOf(point)])
+          .sort((left, right) => (right[1] - left[1]) || (left[0] - right[0]))
+          .slice(0, dashboardLivemapEstimatedRangeMaxPoints)
+          .map((entry) => entry[0])
+      );
+      // Keep the original order so tie-breaking in the link builder is unchanged.
+      return points.filter((_point, index) => kept.has(index));
+    }}
+
+    function dashboardLivemapEstimatedRangeLinksForGeometry(points, nowUnix, rangeProfile) {{
+      const nowMs = dashboardLivemapNowMs();
+      const rangeKm = Number(rangeProfile && rangeProfile.rangeKm);
+      const strongKm = Number(rangeProfile && rangeProfile.strongKm);
+      const cache = dashboardLivemapEstimatedRangeCache;
+      if (
+        cache &&
+        cache.rangeKm === rangeKm &&
+        cache.strongKm === strongKm &&
+        (nowMs - cache.builtAtMs) < dashboardLivemapEstimatedRangeRebuildMs
+      ) {{
+        const pointsByKey = new Map();
+        for (const point of (Array.isArray(points) ? points : [])) {{
+          if (point && point.key) pointsByKey.set(point.key, point);
+        }}
+        const links = [];
+        for (const link of cache.links) {{
+          const a = pointsByKey.get(link.aKey);
+          const b = pointsByKey.get(link.bKey);
+          if (!a || !b) continue;
+          links.push({{ ...link, ax: a.x, ay: a.y, bx: b.x, by: b.y }});
+        }}
+        return links;
+      }}
+      const links = dashboardLivemapBuildEstimatedRangeLinks(
+        dashboardLivemapEstimatedRangePoints(points),
+        nowUnix,
+        rangeProfile
+      );
+      dashboardLivemapEstimatedRangeCache = {{ builtAtMs: nowMs, rangeKm, strongKm, links }};
+      return links;
     }}
 
     function dashboardLivemapBuildEstimatedRangeLinks(points, nowUnix, rangeProfile = null) {{
@@ -927,6 +984,56 @@
         : Date.now();
     }}
 
+    function dashboardLivemapTimedValue(from, to, startMs, durationMs, nowMs) {{
+      const duration = Number(durationMs);
+      if (!(duration > 0)) return to;
+      const progress = Math.max(0, Math.min(1, (nowMs - Number(startMs)) / duration));
+      const eased = progress * progress * (3 - (2 * progress));
+      return from + ((to - from) * eased);
+    }}
+
+    function dashboardLivemapLinkTransitionAnimating(state, nowMs) {{
+      if (!state) return false;
+      return (
+        nowMs < (Number(state.opacityStartMs) + Number(state.opacityDurationMs)) ||
+        nowMs < (Number(state.fadeStartMs) + Number(state.fadeDurationMs))
+      );
+    }}
+
+    function dashboardLivemapRetargetLinkOpacity(state, targetOpacity, nowMs) {{
+      const target = targetOpacity > 0 ? 1 : 0;
+      if (state.targetOpacity === target) return;
+      const current = dashboardLivemapTimedValue(
+        state.opacityFrom,
+        state.targetOpacity,
+        state.opacityStartMs,
+        state.opacityDurationMs,
+        nowMs
+      );
+      const fullDurationMs = target > current ? dashboardLivemapLinkFadeInMs : dashboardLivemapLinkFadeOutMs;
+      state.opacityFrom = current;
+      state.opacity = current;
+      state.targetOpacity = target;
+      state.opacityStartMs = nowMs;
+      state.opacityDurationMs = fullDurationMs * Math.abs(target - current);
+    }}
+
+    function dashboardLivemapRetargetLinkFade(state, fadeTarget, nowMs) {{
+      const target = Math.max(0, Math.min(1, Number(fadeTarget) || 0));
+      const current = dashboardLivemapTimedValue(
+        state.fadeFrom,
+        state.fadeTarget,
+        state.fadeStartMs,
+        state.fadeDurationMs,
+        nowMs
+      );
+      state.fadeFrom = Math.abs(target - current) < dashboardLivemapLinkRecencySnapDelta ? target : current;
+      state.fade = state.fadeFrom;
+      state.fadeTarget = target;
+      state.fadeStartMs = nowMs;
+      state.fadeDurationMs = state.fadeFrom === target ? 0 : dashboardLivemapLinkRecencyFadeMs;
+    }}
+
     function dashboardLivemapUpsertLinkTransition(type, link, nowMs) {{
       const transitionKey = dashboardLivemapTransitionKey(type, link);
       if (!transitionKey) return;
@@ -939,25 +1046,34 @@
           key: transitionKey,
           type,
           opacity: 0,
-          targetOpacity: 1,
+          opacityFrom: 0,
+          targetOpacity: 0,
+          opacityStartMs: now,
+          opacityDurationMs: 0,
           fade: cleanFade,
+          fadeFrom: cleanFade,
           fadeTarget: cleanFade,
+          fadeStartMs: now,
+          fadeDurationMs: 0,
           link: {{ ...link, fade: cleanFade }},
           lastSeenMs: now,
+          seen: true,
         }};
         dashboardLivemapLinkTransitions.set(transitionKey, state);
+        dashboardLivemapRetargetLinkOpacity(state, 1, now);
         return;
       }}
       state.type = type;
-      state.targetOpacity = 1;
-      state.fadeTarget = cleanFade;
+      state.seen = true;
+      dashboardLivemapRetargetLinkOpacity(state, 1, now);
+      dashboardLivemapRetargetLinkFade(state, cleanFade, now);
       state.link = {{ ...state.link, ...link, fade: cleanFade }};
       state.lastSeenMs = now;
     }}
 
     function dashboardLivemapSyncLinkTransitions(geometry, nowMs = null) {{
       for (const state of dashboardLivemapLinkTransitions.values()) {{
-        state.targetOpacity = 0;
+        state.seen = false;
       }}
       const nowRaw = Number(nowMs);
       const now = nowMs != null && Number.isFinite(nowRaw) ? nowRaw : dashboardLivemapNowMs();
@@ -971,18 +1087,30 @@
       for (const link of observedLinks) {{
         dashboardLivemapUpsertLinkTransition("observed", link, now);
       }}
+      for (const state of dashboardLivemapLinkTransitions.values()) {{
+        if (!state.seen) {{
+          dashboardLivemapRetargetLinkOpacity(state, 0, now);
+        }}
+      }}
     }}
 
-    function dashboardLivemapEaseLinkTransitions() {{
+    function dashboardLivemapEaseLinkTransitions(nowMs = dashboardLivemapNowMs()) {{
       for (const [key, state] of Array.from(dashboardLivemapLinkTransitions.entries())) {{
-        const target = Number(state && state.targetOpacity) > 0 ? 1 : 0;
-        const current = Math.max(0, Math.min(1, Number(state && state.opacity) || 0));
-        const easing = target > current ? dashboardLivemapLinkFadeInEasing : dashboardLivemapLinkFadeOutEasing;
-        state.opacity = current + ((target - current) * easing);
-        const fade = Math.max(0, Math.min(1, Number(state.fade) || 0));
-        const fadeTarget = Math.max(0, Math.min(1, Number(state.fadeTarget) || 0));
-        state.fade = fade + ((fadeTarget - fade) * dashboardLivemapLinkFadeInEasing);
-        if (target <= 0 && state.opacity <= dashboardLivemapLinkPruneOpacity) {{
+        state.opacity = dashboardLivemapTimedValue(
+          state.opacityFrom,
+          state.targetOpacity,
+          state.opacityStartMs,
+          state.opacityDurationMs,
+          nowMs
+        );
+        state.fade = dashboardLivemapTimedValue(
+          state.fadeFrom,
+          state.fadeTarget,
+          state.fadeStartMs,
+          state.fadeDurationMs,
+          nowMs
+        );
+        if (state.targetOpacity <= 0 && !dashboardLivemapLinkTransitionAnimating(state, nowMs)) {{
           dashboardLivemapLinkTransitions.delete(key);
         }}
       }}
@@ -1188,7 +1316,7 @@
         }});
       }}
       const rangeProfile = dashboardLivemapEstimatedRangeProfile(state);
-      const estimatedRangeLinks = dashboardLivemapBuildEstimatedRangeLinks(points, nowUnix, rangeProfile);
+      const estimatedRangeLinks = dashboardLivemapEstimatedRangeLinksForGeometry(points, nowUnix, rangeProfile);
       dashboardLivemapGeometry = {{ points, links, estimatedRangeLinks, rangeProfile, nowUnix }};
       dashboardLivemapSyncLinkTransitions(dashboardLivemapGeometry, dashboardLivemapNowMs());
       const hasLivePoints = points.length > 0;
@@ -1521,7 +1649,7 @@
       const meshPoints = Array.isArray(geometry.points) ? geometry.points : [];
       const meshAlpha = dashboardLivemapMeshOpacity(nowMs, meshPoints.length > 0);
       if (meshAlpha <= 0.001) return;
-      dashboardLivemapEaseLinkTransitions();
+      dashboardLivemapEaseLinkTransitions(nowMs);
       const estimatedRangeLinks = dashboardLivemapTransitionLinks("estimated");
       const observedLinks = dashboardLivemapTransitionLinks("observed");
 
@@ -1696,6 +1824,7 @@
         dashboardLivemapBestNodeView = null;
         dashboardLivemapView = null;
         dashboardLivemapLinkTransitions = new Map();
+        dashboardLivemapEstimatedRangeCache = null;
       }}
       dashboardLivemapActive = true;
       refreshDashboardLivemapGeometry();

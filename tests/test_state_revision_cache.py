@@ -190,3 +190,42 @@ def test_record_local_chat_bumps_tracker_state_revision() -> None:
     )
 
     assert tracker.state_revision > before
+
+
+def test_state_build_after_packet_keeps_the_etag_it_was_served_with() -> None:
+    tracker = DashboardTracker(packet_limit=250, history_store=None)
+    tracker._max_retained_live_packet_rows = 2
+    builds: list[int] = []
+
+    def build_state_fn(**kwargs):
+        snapshot = kwargs["tracker"].snapshot_typed({})
+        builds.append(len(snapshot.recent_packets))
+        return {"packets": len(snapshot.recent_packets)}
+
+    state_fn = build_state_snapshot_loader_with_dependencies(
+        dependencies=StateSnapshotRuntimeDependencies(
+            iface=object(),
+            tracker=tracker,
+            started_at=0,
+            target="test",
+            show_secrets=False,
+            storage_probe_path=None,
+            revision_info=_revision(),
+        ),
+        build_state_fn=build_state_fn,
+    )
+
+    class _Interface:
+        nodes: dict[str, object] = {}
+
+    for index in range(6):
+        tracker.on_receive(
+            {"from": 10 + index, "to": 20, "id": 500 + index, "rxTime": 1_700_000_000 + index, "decoded": {"portnum": "TELEMETRY_APP"}},
+            _Interface(),
+        )
+        served_etag = state_fn.etag()
+        state_fn()
+        assert state_fn.etag() == served_etag
+        state_fn()
+
+    assert len(builds) == 6, "each packet should cost exactly one build"

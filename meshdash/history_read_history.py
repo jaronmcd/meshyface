@@ -56,6 +56,36 @@ def load_node_history_data(
     )
 
 
+def fetch_summary_metrics_history_rows(
+    conn: SqlConnection,
+    *,
+    window_hours: int,
+    fetch_summary_metrics_rows_fn: FetchSummaryMetricsRowsFn,
+    fetch_summary_packet_type_rows_fn: FetchSummaryPacketTypeRowsFn | None,
+    now_unix_fn: NowUnixFn = time.time,
+    include_packet_series: bool = True,
+) -> tuple[int, list[tuple[object, ...]], list[tuple[object, ...]]]:
+    hours = max(1, min(24 * 365, int(window_hours)))
+    cutoff = int(now_unix_fn()) - (hours * 3600)
+    limit = _summary_metrics_query_limit(hours)
+    rows = list(
+        fetch_summary_metrics_rows_fn(
+            conn,
+            cutoff=cutoff,
+            limit=limit,
+        )
+    )
+    packet_type_rows: list[tuple[object, ...]] = []
+    if include_packet_series and callable(fetch_summary_packet_type_rows_fn):
+        packet_type_rows = list(
+            fetch_summary_packet_type_rows_fn(
+                conn,
+                cutoff=cutoff,
+            )
+        )
+    return hours, rows, packet_type_rows
+
+
 def load_summary_metrics_history_data(
     conn: SqlConnection,
     *,
@@ -66,20 +96,14 @@ def load_summary_metrics_history_data(
     now_unix_fn: NowUnixFn = time.time,
     include_packet_series: bool = True,
 ) -> HistoryPayload:
-    hours = max(1, min(24 * 365, int(window_hours)))
-    cutoff = int(now_unix_fn()) - (hours * 3600)
-    limit = _summary_metrics_query_limit(hours)
-    rows = fetch_summary_metrics_rows_fn(
+    hours, rows, packet_type_rows = fetch_summary_metrics_history_rows(
         conn,
-        cutoff=cutoff,
-        limit=limit,
+        window_hours=window_hours,
+        fetch_summary_metrics_rows_fn=fetch_summary_metrics_rows_fn,
+        fetch_summary_packet_type_rows_fn=fetch_summary_packet_type_rows_fn,
+        now_unix_fn=now_unix_fn,
+        include_packet_series=include_packet_series,
     )
-    packet_type_rows = []
-    if include_packet_series and callable(fetch_summary_packet_type_rows_fn):
-        packet_type_rows = fetch_summary_packet_type_rows_fn(
-            conn,
-            cutoff=cutoff,
-        )
     return build_summary_metrics_payload_fn(
         window_hours=hours,
         rows=rows,

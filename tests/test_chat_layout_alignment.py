@@ -1184,8 +1184,12 @@ def test_node_name_cache_rejects_generic_downgrades_and_accepts_history_caps() -
     assert "&& isGenericNodeCacheLabel(candidate, nodeId)" in src
     assert "function updateNodeNameCache(nodes, historyCaps = null) {{" in src
     assert "for (const [rawNodeId, caps] of Object.entries(historyCapsObj)) {{" in src
-    assert "rememberNodeNameCacheCandidate(nodeId, caps.last_short_name)" in src
-    assert "rememberNodeNameCacheCandidate(nodeId, caps.last_long_name, {{ preferCandidate: true }})" in src
+    assert "function nextNodeNameCacheLabel(nodeId, currentRaw, candidateRaw, options = null) {{" in src
+    assert "offerCandidate(nodeId, caps.last_short_name, false);" in src
+    assert "offerCandidate(nodeId, caps.last_long_name, true);" in src
+    # Guard: fold candidates per node and write only final changes, so polls do not rewrite
+    # and re-persist the whole cache.
+    assert "if (next && next !== current) {{" in src
 
 
 def test_chat_feed_labels_prefer_historical_long_names_before_cache() -> None:

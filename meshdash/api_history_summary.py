@@ -1,9 +1,10 @@
 from collections.abc import Iterable
 from inspect import Parameter, signature
-from math import ceil
 from urllib.parse import parse_qs
 
 from .helpers import format_epoch
+from .history_summary_analytics import aggregate_summary_bucket as _aggregate_bucket
+from .history_summary_analytics import summary_aggregate_bucket_seconds as _summary_aggregate_bucket_seconds
 from .http_route_contracts import (
     EmptySummaryMetricsFn,
     ParseHistoryWindowRequestFn,
@@ -82,13 +83,13 @@ def _without_packet_series(payload: dict[str, object]) -> dict[str, object]:
     return next_payload
 
 
-def _summary_metrics_fn_supports_packet_series(summary_metrics_fn: SummaryMetricsHistoryFn) -> bool:
+def _summary_metrics_fn_accepts(summary_metrics_fn: SummaryMetricsHistoryFn, keyword: str) -> bool:
     try:
         params = signature(summary_metrics_fn).parameters
     except (TypeError, ValueError):
-        return True
+        return keyword == "include_packet_series"
     return any(
-        name == "include_packet_series" or param.kind == Parameter.VAR_KEYWORD
+        name == keyword or param.kind == Parameter.VAR_KEYWORD
         for name, param in params.items()
     )
 
@@ -98,22 +99,20 @@ def _load_summary_metrics_payload(
     summary_metrics_fn: SummaryMetricsHistoryFn,
     hours_override: int | None,
     include_packet_series: bool,
+    max_points: int | None = None,
 ) -> dict[str, object]:
+    kwargs: dict[str, object] = {}
+    # Loaders that accept max_points aggregate raw rows before building points; the
+    # downsampling below then finds nothing left to do.
+    if max_points is not None and _summary_metrics_fn_accepts(summary_metrics_fn, "max_points"):
+        kwargs["max_points"] = max_points
     if include_packet_series:
-        return summary_metrics_fn(hours_override)
-    if _summary_metrics_fn_supports_packet_series(summary_metrics_fn):
+        return summary_metrics_fn(hours_override, **kwargs)
+    if _summary_metrics_fn_accepts(summary_metrics_fn, "include_packet_series"):
         return _without_packet_series(
-            summary_metrics_fn(hours_override, include_packet_series=False)
+            summary_metrics_fn(hours_override, include_packet_series=False, **kwargs)
         )
-    return _without_packet_series(summary_metrics_fn(hours_override))
-
-
-def _aggregate_bucket(bucket_unix: int, first_bucket_unix: int, bucket_seconds: int) -> int:
-    clean_bucket_seconds = max(1, int(bucket_seconds))
-    if bucket_unix <= first_bucket_unix:
-        return int(first_bucket_unix)
-    offset = int(bucket_unix) - int(first_bucket_unix)
-    return int(first_bucket_unix) + ((offset // clean_bucket_seconds) * clean_bucket_seconds)
+    return _without_packet_series(summary_metrics_fn(hours_override, **kwargs))
 
 
 def _downsample_summary_points(
@@ -219,23 +218,16 @@ def _downsample_summary_metrics_payload(
     all_buckets = point_buckets + packet_buckets
     if not all_buckets:
         return payload
-    longest_series = max(
-        len(point_buckets),
-        len(set(packet_buckets)),
-    )
-    if longest_series <= clean_max_points:
-        return payload
-
     first_bucket = min(all_buckets)
-    last_bucket = max(all_buckets)
-    bucket_span_count = ((last_bucket - first_bucket) // raw_bucket_seconds) + 1
-    aggregate_multiple = max(
-        1,
-        ceil(longest_series / clean_max_points),
-        ceil(bucket_span_count / clean_max_points),
+    aggregate_bucket_seconds = _summary_aggregate_bucket_seconds(
+        point_bucket_count=len(point_buckets),
+        packet_bucket_count=len(set(packet_buckets)),
+        first_bucket_unix=first_bucket,
+        last_bucket_unix=max(all_buckets),
+        raw_bucket_seconds=raw_bucket_seconds,
+        max_points=clean_max_points,
     )
-    aggregate_bucket_seconds = raw_bucket_seconds * aggregate_multiple
-    if aggregate_bucket_seconds <= raw_bucket_seconds:
+    if aggregate_bucket_seconds is None:
         return payload
 
     next_payload = dict(payload)
@@ -276,6 +268,7 @@ def build_summary_metrics_response(
     )
     hours_override = query_obj.hours_override
     include_packet_series = _summary_packet_series_enabled(query)
+    max_points = _summary_points_limit(query, to_int_fn)
     if summary_metrics_fn is None:
         clean_hours = (
             hours_override
@@ -288,8 +281,9 @@ def build_summary_metrics_response(
             summary_metrics_fn=summary_metrics_fn,
             hours_override=hours_override,
             include_packet_series=include_packet_series,
+            max_points=max_points,
         )
     return _downsample_summary_metrics_payload(
         payload,
-        max_points=_summary_points_limit(query, to_int_fn),
+        max_points=max_points,
     )

@@ -156,3 +156,41 @@ def test_default_caps_bound_day_long_live_state_without_time_checks() -> None:
     assert snapshot.recent_packets[0]["summary"]["packet_id"] == 130
     assert snapshot.recent_packets[-1]["summary"]["packet_id"] == 249
     assert len(snapshot.edges) == DEFAULT_MAX_RETAINED_LIVE_EDGE_ROWS
+
+
+class _Interface:
+    nodes: dict[str, object] = {}
+
+
+def _telemetry_packet(index: int) -> dict[str, object]:
+    return {
+        "from": 100 + index,
+        "to": 200,
+        "id": 1_000 + index,
+        "rxTime": 1_700_000_000 + index,
+        "hopStart": 3,
+        "hopLimit": 3,
+        "rxSnr": 5.0,
+        "decoded": {"portnum": "TELEMETRY_APP"},
+    }
+
+
+def test_received_packets_are_trimmed_on_insert_and_snapshots_keep_the_revision() -> None:
+    # Regression guard: the deque holds more rows than live retention keeps. If trimming
+    # waited for snapshot_typed, every state build after a packet bumped state_revision
+    # after its ETag was computed, so the next poll rebuilt identical content.
+    tracker = DashboardTracker(packet_limit=250, history_store=None)
+    tracker._max_retained_live_packet_rows = 3
+    tracker._max_retained_live_edge_rows = 2
+
+    for index in range(10):
+        before_revision = tracker.state_revision
+        tracker.on_receive(_telemetry_packet(index), _Interface())
+        assert tracker.state_revision == before_revision + 1
+        assert len(tracker.recent_packets) <= 3
+        assert len(tracker.edges) <= 2
+
+        revision_after_packet = tracker.state_revision
+        tracker.snapshot_typed({})
+        tracker.snapshot_typed({})
+        assert tracker.state_revision == revision_after_packet

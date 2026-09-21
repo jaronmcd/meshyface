@@ -92,10 +92,23 @@ def test_dashboard_js_optimizes_link_quality_computation_path() -> None:
     assert "const chatNodeNavigatorLinkQualityCacheByState = (typeof WeakMap === \"function\")" in js
     assert "function chatNodeNavigatorShouldComputeLinkQuality(" in js
     assert "sortKey === \"link_quality\" || fieldIds.includes(\"link_quality\")" in js
-    assert "function chatNodeNavigatorMinHeapPush(" in js
-    assert "function chatNodeNavigatorMinHeapPop(" in js
     assert "const structuralPathLimit = Math.max(1, Math.min(pathLimit, sourceDegree, targetDegree));" in js
     assert "const shouldComputeLinkQuality = chatNodeNavigatorShouldComputeLinkQuality(" in js
+    # The path search runs on an indexed graph (CSR + typed arrays) with one shared
+    # first round; the Map-and-object search it replaced cost seconds per render on the
+    # all-time edge window. tests/test_chat_link_quality_browser.py checks equivalence.
+    assert "function chatNodeNavigatorBuildLinkQualityGraph(" in js
+    assert "function chatNodeNavigatorLinkQualityPathStats(" in js
+    assert "const heapNodes = new Int32Array(slotCount + 2);" in js
+    assert "search(-1);" in js
+    assert "function chatNodeNavigatorMinHeapPush(" not in js
+    assert "function chatNodeNavigatorFindWeightedPath(" not in js
+    assert "function chatNodeNavigatorEstimatePathDiversity(" not in js
+    # Path stats are cached on their real inputs, not on state-object identity, so a new
+    # poll with an unchanged edge set does not recompute them.
+    assert "function chatNodeNavigatorLinkQualityEdgeSignature(" in js
+    assert "const pathStatsKey = `${cacheSignature}::${chatNodeNavigatorLinkQualityEdgeSignature(filteredRawEdges)}`;" in js
+    assert "chatNodeNavigatorLinkQualityPathStatsCache = { key: pathStatsKey, value: pathStatsByNode };" in js
 
 
 def test_dashboard_css_styles_chat_member_link_quality_bars() -> None:
@@ -325,6 +338,9 @@ def test_dashboard_accepts_plugin_node_fields_for_node_navigator_menu() -> None:
     assert "const nodeValues = nodeExplorerPluginRuntimeFieldValueIndex(state).get(cleanNodeId);" in js
     assert "runtime.node_fields" in js
     assert "runtime.node_field_values" in js
+    assert "function nodeListMirrorFieldValueForNode(nodeInput, fieldIdRaw, state = null) {" in js
+    assert "rawValue = nodeListMirrorFieldValueForNode(node, pluginFieldId, opts.state || null);" in js
+    assert "runtime.node_list_cities" in js
     assert "function nodeExplorerNodeListPluginProvidesField(fieldId, state = null)" in js
     assert "const nodeExplorerNodeListPluginNativeFieldIds = new Set([" in js
     for field_id in (
@@ -397,8 +413,9 @@ def test_dashboard_js_only_applies_saved_peer_pin_sorting_in_direct_mode() -> No
         node_history_max_points=240,
     )
 
-    assert 'const pinDiff = activeChatChannel === "direct"' in js
-    assert '? (Number(!!(b && b.p2pPinned)) - Number(!!(a && a.p2pPinned)))' in js
+    assert 'const pinSections = activeChatChannel === "direct" && usePrioritySections;' in js
+    assert "pinned: Number(!!(row && row.p2pPinned))," in js
+    assert "const pinDiff = pinSections ? (sortKeysFor(b).pinned - sortKeysFor(a).pinned) : 0;" in js
     assert '? (Number(!!b.p2pPinned) - Number(!!a.p2pPinned))' in js
 
 
@@ -595,8 +612,8 @@ def test_dashboard_js_sorts_status_using_visible_freshness_snapshot() -> None:
     assert "freshnessUnix: entry && entry.lastSeenUnix," in js
     assert "freshnessUnix: snapshot && snapshot.lastSeenUnix," in js
     assert "return chatNodeNavigatorStatusSortValue(safeItem, safeProjection);" in js
-    assert "chatNodeNavigatorStatusSortValue(a, aProjection)" in js
-    assert "chatNodeNavigatorStatusSortValue(b, bProjection)" in js
+    assert "keys.status = chatNodeNavigatorStatusSortValue(row, projection);" in js
+    assert "const statusCmp = chatNodeNavigatorCompareSortValues(aKeys.status, bKeys.status);" in js
 
 
 def test_dashboard_js_orders_equal_status_nodes_by_latest_received() -> None:
@@ -607,12 +624,10 @@ def test_dashboard_js_orders_equal_status_nodes_by_latest_received() -> None:
     )
 
     received_tie_break = """if (sortKey === \"status\") {
-          const receivedCmp = chatNodeNavigatorCompareSortValues(
-            chatNodeNavigatorLastUpdateUnix(b, bProjection),
-            chatNodeNavigatorLastUpdateUnix(a, aProjection)
-          );
+          const receivedCmp = chatNodeNavigatorCompareSortValues(bKeys.lastUpdate, aKeys.lastUpdate);
           if (receivedCmp !== 0) return receivedCmp;
         }"""
+    assert "keys.lastUpdate = chatNodeNavigatorLastUpdateUnix(row, projection);" in js
     assert received_tie_break in js
     assert js.index(received_tie_break) < js.index("const activityCmp = chatNodeNavigatorCompareSortValues(")
 

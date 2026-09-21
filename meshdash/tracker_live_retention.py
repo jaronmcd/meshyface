@@ -55,10 +55,16 @@ def _clean_limit(value: object) -> int:
 
 
 def _purge_buffer_fifo(buffer: LiveRowBuffer, *, max_rows: int) -> int:
-    rows = list(buffer)
-    removed = max(0, len(rows) - _clean_limit(max_rows))
+    # Runs on every received packet, so the common under-cap case must not copy rows.
+    removed = max(0, len(buffer) - _clean_limit(max_rows))
     if removed <= 0:
         return 0
+    popleft = getattr(buffer, "popleft", None)
+    if callable(popleft):
+        for _ in range(removed):
+            popleft()
+        return removed
+    rows = list(buffer)
     buffer.clear()
     buffer.extend(rows[removed:])
     return removed
@@ -72,7 +78,12 @@ def _purge_mapping_fifo(
     removed = max(0, len(rows_by_key) - _clean_limit(max_rows))
     if removed <= 0:
         return 0
-    for key in list(rows_by_key.keys())[:removed]:
+    oldest_keys = []
+    for key in rows_by_key:
+        if len(oldest_keys) >= removed:
+            break
+        oldest_keys.append(key)
+    for key in oldest_keys:
         rows_by_key.pop(key, None)
     return removed
 

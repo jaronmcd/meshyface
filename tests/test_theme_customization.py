@@ -1444,6 +1444,12 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "LONG_FAST: { rangeKm: 52, strongKm: 15 }" in js
     assert "const dashboardLivemapEstimatedRangeMaxLinks = 360;" in js
     assert "const dashboardLivemapEstimatedRangeMaxLinksPerNode = 5;" in js
+    # Guard: estimated links are O(points²); the input and rebuild cadence must stay bounded.
+    assert "const dashboardLivemapEstimatedRangeMaxPoints = 500;" in js
+    assert "const dashboardLivemapEstimatedRangeRebuildMs = 15000;" in js
+    assert "function dashboardLivemapEstimatedRangeLinksForGeometry(points, nowUnix, rangeProfile) {" in js
+    assert "const estimatedRangeLinks = dashboardLivemapEstimatedRangeLinksForGeometry(points, nowUnix, rangeProfile);" in js
+    assert "dashboardLivemapBuildEstimatedRangeLinks(points, nowUnix, rangeProfile);" not in js
     assert "function dashboardLivemapNormalizeModemPreset(value) {" in js
     assert "function dashboardLivemapModemPresetFromState(state) {" in js
     assert "function dashboardLivemapEstimatedRangeProfile(state) {" in js
@@ -1473,8 +1479,13 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "const dashboardLivemapMapFadeMs = 1600;" in js
     assert "const dashboardLivemapMeshFadeMs = 2800;" in js
     assert "let dashboardLivemapLinkTransitions = new Map();" in js
-    assert "const dashboardLivemapLinkFadeInEasing = 0.025;" in js
-    assert "const dashboardLivemapLinkFadeOutEasing = 0.012;" in js
+    assert "dashboardLivemapLinkFadeInEasing" not in js
+    assert "dashboardLivemapLinkFadeOutEasing" not in js
+    assert "const dashboardLivemapLinkFadeInMs = 1500;" in js
+    assert "const dashboardLivemapLinkFadeOutMs = 2500;" in js
+    assert "const dashboardLivemapLinkRecencyFadeMs = 1200;" in js
+    assert "const dashboardLivemapLinkRecencySnapDelta = 0.05;" in js
+    assert "function dashboardLivemapLinkTransitionAnimating(state, nowMs) {" in js
     assert "const dashboardLivemapLinkPruneOpacity = 0.004;" in js
     assert "let dashboardLivemapAnimTimer = null;" in js
     assert "let dashboardLivemapInteractionBound = false;" in js
@@ -1497,7 +1508,8 @@ def test_theme_customization_controls_are_rendered_and_wired() -> None:
     assert "dashboardLivemapAnimTimer = window.setTimeout(() => {" in js
     assert "cancelDashboardLivemapScheduledFrame();" in js
     assert "function dashboardLivemapSyncLinkTransitions(geometry, nowMs = null) {" in js
-    assert "function dashboardLivemapEaseLinkTransitions() {" in js
+    assert "function dashboardLivemapEaseLinkTransitions(nowMs = dashboardLivemapNowMs()) {" in js
+    assert "dashboardLivemapEaseLinkTransitions(nowMs);" in js
     assert "function dashboardLivemapTransitionLinks(type) {" in js
     assert "function dashboardLivemapLinkTransitionOpacity(link) {" in js
     assert "dashboardLivemapSyncLinkTransitions(dashboardLivemapGeometry, dashboardLivemapNowMs());" in js
