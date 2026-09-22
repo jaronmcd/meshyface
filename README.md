@@ -428,6 +428,23 @@ Run the local GUI responsiveness benchmark before PRs:
 scripts/run_gui_responsiveness_local.sh
 ```
 
+Preview the dashboard on phone and tablet screens (needs `pip install playwright`
+and a Chromium install). It visits the configured views with an emulated device profile, saves a
+screenshot per view plus a layout audit (horizontal overflow, clipped content,
+tap targets under 32 px, text under 11 px) under `benchmarks/mobile_preview/out/`:
+
+```bash
+# Render the working-tree code with a radio-less local server
+scripts/run_mobile_preview_local.sh
+# Same, but fetch /api/* from a running dashboard so views show real data
+MESH_MOBILE_PREVIEW_API_FROM=http://dashboard-host:8877/ scripts/run_mobile_preview_local.sh
+# Point at any running dashboard, or open a phone-sized window to poke at it
+python scripts/mobile_preview.py --url http://dashboard-host:8877/
+python scripts/mobile_preview.py --url http://dashboard-host:8877/ --headed --device "iPhone 14"
+# Reproduce a phone that follows dark mode and has the node roster open
+python scripts/mobile_preview.py --url http://dashboard-host:8877/ --color-scheme dark --node-list expanded
+```
+
 Coverage intentionally excludes the ported Zork engine package from scoring,
 but standalone Zork and routing tests still run. GitHub Actions publishes the
 same coverage report as an advisory PR comment and artifact. CI fails below 80%.
