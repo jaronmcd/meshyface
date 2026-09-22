@@ -8884,7 +8884,8 @@
         position: absolute;
         top: 50px;
         left: 0;
-        right: 0;
+        right: auto;
+        width: min(46vw, 200px);
         height: 48px;
         box-sizing: border-box;
         background: var(--ui-panel);
@@ -8893,7 +8894,9 @@
         position: absolute;
         top: 100px;
         left: 0;
-        right: 0;
+        right: auto;
+        width: min(46vw, 200px);
+        box-sizing: border-box;
         height: min(52dvh, 420px);
         min-height: 0;
         padding: 8px;
@@ -8904,6 +8907,11 @@
         overflow: auto;
       }}
       .workspace-shell.chat-panel-collapsed .chat-left-bottom-bar {{ display: none; }}
+      .workspace-shell:not(.chat-panel-collapsed) .layout.view-chat .chat-log-scroll,
+      .workspace-shell:not(.chat-panel-collapsed) .layout.view-chat .chat-card-head {{
+        margin-left: min(46vw, 200px);
+        min-width: 0;
+      }}
       .topbar:not(.ticker-expanded) .sub .summary-ticker-row {{
         display: flex;
         gap: 6px;

@@ -89,7 +89,13 @@ def test_mobile_surfaces_and_controls_fit(mobile_server, tmp_path, width, theme)
                 assert page.locator("#chat-user-search-input").is_visible()
                 after = fits(".chat-log-scroll")
                 assert abs(before["height"] - after["height"]) < 2
-                fits(".chat-users-section")
+                drawer = fits(".chat-users-section")
+                search = fits(".chat-left-bottom-bar")
+                assert drawer["width"] <= width * 0.46 + 1
+                assert abs(drawer["x"] - before["x"]) < 16
+                assert abs(search["width"] - drawer["width"]) < 2
+                assert after["x"] >= drawer["x"] + drawer["width"]
+                page.screenshot(path=str(tmp_path / f"nodes-{width}.png"))
                 page.locator("#chat-panel-collapse-btn").click()
                 assert not page.locator("#chat-user-search-input").is_visible()
                 page.locator("#chat-input").focus()
