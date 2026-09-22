@@ -4471,7 +4471,9 @@
 
       for (const panel of document.querySelectorAll(".network-map-subview-panel")) {{
         if (!(panel instanceof HTMLElement)) continue;
-        const panelName = normalizeNetworkSubview(panel.dataset.networkSubviewPanel || "map");
+        // Compare panel identities directly: unavailable subviews normalize to "map"
+        // for navigation, but their panels must remain hidden.
+        const panelName = String(panel.dataset.networkSubviewPanel || "map").trim().toLowerCase();
         const isActive = showTabbedSubview
           ? (nextUsesMap ? panelName === "map" : panelName === next)
           : panelName === "map";

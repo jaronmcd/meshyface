@@ -30,6 +30,9 @@
     runBootStep("loadStoredSelection", () => loadStoredSelection());
     runBootStep("loadNodeNameCache", () => loadNodeNameCache());
     runBootStep("requestTopbarLayoutMetricsSync", () => requestTopbarLayoutMetricsSync());
+    if (window.visualViewport) {{
+      window.visualViewport.addEventListener("resize", requestTopbarLayoutMetricsSync, {{ passive: true }});
+    }}
     runBootStep("renderSelfRadioPill", () => renderSelfRadioPill());
     runBootStep("loadFavoriteNodes", () => loadFavoriteNodes());
     runBootStep("loadMutedNodes", () => loadMutedNodes());

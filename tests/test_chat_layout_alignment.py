@@ -1288,22 +1288,13 @@ def test_chat_mobile_node_list_keeps_usable_scroll_area() -> None:
 
     assert ".chat-left-panel {" in mobile_section
     mobile_left_panel_section = mobile_section.split(".chat-left-panel {", 1)[1].split("}", 1)[0]
-    assert "gap: 6px;" in mobile_left_panel_section
-    assert "max-height: clamp(300px, 42dvh, 400px);" in mobile_left_panel_section
-    assert ".chat-left-section.chat-users-section {" in mobile_section
+    assert "height: 44px;" in mobile_left_panel_section
+    assert "overflow: visible;" in mobile_left_panel_section
     mobile_users_section = mobile_section.split(".chat-left-section.chat-users-section {", 1)[1].split("}", 1)[0]
-    assert "min-height: clamp(150px, 24dvh, 230px);" in mobile_users_section
-    assert ".chat-left-panel .chat-member-list {" in mobile_section
-    mobile_member_list_section = mobile_section.split(".chat-left-panel .chat-member-list {", 1)[1].split("}", 1)[0]
-    assert "min-height: 96px;" in mobile_member_list_section
-    assert "-webkit-overflow-scrolling: touch;" in mobile_member_list_section
-    assert ".chat-member-pinned-list {" in mobile_section
-    mobile_pinned_list_section = mobile_section.split(".chat-member-pinned-list {", 1)[1].split("}", 1)[0]
-    assert "max-height: 96px;" in mobile_pinned_list_section
-    assert "-webkit-overflow-scrolling: touch;" in mobile_pinned_list_section
-    assert ".chat-member-empty {" in mobile_section
-    mobile_empty_section = mobile_section.split(".chat-member-empty {", 1)[1].split("}", 1)[0]
-    assert "padding: 7px 8px;" in mobile_empty_section
+    assert "position: absolute;" in mobile_users_section
+    assert "height: min(52dvh, 420px);" in mobile_users_section
+    assert "overflow: auto;" in mobile_users_section
+    assert ".workspace-shell.chat-panel-collapsed .chat-left-bottom-bar { display: none; }" in mobile_section
 
 
 def test_chat_feed_self_authored_messages_render_as_bubbles_without_inline_time() -> None:

@@ -138,6 +138,13 @@
       if (!rootStyle) return;
       const workspaceMain = document.querySelector(".workspace-main");
       const layout = document.getElementById("dashboard-layout");
+      // Mobile keyboards resize the visual viewport without always resizing the layout viewport.
+      const mobileViewport = window.visualViewport;
+      const mobileHeight = mobileViewport && Math.abs(Number(mobileViewport.scale) - 1) < 0.01
+        ? Number(mobileViewport.height) : Number(window.innerHeight);
+      if (Number.isFinite(mobileHeight) && mobileHeight > 0) {{
+        rootStyle.setProperty("--mobile-viewport-height", `${{Math.floor(mobileHeight)}}px`);
+      }}
       let measuredHeight = 0;
       if (topbarElement instanceof HTMLElement) {{
         const rect = topbarElement.getBoundingClientRect();

@@ -400,7 +400,7 @@
     }}
 
     function loadMapLinkLegendCollapsedPreference() {{
-      mapLinkLegendCollapsed = false;
+      mapLinkLegendCollapsed = typeof window.matchMedia === "function" && window.matchMedia("(max-width: 760px)").matches;
       try {{
         const stored = window.localStorage.getItem(mapLinkLegendCollapsedStorageKey);
         if (stored === "1") {{

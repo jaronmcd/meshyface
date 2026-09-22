@@ -8821,3 +8821,151 @@
       isolation: isolate;
       background-image: var(--node-profile-theme-surface) !important;
     }}
+
+    /* Phone layouts keep the primary surface within the viewport. */
+    #mesh-channel-select {{ display: none; }}
+    @media (max-width: 760px) {{
+      .workspace-shell,
+      .workspace-shell.chat-panel-open,
+      .workspace-shell.chat-panel-open.chat-panel-collapsed {{
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 44px minmax(0, 1fr);
+        width: 100%;
+        box-sizing: border-box;
+        gap: 6px;
+      }}
+      .workspace-main,
+      .workspace-shell.chat-panel-open .workspace-main {{
+        grid-column: 1;
+        grid-row: 2;
+        grid-template-columns: minmax(0, 1fr);
+        min-width: 0;
+      }}
+      .workspace-main > .layout,
+      .layout > .card {{
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+      }}
+      .workspace-main > .layout {{ grid-template-columns: minmax(0, 1fr); }}
+      .layout.view-network .map,
+      .layout.view-network .summary {{ grid-column: 1 / -1; }}
+      .workspace-shell[data-layout-view="chat"] {{
+        height: calc(var(--mobile-viewport-height, 100dvh) - var(--workspace-viewport-offset));
+        min-height: 0;
+        overflow: visible;
+        padding-bottom: max(6px, env(safe-area-inset-bottom));
+      }}
+      .workspace-shell[data-layout-view="chat"] .workspace-main {{
+        height: 100%;
+        min-height: 0;
+      }}
+      .workspace-shell .chat-left-panel {{
+        grid-column: 1;
+        grid-row: 1;
+        position: relative;
+        height: 44px;
+        min-height: 0;
+        max-height: 44px;
+        overflow: visible;
+        z-index: 60;
+      }}
+      .chat-left-head-shell {{ padding: 0; border: 0; }}
+      .workspace-shell .chat-users-head {{ min-height: 44px; }}
+      .workspace-shell .chat-users-head > button,
+      .workspace-shell .chat-users-head-actions > button {{ min-width: 44px; }}
+      .workspace-shell .chat-users-head .topbar-view-menu-btn,
+      .workspace-shell .chat-users-head > button,
+      .workspace-shell .chat-users-head-actions > button {{
+        height: 44px;
+        min-height: 44px;
+      }}
+      .workspace-shell .chat-left-bottom-bar {{
+        position: absolute;
+        top: 50px;
+        left: 0;
+        right: 0;
+        height: 48px;
+        box-sizing: border-box;
+        background: var(--ui-panel);
+      }}
+      .workspace-shell .chat-left-section.chat-users-section {{
+        position: absolute;
+        top: 100px;
+        left: 0;
+        right: 0;
+        height: min(52dvh, 420px);
+        min-height: 0;
+        padding: 8px;
+        border: 1px solid var(--ui-border);
+        border-radius: 12px;
+        background: var(--ui-panel);
+        box-shadow: var(--ui-shadow);
+        overflow: auto;
+      }}
+      .workspace-shell.chat-panel-collapsed .chat-left-bottom-bar {{ display: none; }}
+      .topbar:not(.ticker-expanded) .sub .summary-ticker-row {{
+        display: flex;
+        gap: 6px;
+      }}
+      .topbar:not(.ticker-expanded) .summary-ticker-item:not(.summary-ticker-item-self):not(.summary-ticker-item-radio):not(.summary-ticker-density-toggle) {{ display: none; }}
+      .topbar:not(.ticker-expanded) .summary-ticker-item {{ min-width: 0; width: auto; flex: 1 1 0; }}
+      .topbar .summary-ticker-density-toggle {{ flex: 0 0 36px; width: 36px; min-width: 36px; max-width: 36px; min-height: 44px; }}
+      .topbar .summary-ticker-density-toggle-label,
+      .topbar .summary-ticker-density-toggle-text {{ display: none; }}
+      .topbar .summary-ticker-density-toggle-icon {{ display: block; font-size: 22px; }}
+      .topbar:not(.ticker-expanded) .summary-ticker-item-radio {{ grid-template-columns: minmax(0, 1fr); }}
+      .topbar:not(.ticker-expanded) .summary-ticker-item-radio > .value {{ grid-column: 1; text-align: left; }}
+      .topbar:not(.ticker-expanded) .summary-ticker-item-radio .metric-ticker {{ display: none; }}
+      .topbar:not(.ticker-expanded) .self-node-id,
+      .topbar:not(.ticker-expanded) .self-node-city {{ display: none; }}
+      .layout.view-chat .chat-card-head.workspace-chrome-bar {{
+        padding: 0;
+        border: 0;
+        background: transparent;
+      }}
+      .layout.view-chat .chat-card-head .mesh-channel-pill-strip {{ display: none; }}
+      #mesh-channel-select {{
+        display: block;
+        width: 100%;
+        min-width: 0;
+        min-height: 44px;
+        padding: 8px 12px;
+        font: inherit;
+        font-size: 16px;
+        color: var(--ui-text);
+        background: var(--ui-panel);
+        border: 1px solid var(--ui-border);
+        border-radius: 10px;
+      }}
+      .layout.view-chat .chat-card-head .chat-mesh-channel-wrap {{ width: 100%; }}
+      .card.chat .chat-composer-input-row {{
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr) 48px 36px 36px;
+        gap: 4px;
+      }}
+      .card.chat .chat-composer-input-row > button,
+      .card.chat .chat-send-channel-wrap,
+      .card.chat .chat-send-channel-menu-btn {{
+        min-width: 0;
+        width: 100%;
+        max-width: none;
+        height: 44px;
+        min-height: 44px;
+        padding: 0 4px;
+        box-sizing: border-box;
+      }}
+      .card.chat #chat-input,
+      #chat-user-search-input {{ font-size: 16px; min-width: 0; }}
+      .card.chat #chat-input {{ width: 100%; box-sizing: border-box; }}
+      .chat-feed-empty {{ white-space: normal; overflow-wrap: anywhere; }}
+      .layout.view-network .map .body {{ grid-template-rows: minmax(0, 1fr); }}
+      .network-map-chrome {{ gap: 4px; }}
+      .network-map-subview-tab {{ min-height: 40px; padding: 6px 10px; }}
+      #map-controls-dock {{ width: auto; align-self: flex-end; }}
+      #map-reset-view-btn {{ min-height: 40px; padding: 6px 12px; }}
+      .map-link-legend {{ max-width: calc(100vw - 44px); }}
+      .map-link-legend-list {{ max-height: 40dvh; overflow-y: auto; }}
+      .map-link-legend-collapsed-btn,
+      .map-link-legend-collapse-btn {{ min-height: 40px; }}
+    }}
