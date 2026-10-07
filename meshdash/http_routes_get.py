@@ -34,6 +34,7 @@ from .api_system_update import (
 from .api_theme import (
     handle_theme_settings_get as _handle_theme_settings_get_helper,
 )
+from .chat_gif_preview import normalize_tenor_page_url, resolve_tenor_gif
 from .http_handler_contracts import DashboardHttpHandler
 from .http_plugin_admin import plugin_admin_authorization
 from .http_route_contracts import DashboardGetRouteDependencies
@@ -1275,6 +1276,28 @@ def handle_dashboard_get(
             _write_cacheable_json_bytes_response(handler, payload=chunk_bytes)
             return
         deps.write_text_response_fn(handler, status_code=404, text="Not Found")
+        return
+
+    if path == "/api/chat/gif-preview":
+        if deps.private_mode:
+            _record_private_mode_block(deps)
+            deps.write_text_response_fn(handler, status_code=404, text="Not Found")
+            return
+        try:
+            page_url = normalize_tenor_page_url(parse_qs(query or "").get("url", [""])[0])
+        except ValueError:
+            deps.write_text_response_fn(handler, status_code=400, text="Invalid Tenor share URL")
+            return
+        try:
+            image_url = resolve_tenor_gif(page_url)
+        except (OSError, ValueError):
+            deps.write_text_response_fn(handler, status_code=502, text="GIF preview unavailable")
+            return
+        handler.send_response(302)
+        handler.send_header("Location", image_url)
+        handler.send_header("Cache-Control", "public, max-age=3600")
+        handler.send_header("Content-Length", "0")
+        handler.end_headers()
         return
 
     if path == "/api/chat/emoji-catalog":

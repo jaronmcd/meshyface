@@ -95,6 +95,34 @@
       return parts.join("");
     }}
 
+    function chatGifPreviewSource(href) {{
+      try {{
+        const url = new URL(href);
+        if (!(["http:", "https:"].includes(url.protocol)) || url.username || url.password) return "";
+        if (["tenor.com", "www.tenor.com"].includes(url.hostname.toLowerCase())) {{
+          if (url.port && url.port !== "443") return "";
+          if (!/^\/(?:[A-Za-z0-9]{{1,32}}\.gif|view\/[A-Za-z0-9%'-]+-\d+)\/?$/.test(url.pathname)) return "";
+          const pageUrl = `https://tenor.com${{url.pathname}}`;
+          return `/api/chat/gif-preview?url=${{encodeURIComponent(pageUrl)}}`;
+        }}
+        return /\.gif$/i.test(url.pathname) ? url.href : "";
+      }} catch (_err) {{
+        return "";
+      }}
+    }}
+
+    let chatGifPreviewsBound = false;
+    function bindChatGifPreviews() {{
+      if (chatGifPreviewsBound) return;
+      chatGifPreviewsBound = true;
+      document.addEventListener("error", (event) => {{
+        const img = event.target;
+        if (img instanceof HTMLImageElement && img.classList.contains("chat-gif-preview")) {{
+          img.hidden = true;
+        }}
+      }}, true);
+    }}
+
     function chatPlainTextToHtml(value, linkify = false) {{
       const raw = String(value == null ? "" : value);
       if (!raw) return "";
@@ -119,7 +147,11 @@
         const suffix = String(split.trailing || "");
         const hrefLower = href.toLowerCase();
         if (href && (hrefLower.startsWith("http://") || hrefLower.startsWith("https://"))) {{
-          parts.push(`<a class="chat-link" href="${{escAttr(href)}}" target="_blank" rel="noopener noreferrer">${{escAttr(href)}}</a>`);
+          const previewSource = chatGifPreviewSource(href);
+          const previewHtml = previewSource
+            ? `<img class="chat-gif-preview" src="${{escAttr(previewSource)}}" alt="GIF preview" loading="lazy" decoding="async" referrerpolicy="no-referrer" />`
+            : "";
+          parts.push(`<a class="chat-link" href="${{escAttr(href)}}" target="_blank" rel="noopener noreferrer">${{escAttr(href)}}${{previewHtml}}</a>`);
           if (suffix) parts.push(chatEscapeTextWithBreaksAndEmoji(suffix));
         }} else {{
           parts.push(chatEscapeTextWithBreaksAndEmoji(token));
